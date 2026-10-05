@@ -10,7 +10,13 @@
  * the first render (applyCachedTheme). A new device's first launch still
  * paints `auto` until settings arrive.
  */
-import { THEMES } from '../themes.ts';
+import {
+  resolveTheme,
+  luminance,
+  validateCustomTheme,
+  type CustomTheme,
+} from '../themes.ts';
+export { luminance };
 
 export const THEME_VARS = [
   'page',
@@ -40,22 +46,17 @@ const SHADOW_DARK = '0 1px 2px rgba(0,0,0,.3), 0 6px 20px rgba(0,0,0,.25)';
 export const AUTO_LIGHT_PENCIL = '#23608c';
 export const AUTO_DARK_PENCIL = '#8cc0e4';
 
-/** WCAG relative luminance of a #rrggbb colour. */
-export function luminance(hex: string): number {
-  const n = parseInt(hex.slice(1), 16);
-  const [r, g, b] = [n >> 16, (n >> 8) & 255, n & 255].map((v) => {
-    v /= 255;
-    return v <= 0.03928 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4;
-  });
-  return 0.2126 * r + 0.7152 * g + 0.0722 * b;
-}
-
 /**
  * The studio tokens for a named theme, or null for `auto` (and anything
  * unknown), which leaves studio.css's light/dark defaults in charge.
  */
-export function themeVars(name: string | undefined): ThemeVars | null {
-  const t = name ? THEMES[name] : undefined;
+export function themeVars(
+  name: string | undefined,
+  custom?: CustomTheme | null,
+  customDark?: CustomTheme | null,
+  dark = false,
+): ThemeVars | null {
+  const t = resolveTheme(name, custom, customDark, dark);
   if (!t) return null;
   // Slate is a light sheet on a dark page: text set directly on the page
   // (headings, hints) must read against the page, not the sheet.
@@ -81,19 +82,31 @@ export function themeVars(name: string | undefined): ThemeVars | null {
 }
 
 /** True when the theme paints dark (auto follows the device). */
-export function themeIsDark(name: string | undefined, prefersDark: boolean) {
-  const t = name ? THEMES[name] : undefined;
+export function themeIsDark(
+  name: string | undefined,
+  prefersDark: boolean,
+  custom?: CustomTheme | null,
+  customDark?: CustomTheme | null,
+) {
+  const t = resolveTheme(name, custom, customDark, prefersDark);
   return t ? t.dark : prefersDark;
 }
 
 /** The accent the top bar wears — also the browser's theme-color. */
-export function themeAccent(name: string | undefined, prefersDark: boolean) {
-  const t = name ? THEMES[name] : undefined;
+export function themeAccent(
+  name: string | undefined,
+  prefersDark: boolean,
+  custom?: CustomTheme | null,
+  customDark?: CustomTheme | null,
+) {
+  const t = resolveTheme(name, custom, customDark, prefersDark);
   if (t) return t.pencil;
   return prefersDark ? AUTO_DARK_PENCIL : AUTO_LIGHT_PENCIL;
 }
 
 const STORAGE_KEY = 'blyg-studio-theme';
+const CUSTOM_KEY = 'blyg-studio-theme-custom';
+const CUSTOM_DARK_KEY = 'blyg-studio-theme-custom-dark';
 function prefersDark() {
   return (
     typeof matchMedia === 'function' &&
@@ -102,20 +115,33 @@ function prefersDark() {
 }
 
 /** Paint `name` onto <html>: CSS variables, data-theme, color-scheme, theme-color. */
-export function applyTheme(name: string | undefined) {
+export function applyTheme(
+  name: string | undefined,
+  custom?: CustomTheme | null,
+  customDark?: CustomTheme | null,
+) {
   const root = document.documentElement;
   for (const v of THEME_VARS) root.style.removeProperty(`--${v}`);
-  const vars = themeVars(name);
+  const vars = themeVars(name, custom, customDark, prefersDark());
   root.dataset.theme = vars ? 'fixed' : 'auto';
   if (vars)
     for (const [key, value] of Object.entries(vars))
       root.style.setProperty(`--${key}`, value);
-  const dark = themeIsDark(name, prefersDark());
+  const dark = themeIsDark(name, prefersDark(), custom, customDark);
   root.style.colorScheme = dark ? 'dark' : 'light';
   const meta = document.querySelector('meta[name="theme-color"]');
-  if (meta) meta.setAttribute('content', themeAccent(name, prefersDark()));
+  if (meta)
+    meta.setAttribute(
+      'content',
+      themeAccent(name, prefersDark(), custom, customDark),
+    );
   try {
     localStorage.setItem(STORAGE_KEY, vars ? name! : 'auto');
+    if (vars && custom) localStorage.setItem(CUSTOM_KEY, JSON.stringify(custom));
+    else localStorage.removeItem(CUSTOM_KEY);
+    if (vars && customDark)
+      localStorage.setItem(CUSTOM_DARK_KEY, JSON.stringify(customDark));
+    else localStorage.removeItem(CUSTOM_DARK_KEY);
   } catch {
     /* storage blocked: the next launch paints auto until settings load */
   }
@@ -124,10 +150,20 @@ export function applyTheme(name: string | undefined) {
 /** Re-apply the last theme before the first render, so a launch does not flash. */
 export function applyCachedTheme() {
   let cached: string | null = null;
+  const read = (key: string): CustomTheme | null => {
+    const raw = localStorage.getItem(key);
+    if (!raw) return null;
+    const checked = validateCustomTheme(JSON.parse(raw));
+    return 'theme' in checked ? checked.theme : null;
+  };
+  let custom: CustomTheme | null = null;
+  let customDark: CustomTheme | null = null;
   try {
     cached = localStorage.getItem(STORAGE_KEY);
+    custom = read(CUSTOM_KEY);
+    customDark = read(CUSTOM_DARK_KEY);
   } catch {
     /* ignore */
   }
-  applyTheme(cached ?? 'auto');
+  applyTheme(cached ?? 'auto', custom, customDark);
 }

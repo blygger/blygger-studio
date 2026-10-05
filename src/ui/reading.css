@@ -189,3 +189,37 @@
 /* Reading lenses (0.25.0) */
 .lens-bar .seg { text-decoration: none; }
 .lens-placeholder a { font-weight: 600; }
+
+/* Custom theme editor (Settings → theme → Custom). */
+.theme-swatch-empty { border-style: dashed; display: flex; align-items: center; justify-content: center; }
+.theme-plus { font-size: 1.4rem; color: var(--ink-soft); }
+.theme-editor { margin: 6px 0 14px; display: grid; gap: 10px; }
+.theme-colours { display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 10px; }
+.theme-colour { display: flex; gap: 10px; align-items: center; }
+.theme-colour input[type="color"] { width: 44px; height: 44px; padding: 0; border: 1px solid var(--rule); border-radius: 8px; background: none; flex: none; cursor: pointer; }
+.theme-colour-text { display: grid; gap: 3px; flex: 1; min-width: 0; }
+.theme-colour-text label { font-size: .85rem; }
+.theme-colour-text input { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: .85rem; }
+.theme-colour-text input[aria-invalid="true"] { border-color: var(--alert); }
+.theme-preview { border-radius: 10px; padding: 18px; border: 1px solid var(--rule); }
+.theme-preview-sheet { max-width: 30rem; margin: 0 auto; padding: 14px 18px; border-radius: 6px; border: 1px solid; font-size: .92rem; line-height: 1.5; }
+.theme-preview-sheet p { margin: 0 0 8px; }
+.theme-preview-sheet hr { border: 0; border-top: 1px solid; margin: 10px 0; }
+.theme-preview-title { font-weight: 650; font-size: 1.05rem; }
+.theme-preview-meta { font-size: .8rem; }
+.theme-preview-gen { outline: 1px solid; border-radius: 3px; padding: 0 3px; }
+.theme-warnings p { margin: 2px 0; color: var(--warn); }
+.theme-error { color: var(--alert); }
+.theme-share summary { cursor: pointer; color: var(--pencil); font-size: .9rem; }
+
+/* Reading typeface (system font stacks). */
+.font-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 8px; }
+.font-opt { cursor: pointer; position: relative; }
+.font-opt input { position: absolute; opacity: 0; pointer-events: none; }
+.font-sample { display: grid; gap: 2px; padding: 10px 12px; border: 2px solid var(--rule); border-radius: 10px; }
+.font-sample-text { font-size: 1.05rem; color: var(--ink); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.font-name { font-family: var(--sans, system-ui, sans-serif); font-size: .74rem; color: var(--ink-soft); }
+.font-opt input:checked + .font-sample { border-color: var(--pencil); box-shadow: 0 0 0 3px color-mix(in srgb, var(--pencil) 20%, transparent); }
+.font-opt input:focus-visible + .font-sample { outline: 2px solid var(--pencil); outline-offset: 2px; }
+.font-opt input:checked + .font-sample .font-name { color: var(--ink); font-weight: 600; }
+.custom-theme { display: grid; gap: 4px; margin: 6px 0 4px; }

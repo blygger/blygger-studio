@@ -1,3 +1,5 @@
+import { DEFAULT_FONT, isFont } from "./fonts.ts";
+import { parseCustomTheme } from "./themes.ts";
 // Data access + publish-flow semantics — v0.1-plan §3.1.
 
 import { renderMarkdown } from "./markdown.ts";
@@ -86,6 +88,9 @@ export async function getSettings(db: D1Database): Promise<Settings> {
     // `||` not `??`: an empty string is an unset title, not a chosen one.
     site_title: map.site_title || defaultSiteTitle(map.site_url),
     theme: map.theme ?? "auto",
+    custom_theme: parseCustomTheme(map.custom_theme),
+    custom_theme_dark: parseCustomTheme(map.custom_theme_dark),
+    font: map.font && isFont(map.font) ? map.font : DEFAULT_FONT,
     author_name: map.author_name ?? "",
     author_url: map.author_url ?? "",
     author_bio: map.author_bio ?? "",

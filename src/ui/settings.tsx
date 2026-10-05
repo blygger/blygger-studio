@@ -12,13 +12,23 @@ import {
 } from './components.tsx';
 import { Link } from '@tanstack/react-router';
 import './reading.css';
-import { THEMES } from '../themes.ts';
+import {
+  THEMES,
+  CUSTOM_THEME_ID,
+  customFromPreset,
+  type CustomTheme,
+} from '../themes.ts';
+import { ThemeEditor, ThemeShare } from './theme-editor.tsx';
+import { FONTS } from '../fonts.ts';
 import { CLIENT } from '../client.ts';
 import { compiledExtensions } from '../../build/extensions.ui.ts';
 
 const fields = [
   'site_title',
   'theme',
+  'custom_theme',
+  'custom_theme_dark',
+  'font',
   'author_name',
   'author_url',
   'author_bio',
@@ -314,6 +324,98 @@ function SettingsForm({ initial }: { initial: Settings }) {
                 </label>
               );
             })}
+            <label className="theme-opt" key={CUSTOM_THEME_ID}>
+              <input
+                type="radio"
+                name="theme"
+                value={CUSTOM_THEME_ID}
+                checked={form.theme === CUSTOM_THEME_ID}
+                onChange={() => {
+                  // First time: start from whichever preset was showing.
+                  if (!form.custom_theme)
+                    change(
+                      'custom_theme',
+                      customFromPreset(Object.prototype.hasOwnProperty.call(THEMES, form.theme) ? form.theme : 'paper'),
+                    );
+                  change('theme', CUSTOM_THEME_ID);
+                }}
+              />
+              <span
+                className={`theme-swatch${form.custom_theme ? '' : ' theme-swatch-empty'}`}
+                style={{
+                  background:
+                    form.custom_theme && form.custom_theme_dark
+                      ? `linear-gradient(90deg,${form.custom_theme.page} 50%,${form.custom_theme_dark.page} 50%)`
+                      : form.custom_theme?.page,
+                }}
+              >
+                {form.custom_theme ? (
+                  <span
+                    className="sheet-mini"
+                    style={{
+                      background: form.custom_theme_dark
+                        ? `linear-gradient(90deg,${form.custom_theme.paper} 50%,${form.custom_theme_dark.paper} 50%)`
+                        : form.custom_theme.paper,
+                    }}
+                  >
+                    <span
+                      className="line"
+                      style={{
+                        background: form.custom_theme_dark
+                          ? `linear-gradient(90deg,${form.custom_theme.ink} 50%,${form.custom_theme_dark.ink} 50%)`
+                          : form.custom_theme.ink,
+                      }}
+                    />
+                    <span
+                      className="line short"
+                      style={{ background: form.custom_theme.pencil }}
+                    />
+                  </span>
+                ) : (
+                  <span className="theme-plus" aria-hidden="true">
+                    +
+                  </span>
+                )}
+              </span>
+              <span className="theme-name">Custom</span>
+            </label>
+          </div>
+        </div>
+        {form.theme === CUSTOM_THEME_ID && form.custom_theme ? (
+          <CustomThemeFields
+            light={form.custom_theme}
+            dark={form.custom_theme_dark}
+            font={FONTS[form.font]?.stack}
+            onChange={(light, dark) => {
+              change('custom_theme', light);
+              change('custom_theme_dark', dark);
+            }}
+          />
+        ) : null}
+        <div className="field">
+          <span>
+            Typeface — fonts already on the reader's device, so nothing is
+            downloaded and no one else sees your readers. It will look a little
+            different from one device to the next.
+          </span>
+          <div className="font-grid" role="radiogroup" aria-label="Typeface">
+            {Object.entries(FONTS).map(([id, f]) => (
+              <label className="font-opt" key={id}>
+                <input
+                  type="radio"
+                  name="font"
+                  value={id}
+                  checked={form.font === id}
+                  onChange={() => change('font', id)}
+                />
+                <span className="font-sample" style={{ fontFamily: f.stack }}>
+                  <span className="font-sample-text">
+                    The quick brown fox, 1984
+                  </span>
+                  <span className="font-name">{f.label}</span>
+                </span>
+              </label>
+            ))}
           </div>
         </div>
         {toggle(
@@ -626,5 +728,97 @@ function ModelSettings({
         </select>
       </div>
     </>
+  );
+}
+
+/**
+ * The custom theme's fields: one palette, or a light palette with a dark
+ * companion so the theme follows the reader's light/dark preference the way
+ * Auto does. Most people's devices switch on their own now; a custom theme
+ * that ignored that would be a step back from Auto.
+ */
+function CustomThemeFields({
+  light,
+  dark,
+  font,
+  onChange,
+}: {
+  light: CustomTheme;
+  dark: CustomTheme | null;
+  font?: string;
+  onChange: (light: CustomTheme, dark: CustomTheme | null) => void;
+}) {
+  const [editing, setEditing] = useState<'light' | 'dark'>('light');
+  const paired = dark !== null;
+  const showing = paired && editing === 'dark' ? 'dark' : 'light';
+  return (
+    <div className="custom-theme">
+      <label className="check">
+        <input
+          type="checkbox"
+          checked={paired}
+          onChange={(event) => {
+            if (event.target.checked) {
+              // A pair is a light palette plus a dark one. If the palette so
+              // far is dark, it becomes the dark half and a light one is
+              // seeded; otherwise a dark one is seeded from Nord.
+              if (light.dark) onChange(customFromPreset('paper'), light);
+              else onChange(light, customFromPreset('nord'));
+              setEditing('dark');
+            } else {
+              onChange(light, null);
+              setEditing('light');
+            }
+          }}
+        />
+        <span>Follow the reader's light/dark setting</span>
+      </label>
+      <p className="hint check-hint">
+        Adds a dark version. Readers whose device is in dark mode get it;
+        everyone else gets the light one.
+      </p>
+      {paired ? (
+        <div className="segmented" aria-label="Palette">
+          {(['light', 'dark'] as const).map((which) => (
+            <button
+              key={which}
+              type="button"
+              aria-pressed={showing === which}
+              className={`seg${showing === which ? ' is-active' : ''}`}
+              onClick={() => setEditing(which)}
+            >
+              {which === 'light' ? 'Light palette' : 'Dark palette'}
+            </button>
+          ))}
+        </div>
+      ) : null}
+      {showing === 'dark' && dark ? (
+        <ThemeEditor
+          key="dark"
+          value={dark}
+          font={font}
+          lockDark
+          onChange={(next) => onChange(light, { ...next, dark: true })}
+        />
+      ) : (
+        <ThemeEditor
+          key="light"
+          value={light}
+          font={font}
+          lockDark={paired}
+          onChange={(next) =>
+            onChange(paired ? { ...next, dark: false } : next, dark)
+          }
+        />
+      )}
+      <ThemeShare
+        light={light}
+        dark={dark}
+        onImport={(nextLight, nextDark) => {
+          onChange(nextLight, nextDark);
+          setEditing('light');
+        }}
+      />
+    </div>
   );
 }

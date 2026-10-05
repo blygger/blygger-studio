@@ -93,6 +93,9 @@ export type Citation = {
 export type Settings = {
     site_title: string;
     theme: string;
+    custom_theme: CustomTheme;
+    custom_theme_dark: CustomTheme;
+    font: string;
     author_name: string;
     author_url: string;
     author_bio: string;
@@ -122,6 +125,18 @@ export type Settings = {
      */
     extensions: Array<string>;
 };
+
+export type CustomTheme = {
+    dark: boolean;
+    page: string;
+    paper: string;
+    ink: string;
+    inkSoft: string;
+    rule: string;
+    pencil: string;
+    genBg: string;
+    genRule: string;
+} | null;
 
 export type Subscription = {
     id: string;
@@ -1743,6 +1758,9 @@ export type UpdateSettingsData = {
     body: {
         site_title?: string;
         theme?: string;
+        custom_theme?: CustomTheme;
+        custom_theme_dark?: CustomTheme;
+        font?: string;
         author_name?: string;
         author_url?: string;
         author_bio?: string;

@@ -104,9 +104,24 @@ export const zItem = z.object({
     fork_cite: zCitation.nullable()
 });
 
+export const zCustomTheme = z.object({
+    dark: z.boolean(),
+    page: z.string().regex(/^#[0-9a-fA-F]{6}$/),
+    paper: z.string().regex(/^#[0-9a-fA-F]{6}$/),
+    ink: z.string().regex(/^#[0-9a-fA-F]{6}$/),
+    inkSoft: z.string().regex(/^#[0-9a-fA-F]{6}$/),
+    rule: z.string().regex(/^#[0-9a-fA-F]{6}$/),
+    pencil: z.string().regex(/^#[0-9a-fA-F]{6}$/),
+    genBg: z.string().regex(/^#[0-9a-fA-F]{6}$/),
+    genRule: z.string().regex(/^#[0-9a-fA-F]{6}$/)
+}).strict().nullable();
+
 export const zSettings = z.object({
     site_title: z.string(),
     theme: z.string(),
+    custom_theme: zCustomTheme,
+    custom_theme_dark: zCustomTheme,
+    font: z.string(),
     author_name: z.string(),
     author_url: z.string(),
     author_bio: z.string(),
@@ -750,6 +765,9 @@ export const zGetSettingsResponse = zSettings;
 export const zUpdateSettingsBody = z.object({
     site_title: z.string().optional(),
     theme: z.string().optional(),
+    custom_theme: zCustomTheme.optional(),
+    custom_theme_dark: zCustomTheme.optional(),
+    font: z.string().optional(),
     author_name: z.string().optional(),
     author_url: z.string().optional(),
     author_bio: z.string().optional(),

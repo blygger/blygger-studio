@@ -1,3 +1,5 @@
+import { isFont } from "./fonts.ts";
+import { CUSTOM_THEME_ID, pairError, validateCustomTheme, type CustomTheme } from "./themes.ts";
 import { itemResource } from "./contract/resources.ts";
 import { itemUrl, storedSurface } from "./surface.ts";
 import { z } from "@hono/zod-openapi";
@@ -450,6 +452,7 @@ api.openapi(routes.deleteMedia, async (c) => {
 const SETTINGS_KEYS = [
   "site_title",
   "theme",
+  "font",
   "author_name",
   "author_url",
   "author_bio",
@@ -495,6 +498,35 @@ api.openapi(routes.updateSettings, async (c) => {
     const unknown = names.filter((name) => typeof name !== "string" || !compiledExtensionNames.includes(name));
     if (unknown.length) return c.json({ error: `not an extension compiled into this build: ${unknown.map(String).join(", ")}` }, 400);
     patch.extensions = JSON.stringify([...new Set(names as string[])].sort());
+  }
+  if (typeof patch.font === "string" && !isFont(patch.font)) return c.json({ error: `unknown font: ${patch.font}` }, 400);
+  // Custom theme and its optional dark companion: null clears; an object is
+  // validated (and lowercased) before it is stored, so nothing but #rrggbb
+  // ever reaches the stylesheet. The checks below run on the settings as they
+  // would be after this patch, so a request can't leave them incoherent.
+  const palettes: Record<"custom_theme" | "custom_theme_dark", CustomTheme | null | undefined> = {
+    custom_theme: undefined,
+    custom_theme_dark: undefined,
+  };
+  for (const key of ["custom_theme", "custom_theme_dark"] as const) {
+    if (body[key] === null) {
+      patch[key] = "";
+      palettes[key] = null;
+    } else if (body[key] !== undefined) {
+      const checked = validateCustomTheme(body[key]);
+      if ("error" in checked) return c.json({ error: `${key}: ${checked.error}` }, 400);
+      patch[key] = JSON.stringify(checked.theme);
+      palettes[key] = checked.theme;
+    }
+  }
+  if (patch.theme !== undefined || patch.custom_theme !== undefined || patch.custom_theme_dark !== undefined) {
+    const current = await getSettings(c.env.DB);
+    const theme = patch.theme ?? current.theme;
+    const light = palettes.custom_theme !== undefined ? palettes.custom_theme : current.custom_theme;
+    const dark = palettes.custom_theme_dark !== undefined ? palettes.custom_theme_dark : current.custom_theme_dark;
+    if (theme === CUSTOM_THEME_ID && !light) return c.json({ error: "theme is custom but no custom_theme is set" }, 400);
+    const incoherent = pairError(light, dark);
+    if (incoherent) return c.json({ error: incoherent }, 400);
   }
   await putSettings(c.env.DB, patch);
   return c.json(await getSettings(c.env.DB));

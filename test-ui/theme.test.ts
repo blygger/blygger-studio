@@ -35,3 +35,40 @@ test('auto follows the device for its accent and scheme', () => {
   expect(themeIsDark('auto', true)).toBe(true);
   expect(themeIsDark('auto', false)).toBe(false);
 });
+
+const CUSTOM = {
+  dark: true,
+  page: '#101418',
+  paper: '#161b21',
+  ink: '#e8edf2',
+  inkSoft: '#a3adb8',
+  rule: '#2a313a',
+  pencil: '#f2a65a',
+  genBg: '#1f262e',
+  genRule: '#3a4450',
+};
+
+test('custom paints the studio from the author\'s palette', () => {
+  const vars = themeVars('custom', CUSTOM)!;
+  expect(Object.keys(vars).sort()).toEqual([...THEME_VARS].sort());
+  expect(vars).toMatchObject({ page: CUSTOM.page, card: CUSTOM.paper, ink: CUSTOM.ink, pencil: CUSTOM.pencil });
+  expect(vars['on-pencil']).toBe(CUSTOM.page);
+  expect(themeAccent('custom', false, CUSTOM)).toBe(CUSTOM.pencil);
+  expect(themeIsDark('custom', false, CUSTOM)).toBe(true);
+});
+
+test('custom without a palette behaves like auto', () => {
+  expect(themeVars('custom', null)).toBeNull();
+  expect(themeVars('custom')).toBeNull();
+  expect(themeAccent('custom', true, null)).toBe('#8cc0e4');
+});
+
+const LIGHT = { ...CUSTOM, dark: false, page: '#eceef1', paper: '#f7f8fa', ink: '#1a1f27', pencil: '#c71585' };
+
+test('a custom pair paints the studio from whichever palette the device prefers', () => {
+  expect(themeVars('custom', LIGHT, CUSTOM, false)!.card).toBe('#f7f8fa');
+  expect(themeVars('custom', LIGHT, CUSTOM, true)!.card).toBe(CUSTOM.paper);
+  expect(themeIsDark('custom', false, LIGHT, CUSTOM)).toBe(false);
+  expect(themeIsDark('custom', true, LIGHT, CUSTOM)).toBe(true);
+  expect(themeAccent('custom', true, LIGHT, CUSTOM)).toBe(CUSTOM.pencil);
+});
