@@ -90,6 +90,7 @@ export async function getSettings(db: D1Database): Promise<Settings> {
     theme: map.theme ?? "auto",
     custom_theme: parseCustomTheme(map.custom_theme),
     custom_theme_dark: parseCustomTheme(map.custom_theme_dark),
+    custom_theme_name: map.custom_theme_name ?? "",
     font: map.font && isFont(map.font) ? map.font : DEFAULT_FONT,
     author_name: map.author_name ?? "",
     author_url: map.author_url ?? "",

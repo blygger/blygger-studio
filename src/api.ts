@@ -1,5 +1,5 @@
 import { isFont } from "./fonts.ts";
-import { CUSTOM_THEME_ID, pairError, validateCustomTheme, type CustomTheme } from "./themes.ts";
+import { CUSTOM_THEME_ID, pairError, themeNameError, validateCustomTheme, type CustomTheme } from "./themes.ts";
 import { itemResource } from "./contract/resources.ts";
 import { itemUrl, storedSurface } from "./surface.ts";
 import { z } from "@hono/zod-openapi";
@@ -453,6 +453,7 @@ const SETTINGS_KEYS = [
   "site_title",
   "theme",
   "font",
+  "custom_theme_name",
   "author_name",
   "author_url",
   "author_bio",
@@ -500,6 +501,11 @@ api.openapi(routes.updateSettings, async (c) => {
     patch.extensions = JSON.stringify([...new Set(names as string[])].sort());
   }
   if (typeof patch.font === "string" && !isFont(patch.font)) return c.json({ error: `unknown font: ${patch.font}` }, 400);
+  if (typeof patch.custom_theme_name === "string") {
+    patch.custom_theme_name = patch.custom_theme_name.trim();
+    const nameError = themeNameError(patch.custom_theme_name);
+    if (nameError) return c.json({ error: nameError }, 400);
+  }
   // Custom theme and its optional dark companion: null clears; an object is
   // validated (and lowercased) before it is stored, so nothing but #rrggbb
   // ever reaches the stylesheet. The checks below run on the settings as they

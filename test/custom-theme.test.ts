@@ -194,3 +194,24 @@ describe("custom theme: light/dark pair", () => {
     expect(themeCss("custom", light, dark)).toContain("light and dark");
   });
 });
+
+describe("custom theme: a name for sharing", () => {
+  it("stores a trimmed name and keeps it out of the stylesheet", async () => {
+    const cookie = await login();
+    const res = await settings(cookie, { custom_theme: PALETTE, theme: "custom", custom_theme_name: "  Pink Quill  " });
+    expect(res.status).toBe(200);
+    expect(res.json.custom_theme_name).toBe("Pink Quill");
+    const sheet = await css();
+    expect(sheet).toContain("/* theme: Custom");
+    expect(sheet).not.toContain("Pink Quill");
+    await settings(cookie, { theme: "auto" });
+  });
+
+  it("refuses long or multi-line names, including a stylesheet-breaking one", async () => {
+    const cookie = await login();
+    for (const bad of ["x".repeat(41), "Pink\nQuill", "*/ body { display:none } /*\u0000"]) {
+      expect((await settings(cookie, { custom_theme_name: bad })).status).toBe(400);
+    }
+    expect((await apiJson(cookie, "GET", "/api/settings")).json.custom_theme_name).not.toContain("display");
+  });
+});

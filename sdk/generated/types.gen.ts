@@ -95,6 +95,7 @@ export type Settings = {
     theme: string;
     custom_theme: CustomTheme;
     custom_theme_dark: CustomTheme;
+    custom_theme_name: string;
     font: string;
     author_name: string;
     author_url: string;
@@ -1760,6 +1761,7 @@ export type UpdateSettingsData = {
         theme?: string;
         custom_theme?: CustomTheme;
         custom_theme_dark?: CustomTheme;
+        custom_theme_name?: string;
         font?: string;
         author_name?: string;
         author_url?: string;

@@ -434,6 +434,9 @@
           "custom_theme_dark": {
             "$ref": "#/components/schemas/CustomTheme"
           },
+          "custom_theme_name": {
+            "type": "string"
+          },
           "font": {
             "type": "string"
           },
@@ -533,6 +536,7 @@
           "theme",
           "custom_theme",
           "custom_theme_dark",
+          "custom_theme_name",
           "font",
           "author_name",
           "author_url",
@@ -5162,6 +5166,9 @@
                   },
                   "custom_theme_dark": {
                     "$ref": "#/components/schemas/CustomTheme"
+                  },
+                  "custom_theme_name": {
+                    "type": "string"
                   },
                   "font": {
                     "type": "string"

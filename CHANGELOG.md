@@ -22,7 +22,8 @@ not have its own repo until session 26.
 
 **Migrations: none** (both live in `settings`). `/api` change, additive:
 `Settings` gains `custom_theme` and `custom_theme_dark` (each an object, or
-`null`) and `font` (a string); `PATCH /api/settings` accepts all three and
+`null`), `custom_theme_name` and `font` (strings); `PATCH /api/settings` accepts
+them and
 answers 400 for anything invalid or incoherent.
 
 **Custom theme.** A *Custom* tile beside the presets opens an editor for the
@@ -45,6 +46,11 @@ would be a step back from Auto. The pair must be coherent (light `dark: false`,
 companion `dark: true`, never a companion without a light half), checked in
 the studio and by the server. Without a companion, a custom palette is fixed,
 like a preset. A pair exports and imports as `{"light": {…}, "dark": {…}}`.
+
+**A name for the look.** *Name this look* (`custom_theme_name`, optional,
+one line, at most 40 characters) labels the Custom tile and travels with the
+look when it is shared: `{"name": "Pink Quill", "light": {…}, "dark": {…}}`.
+It is shown as text and never reaches the stylesheet.
 
 Switching to a preset
 keeps the palette, so switching back restores it; `custom_theme: null` clears

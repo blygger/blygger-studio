@@ -164,6 +164,7 @@ export const SettingsSchema = z.object({
   theme: z.string(),
   custom_theme: CustomThemeSchema.nullable(),
   custom_theme_dark: CustomThemeSchema.nullable(),
+  custom_theme_name: z.string(),
   font: z.string(),
   author_name: z.string(),
   author_url: z.string(),

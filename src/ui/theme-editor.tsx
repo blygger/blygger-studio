@@ -14,6 +14,7 @@ import {
   contrastWarnings,
   customFromPreset,
   pairError,
+  themeNameError,
   validateCustomTheme,
   type CustomTheme,
   type ThemeColor,
@@ -148,9 +149,13 @@ export function ThemeEditor({
  * `{"light": {…}, "dark": {…}}`. Import accepts either, and checks every
  * value (and the pair's roles) before anything changes.
  */
-export function parseShared(
-  text: string,
-): { light: CustomTheme; dark: CustomTheme | null } | { error: string } {
+export type SharedLook = {
+  name: string;
+  light: CustomTheme;
+  dark: CustomTheme | null;
+};
+
+export function parseShared(text: string): SharedLook | { error: string } {
   let parsed: unknown;
   try {
     parsed = JSON.parse(text);
@@ -159,40 +164,60 @@ export function parseShared(
   }
   const v = parsed as Record<string, unknown> | null;
   if (v && typeof v === 'object' && !Array.isArray(v) && 'light' in v) {
-    const extra = Object.keys(v).filter((k) => k !== 'light' && k !== 'dark');
+    const extra = Object.keys(v).filter(
+      (k) => k !== 'name' && k !== 'light' && k !== 'dark',
+    );
     if (extra.length) return { error: `unknown key: ${extra.join(', ')}` };
     const light = validateCustomTheme(v.light);
     if ('error' in light) return { error: `light: ${light.error}` };
     const dark = v.dark == null ? null : validateCustomTheme(v.dark);
     if (dark && 'error' in dark) return { error: `dark: ${dark.error}` };
-    const pair = { light: light.theme, dark: dark ? dark.theme : null };
-    const incoherent = pairError(pair.light, pair.dark);
-    return incoherent ? { error: incoherent } : pair;
+    if (v.name !== undefined && typeof v.name !== 'string')
+      return { error: 'name must be text' };
+    const name = typeof v.name === 'string' ? v.name.trim() : '';
+    const badName = themeNameError(name);
+    if (badName) return { error: badName.replace('custom_theme_name: ', 'name: ') };
+    const look = { name, light: light.theme, dark: dark ? dark.theme : null };
+    const incoherent = pairError(look.light, look.dark);
+    return incoherent ? { error: incoherent } : look;
   }
   const single = validateCustomTheme(parsed);
-  return 'error' in single ? single : { light: single.theme, dark: null };
+  return 'error' in single
+    ? single
+    : { name: '', light: single.theme, dark: null };
 }
 
 export function ThemeShare({
+  name,
   light,
   dark,
   onImport,
 }: {
+  name: string;
   light: CustomTheme;
   dark: CustomTheme | null;
-  onImport: (light: CustomTheme, dark: CustomTheme | null) => void;
+  onImport: (look: SharedLook) => void;
 }) {
   const [json, setJson] = useState('');
   const [jsonError, setJsonError] = useState('');
   const [copied, setCopied] = useState(false);
-  const exported = JSON.stringify(dark ? { light, dark } : light, null, 2);
+  // A bare palette stays a bare palette; a name or a dark half needs the
+  // wrapper so both travel with it.
+  const exported = JSON.stringify(
+    name || dark
+      ? { ...(name ? { name } : {}), light, ...(dark ? { dark } : {}) }
+      : light,
+    null,
+    2,
+  );
   return (
     <details className="theme-share">
       <summary>Share or import a look</summary>
       <div className="field">
         <label htmlFor="theme-export">
           <span>
-            {dark ? 'This light/dark pair as JSON' : 'This palette as JSON'}
+            {name ? `“${name}”` : dark ? 'This light/dark pair' : 'This palette'}{' '}
+            as JSON
           </span>
         </label>
         <textarea id="theme-export" rows={6} readOnly value={exported} />
@@ -232,7 +257,7 @@ export function ThemeShare({
             const result = parseShared(json);
             if ('error' in result) setJsonError(result.error);
             else {
-              onImport(result.light, result.dark);
+              onImport(result);
               setJson('');
               setCopied(false);
             }

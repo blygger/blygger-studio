@@ -20,3 +20,10 @@ test('refuses bad JSON, bad colours and incoherent pairs', () => {
   expect('error' in parseShared(JSON.stringify({ light: { dark: true, ...P }, dark: { dark: true, ...D } }))).toBe(true);
   expect('error' in parseShared(JSON.stringify({ light: { dark: false, ...P }, extra: 1 }))).toBe(true);
 });
+
+test('a named look carries its name; names are checked', () => {
+  const r = parseShared(JSON.stringify({ name: ' Pink Quill ', light: { dark: false, ...P }, dark: { dark: true, ...D } }));
+  expect('name' in r && r.name).toBe('Pink Quill');
+  expect('error' in parseShared(JSON.stringify({ name: 'x'.repeat(41), light: { dark: false, ...P } }))).toBe(true);
+  expect('error' in parseShared(JSON.stringify({ name: 7, light: { dark: false, ...P } }))).toBe(true);
+});

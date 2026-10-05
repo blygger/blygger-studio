@@ -96,6 +96,19 @@ export function validateCustomTheme(value: unknown): { theme: CustomTheme } | { 
   return { theme };
 }
 
+/**
+ * A look's name ("Pink Quill"): what it's called when it's shared. Plain text,
+ * one line, at most 40 characters. It is shown in the studio (as text, never
+ * markup) and travels in exported JSON; it never reaches the stylesheet, whose
+ * comment always says "Custom".
+ */
+export const THEME_NAME_MAX = 40;
+export function themeNameError(name: string): string | null {
+  if (name.length > THEME_NAME_MAX) return `custom_theme_name: at most ${THEME_NAME_MAX} characters`;
+  if (/[\u0000-\u001f\u007f]/.test(name)) return "custom_theme_name: one line of plain text";
+  return null;
+}
+
 /** The stored palette (settings JSON), or null when absent or invalid. */
 export function parseCustomTheme(stored: string | undefined | null): CustomTheme | null {
   if (!stored) return null;

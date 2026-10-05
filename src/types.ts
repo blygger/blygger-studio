@@ -373,6 +373,8 @@ export interface Settings {
   custom_theme: CustomTheme | null;
   /** Optional dark companion to custom_theme. When set, the custom theme follows the reader's light/dark preference, as Auto does. */
   custom_theme_dark: CustomTheme | null;
+  /** What the custom look is called when shared ("Pink Quill"). Empty when unnamed. */
+  custom_theme_name: string;
   /** Reading typeface for the public pages: a key of FONTS (system font stacks only). "book" is the stylesheet's own. */
   font: string;
   author_name: string;

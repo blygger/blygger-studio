@@ -16,6 +16,7 @@ import {
   THEMES,
   CUSTOM_THEME_ID,
   customFromPreset,
+  THEME_NAME_MAX,
   type CustomTheme,
 } from '../themes.ts';
 import { ThemeEditor, ThemeShare } from './theme-editor.tsx';
@@ -28,6 +29,7 @@ const fields = [
   'theme',
   'custom_theme',
   'custom_theme_dark',
+  'custom_theme_name',
   'font',
   'author_name',
   'author_url',
@@ -377,15 +379,19 @@ function SettingsForm({ initial }: { initial: Settings }) {
                   </span>
                 )}
               </span>
-              <span className="theme-name">Custom</span>
+              <span className="theme-name">
+                {form.custom_theme_name || 'Custom'}
+              </span>
             </label>
           </div>
         </div>
         {form.theme === CUSTOM_THEME_ID && form.custom_theme ? (
           <CustomThemeFields
+            name={form.custom_theme_name}
             light={form.custom_theme}
             dark={form.custom_theme_dark}
             font={FONTS[form.font]?.stack}
+            onName={(name) => change('custom_theme_name', name)}
             onChange={(light, dark) => {
               change('custom_theme', light);
               change('custom_theme_dark', dark);
@@ -738,14 +744,18 @@ function ModelSettings({
  * that ignored that would be a step back from Auto.
  */
 function CustomThemeFields({
+  name,
   light,
   dark,
   font,
+  onName,
   onChange,
 }: {
+  name: string;
   light: CustomTheme;
   dark: CustomTheme | null;
   font?: string;
+  onName: (name: string) => void;
   onChange: (light: CustomTheme, dark: CustomTheme | null) => void;
 }) {
   const [editing, setEditing] = useState<'light' | 'dark'>('light');
@@ -753,6 +763,22 @@ function CustomThemeFields({
   const showing = paired && editing === 'dark' ? 'dark' : 'light';
   return (
     <div className="custom-theme">
+      <div className="field">
+        <label htmlFor="theme-name">
+          <span>Name this look (optional)</span>
+        </label>
+        <input
+          id="theme-name"
+          type="text"
+          maxLength={THEME_NAME_MAX}
+          value={name}
+          placeholder="e.g. Pink Quill"
+          onChange={(event) => onName(event.target.value)}
+        />
+        <p className="hint">
+          Shown on the tile, and carried with the look when you share it.
+        </p>
+      </div>
       <label className="check">
         <input
           type="checkbox"
@@ -812,10 +838,12 @@ function CustomThemeFields({
         />
       )}
       <ThemeShare
+        name={name}
         light={light}
         dark={dark}
-        onImport={(nextLight, nextDark) => {
-          onChange(nextLight, nextDark);
+        onImport={(look) => {
+          onChange(look.light, look.dark);
+          if (look.name) onName(look.name);
           setEditing('light');
         }}
       />
