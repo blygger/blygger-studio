@@ -410,7 +410,7 @@ function SettingsForm({ initial }: { initial: Settings }) {
                 />
                 <span className="font-sample" style={{ fontFamily: f.stack }}>
                   <span className="font-sample-text">
-                    The quick brown fox, 1984
+                    The quick brown fox
                   </span>
                   <span className="font-name">{f.label}</span>
                 </span>
