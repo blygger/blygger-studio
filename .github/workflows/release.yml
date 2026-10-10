@@ -14,8 +14,10 @@ permissions:
 jobs:
   release:
     runs-on: ubuntu-latest
+    timeout-minutes: 75
     permissions:
       contents: write
+      actions: read
     steps:
       - uses: actions/checkout@v4
         with:
@@ -37,15 +39,42 @@ jobs:
             exit 1
           fi
           echo "tag=v$version" >> "$GITHUB_OUTPUT"
+      # The tests already ran on this commit when it reached main: Check runs
+      # every job on a push to main. Rerunning them here doubled the time to a
+      # release and let one flaky test fail it (v0.41.0). Wait for that run;
+      # if it failed, stop; if the commit never went through main (a hotfix
+      # tag on a branch), run the suite here instead.
+      - name: Find this commit's Check run on main
+        id: checked
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          for attempt in $(seq 1 120); do
+            states=$(gh api "repos/$GITHUB_REPOSITORY/actions/workflows/check.yml/runs?head_sha=$GITHUB_SHA&event=push" \
+              --jq '[.workflow_runs[] | select(.head_branch == "main") | (.conclusion // .status)] | join(" ")')
+            case " $states " in
+              *" success "*) echo "Check passed on main for $GITHUB_SHA"; echo "tested=true" >> "$GITHUB_OUTPUT"; exit 0 ;;
+              *" queued "*|*" in_progress "*|*" waiting "*|*" pending "*|*" requested "*) sleep 30 ;;
+              "  ") echo "No Check run on main for $GITHUB_SHA; running the suite here"; echo "tested=false" >> "$GITHUB_OUTPUT"; exit 0 ;;
+              *) echo "Check did not pass on main for $GITHUB_SHA ($states). Re-run it, then re-run this release." >&2; exit 1 ;;
+            esac
+          done
+          echo "Timed out waiting for Check on $GITHUB_SHA" >&2; exit 1
       - run: npm run sdk:generate
       - run: npm run typecheck
       - run: git diff --exit-code -- openapi.json sdk/generated sdk/generation.json
-      - run: npm run test:ui -- --maxWorkers=2
-      - run: npm test -- --maxWorkers=2
-      - run: npm run test:upgrade
-      - run: npm run test:mutations
+      - if: steps.checked.outputs.tested != 'true'
+        run: npm run test:ui -- --maxWorkers=2
+      - if: steps.checked.outputs.tested != 'true'
+        run: npm test -- --maxWorkers=2
+      - if: steps.checked.outputs.tested != 'true'
+        run: npm run test:upgrade
+      - if: steps.checked.outputs.tested != 'true'
+        run: npm run test:mutations
+      # verify-sdk-consumer.ts, inside release:verify, drives Chromium.
       - run: npx playwright install --with-deps chromium
-      - run: npm run test:e2e
+      - if: steps.checked.outputs.tested != 'true'
+        run: npm run test:e2e
       - run: npm run release:build
         env:
           RELEASE_TAG: ${{ steps.version.outputs.tag }}
