@@ -155,6 +155,10 @@ saying so.
 
 ## Status
 
+**0.41.0** (session 44, 2026-10-10): **remote generation sources** (decision #44, gate G8): a [TK] scope draws on any item a directive may name (own threads, imported items), resolved by `resolveTarget`; remote sources carry `origin` + a frozen `cited` and send a mention verified as **`source`**; imports keep `generated` (**migration 0027**, `imported_items.generated_json`, with the change trigger recreated); a *source* picker inside TK instructions; preview scopes carry `sources`. **`PROTOCOL_VERSION` is `"0.4"`.** Exercised live PI → venkateshrao (ids in the devlog).
+
+**0.40.0** (session 44, 2026-10-10): six contributor PRs — #64 composer caret (the `compose-pwa:179` flake), #61 `GET /api/reading/imported`, #62 YouTube posters and failed-image links, #60 Workers AI and OpenAI-compatible providers, #53 lineage-glyph extension (operator-compiled), #58 custom theme and reading typeface. No migration. Not deployed on its own.
+
 **0.39.0** (session 43, 2026-10-09): read state for imported items (Aneesh's #44/#45: unread dots, select mode, mark all read, mark read on open; unread tombstones against stale reads; `readVersion` on `/api/reading`), under a new **`reading:state`** scope, which `owner:manage` no longer covers. **Migration 0026** (`read_state` + five triggers), applied to all three D1s before deploy and proven first on a throwaway remote D1.
 
 **0.38.0** (session 42, 2026-10-09): releases carry two browser-only extensions, both off until enabled in Settings → extensions: `reading-time` (byline estimate) and `inspect` (⋯ sheet: the stored record, bodies elided). `extensions.json` lists what ships; `test-ui/default-extensions.test.ts` keeps anything with `server.ts`/`contract.ts` out; `{"remove": [...]}` in `extensions.local.json` drops a shipped one. No migration.
@@ -505,7 +509,7 @@ was specified to do in both cases.
   copy-permalink, never as a peer of `stub ↗` in the response slot, never
   "respond"/"reply"/"answer". `stub ↗` stays the one affordance that means "I am responding".
 
-- [ ] **Remote generation sources** (decision #44, spec §16.3; 0.4). **Implementation plan:
+- [x] **Remote generation sources** — **done 0.41.0 (session 44)**, R1–R8; findings (migration 0027, thread sources fed as baked text) in `v0.4-plan.md` §7.2 R8. Original entry: (decision #44, spec §16.3; 0.4). **Implementation plan:
   `blygger-spec/docs/v0.4-plan.md` §7.2, tasks R1–R8 with acceptance checks — build from that;
   this entry is the shape.** Widen `resolveFragment`'s
   TK-source rule to `resolveTarget`'s (#26 order: local published item → imported item with a
