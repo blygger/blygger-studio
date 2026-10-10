@@ -65,6 +65,9 @@ it("exercises every declared operation through its named SDK method, including a
     ["getUpdateState", 200, client => api.getUpdateState({ client })],
     ["getMentionSource", 200, client => api.getMentionSource({ client, path: { id: "matrix-mention" } })],
     ["getForkOptions", 200, client => api.getForkOptions({ client, query: { id } })],
+    // Extension routes answer 404 while the extension is disabled, as it is here.
+    ["extLineageGlyphGetLineage", 404, client => api.extLineageGlyphGetLineage({ client, query: { id } })],
+    ["extLineageGlyphListSummaries", 404, client => api.extLineageGlyphListSummaries({ client, query: { keys: JSON.stringify([`own:${id}`]) } })],
     ["listStaleThreads", 200, client => api.listStaleThreads({ client })],
     ["getItemFreshness", 409, client => api.getItemFreshness({ client, path: { id }, query: { probe: "false" } })],
     ["refreshItem", 409, client => api.refreshItem({ client, path: { id } })],

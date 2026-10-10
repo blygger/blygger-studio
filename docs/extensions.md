@@ -4,6 +4,15 @@ Studio is the reference client: it shows each protocol construct in its plainest
 
 An extension is first-party TypeScript in this repository. An operator compiles it into their build, and the owner turns it on in Settings. With nothing turned on, the Studio is the reference Studio, byte for byte.
 
+## Extensions in this repository
+
+| Name | What it does |
+| --- | --- |
+| `example` | Fills each UI slot and does nothing that matters. The template to copy, and what the slot tests enable. |
+| `inspect` | Adds "inspect" to each reading entry's ⋯ sheet: the record this Studio holds for it, and its JSON. Browser only; shipped in `extensions.json`. |
+| `lineage-glyph` | The lineage glyph, hex view and action ring from #35. A glyph in each reading byline counts what a post draws on and what draws on it here. It opens a hex view of one hop of ancestors and descendants, where each corner previews what stub, quote a passage, fork, link post, history and open would make, and a second press runs that action. The actions are the Studio's own (or drafts and navigation through the extension context), so they write through the owner's session like the ⋯ sheet does. Its server routes are owner reads: `GET /api/ext/lineage-glyph/lineage` and `/summaries`. `scripts/lineage-demo.ts` runs a seeded local node with it enabled. |
+| `reading-time` | An estimated reading time and word count at the end of each reading entry's byline. Browser only; shipped in `extensions.json`. |
+
 ## What an extension can do
 
 | Slot | What it adds | Declared as |

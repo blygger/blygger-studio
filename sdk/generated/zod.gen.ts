@@ -456,6 +456,56 @@ export const zThreadFreshness = z.object({
     behind: z.int().gte(0)
 });
 
+export const zLineageGlyphNode = z.object({
+    origin: z.string().nullable(),
+    id: z.string().nullable(),
+    version: z.int().nullable(),
+    held: z.enum(['own', 'imported']).nullable(),
+    sub: z.string().nullable(),
+    kind: z.enum(['fragment', 'thread']).nullable(),
+    title: z.string().nullable(),
+    excerpt: z.string().nullable(),
+    source: z.string().nullable(),
+    url: z.string().nullable(),
+    relation: z.enum([
+        'stub',
+        'transclusion',
+        'fork'
+    ]),
+    partial: z.boolean(),
+    via: z.enum(['reference', 'mention'])
+});
+
+export const zLineageGlyphLineage = z.object({
+    node: z.object({
+        origin: z.string().nullable(),
+        id: z.string().nullable(),
+        version: z.int().nullable(),
+        held: z.enum(['own', 'imported']).nullable(),
+        sub: z.string().nullable(),
+        kind: z.enum(['fragment', 'thread']).nullable(),
+        title: z.string().nullable(),
+        excerpt: z.string().nullable(),
+        source: z.string().nullable(),
+        url: z.string().nullable()
+    }),
+    ancestors: z.array(zLineageGlyphNode),
+    descendants: z.array(zLineageGlyphNode)
+});
+
+export const zLineageGlyphSummary = z.object({
+    up: z.object({
+        stub: z.int().gte(0),
+        transclusion: z.int().gte(0),
+        fork: z.int().gte(0)
+    }),
+    down: z.object({
+        stub: z.int().gte(0),
+        transclusion: z.int().gte(0),
+        fork: z.int().gte(0)
+    })
+});
+
 /**
  * Success
  */
@@ -1422,4 +1472,26 @@ export const zGetForkOptionsResponse = z.object({
         note: z.string().nullable()
     })),
     error: z.string().optional()
+});
+
+export const zExtLineageGlyphGetLineageQuery = z.object({
+    id: z.string().min(1),
+    sub: z.string().optional(),
+    origin: z.string().optional()
+});
+
+/**
+ * Success
+ */
+export const zExtLineageGlyphGetLineageResponse = zLineageGlyphLineage;
+
+export const zExtLineageGlyphListSummariesQuery = z.object({
+    keys: z.string().min(2)
+});
+
+/**
+ * Success
+ */
+export const zExtLineageGlyphListSummariesResponse = z.object({
+    summaries: z.record(z.string(), zLineageGlyphSummary)
 });

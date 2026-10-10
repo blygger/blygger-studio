@@ -437,6 +437,52 @@ export type QuoteFreshness = {
     reason?: string;
 };
 
+export type LineageGlyphLineage = {
+    node: {
+        origin: string | null;
+        id: string | null;
+        version: number | null;
+        held: 'own' | 'imported' | null;
+        sub: string | null;
+        kind: 'fragment' | 'thread' | null;
+        title: string | null;
+        excerpt: string | null;
+        source: string | null;
+        url: string | null;
+    };
+    ancestors: Array<LineageGlyphNode>;
+    descendants: Array<LineageGlyphNode>;
+};
+
+export type LineageGlyphNode = {
+    origin: string | null;
+    id: string | null;
+    version: number | null;
+    held: 'own' | 'imported' | null;
+    sub: string | null;
+    kind: 'fragment' | 'thread' | null;
+    title: string | null;
+    excerpt: string | null;
+    source: string | null;
+    url: string | null;
+    relation: 'stub' | 'transclusion' | 'fork';
+    partial: boolean;
+    via: 'reference' | 'mention';
+};
+
+export type LineageGlyphSummary = {
+    up: {
+        stub: number;
+        transclusion: number;
+        fork: number;
+    };
+    down: {
+        stub: number;
+        transclusion: number;
+        fork: number;
+    };
+};
+
 export type RevokeAllAuthorizationsData = {
     body?: never;
     path?: never;
@@ -5007,3 +5053,154 @@ export type GetForkOptionsResponses = {
 };
 
 export type GetForkOptionsResponse = GetForkOptionsResponses[keyof GetForkOptionsResponses];
+
+export type ExtLineageGlyphGetLineageData = {
+    body?: never;
+    path?: never;
+    query: {
+        id: string;
+        sub?: string;
+        origin?: string;
+    };
+    url: '/api/ext/lineage-glyph/lineage';
+};
+
+export type ExtLineageGlyphGetLineageErrors = {
+    /**
+     * Request failed
+     */
+    400: ApiError;
+    /**
+     * Request failed
+     */
+    401: ApiError;
+    /**
+     * Request failed
+     */
+    403: ApiError;
+    /**
+     * Request failed
+     */
+    404: ApiError;
+    /**
+     * Request failed
+     */
+    405: ApiError;
+    /**
+     * Request failed
+     */
+    409: ApiError;
+    /**
+     * Request failed
+     */
+    413: ApiError;
+    /**
+     * Request failed
+     */
+    415: ApiError;
+    /**
+     * Request failed
+     */
+    422: ApiError;
+    /**
+     * Request failed
+     */
+    429: ApiError;
+    /**
+     * Request failed
+     */
+    500: ApiError;
+    /**
+     * Request failed
+     */
+    502: ApiError;
+};
+
+export type ExtLineageGlyphGetLineageError = ExtLineageGlyphGetLineageErrors[keyof ExtLineageGlyphGetLineageErrors];
+
+export type ExtLineageGlyphGetLineageResponses = {
+    /**
+     * Success
+     */
+    200: LineageGlyphLineage;
+};
+
+export type ExtLineageGlyphGetLineageResponse = ExtLineageGlyphGetLineageResponses[keyof ExtLineageGlyphGetLineageResponses];
+
+export type ExtLineageGlyphListSummariesData = {
+    body?: never;
+    path?: never;
+    query: {
+        /**
+         * A JSON array of up to 50 reading entry keys.
+         */
+        keys: string;
+    };
+    url: '/api/ext/lineage-glyph/summaries';
+};
+
+export type ExtLineageGlyphListSummariesErrors = {
+    /**
+     * Request failed
+     */
+    400: ApiError;
+    /**
+     * Request failed
+     */
+    401: ApiError;
+    /**
+     * Request failed
+     */
+    403: ApiError;
+    /**
+     * Request failed
+     */
+    404: ApiError;
+    /**
+     * Request failed
+     */
+    405: ApiError;
+    /**
+     * Request failed
+     */
+    409: ApiError;
+    /**
+     * Request failed
+     */
+    413: ApiError;
+    /**
+     * Request failed
+     */
+    415: ApiError;
+    /**
+     * Request failed
+     */
+    422: ApiError;
+    /**
+     * Request failed
+     */
+    429: ApiError;
+    /**
+     * Request failed
+     */
+    500: ApiError;
+    /**
+     * Request failed
+     */
+    502: ApiError;
+};
+
+export type ExtLineageGlyphListSummariesError = ExtLineageGlyphListSummariesErrors[keyof ExtLineageGlyphListSummariesErrors];
+
+export type ExtLineageGlyphListSummariesResponses = {
+    /**
+     * Success
+     */
+    200: {
+        summaries: {
+            [key: string]: LineageGlyphSummary;
+        };
+    };
+};
+
+export type ExtLineageGlyphListSummariesResponse = ExtLineageGlyphListSummariesResponses[keyof ExtLineageGlyphListSummariesResponses];

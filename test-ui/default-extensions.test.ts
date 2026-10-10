@@ -10,17 +10,21 @@ import { createElement } from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { EntryBylineSlot, entryActionRows } from '../src/ui/extensions.tsx';
 import type { EntryContext } from '../src/ui/extension-api.ts';
-import { EXTENSIONS } from '../extensions/catalog.ts';
 import { extension as readingTimeExtension } from '../extensions/reading-time/ui/index.tsx';
 import { extension as inspect } from '../extensions/inspect/ui/index.tsx';
 import { formatMinutes, readingTime } from '../extensions/reading-time/ui/count.ts';
 import { shapeRecord, summary } from '../extensions/inspect/ui/shape.ts';
 
+// The catalog is read as text, not imported: it also imports every extension's
+// contract routes, which pull the Worker's types into this browser-typed suite.
+const EXTENSIONS = JSON.parse(/export const EXTENSIONS = (\[[^\]]*\]) as const;/.exec(readFileSync('extensions/catalog.ts', 'utf8'))![1]) as string[];
+
 test('releases carry only catalogued, browser-only extensions', () => {
+  expect(EXTENSIONS).toContain('reading-time');
   const shipped = (JSON.parse(readFileSync('extensions.json', 'utf8')) as { compile: string[] }).compile;
   expect(shipped).toEqual(['inspect', 'reading-time']);
   for (const name of shipped) {
-    expect(EXTENSIONS as readonly string[]).toContain(name);
+    expect(EXTENSIONS).toContain(name);
     expect(existsSync(`extensions/${name}/server.ts`), `${name} has a server half and cannot ship in releases`).toBe(false);
     expect(existsSync(`extensions/${name}/contract.ts`), `${name} declares routes and cannot ship in releases`).toBe(false);
   }

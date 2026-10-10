@@ -135,6 +135,7 @@ describe("extension contract", () => {
       const name = EXTENSIONS.find((candidate) => route.path.startsWith(`/ext/${candidate}/`));
       expect(name, operation).toBeDefined();
       expect(route.method, operation).toBe("get");
+      expect((route as { operationId?: string }).operationId, operation).toBe(operation);
       expect(route.tags, operation).toContain(`extension:${name}`);
       expect(operationScopes(operation), operation).toEqual(["owner:read"]);
       expect(routes[operation as keyof typeof routes], operation).toBe(route);
