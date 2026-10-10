@@ -40,6 +40,22 @@ describe("the grammar", () => {
     expect(scopes[0].sourceIds).toEqual([]);
   });
 
+  it("grammar quoted in code inside a scope is text: no nesting error, no early close", () => {
+    // A release changelog quoting `[TK]` inside an impyrt scope failed to
+    // publish as "nested TK scopes" (session 45).
+    const md = "[TK]impyrt claude-x=\nThe `[TK]` tool, `[/TK]` and `[=]` too.\n\n```\n[TK]write[=]x[/TK]\n```\nEnd.\n[/TK]";
+    const { scopes, errors } = parseScopes(md);
+    expect(errors).toEqual([]);
+    expect(scopes).toHaveLength(1);
+    expect(scopes[0].end).toBe(md.length);
+    expect(scopes[0].output).toContain("`[/TK]` and `[=]` too.");
+    expect(scopes[0].imported).toEqual({ model: "claude-x" });
+  });
+
+  it("a real nested scope is still refused", () => {
+    expect(parseScopes("[TK]a [TK]b[/TK] c[/TK]").errors[0].reason).toBe("nested TK scopes are not supported");
+  });
+
   it("the editor's wrap puts exactly the selection inside, and invents no model", () => {
     expect(markImported("before PASTED after", 7, 13)).toBe("before [TK]impyrt=PASTED[/TK] after");
   });

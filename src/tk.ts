@@ -107,27 +107,32 @@ export function parseScopes(contentMd: string): { scopes: TkScope[]; errors: TkP
   const errors: TkParseError[] = [];
   // A `[TK]` written inside code is an example of the grammar, not a scope
   // (studio#3), the same exemption the bracket grammar has (§10.1, #54).
+  // Every token is looked for outside code, not only the opening one: a
+  // `[TK]` or `[/TK]` quoted in code inside a scope is text, not a nested
+  // scope or an early close (found publishing a changelog that quoted `[TK]`
+  // inside an impyrt scope, session 45).
   const code = contentMd.includes("[TK]") ? codeRanges(contentMd) : [];
+  const find = (token: string, from: number) => {
+    let at = contentMd.indexOf(token, from);
+    while (at !== -1 && inRanges(code, at)) at = contentMd.indexOf(token, at + token.length);
+    return at;
+  };
   let i = 0;
   while (true) {
-    const tkIdx = contentMd.indexOf("[TK]", i);
+    const tkIdx = find("[TK]", i);
     if (tkIdx === -1) break;
-    if (inRanges(code, tkIdx)) {
-      i = tkIdx + 4;
-      continue;
-    }
-    const closeIdx = contentMd.indexOf("[/TK]", tkIdx + 4);
+    const closeIdx = find("[/TK]", tkIdx + 4);
     if (closeIdx === -1) {
       errors.push({ at: tkIdx, reason: "unterminated scope (missing [/TK])" });
       break;
     }
-    const nestedIdx = contentMd.indexOf("[TK]", tkIdx + 4);
+    const nestedIdx = find("[TK]", tkIdx + 4);
     if (nestedIdx !== -1 && nestedIdx < closeIdx) {
       errors.push({ at: nestedIdx, reason: "nested TK scopes are not supported" });
       i = closeIdx + 5;
       continue;
     }
-    const eqIdx = contentMd.indexOf("[=]", tkIdx + 4);
+    const eqIdx = find("[=]", tkIdx + 4);
     const hasEq = eqIdx !== -1 && eqIdx < closeIdx;
     const instrEnd = hasEq ? eqIdx : closeIdx;
     let instruction = contentMd.slice(tkIdx + 4, instrEnd).trim();
