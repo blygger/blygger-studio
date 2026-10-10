@@ -81,6 +81,87 @@ function content(result: unknown) {
   return JSON.parse(value.content[0].text!) as Record<string, any>;
 }
 describe('MCP contract oracles', () => {
+  it.each(['', '/blyg', '/nested/blyg'])('uses pre-registered Cloudflare callback credentials at mount %s', async mount => {
+    const d = await driver(mount), issuer = d.base + mount + '/studio/auth';
+    const redirect = 'https://oauth-callbacks.cloudflareaccess.com/cdn-cgi/access/outbound-oauth-callback';
+    const scope = 'openid offline_access owner:read owner:draft owner:publish owner:manage';
+    const registered = await d.fetch(issuer + '/oauth2/register', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ client_name: 'Cloudflare MCP Portal', redirect_uris: [redirect], token_endpoint_auth_method: 'client_secret_basic', grant_types: ['authorization_code', 'refresh_token'], response_types: ['code'], scope }),
+    });
+    expect(registered.status).toBe(201);
+    const information = await registered.json() as { client_id: string; client_secret: string; token_endpoint_auth_method: string };
+    expect(information.token_endpoint_auth_method).toBe('client_secret_basic');
+    expect(information.client_secret).toBeTruthy();
+    const verifier = 'cloudflare-fixture-verifier-at-least-forty-three-characters';
+    const digest = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(verifier));
+    const challenge = btoa(String.fromCharCode(...new Uint8Array(digest))).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+    // A generic OAuth proxy may omit resource indicators. The authorization
+    // server must apply its MCP default before the owner approves the grant.
+    const authorize = issuer + '/oauth2/authorize?' + new URLSearchParams({ client_id: information.client_id, response_type: 'code', redirect_uri: redirect, state: 'portal-state', scope, code_challenge_method: 'S256', code_challenge: challenge });
+    const login = await d.fetch(authorize);
+    expect(login.status).toBe(302);
+    const continuation = new URL(new URL(login.headers.get('location')!).searchParams.get('return_to')!, d.base);
+    expect(continuation.searchParams.get('resource')).toBe(d.base + mount + '/studio/mcp');
+    const consent = await d.fetch(authorize, { headers: { cookie: d.cookie } });
+    expect(consent.status).toBe(200);
+    const html = await consent.text(), handle = html.match(/name="handle" value="([^"]+)"/)![1];
+    expect(html).toContain('Resource: <code>' + d.base + mount + '/studio/mcp</code>');
+    const binding = consent.headers.getSetCookie().map(cookie => cookie.split(';')[0]).join('; ');
+    const approval = await d.fetch(issuer + '/consent', {
+      method: 'POST', headers: { cookie: d.cookie + '; ' + binding, Origin: d.base },
+      body: new URLSearchParams([['handle', handle], ['decision', 'allow'], ...[...html.matchAll(/name="scope" value="([^"]+)"/g)].map(match => ['scope', match[1]])]),
+    });
+    expect(approval.status).toBe(302);
+    const callback = new URL(approval.headers.get('location')!);
+    expect(callback.origin + callback.pathname).toBe(redirect);
+    expect(callback.searchParams.get('state')).toBe('portal-state');
+    const exchange = (fields: Record<string, string>) => d.fetch(issuer + '/oauth2/token', {
+      method: 'POST', headers: { 'Content-Type': 'application/x-www-form-urlencoded', Authorization: 'Basic ' + btoa(encodeURIComponent(information.client_id) + ':' + encodeURIComponent(information.client_secret)) },
+      body: new URLSearchParams(fields),
+    });
+    const fields = { grant_type: 'authorization_code', code: callback.searchParams.get('code')!, redirect_uri: redirect, code_verifier: verifier };
+    const issued = await exchange(fields);
+    expect(issued.status, await issued.clone().text()).toBe(200);
+    const tokens = await issued.json() as { access_token: string; refresh_token: string };
+    expect(tokens.refresh_token).toBeTruthy();
+    const called = await rawMcp(d, tokens.access_token);
+    expect(called.status).toBe(200);
+    expect(content((await called.json() as any).result).site_title).toBeDefined();
+    expect((await d.fetch(d.base + '/api/settings', { headers: { Authorization: 'Bearer ' + tokens.access_token } })).status).toBe(401);
+    const widened = await exchange({ grant_type: 'refresh_token', refresh_token: tokens.refresh_token, resource: d.base + '/api' });
+    expect(widened.status).toBe(400);
+    expect(await widened.json()).toMatchObject({ error: 'invalid_target' });
+    const renewed = await exchange({ grant_type: 'refresh_token', refresh_token: tokens.refresh_token });
+    expect(renewed.status).toBe(200);
+    const next = await renewed.json() as { access_token: string; refresh_token: string };
+    expect(next.refresh_token).not.toBe(tokens.refresh_token);
+    expect((await rawMcp(d, next.access_token)).status).toBe(200);
+    expect((await d.fetch(d.base + '/api/settings', { headers: { Authorization: 'Bearer ' + next.access_token } })).status).toBe(401);
+  });
+  it.each(['2025-03-26', '2025-06-18', '2025-11-25'])('completes a %s Streamable HTTP handshake and tool call', async version => {
+    const d = await driver(), credential = await d.manual(['owner:read']);
+    const send = (method: string, params: Record<string, unknown>, id?: number) => d.fetch(d.base + d.mount + '/studio/mcp', {
+      method: 'POST', headers: { Authorization: 'Bearer ' + credential.access_token, 'Content-Type': 'application/json', Accept: 'application/json, text/event-stream', 'MCP-Protocol-Version': version },
+      body: JSON.stringify({ jsonrpc: '2.0', ...(id === undefined ? {} : { id }), method, params }),
+    });
+    const result = async (response: Response) => {
+      expect(response.status).toBe(200);
+      const text = await response.text();
+      const messages = text.split('\n').filter(line => line.startsWith('data: ')).map(line => JSON.parse(line.slice(6)));
+      expect(messages, text).toHaveLength(1);
+      expect(messages[0].error).toBeUndefined();
+      return messages[0].result;
+    };
+    const initialized = await result(await send('initialize', { protocolVersion: version, capabilities: {}, clientInfo: { name: 'portal-handshake-fixture', version: '1' } }, 1));
+    expect(initialized.protocolVersion).toBe(version);
+    expect(initialized.capabilities.tools).toBeDefined();
+    expect((await send('notifications/initialized', {})).status).toBe(202);
+    const inventory = await result(await send('tools/list', {}, 2));
+    expect(inventory.tools.map((tool: { name: string }) => tool.name).sort()).toEqual(expectedTools(['owner:read']));
+    const settings = content(await result(await send('tools/call', { name: 'getSettings', arguments: {} }, 3)));
+    expect(settings.site_title).toBeDefined();
+  });
   it.each(['', '/blyg', '/nested/blyg'])('discovers mounted OAuth and completes a real tool call at mount %s', async mount => {
     const d = await driver(mount), redirect = 'https://client.example.test/callback';
     let tokens: OAuthTokens | undefined, information: OAuthClientInformation | undefined, verifier = '', redirectURL: URL | undefined, discovery: OAuthDiscoveryState | undefined;

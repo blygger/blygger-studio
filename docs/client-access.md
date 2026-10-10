@@ -46,6 +46,8 @@ Changing `OWNER_PASSWORD` invalidates existing Studio sessions and preserves del
 
 OAuth uses S256 PKCE, explicit owner consent, one-hour access tokens and rotating refresh credentials. Grants end no later than 30 days after the owner session began. Resource metadata, login, consent, registration, tokens and MCP are under the Studio mount.
 
+Authorization requests that omit `resource` default to `{mount}/studio/mcp`. The login continuation and consent page include that resource, and the resulting access and refresh credentials cannot gain REST API access. REST OAuth clients must request `resource=https://example.com/api` explicitly. Token requests may omit `resource` to retain the audience approved at authorization.
+
 Better Auth and its OAuth Provider supply native OIDC discovery at `{mount}/studio/auth/.well-known/openid-configuration`. The official MCP client has completed discovery, owner consent and tool calls through the Worker at root, `/blyg` and `/nested/blyg` mounts. Protected-resource challenges point to mounted metadata at `{mount}/studio/auth/resources/mcp`. No host-root discovery route is exposed.
 
 This mount-only profile does not meet RFC 9728's host-root protected-resource metadata publication rule. The explicit challenge works with the tested client; that result does not establish full RFC 9728 conformance or compatibility with every client. See [the source survey](auth-security-survey.md) and [the protocol boundaries](oauth-implementation-hardening.md).
@@ -53,6 +55,14 @@ This mount-only profile does not meet RFC 9728's host-root protected-resource me
 MCP uses the same REST handlers and Zod definitions. Tools require the operation's permissions; a denied call returns an HTTP 403 scope challenge. The tool list shows permitted operations. `uploadMedia` accepts `body.file` with `filename`, `contentType` and `dataBase64`, plus the REST metadata fields. Its adapter sends a multipart request to the REST handler. The same image types and 5 MiB raw-file limit apply; the encoded MCP request must fit within 8 MiB.
 
 For generated text, clients submit `provenance` with one entry per TK scope, using `null` for scopes with no claim. Each claim has `sources: [{ id, version }]`, and optional `model` and `at`. The claim is client-asserted. Publication strips TK authoring syntax and emits the provenance in the public item. See [the oracle coverage record](auth-oracles.md) for verified behavior and open boundaries.
+
+### Cloudflare MCP Portals
+
+Enter the full MCP URL, such as `https://example.com/blyg/studio/mcp`. For manual OAuth credentials, register the callback displayed by Cloudflare, currently `https://oauth-callbacks.cloudflareaccess.com/cdn-cgi/access/outbound-oauth-callback`, through `{mount}/studio/auth/oauth2/register`. Request `client_secret_basic`, `authorization_code` and `refresh_token`, and the scopes you need. Use the returned client ID and secret in the portal.
+
+If discovery fails, enter `{mount}/studio/auth/oauth2/authorize` and `{mount}/studio/auth/oauth2/token` as the authorization and token endpoints. The issuer is `{mount}/studio/auth`; the optional revocation endpoint is `{mount}/studio/auth/oauth2/revoke`. These are absolute URLs on the blyg's host. Do not replace the MCP URL with the site homepage or issuer URL.
+
+Cloudflare supports manual endpoint configuration and Streamable HTTP. Local tests cover the report's registration fields, omitted resource indicators, Basic token exchange, refresh and MCP calls at root and nested mounts. They also cover the 2025 Streamable HTTP handshakes. These checks do not establish successful registration in a live portal. See [the issue 54 investigation](issue-54-cloudflare-mcp.md) and [Cloudflare's setup guide](https://developers.cloudflare.com/cloudflare-one/access-controls/ai-controls/mcp-portals/).
 
 ## Installation
 
