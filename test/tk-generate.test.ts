@@ -8,7 +8,7 @@ import { env } from "cloudflare:test";
 import { beforeEach, describe, expect, it } from "vitest";
 import type { ProviderFetchLike } from "../src/ai/provider.ts";
 import { createAndPublish, login } from "./helpers.ts";
-import { putSettings, createDraft, getItem, getTkProvenance, publish, withdraw } from "../src/model.ts";
+import { putSettings, createDraft, getItem, getTkProvenance, withdraw } from "../src/model.ts";
 
 beforeEach(() => putSettings(env.DB, { ai_model: "claude-opus-5" }));
 import { runGenerateScope } from "../src/tk-generate.ts";
@@ -81,20 +81,17 @@ describe("runGenerateScope — error cases (§5/§6 task 4)", () => {
     expect(calls).toHaveLength(0); // never reaches the provider
   });
 
-  it("unresolvable source: draft, withdrawn, thread", async () => {
+  it("unresolvable source: draft, withdrawn", async () => {
     const cookie = await login();
     const draftFrag = await createDraft(env.DB, "never published");
     const withdrawnId = await createAndPublish(cookie, "to withdraw");
     await withdraw(env.DB, (await getItem(env.DB, withdrawnId))!, null);
-    const threadItem = await createDraft(env.DB, "some thread", "thread");
-    await publish(env.DB, threadItem, null);
 
-    // A draft or withdrawn source is genuinely unusable and says why; a thread
-    // is a valid id the studio cannot use *yet* (G8), and says that instead.
+    // Threads and imported items are valid sources since remote generation
+    // sources (#44, G8); test/remote-sources.test.ts covers them.
     const expected: [string, RegExp][] = [
       [draftFrag.id, /^unresolvable source: item is a draft/],
       [withdrawnId, /^unresolvable source: item is withdrawn/],
-      [threadItem.id, /^TK transcludes are not yet implemented/],
     ];
     for (const [badId, error] of expected) {
       const item = await createDraft(env.DB, `[TK]use ![[${badId}]][/TK]`);

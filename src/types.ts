@@ -194,9 +194,22 @@ export interface StubCite {
   retrieved: string;
 }
 
+/**
+ * One `generated[].sources[]` entry: the §5.9 reference (0.3 §16.3, decision
+ * #44). `origin` is present for a remote source and omitted for our own, so
+ * every document published before remote sources stays valid. A remote source
+ * carries its frozen human half, composed when the scope was generated.
+ */
+export interface GenerationSource {
+  id: string;
+  version: number;
+  origin?: string;
+  cited?: StubCite;
+}
+
 /** Per-scope TK generation provenance (tk-core-plan.md §3.1/§4). */
 export interface ScopeProvenance {
-  sources: { id: string; version: number }[];
+  sources: GenerationSource[];
   model?: string;
   at?: string;
 }
@@ -319,7 +332,7 @@ export interface SignalRow {
 // --- v0.3 "Trunk" Webmention (migration 0007, v0.3-plan.md §4.1) ---
 
 /** Why a mention relates to us — read out of the source document's own structure, never from body text (§2.3.5). */
-export type MentionRelation = "stub" | "transclusion" | "fork";
+export type MentionRelation = "stub" | "transclusion" | "fork" | "source";
 
 /**
  * An inbound mention. `pending` → `verified` | `failed` | `gone`; a row that

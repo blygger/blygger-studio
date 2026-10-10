@@ -3,11 +3,25 @@
 // fetch, the same DI pattern importer/schedule.ts uses for runScheduledPoll.
 
 import { generate, markDocument, platformProviderFetch, ProviderError, AiBudgetError, type ProviderFetchLike } from "./ai/provider.ts";
+import { selectionText } from "./markdown.ts";
 import { getSettings, saveWorkingCopy, setTkProvenance } from "./model.ts";
+import { composeStubCite } from "./stub.ts";
 import { parseScopes, setScopeOutput } from "./tk.ts";
-import { resolveFragment } from "./transclusion.ts";
-import type { Env, ItemRow } from "./types.ts";
+import { resolveTarget, type ResolvedTarget } from "./transclusion.ts";
+import type { Env, GenerationSource, ItemRow } from "./types.ts";
 import { nowIso } from "./util.ts";
+
+/**
+ * What a generator is fed for one source: the local snapshot (0.3 §16.3),
+ * never a live fetch. A fragment's markdown is its text. A thread's markdown
+ * holds bare `![[id]]` directives, so it is fed as its reader sees it — the
+ * baked snapshot, quotes included, as text with its block breaks kept. An
+ * imported item whose origin sent no markdown is fed the same way.
+ */
+function sourceText(target: ResolvedTarget): string {
+  if (target.kind === "fragment" && target.contentMd.trim()) return target.contentMd;
+  return selectionText(target.contentHtml);
+}
 
 export type GenerateScopeResult =
   /** `text` is the scope's new output alone; `content_md` is the whole working copy with it spliced in, as saved. */
@@ -19,6 +33,8 @@ export async function runGenerateScope(
   item: ItemRow,
   scopeIndex: number,
   fetchImpl: ProviderFetchLike = platformProviderFetch,
+  /** This blyg's origin, for the cite of a source that turns out to be our own under another subscription. */
+  ourOrigin?: string,
 ): Promise<GenerateScopeResult> {
   const { scopes, errors: parseErrors } = parseScopes(item.content_md);
   if (parseErrors.length) {
@@ -28,24 +44,29 @@ export async function runGenerateScope(
   if (!scope) return { ok: false, status: 400, body: { error: "unknown scope index" } };
   if (scope.imported) return { ok: false, status: 400, body: { error: "an impyrt scope holds text generated elsewhere; it is not regenerated here" } };
 
-  const sources: { id: string; version: number; content_md: string }[] = [];
+  // Every source resolves by the rule a directive uses (§10.2's order, 0.3
+  // §16.3, decision #44): one of our published items, then an imported item
+  // with a current or pin-retained snapshot. No selfId: a source bakes
+  // nothing, so there is no cycle to refuse, the same reasoning as `[[id]]`.
+  const settings = await getSettings(env.DB);
+  const at = nowIso();
+  const sources: (GenerationSource & { text: string })[] = [];
   for (const id of scope.sourceIds) {
-    const resolved = await resolveFragment(env.DB, id);
-    if (!resolved.ok) {
-      // A source in a scope may today only be one of your own published
-      // fragments (the v0.1 rule). Imported items and threads are what remote
-      // generation sources (#44, gate G8) add; until then, say so plainly
-      // rather than call a valid id "unresolvable", which reads as a bug.
-      const imported = await env.DB.prepare("SELECT 1 FROM imported_items WHERE remote_id = ? LIMIT 1").bind(id).first();
-      if (imported || resolved.reason === "cannot use a thread as a TK source") {
-        return { ok: false, status: 400, body: { error: "TK transcludes are not yet implemented: a [TK] scope can draw on your own published fragments, but not yet on imported items or threads", id } };
-      }
-      return { ok: false, status: 400, body: { error: `unresolvable source: ${resolved.reason}`, id, reason: resolved.reason } };
+    const resolved = await resolveTarget(env.DB, id);
+    if (!resolved.ok) return { ok: false, status: 400, body: { error: `unresolvable source: ${resolved.reason}`, id, reason: resolved.reason } };
+    const { target } = resolved;
+    const ref: GenerationSource = { id, version: target.version };
+    // A remote source carries its origin and its frozen human half, composed
+    // now, when the words were read, so publish emits the stored object and a
+    // later rename of the subscription cannot rewrite it (as for a remote
+    // transclusion's cite, decision #30).
+    if (target.origin) {
+      ref.origin = target.origin;
+      ref.cited = await composeStubCite(env.DB, { origin: target.origin, id, version: target.version }, ourOrigin ?? "", settings.site_title, at);
     }
-    sources.push({ id, version: resolved.version.version, content_md: resolved.version.content_md });
+    sources.push({ ...ref, text: sourceText(target) });
   }
 
-  const settings = await getSettings(env.DB);
   let result;
   try {
     result = await generate(
@@ -53,7 +74,7 @@ export async function runGenerateScope(
       {
         instruction: scope.instruction,
         currentText: scope.output,
-        sources: sources.map(({ id, content_md }) => ({ id, content_md })),
+        sources: sources.map(({ id, text }) => ({ id, content_md: text })),
         documentContext: markDocument(item.content_md, scope.start, scope.end),
         stylePrompt: settings.ai_style_prompt || null,
       },
@@ -68,9 +89,9 @@ export async function runGenerateScope(
   const updatedMd = setScopeOutput(item.content_md, scope, result.text);
   await saveWorkingCopy(env.DB, item.id, updatedMd);
   await setTkProvenance(env.DB, item.id, scopeIndex, scopes.length, {
-    sources: sources.map(({ id, version }) => ({ id, version })),
+    sources: sources.map(({ text: _text, ...ref }) => ref),
     model: result.model,
-    at: nowIso(),
+    at,
   });
 
   return { ok: true, text: result.text, model: result.model, content_md: updatedMd };

@@ -116,7 +116,7 @@ export const MentionInRowSchema = z.object({
   target: z.string(),
   target_item_id: z.string(),
   status: z.enum(["pending", "verified", "failed", "gone"]),
-  relation: z.enum(["stub", "transclusion", "fork"]).nullable(),
+  relation: z.enum(["stub", "transclusion", "fork", "source"]).nullable(),
   source_origin: z.string().nullable(),
   source_id: z.string().nullable(),
   source_kind: z.string().nullable(),

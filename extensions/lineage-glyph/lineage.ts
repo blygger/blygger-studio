@@ -113,7 +113,7 @@ async function loadGraph(db: D1Database, ourOrigin: string) {
       WHERE i.status = 'public' AND (i.forked_from IS NOT NULL OR v.stub_of IS NOT NULL OR v.transclusions NOT IN ('', '[]'))`)
       .all<{ id: string; forked_from: string | null; stub_of: string | null; transclusions: string | null }>(),
     db.prepare(`SELECT target_item_id, relation, source_origin, source_id, source_kind, source_version, source_author_json, source_page
-      FROM mentions_in WHERE status = 'verified' AND relation IS NOT NULL AND source_id IS NOT NULL`)
+      FROM mentions_in WHERE status = 'verified' AND relation IN ('stub', 'transclusion', 'fork') AND source_id IS NOT NULL`)
       .all<{ target_item_id: string; relation: LineageRelation; source_origin: string | null; source_id: string; source_kind: string | null; source_version: number | null; source_author_json: string | null; source_page: string | null }>(),
     db.prepare("SELECT * FROM subscriptions").all<SubscriptionRow>(),
   ]);

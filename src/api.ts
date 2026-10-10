@@ -326,7 +326,8 @@ api.openapi(routes.generateItem, async (c) => {
   if (!item) return c.json({ error: "not found" }, 404);
   const body = await readJson<{ scope: number }>(c);
 
-  const result = await runGenerateScope(c.env, item, body.scope);
+  const origin = siteOrigin(await getSettings(c.env.DB), c.req.url, normalizeMount(c.env.MOUNT));
+  const result = await runGenerateScope(c.env, item, body.scope, undefined, origin);
   if (!result.ok) return c.json(result.body, result.status as 400 | 404 | 502);
   return c.json({ text: result.text, model: result.model, content_md: result.content_md });
 });

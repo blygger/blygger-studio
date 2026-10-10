@@ -123,36 +123,17 @@ export class TransclusionResolveError extends Error {
   }
 }
 
-/**
- * Resolve a local item id to a currently-published **fragment** (item + latest
- * version), or a reason it can't be used as a target. This is the v0.1 rule,
- * kept verbatim for TK source-ref resolution (tk-core-plan.md §2.3) — v0.3
- * explicitly leaves the generation hooks untouched (v0.3-plan §1 non-goals),
- * so a TK source is still local, published, fragment-only. Transclusion
- * targets go through resolveTarget below, which is the rule that widened.
- */
-export async function resolveFragment(
-  db: D1Database,
-  id: string,
-): Promise<{ ok: true; item: ItemRow; version: VersionRow } | { ok: false; reason: string }> {
-  const item = await db.prepare("SELECT * FROM items WHERE id = ?").bind(id).first<ItemRow>();
-  if (!item) return { ok: false, reason: "unknown item" };
-  if (item.status === "draft") return { ok: false, reason: "item is a draft, not published" };
-  if (item.kind === "withdrawn") return { ok: false, reason: "item is withdrawn" };
-  if (item.kind === "thread") return { ok: false, reason: "cannot use a thread as a TK source" };
-  const version = await db
-    .prepare("SELECT * FROM versions WHERE item_id = ? AND version = ?")
-    .bind(item.id, item.version)
-    .first<VersionRow>();
-  if (!version) return { ok: false, reason: "unknown item" };
-  return { ok: true, item, version };
-}
-
 /** A resolved transclusion target: the bytes to bake plus the provenance to record. */
 export interface ResolvedTarget {
   id: string;
   version: number;
   contentHtml: string;
+  /**
+   * The target's markdown as held here: our own version's, or the imported
+   * row's (empty when the origin's feed carried none). A TK scope feeds a
+   * generator from this (decision #44); baking never reads it.
+   */
+  contentMd: string;
   /** Identity origin for a remote (imported) source; omitted for own-origin — decision #26. */
   origin?: string;
   /** Authored kind, for callers that need the target's page URL rather than its bytes. */
@@ -223,7 +204,7 @@ export async function resolveTarget(
         return { ok: false, reason: "circular transclusion: that thread already quotes this one" };
       }
     }
-    return { ok: true, target: { id: item.id, version: version.version, contentHtml: version.content_html, kind: item.kind } };
+    return { ok: true, target: { id: item.id, version: version.version, contentHtml: version.content_html, contentMd: version.content_md, kind: item.kind } };
   }
 
   // Imported: identity is the subscription's own origin (0.2 §12.2 — the
@@ -248,7 +229,7 @@ export async function resolveTarget(
     // own absolutizing pass (publish(), session 30) finds nothing relative to
     // re-point at us. Covers rows imported before the importer did this itself.
     const contentHtml = absolutizeHtml(row.content_html, row.sub_origin);
-    return { ok: true, target: { id, version, contentHtml, origin: row.sub_origin, kind: row.kind, page: row.page } };
+    return { ok: true, target: { id, version, contentHtml, contentMd: row.content_md, origin: row.sub_origin, kind: row.kind, page: row.page } };
   }
   if (candidates.length) return { ok: false, reason: "source withdrawn by origin" };
   if (rows.results.length) return { ok: false, reason: "source is a plain RSS (L0) item, not a blyg item" };
