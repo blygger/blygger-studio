@@ -18,38 +18,41 @@ not have its own repo until session 26.
 
 ---
 
-## Unreleased
+## 0.40.0 — 2026-10-10
 
-**Migrations: none.**
+**Migrations: none.** Six contributor PRs, merged together.
 
-- **Cloudflare Workers AI** (studio#8, after Aneesh Sathe's local patch). A
-  `workers-ai` provider in `models.json` runs `@cf/…` models on the Worker's
-  own `ai` binding, with no API key; Gemma 4 26B, Llama 4 Scout, Llama 3.3 70B
-  and Mistral Small 3.1 are listed, and any `@cf/…` id can be typed in. The
-  binding is commented out in `wrangler.jsonc` and in what `npm run init`
-  writes: uncomment it to offer these models. Nothing runs on it until a model
-  is chosen in Settings: still no default model and no fallback. Reasoning a
-  model inlines into its answer is removed, and Gemma 4 is asked not to think.
-- **OpenAI-compatible endpoints.** An `openai-chat` provider calls any Chat
-  Completions endpoint at its `base_url` (OpenRouter, Groq, Together,
-  Cloudflare's OpenAI-compatible endpoint, a local Ollama), with its key in a
-  Worker secret named by `key_secret`. Add one in `models.local.json`; README §
-  AI models has an example. The build now refuses a manifest whose provider
-  could not be called: an unknown api, a missing key secret or base URL, a
-  base URL that is not https or carries credentials, or a `key_secret` naming
-  `OWNER_PASSWORD` or `COOKIE_SECRET`.
-- Both spend the daily AI budget like every other provider.
-- **API:** in `GET /api/ai/models`, a provider's `key_secret` is now optional
-  (absent for Workers AI and keyless endpoints) and a Workers AI provider
-  carries `binding`. `configured` means the key is set, the binding is bound,
-  or neither is needed.
-- Tests never reach real, billed Workers AI (`remoteBindings: false`).
+**`/api`, all additive:** `GET /api/reading/imported` (#61); `Settings` gains
+`custom_theme`, `custom_theme_dark`, `custom_theme_name` and `font` (#58); in
+`GET /api/ai/models` a provider's `key_secret` is optional and a Workers AI
+provider carries `binding` (#60); the lineage-glyph extension's two reads under
+`/api/ext/lineage-glyph/` (#53, 404 unless compiled in and enabled).
 
-Custom theme and reading typeface (Miguel, #58; no migration, both live in `settings`). `/api` change, additive:
-`Settings` gains `custom_theme` and `custom_theme_dark` (each an object, or
-`null`), `custom_theme_name` and `font` (strings); `PATCH /api/settings` accepts
-them and
-answers 400 for anything invalid or incoherent.
+### Reading API (Aneesh Sathe, #61)
+
+- **`GET /api/reading/imported`**, under `owner:read`: every imported item,
+  newest observed first, with the fields a client authors from (markdown,
+  author, signal, hopper ids, the origin's transclusions, `stubOf` and
+  `forkedFrom` verbatim, `readVersion`). Paged by an opaque keyset cursor over
+  `(observed_at, subscription, id)`, so ties split exactly and a poll between
+  two requests never shifts or repeats rows. A cursor the server did not issue
+  is a 400; `limit` is 1–100, default 50. For clients such as Blygger Desktop
+  that would otherwise need one `/imports/{sub}/{id}` call per row.
+
+### Public pages (Aneesh Sathe, #62, closes #9)
+
+- **A paragraph that is only a bare YouTube link becomes a click-to-play
+  poster.** Strict URL rule (YouTube's own hosts, video path shapes, an
+  11-character id, no credentials or port). The poster comes from
+  `i.ytimg.com` with no referrer; nothing loads from YouTube itself until play,
+  and then the player is `youtube-nocookie.com`. The link stays as the caption.
+- **An off-origin image that fails to load becomes "Image: alt ↗ (host)"**, a
+  link to it (a span inside an existing link, so links never nest).
+- Both are done by a page script on screen only: `content_html`, feeds and item
+  JSON are unchanged, every version (pinned ones too) gets the same treatment,
+  and with scripts off the link is a plain link.
+
+### Theme and typeface (Miguel, #58, roadmap row 4)
 
 **Custom theme.** A *Custom* tile beside the presets opens an editor for the
 author's own palette: the same nine values a preset has (`dark` plus `page`,
@@ -88,6 +91,47 @@ already on the reader's device, so nothing is downloaded and no third party
 sees a reader; "no web fonts" still holds. Only `--serif` changes, so all
 reading text follows the choice while the apparatus keeps its sans. Unknown
 ids are refused (400). Public pages only; the studio keeps its own type.
+
+### AI providers (Aneesh Sathe, #60, closes #8)
+
+- **Cloudflare Workers AI** (studio#8, after Aneesh Sathe's local patch). A
+  `workers-ai` provider in `models.json` runs `@cf/…` models on the Worker's
+  own `ai` binding, with no API key; Gemma 4 26B, Llama 4 Scout, Llama 3.3 70B
+  and Mistral Small 3.1 are listed, and any `@cf/…` id can be typed in. The
+  binding is commented out in `wrangler.jsonc` and in what `npm run init`
+  writes: uncomment it to offer these models. Nothing runs on it until a model
+  is chosen in Settings: still no default model and no fallback. Reasoning a
+  model inlines into its answer is removed, and Gemma 4 is asked not to think.
+- **OpenAI-compatible endpoints.** An `openai-chat` provider calls any Chat
+  Completions endpoint at its `base_url` (OpenRouter, Groq, Together,
+  Cloudflare's OpenAI-compatible endpoint, a local Ollama), with its key in a
+  Worker secret named by `key_secret`. Add one in `models.local.json`; README §
+  AI models has an example. The build now refuses a manifest whose provider
+  could not be called: an unknown api, a missing key secret or base URL, a
+  base URL that is not https or carries credentials, or a `key_secret` naming
+  `OWNER_PASSWORD` or `COOKIE_SECRET`.
+- Both spend the daily AI budget like every other provider.
+- **API:** in `GET /api/ai/models`, a provider's `key_secret` is now optional
+  (absent for Workers AI and keyless endpoints) and a Workers AI provider
+  carries `binding`. `configured` means the key is set, the binding is bound,
+  or neither is needed.
+- Tests never reach real, billed Workers AI (`remoteBindings: false`).
+
+### Extensions (Aneesh Sathe, #53)
+
+- **lineage-glyph**, #35's lineage glyph, hex view and action ring, ported
+  onto the extension mechanism. It has a server half (two owner reads), so it is
+  compiled in by an operator and never ships in release archives;
+  `extensions.json` is unchanged. Hrefs from foreign documents must pass
+  `isFollowableUrl`.
+
+### Fixes
+
+- **Composer tools place the caret at once** (Aneesh Sathe, #64). `[TK]`,
+  `[[`, `![[`, link from clipboard, scan and the bracket picker placed the caret
+  one animation frame late, so anything that selected or typed in between had
+  its selection collapsed and appended instead of replacing. This was the CI
+  flake in `compose-pwa.spec.ts:179`.
 
 ## 0.39.0 — 2026-10-09
 
