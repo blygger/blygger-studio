@@ -217,13 +217,17 @@ export function BracketPicker({
   }, [selected]);
 
   if (!open || !trigger) return null;
-  const link = trigger.form === 'link';
+  const head = {
+    link: { name: 'link', code: '[[…]]', sub: 'cites without responding' },
+    transclude: { name: 'quote', code: '![[…]]', sub: 'transcludes the item into this thread' },
+    source: { name: 'source', code: '![[…]]', sub: 'feeds the item to the generator; its author is told' },
+  }[trigger.form];
   return (
-    <aside className={full ? 'picker picker-full' : 'picker'} role="complementary" aria-label={link ? 'link picker' : 'quote picker'}>
+    <aside className={full ? 'picker picker-full' : 'picker'} role="complementary" aria-label={`${head.name} picker`}>
       <header className="picker-head">
         <div>
-          <strong>{link ? 'link' : 'quote'}</strong> <code>{link ? '[[…]]' : '![[…]]'}</code>
-          <div className="picker-sub">{link ? 'cites without responding' : 'transcludes the item into this thread'}</div>
+          <strong>{head.name}</strong> <code>{head.code}</code>
+          <div className="picker-sub">{head.sub}</div>
         </div>
         <Button className="btn btn-ghost btn-mini" aria-label="close picker" onMouseDown={(e) => e.preventDefault()} onClick={dismiss}>
           ✕

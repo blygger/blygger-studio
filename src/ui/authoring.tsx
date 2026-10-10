@@ -1830,6 +1830,23 @@ function Editor({ item }: { item: Detail }) {
                       >
                         {scope.hasOutput ? 'regenerate' : 'generate'}
                       </Button>
+                      {scope.sources?.length ? (
+                        <ul className="tk-sources">
+                          {scope.sources.map((source) =>
+                            source.ok ? (
+                              <li key={source.id}>
+                                draws on <strong>{source.from}</strong>
+                                {source.excerpt ? <> · <q>{source.excerpt}</q></> : null}
+                                {source.remote ? <span className="hint"> · its author is told when you publish</span> : null}
+                              </li>
+                            ) : (
+                              <li key={source.id} className="tk-source-bad">
+                                <code>![[{source.id}]]</code> cannot be used: {source.reason}
+                              </li>
+                            ),
+                          )}
+                        </ul>
+                      ) : null}
                     </>
                   )}
                 </li>

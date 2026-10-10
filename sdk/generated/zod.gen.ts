@@ -1282,7 +1282,15 @@ export const zPreviewResponse = z.object({
         output: z.string().nullable(),
         hasOutput: z.boolean(),
         block: z.boolean(),
-        imported: z.boolean()
+        imported: z.boolean(),
+        sources: z.array(z.object({
+            id: z.string(),
+            ok: z.boolean(),
+            from: z.string().optional(),
+            remote: z.boolean().optional(),
+            excerpt: z.string().optional(),
+            reason: z.string().optional()
+        }))
     })),
     link_errors: z.array(z.object({
         id: z.string().optional(),

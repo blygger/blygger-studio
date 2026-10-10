@@ -28,6 +28,7 @@ beforeEach(async () => {
   await putSettings(env.DB, { ai_model: "claude-opus-5", site_url: OURS, site_title: "Our Blyg" });
   await env.DB.prepare("INSERT OR IGNORE INTO subscriptions (id, kind, origin, feed_url, title, created) VALUES ('them', 'blyg', ?, ?, 'Friend''s Blyg', '2026-10-01T00:00:00Z')").bind(THEM, `${THEM}feed.xml`).run();
   await env.DB.prepare("INSERT OR IGNORE INTO subscriptions (id, kind, origin, feed_url, title, created) VALUES ('other', 'blyg', ?, ?, 'Other Blyg', '2026-10-01T00:00:00Z')").bind(OTHER, `${OTHER}feed.xml`).run();
+  await env.DB.prepare("UPDATE subscriptions SET title = 'Friend''s Blyg' WHERE id = 'them'").run();
 });
 
 async function seedImported(
@@ -279,5 +280,21 @@ describe("import (R8c, migration 0027): generated[] survives verbatim", () => {
     const endcap = { blyg: "0.4", id: R1, kind: "withdrawn", origin: THEM, version: 2, updated: "2026-10-10T02:00:00Z" };
     await applyEffect(env.DB, "them", R1, transition({ local: { status: "current", version: 1 }, doc: endcap }).effect, "2026-10-10T02:00:00Z");
     expect((await row())!.generated_json).toBeNull();
+  });
+});
+
+describe("studio (R6): the preview names each scope's sources before generating", () => {
+  it("names a remote source by its subscription, our own as you, and says why one would be refused", async () => {
+    const cookie = await login();
+    await seedImported("them", R1, { md: "Their words.", html: "<p>Their words.</p>" });
+    const own = await createAndPublish(cookie, "Own words.");
+    await seedImported("them", R2, { l0: 1 });
+    const res = await apiJson(cookie, "POST", "/api/preview", { content_md: `[TK]compare ![[${R1}]] ![[${own}]] ![[${R2}]][/TK]` });
+    expect(res.status).toBe(200);
+    expect(res.json.scopes[0].sources).toEqual([
+      { id: R1, ok: true, from: "Friend's Blyg", remote: true, excerpt: "Their words." },
+      { id: own, ok: true, from: "you", excerpt: "Own words." },
+      { id: R2, ok: false, reason: "source is a plain RSS (L0) item, not a blyg item" },
+    ]);
   });
 });

@@ -1,6 +1,57 @@
-import { plainTextFromHtml, renderMarkdown } from "./markdown.ts";
+import { excerptFromHtml, plainTextFromHtml, renderMarkdown } from "./markdown.ts";
 import { clampText } from "./preview.ts";
 import { annotateGenerated, applyGeneratedWrappers, parseScopes, previewStrip, type TkScope } from "./tk.ts";
+import { resolveTarget } from "./transclusion.ts";
+
+/** One `![[id]]` in a scope's instruction, as generate would resolve it: named for the editor, or why it would fail. */
+export interface ScopeSourceSummary {
+  id: string;
+  ok: boolean;
+  /** Where it comes from: "you", or the subscription's title for a remote source (decision #44). */
+  from?: string;
+  /** Present for a remote source: its author is told when the generated text is published. */
+  remote?: boolean;
+  excerpt?: string;
+  reason?: string;
+}
+
+/**
+ * scopeSummaries plus each scope's sources, resolved by the rule generate
+ * uses, so the editor can say "draws on Friend's Blyg: …" or name a failure
+ * before the author spends a generation on it.
+ */
+export async function scopeSummariesWithSources(db: D1Database, scopes: TkScope[]) {
+  const titles = new Map<string, string>();
+  const title = async (origin: string) => {
+    if (!titles.has(origin)) {
+      const row = await db.prepare("SELECT title FROM subscriptions WHERE origin = ? LIMIT 1").bind(origin).first<{ title: string }>();
+      titles.set(origin, row?.title || new URL(origin).host);
+    }
+    return titles.get(origin)!;
+  };
+  const summaries = scopeSummaries(scopes);
+  return Promise.all(
+    summaries.map(async (summary, i) => {
+      const sources: ScopeSourceSummary[] = [];
+      for (const id of scopes[i].sourceIds) {
+        const resolved = await resolveTarget(db, id);
+        if (!resolved.ok) {
+          sources.push({ id, ok: false, reason: resolved.reason });
+          continue;
+        }
+        const { target } = resolved;
+        sources.push({
+          id,
+          ok: true,
+          from: target.origin ? await title(target.origin) : "you",
+          ...(target.origin ? { remote: true } : {}),
+          excerpt: excerptFromHtml(target.contentHtml, 60),
+        });
+      }
+      return { ...summary, sources };
+    }),
+  );
+}
 export function scopeSummaries(scopes: TkScope[]): { index: number; instruction: string; output: string | null; hasOutput: boolean; block: boolean; imported: boolean }[] {
   return scopes.map((s, index) => ({
     index,

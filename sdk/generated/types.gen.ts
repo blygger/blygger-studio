@@ -4048,6 +4048,23 @@ export type PreviewResponses = {
             hasOutput: boolean;
             block: boolean;
             imported: boolean;
+            sources: Array<{
+                id: string;
+                ok: boolean;
+                /**
+                 * "you", or the subscription title of a remote source
+                 */
+                from?: string;
+                /**
+                 * A remote source: its author is sent a `source` mention when the generated text is published.
+                 */
+                remote?: boolean;
+                excerpt?: string;
+                /**
+                 * Why generate would refuse this source
+                 */
+                reason?: string;
+            }>;
         }>;
         link_errors?: Array<{
             id?: string;

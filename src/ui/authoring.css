@@ -136,6 +136,10 @@
 .tk-list { list-style: none; margin: 0; padding: 0; }
 .tk-scope-row { display: flex; gap: 8px; align-items: center; padding: 8px 0; border-bottom: 1px solid var(--rule); font-size: .86rem; }
 .tk-scope-row:last-child { border-bottom: none; }
+.tk-scope-row { flex-wrap: wrap; }
+.tk-sources { flex-basis: 100%; list-style: none; margin: 0; padding: 0 0 0 10px; border-left: 2px solid var(--rule); font-size: .8rem; color: var(--ink-soft); }
+.tk-sources li { overflow-wrap: anywhere; }
+.tk-sources .tk-source-bad { color: var(--alert); }
 .tk-instruction { flex: 1; min-width: 0; font-family: var(--mono); font-size: .8rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .tk-imported { font-family: var(--sans); font-style: italic; color: var(--ink-soft); }
 .tk-more { margin-top: 10px; }

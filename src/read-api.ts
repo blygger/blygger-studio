@@ -3,7 +3,7 @@ import { fetchOnSurface, itemUrl } from "./surface.ts";
 import type { Context } from "hono";
 import { contractApp, readJson } from "./contract/app.ts";
 import { routes } from "./contract/routes.ts";
-import { annotateTkPreview, scopeSummaries } from "./authoring.ts";
+import { annotateTkPreview, scopeSummariesWithSources } from "./authoring.ts";
 import { getItem, getSettings, getSettingsMap, getVersion, listVersions } from "./model.ts";
 import { getHopper, getImportedItem, listSubscriptions, getSubscription } from "./importer/store.ts";
 import { sanitizeHtml } from "./importer/sanitize.ts";
@@ -179,7 +179,7 @@ readApi.openapi(routes.preview, async (c) => {
   // Links inside generated blocks resolve here too, as at publish (studio#14).
   const blocks = await resolveBlockLinks(tk.blocks, (html) => previewInternalLinks(c.env.DB, html, origin, true));
   const html = [links, ...blocks.docs].reduce((acc, doc) => applyInternalLinks(acc, doc), tk.finish(renderMarkdown(links.text)));
-  return c.json({ html, scopes: scopeSummaries(tk.scopes), link_errors: [...links.errors, ...blocks.errors] });
+  return c.json({ html, scopes: await scopeSummariesWithSources(c.env.DB, tk.scopes), link_errors: [...links.errors, ...blocks.errors] });
 });
 
 /**
@@ -287,7 +287,7 @@ async function threadPreview(c: Context<{ Bindings: Env }>) {
     html: [links, ...blocks.docs].reduce((acc, doc) => applyInternalLinks(acc, doc), tk.finish(resolved.html)),
     errors: [...resolved.errors, ...links.errors, ...blocks.errors],
     transclusions: resolved.transclusions,
-    scopes: scopeSummaries(tk.scopes),
+    scopes: await scopeSummariesWithSources(c.env.DB, tk.scopes),
   });
 }
 async function forkablePins(

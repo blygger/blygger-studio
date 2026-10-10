@@ -11048,6 +11048,39 @@
                           },
                           "imported": {
                             "type": "boolean"
+                          },
+                          "sources": {
+                            "type": "array",
+                            "items": {
+                              "type": "object",
+                              "properties": {
+                                "id": {
+                                  "type": "string"
+                                },
+                                "ok": {
+                                  "type": "boolean"
+                                },
+                                "from": {
+                                  "type": "string",
+                                  "description": "\"you\", or the subscription title of a remote source"
+                                },
+                                "remote": {
+                                  "type": "boolean",
+                                  "description": "A remote source: its author is sent a `source` mention when the generated text is published."
+                                },
+                                "excerpt": {
+                                  "type": "string"
+                                },
+                                "reason": {
+                                  "type": "string",
+                                  "description": "Why generate would refuse this source"
+                                }
+                              },
+                              "required": [
+                                "id",
+                                "ok"
+                              ]
+                            }
                           }
                         },
                         "required": [
@@ -11056,7 +11089,8 @@
                           "output",
                           "hasOutput",
                           "block",
-                          "imported"
+                          "imported",
+                          "sources"
                         ]
                       }
                     },

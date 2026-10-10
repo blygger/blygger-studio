@@ -612,13 +612,21 @@ export const GEN_INFO_SCRIPT = `
     add(pop, "p", "The author marked this text as machine-generated. Self-reported, not verified.");
     var holder = span.closest("[data-generated]"), list = [];
     try { list = holder ? JSON.parse(holder.getAttribute("data-generated")) || [] : []; } catch (e) { list = []; }
-    var models = [], dates = [], sources = {};
+    var models = [], dates = [], sources = {}, remote = [], seenRemote = {};
     for (var i = 0; i < list.length; i++) {
       var g = list[i];
       if (!g) continue;
       if (g.model && models.indexOf(g.model) === -1) models.push(g.model);
       if (g.at) dates.push(g.at);
-      for (var j = 0; g.sources && j < g.sources.length; j++) sources[g.sources[j].id] = true;
+      for (var j = 0; g.sources && j < g.sources.length; j++) {
+        var s = g.sources[j];
+        if (!s) continue;
+        // A remote source (0.4) names its origin and carries a frozen cite.
+        if (s.origin) {
+          var key = s.origin + " " + s.id;
+          if (!seenRemote[key]) { seenRemote[key] = true; remote.push(s); }
+        } else sources[s.id] = true;
+      }
     }
     dates.sort();
     var dl = add(pop, "dl");
@@ -630,9 +638,18 @@ export const GEN_INFO_SCRIPT = `
       add(dl, "dd", first === last ? first : first + " to " + last);
     }
     var n = Object.keys(sources).length;
-    if (n) {
-      add(dl, "dt", "Drew on");
-      add(dl, "dd", n + (n === 1 ? " item" : " items") + " from this blyg");
+    if (n || remote.length) add(dl, "dt", "Drew on");
+    if (n) add(dl, "dd", n + (n === 1 ? " item" : " items") + " from this blyg");
+    for (var r = 0; r < remote.length; r++) {
+      var cite = remote[r].cited || {}, dd = add(dl, "dd");
+      var name = cite.source || remote[r].origin;
+      var href = typeof cite.url === "string" && /^https?:/i.test(cite.url) ? cite.url : null;
+      if (href) {
+        var a = add(dd, "a", name);
+        a.href = href;
+        a.rel = "noopener";
+      } else add(dd, "span", name);
+      if (cite.excerpt) add(dd, "span", ": " + cite.excerpt);
     }
     if (list.length > 1) add(pop, "p", "These details cover all " + list.length + " generated passages in this version.").style.marginTop = "0.4rem";
   }

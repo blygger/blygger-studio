@@ -135,3 +135,26 @@ test('Settings → writing sets where the picker search is typed', async ({ page
     await typing(page, 'auto');
   }
 });
+
+test('![[ inside a [TK] instruction opens a source picker and inserts the id in place (#44)', async ({ page }, info) => {
+  await login(page);
+  await typing(page, 'editor');
+  const token = `${info.project.name}sourcetoken`;
+  const [id] = await publish(page, [`A source for the generator ${token}`]);
+  try {
+    await page.reload();
+    const editor = page.locator('#composer-text');
+    await editor.fill(`[TK]summarize ![[${token}`);
+    const panel = page.getByRole('complementary', { name: 'source picker' });
+    await expect(panel).toBeVisible();
+    await expect(panel).toContainText('feeds the item to the generator');
+    await expect(options(page)).toHaveCount(1);
+    await editor.press('Enter');
+    await expect(editor).toHaveValue(`[TK]summarize ![[${id}]]`);
+    // Outside a scope an inline ![[ still opens nothing.
+    await editor.fill(`plain ![[${token}`);
+    await expect(page.getByRole('complementary')).toHaveCount(0);
+  } finally {
+    await typing(page, 'auto');
+  }
+});
