@@ -24,6 +24,8 @@
     "build": "node --import tsx scripts/build-extensions.ts && node --import tsx scripts/build-models.ts && node --import tsx scripts/build-sdk.ts && node --import tsx scripts/build-spa.ts",
     "typecheck": "tsc --noEmit && tsc -p tsconfig.ui.json",
     "test:e2e": "playwright test",
+    "test:oauth:interop": "node --import tsx scripts/verify-oauth-interop.ts",
+    "test:oauth:conformance": "node --import tsx scripts/verify-oidc-conformance.ts",
     "test:upgrade": "node --import tsx scripts/verify-upgrade.ts",
     "check:template": "node --import tsx scripts/check-template.ts",
     "predev": "npm run build",

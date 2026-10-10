@@ -4,6 +4,30 @@ on:
   push:
     branches: [main]
 jobs:
+  oauth-interop:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24.5.0
+          cache: npm
+      - run: npm ci
+      - run: npm install --prefix build/oauth-inspector --no-audit --no-fund @modelcontextprotocol/inspector@2.10.1
+      - run: npx playwright install --with-deps chromium
+      - run: docker compose -p oauth-conformance -f scripts/oauth-conformance.compose.yml up -d
+      - run: npm run test:oauth:interop
+      - run: npm run test:oauth:conformance
+      - if: always()
+        run: docker compose -p oauth-conformance -f scripts/oauth-conformance.compose.yml down
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: oauth-interop-evidence
+          path: |
+            build/oauth-interop-results.json
+            build/oidc-conformance-results.json
   check:
     runs-on: ubuntu-latest
     steps:

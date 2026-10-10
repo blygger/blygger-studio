@@ -64,6 +64,8 @@ If discovery fails, enter `{mount}/studio/auth/oauth2/authorize` and `{mount}/st
 
 Cloudflare supports manual endpoint configuration and Streamable HTTP. Local tests cover the report's registration fields, omitted resource indicators, Basic token exchange, refresh and MCP calls at root and nested mounts. They also cover the 2025 Streamable HTTP handshakes. These checks do not establish successful registration in a live portal. See [the issue 54 investigation](issue-54-cloudflare-mcp.md) and [Cloudflare's setup guide](https://developers.cloudflare.com/cloudflare-one/access-controls/ai-controls/mcp-portals/).
 
+CI also runs pinned MCP Inspector and selected OpenID Foundation checks against disposable root and mounted Workers. See [external OAuth checks](oauth-interop.md) for their coverage, the original-bug comparison and the corrected browser-fixture finding.
+
 ## Installation
 
 Apply D1 migrations `0021_oauth.sql` and `0022_security_budgets.sql` and enable `nodejs_compat` before deploying this branch. Source installs use `npm run upgrade`; Worker archives use the release's D1 migration instructions. OAuth records use the existing DB binding, so no KV namespace or new deployment secret is needed.

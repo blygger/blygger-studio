@@ -68,3 +68,10 @@ The final local run passed 351 tests across 17 files covering MCP, OAuth,
 authorization, consent, token headers and mount routing. `npm run typecheck`
 and `git diff --check` passed. Tests ran with Node 24.5.0 and local Worker/D1
 fixtures; no Cloudflare account credentials or live OAuth grants were used.
+
+External follow-up passed eight Inspector/generic browser cases and four
+selected OpenID Foundation discovery/PKCE modules. The official PKCE module
+failed at token exchange on the upstream OAuth route and passed with this fix.
+Inspector alone passed on upstream because it sends `resource` explicitly.
+These checks now run in a separate CI job. See [external OAuth checks](oauth-interop.md)
+for the exact scope and the corrected browser-proxy finding.

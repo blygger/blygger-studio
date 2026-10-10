@@ -1,0 +1,23 @@
+services:
+  mongodb:
+    image: mongo@sha256:b415b12f638e2685d06c58ab7fb5943577c50fadec6d9340ef67d21aeac72070
+  server:
+    image: registry.gitlab.com/openid/conformance-suite@sha256:d8cd2bd3e4de16caa0653b2c3da7a0464560ace728ba2a9650c7b27e1aa4c466
+    extra_hosts: ["host.docker.internal:host-gateway"]
+    environment:
+      BASE_URL: https://localhost.emobix.co.uk:8443
+      BASE_MTLS_URL: https://localhost.emobix.co.uk:8444
+      MONGODB_HOST: mongodb
+      SPRING_PROFILES_ACTIVE: dev
+      OIDC_GOOGLE_CLIENTID: google-fixture
+      OIDC_GOOGLE_SECRET: unused-fixture-secret
+      OIDC_GITLAB_CLIENTID: gitlab-fixture
+      OIDC_GITLAB_SECRET: unused-fixture-secret
+    depends_on: [mongodb]
+  nginx:
+    image: registry.gitlab.com/openid/conformance-suite/nginx@sha256:3eda07e6d6691b51d78dcbc4b2412b6858adb8585f310cbab2131118bde4fe9f
+    ports: ["127.0.0.1:8443:8443"]
+    networks:
+      default:
+        aliases: [localhost.emobix.co.uk]
+    depends_on: [server]
