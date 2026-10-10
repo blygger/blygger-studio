@@ -9,6 +9,8 @@ import { env } from "cloudflare:test";
 import { beforeEach, describe, expect, it } from "vitest";
 import type { ProviderFetchLike } from "../src/ai/provider.ts";
 import type { FetchLike } from "../src/importer/http.ts";
+import { applyEffect } from "../src/importer/store.ts";
+import { transition } from "../src/importer/transition.ts";
 import { createDraft, getItem, getTkProvenance, publish, putSettings } from "../src/model.ts";
 import { receiveMention, relationTo, verifyMention } from "../src/mentions/receive.ts";
 import { listOutbound } from "../src/mentions/store.ts";
@@ -247,5 +249,35 @@ describe("receive (R5): `source`, the fourth relation", () => {
 
     const html = await (await getPublic(`/blyg/f/${ours}/`)).text();
     expect(html).toContain("drew on this");
+  });
+});
+
+describe("import (R8c, migration 0027): generated[] survives verbatim", () => {
+  const generated = [{ sources: [{ id: "x0000000000000000000000001", version: 2, origin: OTHER, cited: { source: "Other Blyg", url: `${OTHER}f/x/`, retrieved: "2026-10-10T00:00:00Z" } }], model: "m", at: "2026-10-10T00:00:00Z" }];
+  const doc = (version: number, extra: Record<string, unknown> = {}) => ({
+    blyg: "0.4", id: R1, kind: "fragment", origin: THEM, page: `f/${R1}/`, version, created: "2026-10-01T00:00:00Z", updated: "2026-10-10T00:00:00Z",
+    content_md: `v${version}`, content_html: `<p>v${version}</p>`, content_hash: `sha256:${version}`, media: [], ...extra,
+  });
+  const row = () => env.DB.prepare("SELECT generated_json FROM imported_items WHERE subscription_id = 'them' AND remote_id = ?").bind(R1).first<{ generated_json: string | null }>();
+
+  it("is stored on import, replaced on update, and served by the imports API and the imported feed", async () => {
+    const cookie = await login();
+    await applyEffect(env.DB, "them", R1, transition({ local: { status: "absent" }, doc: doc(1, { generated }) }).effect, "2026-10-10T00:00:00Z");
+    expect(JSON.parse((await row())!.generated_json!)).toEqual(generated);
+
+    const api = await apiJson(cookie, "GET", `/api/imports/them/${R1}`);
+    expect(JSON.parse(api.json.generated_json)).toEqual(generated);
+    const feed = await apiJson(cookie, "GET", "/api/reading/imported?limit=100");
+    expect(feed.json.items.find((i: { remoteId: string }) => i.remoteId === R1).generated).toEqual(generated);
+
+    await applyEffect(env.DB, "them", R1, transition({ local: { status: "current", version: 1 }, doc: doc(2) }).effect, "2026-10-10T01:00:00Z");
+    expect((await row())!.generated_json).toBeNull();
+  });
+
+  it("is cleared with the rest of the content when the origin withdraws the item", async () => {
+    await applyEffect(env.DB, "them", R1, transition({ local: { status: "absent" }, doc: doc(1, { generated }) }).effect, "2026-10-10T00:00:00Z");
+    const endcap = { blyg: "0.4", id: R1, kind: "withdrawn", origin: THEM, version: 2, updated: "2026-10-10T02:00:00Z" };
+    await applyEffect(env.DB, "them", R1, transition({ local: { status: "current", version: 1 }, doc: endcap }).effect, "2026-10-10T02:00:00Z");
+    expect((await row())!.generated_json).toBeNull();
   });
 });

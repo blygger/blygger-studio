@@ -341,20 +341,7 @@
           "sources": {
             "type": "array",
             "items": {
-              "type": "object",
-              "properties": {
-                "id": {
-                  "type": "string"
-                },
-                "version": {
-                  "type": "integer",
-                  "exclusiveMinimum": 0
-                }
-              },
-              "required": [
-                "id",
-                "version"
-              ]
+              "$ref": "#/components/schemas/GenerationSource"
             }
           },
           "model": {
@@ -368,6 +355,54 @@
           "sources"
         ],
         "additionalProperties": {}
+      },
+      "GenerationSource": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "version": {
+            "type": "integer",
+            "exclusiveMinimum": 0
+          },
+          "origin": {
+            "type": "string",
+            "description": "Present for a remote source (0.4, §16.3); omitted for this blyg's own."
+          },
+          "cited": {
+            "$ref": "#/components/schemas/Citation"
+          }
+        },
+        "required": [
+          "id",
+          "version"
+        ]
+      },
+      "Citation": {
+        "type": "object",
+        "properties": {
+          "source": {
+            "type": "string"
+          },
+          "author": {
+            "type": "string"
+          },
+          "excerpt": {
+            "type": "string"
+          },
+          "url": {
+            "type": "string"
+          },
+          "retrieved": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "source",
+          "url",
+          "retrieved"
+        ]
       },
       "VersionReference": {
         "type": "object",
@@ -394,31 +429,6 @@
           "version"
         ],
         "additionalProperties": false
-      },
-      "Citation": {
-        "type": "object",
-        "properties": {
-          "source": {
-            "type": "string"
-          },
-          "author": {
-            "type": "string"
-          },
-          "excerpt": {
-            "type": "string"
-          },
-          "url": {
-            "type": "string"
-          },
-          "retrieved": {
-            "type": "string"
-          }
-        },
-        "required": [
-          "source",
-          "url",
-          "retrieved"
-        ]
       },
       "Settings": {
         "type": "object",
@@ -1065,6 +1075,13 @@
               "string",
               "null"
             ]
+          },
+          "generated_json": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "The origin's `generated` array as published (0.4 adds remote sources); null when it discloses none."
           }
         },
         "required": [
@@ -1086,7 +1103,8 @@
           "pinned_version_retained",
           "page",
           "stub_of_json",
-          "forked_from_json"
+          "forked_from_json",
+          "generated_json"
         ]
       },
       "SignalRow": {
@@ -1367,6 +1385,7 @@
               "stub",
               "transclusion",
               "fork",
+              "source",
               null
             ]
           },
@@ -1826,6 +1845,14 @@
             ],
             "additionalProperties": {},
             "description": "The origin's forked_from verbatim (VersionReference shape); remote and unvalidated. Null when none."
+          },
+          "generated": {
+            "type": [
+              "array",
+              "null"
+            ],
+            "items": {},
+            "description": "The origin's generated[] verbatim (GenerationProvenance shape, remote sources' origin and cited included); remote and unvalidated. Null when none."
           }
         },
         "required": [
@@ -1851,7 +1878,8 @@
           "hoppers",
           "transclusions",
           "stubOf",
-          "forkedFrom"
+          "forkedFrom",
+          "generated"
         ]
       },
       "ThreadFreshness": {

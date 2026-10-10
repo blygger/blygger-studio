@@ -84,6 +84,7 @@ export const ImportedItemRowSchema = z.object({
   page: z.string().nullable(),
   stub_of_json: z.string().nullable(),
   forked_from_json: z.string().nullable(),
+  generated_json: z.string().nullable().describe("The origin's `generated` array as published (0.4 adds remote sources); null when it discloses none."),
 }).openapi("ImportedItemRow");
 
 export const HopperRowSchema = z.object({

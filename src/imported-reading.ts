@@ -99,6 +99,7 @@ async function entry(row: Row) {
     transclusions: parsed(row.transclusions_json, isArray),
     stubOf: parsed(row.stub_of_json, isObject),
     forkedFrom: parsed(row.forked_from_json, isObject),
+    generated: parsed(row.generated_json, isArray),
   };
 }
 

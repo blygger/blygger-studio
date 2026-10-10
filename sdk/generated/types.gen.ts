@@ -66,19 +66,19 @@ export type Item = {
 };
 
 export type GenerationProvenance = {
-    sources: Array<{
-        id: string;
-        version: number;
-    }>;
+    sources: Array<GenerationSource>;
     model?: string;
     at?: string;
     [key: string]: unknown;
 };
 
-export type VersionReference = {
-    origin: string;
+export type GenerationSource = {
     id: string;
     version: number;
+    /**
+     * Present for a remote source (0.4, §16.3); omitted for this blyg's own.
+     */
+    origin?: string;
     cited?: Citation;
 };
 
@@ -88,6 +88,13 @@ export type Citation = {
     excerpt?: string;
     url: string;
     retrieved: string;
+};
+
+export type VersionReference = {
+    origin: string;
+    id: string;
+    version: number;
+    cited?: Citation;
 };
 
 export type Settings = {
@@ -239,6 +246,10 @@ export type ImportedItem = {
     page: string | null;
     stub_of_json: string | null;
     forked_from_json: string | null;
+    /**
+     * The origin's `generated` array as published (0.4 adds remote sources); null when it discloses none.
+     */
+    generated_json: string | null;
 };
 
 export type SignalRow = {
@@ -305,7 +316,7 @@ export type Mention = {
     target: string;
     target_item_id: string;
     status: 'pending' | 'verified' | 'failed' | 'gone';
-    relation: 'stub' | 'transclusion' | 'fork' | null;
+    relation: 'stub' | 'transclusion' | 'fork' | 'source' | null;
     source_origin: string | null;
     source_id: string | null;
     source_kind: string | null;
@@ -430,6 +441,10 @@ export type ImportedReadingEntry = {
     forkedFrom: {
         [key: string]: unknown;
     } | null;
+    /**
+     * The origin's generated[] verbatim (GenerationProvenance shape, remote sources' origin and cited included); remote and unvalidated. Null when none.
+     */
+    generated: Array<unknown> | null;
 };
 
 export type ThreadFreshness = {

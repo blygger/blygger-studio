@@ -42,6 +42,7 @@ export const ImportedReadingEntrySchema = importedEntry.extend({
   transclusions: z.array(z.unknown()).nullable().describe("The origin's transclusions[] verbatim (Transclusion shape, cited included); remote and unvalidated. Null for fragments, L0 items, withdrawn items, or malformed data."),
   stubOf: z.record(z.string(), z.unknown()).nullable().describe("The origin's stub_of verbatim (CitationTarget shape); remote and unvalidated. Null when none."),
   forkedFrom: z.record(z.string(), z.unknown()).nullable().describe("The origin's forked_from verbatim (VersionReference shape); remote and unvalidated. Null when none."),
+  generated: z.array(z.unknown()).nullable().describe("The origin's generated[] verbatim (GenerationProvenance shape, remote sources' origin and cited included); remote and unvalidated. Null when none."),
 }).openapi("ImportedReadingEntry");
 const readingCursor = z.string().max(READING_CURSOR_MAX).refine((raw) => decodeReadingCursor(raw) !== null, "malformed cursor").describe("The next value of the previous page. Opaque.");
 export const ReadingEntrySchema = z.object({ key: z.string(), source: z.enum(["own", "imported"]), kind: z.enum(["fragment", "thread"]), withdrawn: z.boolean(), l0: z.boolean(), contentHtml: z.string(), displayAt: z.string(), own: ownEntry.optional(), imported: importedEntry.optional() }).openapi("ReadingEntry");

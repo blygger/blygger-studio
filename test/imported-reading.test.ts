@@ -99,6 +99,7 @@ describe("GET /reading/imported", () => {
       transclusions: [{ id: "x", version: 2, origin: "https://other.example/", cited: { source: "Other", url: "https://other.example/f/x/", retrieved: "2026-01-01T00:00:00Z" }, future: true }],
       stubOf: { origin: "https://other.example/", id: "x", version: 2, future: "kept" },
       forkedFrom: { origin: "https://third.example/", id: "y", version: 1 },
+      generated: null,
     });
     // Malformed or wrong-kind stored JSON reads as null and never fails the page.
     expect(by.get("a2")).toMatchObject({ author: null, thumb: -1, hoppers: [], page: null, transclusions: null, stubOf: null, forkedFrom: null });

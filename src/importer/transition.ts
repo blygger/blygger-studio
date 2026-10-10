@@ -29,6 +29,8 @@ export interface NormalizedItemDoc {
   /** §10.6 / §5.6, kept verbatim (studio#12); undefined when absent or not an object. */
   stub_of?: Record<string, unknown>;
   forked_from?: Record<string, unknown>;
+  /** §5.7 `generated`, kept verbatim (migration 0027); undefined when absent or not an array. */
+  generated?: unknown[];
   /** v0.3 §2.3.2: origin-relative permalink the origin declares for itself; undefined when it doesn't. */
   page?: string;
 }
@@ -96,6 +98,7 @@ function normalizeItemDoc(raw: unknown): NormalizeResult {
       transclusions: Array.isArray(r.transclusions) ? r.transclusions : undefined,
       stub_of: plainObject(r.stub_of),
       forked_from: plainObject(r.forked_from),
+      generated: Array.isArray(r.generated) ? r.generated : undefined,
       page: typeof r.page === "string" && r.page ? r.page : undefined,
     },
   };

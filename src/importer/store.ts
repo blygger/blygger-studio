@@ -181,6 +181,8 @@ export function toLocalState(row: ImportedItemRow | null): LocalState {
  */
 /** Lineage members are stored verbatim (studio#12): readers render them, nothing here interprets them. */
 const lineage = (v: Record<string, unknown> | undefined) => (v ? JSON.stringify(v) : null);
+/** `generated` likewise (migration 0027): disclosure the reading view and the imports API pass on as published. */
+const generatedJson = (v: unknown[] | undefined) => (v?.length ? JSON.stringify(v) : null);
 
 export async function applyEffect(
   db: D1Database,
@@ -197,15 +199,15 @@ export async function applyEffect(
       await db
         .prepare(
           `INSERT INTO imported_items
-           (subscription_id, remote_id, kind, state, version, created, updated, observed_at, content_md, content_html, content_hash, author_json, media_json, transclusions_json, l0, pinned_version_retained, page, stub_of_json, forked_from_json)
-           VALUES (?, ?, ?, 'current', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NULL, ?, ?, ?)`,
+           (subscription_id, remote_id, kind, state, version, created, updated, observed_at, content_md, content_html, content_hash, author_json, media_json, transclusions_json, l0, pinned_version_retained, page, stub_of_json, forked_from_json, generated_json)
+           VALUES (?, ?, ?, 'current', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NULL, ?, ?, ?, ?)`,
         )
         .bind(
           subscriptionId, remoteId, d.kind, d.version, d.created, d.updated, observedAt,
           d.content_md, d.content_html, d.content_hash,
           JSON.stringify(d.author ?? null), JSON.stringify(d.media ?? []),
           d.transclusions ? JSON.stringify(d.transclusions) : null, l0,
-          d.page ?? null, lineage(d.stub_of), lineage(d.forked_from),
+          d.page ?? null, lineage(d.stub_of), lineage(d.forked_from), generatedJson(d.generated),
         )
         .run();
       return;
@@ -223,7 +225,7 @@ export async function applyEffect(
            ON CONFLICT (subscription_id, remote_id) DO UPDATE SET
              state = 'tombstone', version = excluded.version, updated = excluded.updated, observed_at = excluded.observed_at,
              content_md = '', content_html = '', content_hash = NULL, author_json = NULL, media_json = NULL, transclusions_json = NULL,
-             pinned_version_retained = NULL, stub_of_json = NULL, forked_from_json = NULL`,
+             pinned_version_retained = NULL, stub_of_json = NULL, forked_from_json = NULL, generated_json = NULL`,
         )
         .bind(subscriptionId, remoteId, effect.version, effect.updated, observedAt, l0)
         .run();
@@ -235,7 +237,7 @@ export async function applyEffect(
         .prepare(
           `UPDATE imported_items SET kind = ?, version = ?, updated = ?, observed_at = ?,
            content_md = ?, content_html = ?, content_hash = ?, author_json = ?, media_json = ?, transclusions_json = ?,
-           page = COALESCE(?, page), stub_of_json = ?, forked_from_json = ?
+           page = COALESCE(?, page), stub_of_json = ?, forked_from_json = ?, generated_json = ?
            WHERE subscription_id = ? AND remote_id = ?`,
         )
         .bind(
@@ -243,7 +245,7 @@ export async function applyEffect(
           d.content_md, d.content_html, d.content_hash,
           JSON.stringify(d.author ?? null), JSON.stringify(d.media ?? []),
           d.transclusions ? JSON.stringify(d.transclusions) : null,
-          d.page ?? null, lineage(d.stub_of), lineage(d.forked_from),
+          d.page ?? null, lineage(d.stub_of), lineage(d.forked_from), generatedJson(d.generated),
           subscriptionId, remoteId,
         )
         .run();
@@ -263,7 +265,7 @@ export async function applyEffect(
         .prepare(
           `UPDATE imported_items SET state = 'tombstone', version = ?, updated = ?, observed_at = ?,
            content_md = '', content_html = '', content_hash = NULL, author_json = NULL, media_json = NULL, transclusions_json = NULL, pinned_version_retained = NULL,
-           stub_of_json = NULL, forked_from_json = NULL
+           stub_of_json = NULL, forked_from_json = NULL, generated_json = NULL
            WHERE subscription_id = ? AND remote_id = ?`,
         )
         .bind(effect.version, effect.updated, observedAt, subscriptionId, remoteId)
@@ -276,7 +278,7 @@ export async function applyEffect(
         .prepare(
           `UPDATE imported_items SET state = 'current', kind = ?, version = ?, updated = ?, observed_at = ?,
            content_md = ?, content_html = ?, content_hash = ?, author_json = ?, media_json = ?, transclusions_json = ?, pinned_version_retained = NULL,
-           page = COALESCE(?, page), stub_of_json = ?, forked_from_json = ?
+           page = COALESCE(?, page), stub_of_json = ?, forked_from_json = ?, generated_json = ?
            WHERE subscription_id = ? AND remote_id = ?`,
         )
         .bind(
@@ -284,7 +286,7 @@ export async function applyEffect(
           d.content_md, d.content_html, d.content_hash,
           JSON.stringify(d.author ?? null), JSON.stringify(d.media ?? []),
           d.transclusions ? JSON.stringify(d.transclusions) : null,
-          d.page ?? null, lineage(d.stub_of), lineage(d.forked_from),
+          d.page ?? null, lineage(d.stub_of), lineage(d.forked_from), generatedJson(d.generated),
           subscriptionId, remoteId,
         )
         .run();
@@ -295,14 +297,14 @@ export async function applyEffect(
       await db
         .prepare(
           `UPDATE imported_items SET content_md = ?, content_html = ?, content_hash = ?, author_json = ?, media_json = ?, transclusions_json = ?, observed_at = ?,
-           page = COALESCE(?, page), stub_of_json = ?, forked_from_json = ?
+           page = COALESCE(?, page), stub_of_json = ?, forked_from_json = ?, generated_json = ?
            WHERE subscription_id = ? AND remote_id = ?`,
         )
         .bind(
           d.content_md, d.content_html, d.content_hash,
           JSON.stringify(d.author ?? null), JSON.stringify(d.media ?? []),
           d.transclusions ? JSON.stringify(d.transclusions) : null,
-          observedAt, d.page ?? null, lineage(d.stub_of), lineage(d.forked_from), subscriptionId, remoteId,
+          observedAt, d.page ?? null, lineage(d.stub_of), lineage(d.forked_from), generatedJson(d.generated), subscriptionId, remoteId,
         )
         .run();
       return;

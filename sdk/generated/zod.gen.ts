@@ -41,15 +41,6 @@ export const zChangeState = z.object({
     })
 });
 
-export const zGenerationProvenance = z.object({
-    sources: z.array(z.object({
-        id: z.string(),
-        version: z.int().gt(0)
-    })),
-    model: z.string().optional(),
-    at: z.string().optional()
-}).catchall(z.unknown());
-
 export const zCitation = z.object({
     source: z.string(),
     author: z.string().optional(),
@@ -57,6 +48,19 @@ export const zCitation = z.object({
     url: z.string(),
     retrieved: z.string()
 });
+
+export const zGenerationSource = z.object({
+    id: z.string(),
+    version: z.int().gt(0),
+    origin: z.string().optional(),
+    cited: zCitation.optional()
+});
+
+export const zGenerationProvenance = z.object({
+    sources: z.array(zGenerationSource),
+    model: z.string().optional(),
+    at: z.string().optional()
+}).catchall(z.unknown());
 
 export const zVersionReference = z.object({
     origin: z.url(),
@@ -264,7 +268,8 @@ export const zImportedItem = z.object({
     pinned_version_retained: z.number().nullable(),
     page: z.string().nullable(),
     stub_of_json: z.string().nullable(),
-    forked_from_json: z.string().nullable()
+    forked_from_json: z.string().nullable(),
+    generated_json: z.string().nullable()
 });
 
 export const zSignalRow = z.object({
@@ -345,7 +350,8 @@ export const zMention = z.object({
     relation: z.enum([
         'stub',
         'transclusion',
-        'fork'
+        'fork',
+        'source'
     ]).nullable(),
     source_origin: z.string().nullable(),
     source_id: z.string().nullable(),
@@ -441,7 +447,8 @@ export const zImportedReadingEntry = z.object({
     hoppers: z.array(z.string()),
     transclusions: z.array(z.unknown()).nullable(),
     stubOf: z.record(z.string(), z.unknown()).nullable(),
-    forkedFrom: z.record(z.string(), z.unknown()).nullable()
+    forkedFrom: z.record(z.string(), z.unknown()).nullable(),
+    generated: z.array(z.unknown()).nullable()
 });
 
 export const zQuoteFreshness = z.object({
