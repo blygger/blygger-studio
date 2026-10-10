@@ -17,6 +17,7 @@ import { normalizeMount } from "./util.ts";
 import type { Env, SignalRow, ImportedItemRow, ItemRow, SubscriptionRow, HopperRow, MentionInRow, MentionOutRow } from "./types.ts";
 import { itemDetail } from "./item-data.ts";
 import { readingData } from "./reading-data.ts";
+import { IMPORTED_READING_DEFAULT, importedReading } from "./imported-reading.ts";
 import { getInbound } from "./mentions/store.ts";
 import { maybeCheckForUpdate } from "./update-check.ts";
 import { normalizeOrigin } from "./stub.ts";
@@ -108,6 +109,10 @@ readApi.openapi(routes.listThumbs, async (c) => c.json({ items: await listThumbs
 // `read_state: true` advertises that imported entries carry the owner's
 // readVersion, so a client can tell "unread" from "this server keeps none".
 readApi.openapi(routes.listReading, async (c) => c.json({ ...await readingData(c.env.DB, Number(c.req.query("offset") ?? 0), Number(c.req.query("limit") ?? 25), c.req.query("sub"), readingKind(c.req.query("kind"))), read_state: true as const, read_state_clear: true as const }));
+// Imported items only, keyset-paged, for clients that author from what they read (studio#11).
+readApi.openapi(routes.listImportedReading, async (c) => {
+  return c.json(await importedReading(c.env.DB, c.req.query("cursor"), Number(c.req.query("limit") ?? IMPORTED_READING_DEFAULT)));
+});
 function readingKind(raw: string | undefined): "thread" | "fragment" | undefined {
   return raw === "thread" || raw === "fragment" ? raw : undefined;
 }

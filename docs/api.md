@@ -29,7 +29,7 @@ Consult `openapi.json` for every field and response.
 | Settings | `GET /settings` | `PATCH /settings` |
 | Media | Included in item detail | `POST /media` with a multipart file (`inline=true` when the client places it in the text), `DELETE /media/{id}` (detaches; deletes the file only when no published version shows it) |
 | Imported items | `GET /imports/{sub}/{id}`, `GET /imports/{sub}/{id}/history`, `GET /imports/{sub}/{id}/versions/{v}` (history and public versions, read from the origin) | The subscription importer manages these items |
-| Reading | `GET /reading` | Read only |
+| Reading | `GET /reading`, `GET /reading/imported` (imported items only, cursor-paged; see below) | Read only |
 | Read state | `readVersion` on each imported Reading entry | `PUT`/`DELETE /reading/{sub}/{remoteId}/read`, `POST /reading/read`, `POST /reading/unread` |
 | Change revisions | `GET /changes` | Maintained by database triggers |
 | Quote freshness | `GET /freshness`, `GET /items/{id}/freshness` | `POST /items/{id}/refresh` |
@@ -156,6 +156,42 @@ Subscription resources omit internal HTTP cache fields.
 Hopper detail includes `total` and `source_count`.
 Use `?preview=true` for an index preview of three memberships and bodies.
 The default hopper detail still includes all memberships and bodies.
+
+## Imported reading feed
+
+`GET /reading` is the Studio's timeline: own and imported entries together,
+sanitized HTML only, paged by offset. A client that syncs what the owner reads
+and writes from it (Blygger Desktop) needs the other shape, and
+`GET /reading/imported` (`listImportedReading`, `owner:read`) is it:
+
+- Every imported item, own items excluded, newest observed first. Each row is
+  an imported entry as `GET /reading` returns it (`subscriptionId`, `remoteId`,
+  `kind`, `withdrawn`, `l0`, `version`, `readVersion`, `updated`, `observedAt`,
+  `contentHtml` (sanitized), `sourceUrl`, `pinnedVersionRetained`, …) plus
+  `origin`, `created`, `contentMd`, `author` (`{ name, url }` or null), `page`
+  (as the origin declared it), `thumb` (the owner's signal: 1, −1 or null),
+  `hoppers` (ids) and the origin's `transclusions`, `stubOf` and `forkedFrom`.
+- The last three are the origin's own JSON, verbatim and unvalidated: remote
+  data, unknown members included. Null means none held, or stored data that is
+  malformed or of the wrong kind.
+- `readVersion` is the read-state join below: null when unread or cleared.
+- Paged by an opaque cursor over `(observed_at, subscription_id, remote_id)`.
+  Pass `next` back as `cursor`; `next` is null on the last page. One poll run
+  stamps one `observed_at` on everything it imports, so ties are common and
+  the cursor resumes inside one. Rows observed after a walk began sort ahead
+  of its cursor, so a poll between two requests neither shifts nor repeats the
+  walk; start a new walk from the top to collect them. A cursor this server
+  did not issue is 400.
+- `limit` defaults to 50 and accepts at most 100; outside 1–100 is 400.
+
+```ts
+let cursor: string | undefined;
+do {
+  const page = await unwrap(BlyggerApi.listImportedReading({ client, query: { cursor, limit: 100 } }));
+  for (const entry of page.items) console.log(entry.subscriptionId, entry.remoteId, entry.readVersion);
+  cursor = page.next ?? undefined;
+} while (cursor);
+```
 
 ## Read state
 

@@ -5,6 +5,7 @@ import { extensionRoutes } from "../../extensions/catalog.ts";
 import { SettingsSchema, HopperItemRowSchema, SignalRowSchema, MentionOutRowSchema } from "./schemas.ts";
 import { CHANGE_DOMAINS } from '../change-state.ts';
 import { READ_BATCH_MAX, READ_ID_MAX, READ_VERSION_MAX } from '../importer/read-state.ts';
+import { IMPORTED_READING_MAX, READING_CURSOR_MAX, decodeReadingCursor } from '../imported-reading.ts';
 
 const json = (schema: z.ZodType) => ({ "application/json": { schema } });
 export { ErrorSchema };
@@ -29,6 +30,20 @@ const scopes = z.array(z.object({ index: z.number(), instruction: z.string(), ou
 const preview = z.object({ html: z.string(), scopes, link_errors: z.array(issue).optional(), errors: z.array(issue).optional(), transclusions: z.array(TransclusionSchema).optional() });
 const ownEntry = z.object({ id: z.string(), kind: z.enum(["fragment", "thread"]), withdrawn: z.boolean(), updated: z.string(), contentHtml: z.string() });
 const importedEntry = z.object({ subscriptionId: z.string(), subscriptionTitle: z.string(), remoteId: z.string(), kind: z.enum(["fragment", "thread"]), withdrawn: z.boolean(), l0: z.boolean(), updated: z.string().nullable(), observedAt: z.string(), contentHtml: z.string(), pinnedVersionRetained: z.number().nullable(), sourceUrl: z.string().nullable(), version: z.number().int().describe("The version of the item held here. A readVersion below it means a newer version arrived after the owner read it."), readVersion: z.number().int().nullable().describe("The highest version the owner has marked read; null when unread or cleared.") });
+/** One row of GET /reading/imported (studio#11): an imported entry with the fields a client authors from. */
+export const ImportedReadingEntrySchema = importedEntry.extend({
+  origin: z.string(),
+  created: z.string().nullable(),
+  contentMd: z.string().describe("The item's markdown as imported; empty for a withdrawn item and for feeds that carry none."),
+  author: z.object({ name: z.string().nullable(), url: z.string().nullable() }).nullable(),
+  page: z.string().nullable().describe("The origin's declared page, as the origin declared it; null when it declares none."),
+  thumb: z.union([z.literal(1), z.literal(-1)]).nullable().describe("The owner's signal; null when none."),
+  hoppers: z.array(z.string()).describe("Ids of the hoppers holding this item."),
+  transclusions: z.array(z.unknown()).nullable().describe("The origin's transclusions[] verbatim (Transclusion shape, cited included); remote and unvalidated. Null for fragments, L0 items, withdrawn items, or malformed data."),
+  stubOf: z.record(z.string(), z.unknown()).nullable().describe("The origin's stub_of verbatim (CitationTarget shape); remote and unvalidated. Null when none."),
+  forkedFrom: z.record(z.string(), z.unknown()).nullable().describe("The origin's forked_from verbatim (VersionReference shape); remote and unvalidated. Null when none."),
+}).openapi("ImportedReadingEntry");
+const readingCursor = z.string().max(READING_CURSOR_MAX).refine((raw) => decodeReadingCursor(raw) !== null, "malformed cursor").describe("The next value of the previous page. Opaque.");
 export const ReadingEntrySchema = z.object({ key: z.string(), source: z.enum(["own", "imported"]), kind: z.enum(["fragment", "thread"]), withdrawn: z.boolean(), l0: z.boolean(), contentHtml: z.string(), displayAt: z.string(), own: ownEntry.optional(), imported: importedEntry.optional() }).openapi("ReadingEntry");
 const subscribed = SubscriptionSchema;
 const confirmation = z.object({ needsConfirm: z.literal(true), kind: z.enum(["blyg", "rss"]), origin: z.string().optional(), feedUrl: z.string().optional(), title: z.string(), siteMismatch: z.object({ asserted: z.string(), actual: z.string() }).optional() });
@@ -99,6 +114,7 @@ export const routes = {
   search: route("search", "get", "/search", z.object({ items: z.array(z.object({ id: z.string(), excerpt: z.string(), version: z.number(), updated: z.string(), badge: z.string(), source: z.enum(["mine", "imported"]), kind: z.enum(["fragment", "thread"]), subscription_id: z.string().nullable(), source_title: z.string().nullable() })), total: z.number(), offset: z.number(), limit: z.number() }), undefined, 200, page.extend({ q: z.string().optional(), source: z.enum(["all", "mine", "imported"]).optional(), sub: z.string().optional(), sort: z.enum(["newest", "oldest"]).optional() })),
   getVersion: route("getVersion", "get", "/items/{id}/versions/{v}", VersionSchema),
   listReading: route("listReading", "get", "/reading", z.object({ items: z.array(ReadingEntrySchema), counts, total: z.number(), offset: z.number(), limit: z.number(), selected: z.string(), read_state: z.literal(true).describe("This server stores read state: each imported entry's readVersion is meaningful."), read_state_clear: z.literal(true).describe("Read state can be cleared: DELETE /reading/{sub}/{remoteId}/read, POST /reading/unread, and read_at on reads.") }), undefined, 200, page.extend({ limit: z.coerce.number().int().min(1).max(50).optional(), sub: z.string().optional(), kind: z.enum(["thread", "fragment"]).optional() })),
+  listImportedReading: route("listImportedReading", "get", "/reading/imported", z.object({ items: z.array(ImportedReadingEntrySchema), next: z.string().nullable().describe("Pass as cursor for the next page; null on the last page."), limit: z.number().int().positive() }), undefined, 200, z.object({ cursor: readingCursor.optional(), limit: z.coerce.number().int().min(1).max(IMPORTED_READING_MAX).optional() })),
   getImportedItem: route("getImportedItem", "get", "/imports/{sub}/{id}", ImportedItemSchema),
   getImportedHistory: route("getImportedHistory", "get", "/imports/{sub}/{id}/history", z.object({ current: z.number().int(), withdrawn: z.boolean(), changelog: z.array(z.object({ version: z.number().int(), at: z.string(), note: z.string().nullable(), pinned: z.boolean(), generated: z.boolean() })) })),
   getImportedVersion: route("getImportedVersion", "get", "/imports/{sub}/{id}/versions/{v}", z.object({ version: z.number().int(), content_md: z.string(), note: z.string().nullable(), pinned: z.boolean() })),

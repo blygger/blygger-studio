@@ -1596,6 +1596,188 @@
           "displayAt"
         ]
       },
+      "ImportedReadingEntry": {
+        "type": "object",
+        "properties": {
+          "subscriptionId": {
+            "type": "string"
+          },
+          "subscriptionTitle": {
+            "type": "string"
+          },
+          "remoteId": {
+            "type": "string"
+          },
+          "kind": {
+            "type": "string",
+            "enum": [
+              "fragment",
+              "thread"
+            ]
+          },
+          "withdrawn": {
+            "type": "boolean"
+          },
+          "l0": {
+            "type": "boolean"
+          },
+          "updated": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "observedAt": {
+            "type": "string"
+          },
+          "contentHtml": {
+            "type": "string"
+          },
+          "pinnedVersionRetained": {
+            "type": [
+              "number",
+              "null"
+            ]
+          },
+          "sourceUrl": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "version": {
+            "type": "integer",
+            "description": "The version of the item held here. A readVersion below it means a newer version arrived after the owner read it."
+          },
+          "readVersion": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "description": "The highest version the owner has marked read; null when unread or cleared."
+          },
+          "origin": {
+            "type": "string"
+          },
+          "created": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "contentMd": {
+            "type": "string",
+            "description": "The item's markdown as imported; empty for a withdrawn item and for feeds that carry none."
+          },
+          "author": {
+            "type": [
+              "object",
+              "null"
+            ],
+            "properties": {
+              "name": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "url": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              }
+            },
+            "required": [
+              "name",
+              "url"
+            ]
+          },
+          "page": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "The origin's declared page, as the origin declared it; null when it declares none."
+          },
+          "thumb": {
+            "anyOf": [
+              {
+                "type": "number",
+                "enum": [
+                  1
+                ]
+              },
+              {
+                "type": "number",
+                "enum": [
+                  -1
+                ]
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The owner's signal; null when none."
+          },
+          "hoppers": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Ids of the hoppers holding this item."
+          },
+          "transclusions": {
+            "type": [
+              "array",
+              "null"
+            ],
+            "items": {},
+            "description": "The origin's transclusions[] verbatim (Transclusion shape, cited included); remote and unvalidated. Null for fragments, L0 items, withdrawn items, or malformed data."
+          },
+          "stubOf": {
+            "type": [
+              "object",
+              "null"
+            ],
+            "additionalProperties": {},
+            "description": "The origin's stub_of verbatim (CitationTarget shape); remote and unvalidated. Null when none."
+          },
+          "forkedFrom": {
+            "type": [
+              "object",
+              "null"
+            ],
+            "additionalProperties": {},
+            "description": "The origin's forked_from verbatim (VersionReference shape); remote and unvalidated. Null when none."
+          }
+        },
+        "required": [
+          "subscriptionId",
+          "subscriptionTitle",
+          "remoteId",
+          "kind",
+          "withdrawn",
+          "l0",
+          "updated",
+          "observedAt",
+          "contentHtml",
+          "pinnedVersionRetained",
+          "sourceUrl",
+          "version",
+          "readVersion",
+          "origin",
+          "created",
+          "contentMd",
+          "author",
+          "page",
+          "thumb",
+          "hoppers",
+          "transclusions",
+          "stubOf",
+          "forkedFrom"
+        ]
+      },
       "ThreadFreshness": {
         "type": "object",
         "properties": {
@@ -11260,6 +11442,203 @@
                     "selected",
                     "read_state",
                     "read_state_clear"
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Request failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Request failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Request failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Request failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "405": {
+            "description": "Request failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Request failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "413": {
+            "description": "Request failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "415": {
+            "description": "Request failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Request failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Request failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Request failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "502": {
+            "description": "Request failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/reading/imported": {
+      "get": {
+        "operationId": "listImportedReading",
+        "tags": [
+          "studio"
+        ],
+        "security": [
+          {
+            "ownerSession": []
+          },
+          {
+            "ownerOAuth": [
+              "owner:read"
+            ]
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "maxLength": 2048,
+              "description": "The next value of the previous page. Opaque."
+            },
+            "required": false,
+            "description": "The next value of the previous page. Opaque.",
+            "name": "cursor",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 100
+            },
+            "required": false,
+            "name": "limit",
+            "in": "query"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "items": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/ImportedReadingEntry"
+                      }
+                    },
+                    "next": {
+                      "type": [
+                        "string",
+                        "null"
+                      ],
+                      "description": "Pass as cursor for the next page; null on the last page."
+                    },
+                    "limit": {
+                      "type": "integer",
+                      "exclusiveMinimum": 0
+                    }
+                  },
+                  "required": [
+                    "items",
+                    "next",
+                    "limit"
                   ]
                 }
               }

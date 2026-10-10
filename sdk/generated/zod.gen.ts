@@ -395,6 +395,38 @@ export const zReadingEntry = z.object({
     }).optional()
 });
 
+export const zImportedReadingEntry = z.object({
+    subscriptionId: z.string(),
+    subscriptionTitle: z.string(),
+    remoteId: z.string(),
+    kind: z.enum(['fragment', 'thread']),
+    withdrawn: z.boolean(),
+    l0: z.boolean(),
+    updated: z.string().nullable(),
+    observedAt: z.string(),
+    contentHtml: z.string(),
+    pinnedVersionRetained: z.number().nullable(),
+    sourceUrl: z.string().nullable(),
+    version: z.int(),
+    readVersion: z.int().nullable(),
+    origin: z.string(),
+    created: z.string().nullable(),
+    contentMd: z.string(),
+    author: z.object({
+        name: z.string().nullable(),
+        url: z.string().nullable()
+    }).nullable(),
+    page: z.string().nullable(),
+    thumb: z.union([
+        z.literal(1),
+        z.literal(-1)
+    ]).nullable(),
+    hoppers: z.array(z.string()),
+    transclusions: z.array(z.unknown()).nullable(),
+    stubOf: z.record(z.string(), z.unknown()).nullable(),
+    forkedFrom: z.record(z.string(), z.unknown()).nullable()
+});
+
 export const zQuoteFreshness = z.object({
     id: z.string(),
     origin: z.string().optional(),
@@ -1253,6 +1285,20 @@ export const zListReadingResponse = z.object({
     selected: z.string(),
     read_state: z.literal(true),
     read_state_clear: z.literal(true)
+});
+
+export const zListImportedReadingQuery = z.object({
+    cursor: z.string().max(2048).optional(),
+    limit: z.int().gte(1).lte(100).optional()
+});
+
+/**
+ * Success
+ */
+export const zListImportedReadingResponse = z.object({
+    items: z.array(zImportedReadingEntry),
+    next: z.string().nullable(),
+    limit: z.int().gt(0)
 });
 
 export const zGetImportedItemPath = z.object({

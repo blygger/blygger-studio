@@ -346,6 +346,66 @@ export type ReadingEntry = {
     };
 };
 
+export type ImportedReadingEntry = {
+    subscriptionId: string;
+    subscriptionTitle: string;
+    remoteId: string;
+    kind: 'fragment' | 'thread';
+    withdrawn: boolean;
+    l0: boolean;
+    updated: string | null;
+    observedAt: string;
+    contentHtml: string;
+    pinnedVersionRetained: number | null;
+    sourceUrl: string | null;
+    /**
+     * The version of the item held here. A readVersion below it means a newer version arrived after the owner read it.
+     */
+    version: number;
+    /**
+     * The highest version the owner has marked read; null when unread or cleared.
+     */
+    readVersion: number | null;
+    origin: string;
+    created: string | null;
+    /**
+     * The item's markdown as imported; empty for a withdrawn item and for feeds that carry none.
+     */
+    contentMd: string;
+    author: {
+        name: string | null;
+        url: string | null;
+    } | null;
+    /**
+     * The origin's declared page, as the origin declared it; null when it declares none.
+     */
+    page: string | null;
+    /**
+     * The owner's signal; null when none.
+     */
+    thumb: 1 | -1 | null;
+    /**
+     * Ids of the hoppers holding this item.
+     */
+    hoppers: Array<string>;
+    /**
+     * The origin's transclusions[] verbatim (Transclusion shape, cited included); remote and unvalidated. Null for fragments, L0 items, withdrawn items, or malformed data.
+     */
+    transclusions: Array<unknown> | null;
+    /**
+     * The origin's stub_of verbatim (CitationTarget shape); remote and unvalidated. Null when none.
+     */
+    stubOf: {
+        [key: string]: unknown;
+    } | null;
+    /**
+     * The origin's forked_from verbatim (VersionReference shape); remote and unvalidated. Null when none.
+     */
+    forkedFrom: {
+        [key: string]: unknown;
+    } | null;
+};
+
 export type ThreadFreshness = {
     id: string;
     version: number;
@@ -4173,6 +4233,88 @@ export type ListReadingResponses = {
 };
 
 export type ListReadingResponse = ListReadingResponses[keyof ListReadingResponses];
+
+export type ListImportedReadingData = {
+    body?: never;
+    path?: never;
+    query?: {
+        /**
+         * The next value of the previous page. Opaque.
+         */
+        cursor?: string;
+        limit?: number;
+    };
+    url: '/api/reading/imported';
+};
+
+export type ListImportedReadingErrors = {
+    /**
+     * Request failed
+     */
+    400: ApiError;
+    /**
+     * Request failed
+     */
+    401: ApiError;
+    /**
+     * Request failed
+     */
+    403: ApiError;
+    /**
+     * Request failed
+     */
+    404: ApiError;
+    /**
+     * Request failed
+     */
+    405: ApiError;
+    /**
+     * Request failed
+     */
+    409: ApiError;
+    /**
+     * Request failed
+     */
+    413: ApiError;
+    /**
+     * Request failed
+     */
+    415: ApiError;
+    /**
+     * Request failed
+     */
+    422: ApiError;
+    /**
+     * Request failed
+     */
+    429: ApiError;
+    /**
+     * Request failed
+     */
+    500: ApiError;
+    /**
+     * Request failed
+     */
+    502: ApiError;
+};
+
+export type ListImportedReadingError = ListImportedReadingErrors[keyof ListImportedReadingErrors];
+
+export type ListImportedReadingResponses = {
+    /**
+     * Success
+     */
+    200: {
+        items: Array<ImportedReadingEntry>;
+        /**
+         * Pass as cursor for the next page; null on the last page.
+         */
+        next: string | null;
+        limit: number;
+    };
+};
+
+export type ListImportedReadingResponse = ListImportedReadingResponses[keyof ListImportedReadingResponses];
 
 export type GetImportedItemData = {
     body?: never;

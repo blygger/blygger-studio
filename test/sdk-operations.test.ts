@@ -60,6 +60,7 @@ it("exercises every declared operation through its named SDK method, including a
     ["search", 200, client => api.search({ client, query: { q: "matrix", offset: 0, limit: 1 } })],
     ["getVersion", 200, client => api.getVersion({ client, path: { id, v: 1 } })],
     ["listReading", 200, client => api.listReading({ client, query: { sub: sub.id, limit: 1 } })],
+    ["listImportedReading", 200, client => api.listImportedReading({ client, query: { limit: 1 } })],
     ["getImportedItem", 200, client => api.getImportedItem({ client, path: { sub: sub.id, id: "remote" } })],
     ["getUpdateState", 200, client => api.getUpdateState({ client })],
     ["getMentionSource", 200, client => api.getMentionSource({ client, path: { id: "matrix-mention" } })],
