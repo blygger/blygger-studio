@@ -4,6 +4,7 @@ import { BlyggerApi, unwrap } from '../../sdk/dist/browser.js';
 import { client } from './data.ts';
 import { Button, Failure, useSettings } from './components.tsx';
 import { paletteTrigger, paletteInsert } from '../palette.ts';
+import { setTextAt } from './caret.ts';
 import './picker.css';
 
 /**
@@ -168,10 +169,11 @@ export function BracketPicker({
   const pick = (id: string) => {
     if (!trigger) return;
     const next = paletteInsert(text, caret, trigger, id);
-    change(next.text);
     request.current?.abort();
     setHits([]);
-    backToEditor(next.caret);
+    // Caret placed now, not on the next frame: see setTextAt.
+    if (input.current) setTextAt(input.current, change, next.text, next.caret);
+    else change(next.text);
   };
   const dismiss = () => {
     request.current?.abort();

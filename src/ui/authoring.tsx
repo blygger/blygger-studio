@@ -34,6 +34,7 @@ import {
 } from './components.tsx';
 import { Sheet, confirm, menu, prompt, toast } from './sheets.tsx';
 import { BracketPicker } from './picker.tsx';
+import { setTextAt } from './caret.ts';
 import { Draft } from './draft.ts';
 
 import { stripStaleUploads, uploadToken } from './upload-tokens.ts';
@@ -134,14 +135,6 @@ export function imageCommandAt(text: string, caret: number) {
 
 /* ---------------- text tools: links, brackets, TK, scan ---------------- */
 
-/** Move the caret once React has written the new value, and tell the palette. */
-function placeCaret(el: HTMLTextAreaElement, start: number, end = start) {
-  requestAnimationFrame(() => {
-    el.focus();
-    el.setSelectionRange(start, end);
-    el.dispatchEvent(new Event('selectionchange'));
-  });
-}
 /** Link `raw` over [start, end) of the textarea: the selected words, or an autolink. */
 function linkInto(
   el: HTMLTextAreaElement,
@@ -154,8 +147,7 @@ function linkInto(
     toast('That is not a URL.');
     return;
   }
-  change(result.text);
-  placeCaret(el, result.caret);
+  setTextAt(el, change, result.text, result.caret);
   toast(linkToast(result));
 }
 /**
@@ -222,9 +214,8 @@ function useTextTools(
   const replace = (start: number, end: number, insert: string, select?: [number, number]) => {
     const el = textarea.current;
     if (!el) return;
-    change(el.value.slice(0, start) + insert + el.value.slice(end));
     const caret = start + insert.length;
-    placeCaret(el, ...(select ?? [caret, caret]));
+    setTextAt(el, change, el.value.slice(0, start) + insert + el.value.slice(end), ...(select ?? [caret, caret]));
   };
   const focusAt = (at: { start: number; end: number }) => {
     const el = textarea.current;
@@ -345,8 +336,7 @@ function useTextTools(
                 .map((p) => `> ${p}`)
                 .join('\n>\n');
               const placed = insertBlock(el.value, at.start, at.end, quote);
-              change(placed.text);
-              placeCaret(el, placed.caret);
+              setTextAt(el, change, placed.text, placed.caret);
             } else replace(at.start, at.end, scanned);
             toast(`scanned ${words} word${words === 1 ? '' : 's'}`);
           }}
