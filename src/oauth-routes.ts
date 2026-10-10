@@ -67,23 +67,29 @@ app.use('*', (c, next) => bodyLimit({ maxSize: 1024 * 1024, onError: c => c.json
     return response;
   };
   app.get('/oauth2/authorize', async c => {
-    const requestParams = new URL(c.req.url).searchParams;
+    const authorizationURL = new URL(c.req.url), requestParams = authorizationURL.searchParams;
+    // Generic OAuth clients (including manually configured MCP proxies) can
+    // omit RFC 8707 resource indicators. Bind that flow to MCP before login,
+    // signed consent and code issuance; never add audiences at token exchange.
+    // An explicit API, empty or foreign resource still goes through validation.
+    if (!requestParams.has('resource')) requestParams.set('resource', authLocations(c.req.url, c.env).mcp);
+    const authorizationRequest = new Request(authorizationURL, c.req.raw);
     if (!requestParams.get('response_type')) return invalidAuthorization(c, requestParams);
     if (!await verifySession(c.env, c.req.header('cookie'))) {
       if ((requestParams.get('prompt') ?? '').split(' ').includes('none')) {
         // Native OAuth cookies do not replace the separate password session.
         // Let the provider validate the client/callback and emit login_required,
         // but prevent a stale native session from authorizing silently.
-        const headers = new Headers(c.req.raw.headers); headers.delete('cookie');
-        return (await authorizationServer(c.req.url, c.env)).handler(new Request(c.req.raw, { headers }));
+        const headers = new Headers(authorizationRequest.headers); headers.delete('cookie');
+        return (await authorizationServer(c.req.url, c.env)).handler(new Request(authorizationRequest, { headers }));
       }
-      const { base } = authLocations(c.req.url, c.env), path = new URL(c.req.url);
+      const { base } = authLocations(c.req.url, c.env), path = authorizationURL;
       return c.redirect(base + '/login?return_to=' + encodeURIComponent(path.pathname + path.search));
     }
-    const params = new URL(c.req.url).searchParams, challenge = params.get('code_challenge');
+    const params = requestParams, challenge = params.get('code_challenge');
     if (challenge && !/^[A-Za-z0-9._~-]{43,128}$/.test(challenge)) return invalidAuthorization(c, params);
-    const server = await authorizationServer(c.req.url, c.env), bridge = await ownerHeaders(c.req.raw, server);
-    const response = await server.handler(new Request(c.req.raw, { headers: bridge.headers }));
+    const server = await authorizationServer(c.req.url, c.env), bridge = await ownerHeaders(authorizationRequest, server);
+    const response = await server.handler(new Request(authorizationRequest, { headers: bridge.headers }));
     const location = response.headers.get('location');
     if (location && new URL(location, c.req.url).pathname === new URL(authLocations(c.req.url, c.env).issuer).pathname + '/consent') {
       return renderConsent(c, new URL(location, c.req.url).search.slice(1), server, bridge.headers, bridge.cookies);
