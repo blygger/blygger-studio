@@ -19,6 +19,7 @@ import { loadFeedData, sourceKey, type FeedCardData, type FeedProvenance, type F
 import { WEBMENTION_PATH } from "./types.ts";
 import { escapeHtml, escapeHref, formatDateIn, unplacedMedia, visibleMedia } from "./util.ts";
 import { graphemePrefix } from "./text.ts";
+import { EMBED_CSS, EMBED_SCRIPT } from "./embeds.ts";
 
 
 /**
@@ -418,6 +419,7 @@ article.fragment, article.thread, .thread-card { overflow-wrap: break-word; }
 .gen-pop dl { display: grid; grid-template-columns: auto 1fr; gap: 0.1rem 0.6rem; margin: 0; }
 .gen-pop dt { color: var(--ink-soft); }
 .gen-pop dd { margin: 0; overflow-wrap: anywhere; }
+${EMBED_CSS}
 ${generatedHighlightRules(".gen-on")}`;
 
 /**
@@ -863,6 +865,9 @@ export function layout(title: string, body: string, mount: string, meta: PageMet
   // then fails with "invalid link" while `<origin>/blyg/feed.xml` works.
   const feedHref = meta.feedUrl ?? `${mount}/feed.xml`;
   const feedTitle = meta.feedTitle ? ` title="${escapeHtml(meta.feedTitle)}"` : "";
+  // EMBED_SCRIPT (studio#9) goes on every page that renders item HTML in an
+  // <article>: the feed, both permalinks, pinned versions, collections. It
+  // upgrades the published HTML on screen and never changes the bytes.
   return `<!doctype html>
 <html lang="en">
 <head>
@@ -874,7 +879,7 @@ ${metaTags({ ...meta, ogTitle: meta.ogTitle ?? title })}<link rel="stylesheet" h
 ${meta.webmention ? `<link rel="webmention" href="${meta.webmention}">\n` : ""}${meta.alternateJson ? `<link rel="alternate" type="application/json" href="${meta.alternateJson}">\n` : ""}${meta.canonical ? `<link rel="canonical" href="${meta.canonical}">\n` : ""}${meta.hasBlogroll ? `<link rel="blogroll" href="${mount}/blogroll.opml">\n` : ""}</head>
 <body>
 ${body}
-${body.includes("blyg-tk-gen") || body.includes("version-line") ? `<script>${GEN_INFO_SCRIPT}</script>\n` : ""}</body>
+${body.includes("blyg-tk-gen") || body.includes("version-line") ? `<script>${GEN_INFO_SCRIPT}</script>\n` : ""}${body.includes("<article") ? `<script>${EMBED_SCRIPT}</script>\n` : ""}</body>
 </html>
 `;
 }

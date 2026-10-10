@@ -43,9 +43,12 @@ describe("every inline script parses", () => {
 
     // Session 21 put the version-nav script on the permalink and thread pages
     // too, so all three need the parse check, not just the feed.
-    for (const path of ["/blyg/", `/blyg/f/${id}/`, `/blyg/t/${thread}/`]) {
+    // The embed script (studio#9) rides on every page with an article,
+    // pinned versions included.
+    for (const path of ["/blyg/", `/blyg/f/${id}/`, `/blyg/t/${thread}/`, `/blyg/f/${id}/v1/`]) {
       const bodies = scriptBodies(await (await getPublic(path)).text());
       expect(bodies.length, path).toBeGreaterThan(0);
+      expect(bodies.some((b) => b.includes("yt-facade")), `${path} embed script`).toBe(true);
       bodies.forEach((b, i) => assertParses(b, `${path} script ${i}`));
     }
   });
