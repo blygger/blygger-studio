@@ -17,6 +17,23 @@ npm run release:build
 npm run release:verify
 ```
 
+## In CI
+
+`check.yml` runs its jobs in parallel: `check` (build, typecheck, release
+build and verify, the Worker, UI and upgrade suites), `sdk-generation`, `e2e`,
+and one `mutations` job per suite, with auth-security split into its worker and
+browser halves. On a pull request, `scripts/ci-scope.ts` decides which of the
+slow jobs to run: e2e runs unless every changed file is documentation, and a
+mutation suite runs only when the PR changes a file it mutates, a test it
+runs, its own script, or something every suite shares (`package.json`, the
+workflows, the test configs, migrations). The file lists come from the suites'
+own `file:` and `test:` fields, so a new mutant needs no CI change. A push to
+`main` or a manual run runs every job, and `release.yml` publishes only after
+that run on the tagged commit is green (it runs the suite itself only for a tag
+that never went through `main`). A newer push to a pull request cancels its
+older run. Playwright retries once in CI; a test that passes on retry is
+reported as flaky.
+
 Read the [project glossary](glossary.md) before naming model states or observations. The [auth oracle map](auth-oracles.md) and [security oracle map](auth-security-oracles.md) describe the OAuth/MCP tests and their limits.
 
 The lifecycle, pagination and PATCH oracles keep their laws beside the model and comparisons. The collection-walk witness and browser save oracle also state their fixture boundaries and omissions. Replay, cleanup and mutation harnesses explain what evidence they preserve; a failed setup is not a caught product bug. Use the glossary's terms when changing any of these files.

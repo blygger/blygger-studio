@@ -2,6 +2,11 @@ import { defineConfig, devices } from "@playwright/test";
 export default defineConfig({
   testDir: "./e2e",
   workers: 1,
+  // One retry in CI: a test that fails and then passes is reported as flaky, not
+  // as a failed run. Single unrepeated failures across the suite (compose-pwa:179
+  // until #64, cosmetics:21 and :40, generated-highlight:13) were failing whole
+  // runs and releases (ROADMAP row 55). Locally a failure stays a failure.
+  retries: process.env.CI ? 1 : 0,
   projects: [{ name: "desktop", use: { ...devices["Desktop Chrome"] } }, { name: "mobile", use: { ...devices["iPhone 13"], defaultBrowserType: "chromium" } }],
   // The studio registers a service worker (PWA). page.route() cannot see requests a
   // worker handles, so suites run with workers blocked; pwa-chrome.spec.ts allows

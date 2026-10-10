@@ -1,11 +1,37 @@
 name: Check
+# Jobs run in parallel. A pull request runs e2e and the mutation suites only
+# where its changed files reach them (scripts/ci-scope.ts says why and how);
+# a push to main, or a manual run, runs everything, and Release requires that
+# run to be green. A newer push to the same pull request cancels the older run.
 on:
   pull_request:
   push:
     branches: [main]
+  workflow_dispatch:
+concurrency:
+  group: check-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 jobs:
+  scope:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    outputs:
+      e2e: ${{ steps.scope.outputs.e2e }}
+      mutations: ${{ steps.scope.outputs.mutations }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22.18.0
+          cache: npm
+      - run: npm ci
+      - id: scope
+        run: node --import tsx scripts/ci-scope.ts "${{ github.event_name }}" "${{ github.base_ref }}"
   check:
     runs-on: ubuntu-latest
+    timeout-minutes: 25
     steps:
       - uses: actions/checkout@v4
         with:
@@ -19,27 +45,16 @@ jobs:
       - run: npm run typecheck
       - run: npm run check:template
       - run: npm run release:build
+      # verify-sdk-consumer.ts, inside release:verify, drives Chromium.
       - run: npx playwright install --with-deps chromium
       - run: npm run release:verify
       - run: npm run openapi && git diff --exit-code -- openapi.json
       - run: npm run test:ui -- --maxWorkers=2
       - run: npm test -- --maxWorkers=2
       - run: npm run test:upgrade
-      - run: npm run test:mutations
-      - run: npm run test:polling-cache:mutations
-      - run: npm run test:auth:security:mutations
-      - run: npm run test:e2e
-      - uses: actions/upload-artifact@v4
-        if: failure()
-        with:
-          name: test-failure-evidence
-          path: |
-            test-results/
-            build/mutation-*.log
-            build/polling-mutation-*.log
-            build/security-mutant-*.log
   sdk-generation:
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -49,3 +64,60 @@ jobs:
       - run: npm ci
       - run: npm run sdk:generate
       - run: git diff --exit-code -- openapi.json sdk/generated sdk/generation.json
+  e2e:
+    needs: scope
+    if: needs.scope.outputs.e2e == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22.18.0
+          cache: npm
+      - run: npm ci
+      - run: npx playwright install --with-deps chromium
+      - run: npm run test:e2e
+      - uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: e2e-failure-evidence
+          path: test-results/
+  mutations:
+    needs: scope
+    if: needs.scope.outputs.mutations != '[]'
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    strategy:
+      fail-fast: false
+      matrix:
+        suite: ${{ fromJSON(needs.scope.outputs.mutations) }}
+    name: mutations (${{ matrix.suite }})
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22.18.0
+          cache: npm
+      - run: npm ci
+      - run: npm run build
+      - if: matrix.suite == 'auth-security-browser'
+        run: npx playwright install --with-deps chromium
+      - name: Run ${{ matrix.suite }} mutants
+        run: |
+          case "${{ matrix.suite }}" in
+            oracle) npm run test:mutations ;;
+            polling-cache) npm run test:polling-cache:mutations ;;
+            auth-security-worker) npm run test:auth:security:mutations -- --exclude-browser ;;
+            auth-security-browser) npm run test:auth:security:mutations -- --browser ;;
+            *) echo "unknown suite ${{ matrix.suite }}" >&2; exit 1 ;;
+          esac
+      - uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: mutation-evidence-${{ matrix.suite }}
+          path: |
+            test-results/
+            build/mutation-*.log
+            build/polling-mutation-*.log
+            build/security-mutant-*.log
