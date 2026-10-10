@@ -18,6 +18,8 @@ jobs:
       - run: npm run build
       - run: npm run typecheck
       - run: npm run check:template
+      # Schema, names and ranges only; fetching each entry's source is a reviewer's run.
+      - run: npm run registry:check -- --offline
       - run: npm run release:build
       - run: npx playwright install --with-deps chromium
       - run: npm run release:verify

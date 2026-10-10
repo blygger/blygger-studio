@@ -4,6 +4,8 @@ Studio is the reference client: it shows each protocol construct in its plainest
 
 An extension is first-party TypeScript in this repository. An operator compiles it into their build, and the owner turns it on in Settings. With nothing turned on, the Studio is the reference Studio, byte for byte.
 
+> **Proposed: third-party extensions through a registry.** [docs/extension-registry.md](extension-registry.md) describes a registry of browser-only extensions that live outside this repository. It is a proposal awaiting Venkat's ruling. An operator would vendor an extension's pinned, hash-checked source into their own build with `npm run ext:add`, and no Studio would ever load anything at run time. Everything below describes first-party extensions.
+
 ## What an extension can do
 
 | Slot | What it adds | Declared as |
@@ -28,7 +30,7 @@ Each slot renders inside an error boundary. If an extension throws, that slot re
 
 ## What is not offered, on purpose
 
-- **Runtime loading.** No extension is fetched, evaluated or configured by URL at run time. The Studio runs with the owner's session cookie, so any script that runs there can act as the owner: publish, mint tokens, read drafts. Remote code in that session would be a credential-theft surface. Only code compiled into the build runs, and every extension is code in this repository that the operator chose to compile in.
+- **Runtime loading.** No extension is fetched, evaluated or configured by URL at run time. The Studio runs with the owner's session cookie, so any script that runs there can act as the owner: publish, mint tokens, read drafts. Remote code in that session would be a credential-theft surface. Only code compiled into the build runs, and every extension is code in this repository that the operator chose to compile in. The proposed [registry](extension-registry.md) keeps this rule: it vendors source at build time and never loads anything at run time.
 - **Writes.** Extension routes are GETs under `/api/ext/<name>/`. The permission model classifies them as `owner:read`, and a route registered with any other method or prefix is refused when the Worker starts. An extension that wants to change something uses the existing contract through `client`, under the same scopes as any client.
 - **The wire.** An extension does not reach `blyg.json`, public pages, feeds, `content_html` or mentions. It is studio furniture for one owner.
 - **Changing the Studio's own controls.** No slot rewrites, hides or annotates a built-in button, row or label. #35 needed this (hover previews on `stub ↗`, tips on ⋯ rows), and it was left out because it would make the base UI's markup depend on extension code. See the open questions in the extension PR.
