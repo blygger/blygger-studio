@@ -8,7 +8,10 @@
 import { env } from "cloudflare:test";
 import { beforeEach, describe, expect, it } from "vitest";
 import type { ProviderFetchLike } from "../src/ai/provider.ts";
+import type { FetchLike } from "../src/importer/http.ts";
 import { createDraft, getItem, getTkProvenance, publish, putSettings } from "../src/model.ts";
+import { receiveMention, relationTo, verifyMention } from "../src/mentions/receive.ts";
+import { listOutbound } from "../src/mentions/store.ts";
 import { runGenerateScope } from "../src/tk-generate.ts";
 import { apiJson, createAndPublish, getPublic, login } from "./helpers.ts";
 
@@ -157,5 +160,92 @@ describe("emission (R3): the published reference is the stored one", () => {
     await publish(env.DB, (await getItem(env.DB, item.id))!, null, OURS);
     const doc = await (await getPublic(`/blyg/items/${item.id}.json`)).json<any>();
     expect(doc.generated[0].sources[0].cited.source).toBe("Friend's Blyg");
+  });
+});
+
+describe("send (R4): a remote source is a remote reference", () => {
+  it("publishing a fragment whose scope drew on a remote item enqueues exactly one mention, with its target version", async () => {
+    const cookie = await login();
+    await seedImported("them", R1, { md: "Their words.", version: 4 });
+    const { item } = await generateWith(`[TK]summarize ![[${R1}]][/TK]`);
+    expect((await apiJson(cookie, "POST", `/api/items/${item.id}/publish`, {})).status).toBe(200);
+    const queued = (await listOutbound(env.DB)).filter((r) => r.item_id === item.id);
+    expect(queued).toHaveLength(1);
+    expect(queued[0].target).toBe(`${THEM}f/${R1}/`);
+    expect(queued[0].target_version).toBe(4);
+  });
+
+  it("a thread that both quotes and draws on the same item sends one mention, not two", async () => {
+    const cookie = await login();
+    await seedImported("them", R1, { md: "Their words.", html: "<p>Their words.</p>" });
+    const thread = await createDraft(env.DB, `![[${R1}]]\n\n[TK]answer ![[${R1}]][/TK]`, "thread");
+    const { fetchImpl } = provider("My answer.");
+    expect((await runGenerateScope({ ...env, AI_PROVIDER_KEY: "k" }, thread, 0, fetchImpl, OURS)).ok).toBe(true);
+    expect((await apiJson(cookie, "POST", `/api/items/${thread.id}/publish`, {})).status).toBe(200);
+    expect((await listOutbound(env.DB)).filter((r) => r.item_id === thread.id)).toHaveLength(1);
+  });
+
+  it("an own source sends nothing", async () => {
+    const cookie = await login();
+    const own = await createAndPublish(cookie, "Own words.");
+    const { item } = await generateWith(`[TK]summarize ![[${own}]][/TK]`);
+    expect((await apiJson(cookie, "POST", `/api/items/${item.id}/publish`, {})).status).toBe(200);
+    expect((await listOutbound(env.DB)).filter((r) => r.item_id === item.id)).toHaveLength(0);
+  });
+});
+
+describe("receive (R5): `source`, the fourth relation", () => {
+  const TARGET = "target-id";
+  const sourceDoc = (sources: unknown[], extra: Record<string, unknown> = {}) => ({ generated: [{ sources, model: "m", at: "2026-10-10T00:00:00Z" }], ...extra });
+
+  it("a generated[].sources[] entry naming our origin and the target is `source`", () => {
+    expect(relationTo(sourceDoc([{ id: TARGET, version: 1, origin: OURS }]), OURS, TARGET)).toBe("source");
+    // Origin is compared normalized, as for the other three.
+    expect(relationTo(sourceDoc([{ id: TARGET, version: 1, origin: "HTTPS://Example.com/blyg/" }]), OURS, TARGET)).toBe("source");
+  });
+
+  it("one naming another origin, another item, or no origin (their own item) does not reference us", () => {
+    expect(relationTo(sourceDoc([{ id: TARGET, version: 1, origin: OTHER }]), OURS, TARGET)).toBeNull();
+    expect(relationTo(sourceDoc([{ id: "other-id", version: 1, origin: OURS }]), OURS, TARGET)).toBeNull();
+    expect(relationTo(sourceDoc([{ id: TARGET, version: 1 }]), OURS, TARGET)).toBeNull();
+    expect(relationTo({ generated: "nonsense" }, OURS, TARGET)).toBeNull();
+    expect(relationTo({ generated: [null, { sources: "x" }] }, OURS, TARGET)).toBeNull();
+  });
+
+  it("ranks last: stub_of, a transclusion and a fork all outrank it", () => {
+    const ref = { id: TARGET, version: 1, origin: OURS };
+    expect(relationTo(sourceDoc([ref], { stub_of: ref }), OURS, TARGET)).toBe("stub");
+    expect(relationTo(sourceDoc([ref], { transclusions: [ref] }), OURS, TARGET)).toBe("transclusion");
+    expect(relationTo(sourceDoc([ref], { forked_from: ref }), OURS, TARGET)).toBe("fork");
+  });
+
+  it("verifies end to end, and the public responses list says the source drew on it", async () => {
+    const cookie = await login();
+    const ours = await createAndPublish(cookie, "Our words, read by their model.");
+    expect((await apiJson(cookie, "PATCH", `/api/items/${ours}`, { responses: "show" })).status).toBe(200);
+    const id = "00000000000000000000000s01";
+    const page = `${THEM}f/${id}/`;
+    const docUrl = `${THEM}items/${id}.json`;
+    const doc = {
+      blyg: "0.4", id, kind: "fragment", origin: THEM, page: `f/${id}/`, author: { name: "Their Name" }, version: 1,
+      content_md: "A summary.", content_html: "<p>A summary.</p>", content_hash: "sha256:x", media: [], transclusions: [],
+      generated: [{ sources: [{ id: ours, version: 1, origin: OURS }], model: "m", at: "2026-10-10T00:00:00Z" }],
+    };
+    const bodies: Record<string, string> = {
+      [page]: `<html><head><link rel="alternate" type="application/json" href="${docUrl}"></head></html>`,
+      [docUrl]: JSON.stringify(doc),
+    };
+    const net: FetchLike = async (url) => {
+      const body = bodies[url];
+      const status = body ? 200 : 404;
+      return { ok: status === 200, status, url, headers: new Headers(), text: async () => body ?? "" };
+    };
+    const claim = await receiveMention(env.DB, { source: page, target: `${OURS}f/${ours}/` }, OURS);
+    expect(claim.status).toBe(202);
+    const result = await verifyMention(env.DB, (claim as { mentionId: string }).mentionId, page, ours, OURS, net);
+    expect(result).toMatchObject({ status: "verified", relation: "source" });
+
+    const html = await (await getPublic(`/blyg/f/${ours}/`)).text();
+    expect(html).toContain("drew on this");
   });
 });

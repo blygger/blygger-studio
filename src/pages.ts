@@ -1408,7 +1408,11 @@ export async function responsesSection(db: D1Database, item: ItemRow, settings: 
       }
     }
     const label = who ? `<span class="who">${escapeHtml(who)}</span> <span class="at-origin">at ${escapeHtml(host)}</span>` : `<span class="who">${escapeHtml(host)}</span>`;
-    const rel = row.relation === "transclusion" ? "quoted this" : row.relation === "fork" ? "forked this" : "stubbed this";
+    const rel =
+      row.relation === "transclusion" ? "quoted this"
+      : row.relation === "fork" ? "forked this"
+      : row.relation === "source" ? "drew on this"
+      : "stubbed this";
     const when = row.verified_at ? ` <span class="when">&middot; ${formatDate(row.verified_at, tz)}</span>` : "";
     return `<li><a href="${escapeHtml(row.source_page ?? row.source)}">${label}</a> <span class="rel">&middot; ${rel}</span>${when}</li>`;
   });

@@ -177,6 +177,14 @@ export function relationTo(doc: Doc, ourOrigin: string, targetId: string): Menti
   const transclusions = Array.isArray(doc.transclusions) ? (doc.transclusions as Transclusion[]) : [];
   if (transclusions.some((t) => t && normalizeOrigin(t.origin) === ourOrigin && t.id === targetId)) return "transclusion";
   if (forkedVersion(doc, ourOrigin, targetId) !== null) return "fork";
+  // 0.4 (§16.3, decision #44): a model at the source's origin was fed this
+  // item. Read from the reference alone, like the other three; the weakest
+  // claim, so it ranks last.
+  const generated = Array.isArray(doc.generated) ? (doc.generated as unknown[]) : [];
+  for (const g of generated) {
+    const sources = g && typeof g === "object" && Array.isArray((g as { sources?: unknown }).sources) ? ((g as { sources: unknown[] }).sources) : [];
+    if (sources.some((s) => s && typeof s === "object" && normalizeOrigin((s as { origin?: unknown }).origin) === ourOrigin && (s as { id?: unknown }).id === targetId)) return "source";
+  }
   return null;
 }
 
