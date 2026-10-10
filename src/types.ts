@@ -572,8 +572,16 @@ export const GENERATOR_URL = CLIENT.url;
  * the blogroll key and its document was not drafted until session 20. The key
  * reports what the wire carries; the document follows (decision #21 — building
  * the implementation is how the protocol gets tested).
+ *
+ * "0.4" since 0.41.0 (session 44): remote generation sources (0.3 §16.3,
+ * decision #44) put `origin` on `generated[].sources[]` and a `source`
+ * mention on the wire, a construct a receiver must act on (#43), and the
+ * templated surface (§16.6e) was already read. Bumped with the build and
+ * before `protocol-v0.4.md` exists, as both earlier bumps were. Pinned files
+ * report it too: a pin's promise is its content (§8 rules 1 and 6), and this
+ * key says what the serving deployment implements.
  */
-export const PROTOCOL_VERSION = "0.3";
+export const PROTOCOL_VERSION = "0.4";
 /**
  * The conformance level this deployment implements. **2 since session 27:** 0.3
  * §3 defines L2 as this specification, and live nodes were publishing 0.3

@@ -18,6 +18,46 @@ not have its own repo until session 26.
 
 ---
 
+## 0.41.0 — 2026-10-10
+
+**Migrations: `0027_imported_generated.sql`** (`imported_items.generated_json`,
+and the imported-items change trigger recreated to watch it). Apply it before
+deploying: `wrangler d1 migrations apply <database> --remote`.
+
+**Protocol: the version key is now `"0.4"`** in the manifest, item documents
+and pinned files. This build implements remote generation sources (spec 0.3
+§16.3, decision #44), the first construct a receiver must act on to be correct;
+it is the build that opens the 0.4 document. Readers accept any 0.x value, so
+nothing that reads a blyg changes. A pinned file's content is unchanged; its
+`blyg` key reports what the serving deployment implements, as at 0.3.
+
+- **A [TK] scope can draw on any item a quote can name** (#44). Sources
+  resolve like a directive: your published items of either kind, then an
+  imported item that is current or withdrawn with a pinned snapshot kept.
+  Threads and other blygs' items are sources now; drafts, plain RSS (L0) items
+  and an id imported from two origins are refused by name. The generator reads
+  the local snapshot, never a live fetch: a fragment's text, or a thread as its
+  readers see it, quotes included.
+- **A remote source is disclosed and notifies.** Its `generated[].sources[]`
+  entry carries `origin` and a `cited` frozen when the scope was generated, and
+  publishing sends that blyg a mention. A receiver running this build verifies
+  it as the new relation **`source`** and lists it publicly as "drew on this";
+  a 0.3 receiver reports it failed, which is correct for 0.3. An item that both
+  quotes and draws on the same post sends one mention.
+- **Imports keep `generated`** verbatim (migration 0027): on
+  `GET /api/imports/{sub}/{id}` as `generated_json`, and on
+  `GET /api/reading/imported` as `generated`.
+- **Studio.** Typing `![[` in a scope's instruction, inline or on its own line,
+  opens the picker as a *source* picker. The TK panel lists each scope's
+  sources, "draws on Friend's Blyg · excerpt · its author is told", or why one
+  would be refused, before you generate. The public "AI-generated" box lists
+  remote sources by their citation. The syntax page is updated, including
+  decision #60's rule that only the instruction names sources.
+- **API:** `relation` on mentions may be `source`; preview scopes carry
+  `sources`; `GenerationSource` (`id`, `version`, `origin?`, `cited?`) types
+  `generated[].sources[]`.
+- The lineage-glyph extension ignores `source` mentions for now.
+
 ## 0.40.0 — 2026-10-10
 
 **Migrations: none.** Six contributor PRs, merged together.

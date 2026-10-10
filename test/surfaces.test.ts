@@ -16,7 +16,7 @@ describe("manifest (§2.4)", () => {
     const res = await getPublic("/blyg/blyg.json");
     expect(res.status).toBe(200);
     const m = await res.json<any>();
-    expect(m.blyg).toBe("0.3");
+    expect(m.blyg).toBe("0.4");
     // L2 since session 27: the level had been announcing 1 while the wire
     // carried 0.3 constructs (§3 defines L2 as 0.3).
     expect(m.level).toBe(2);

@@ -82,15 +82,16 @@ describe("a directive left on its own line in TK output (provisional, session 33
   });
 });
 
-describe("TK sources not yet supported say so", () => {
-  it("an imported item or a thread as a source is 'not yet implemented', not 'unresolvable'", async () => {
+describe("TK sources through the generate route", () => {
+  it("a thread is a source since G8 (#44): resolution passes and the request goes on to the provider", async () => {
     const cookie = await login();
     const thread = (await apiJson(cookie, "POST", "/api/items", { content_md: "a thread", kind: "thread" })).json.id as string;
     await apiJson(cookie, "POST", `/api/items/${thread}/publish`, {});
     const id = (await apiJson(cookie, "POST", "/api/items", { content_md: `[TK]summarize ![[${thread}]][/TK]` })).json.id as string;
     const res = await apiJson(cookie, "POST", `/api/items/${id}/generate`, { scope: 0 });
-    expect(res.status).toBe(400);
-    expect(res.json.error).toMatch(/^TK transcludes are not yet implemented/);
+    // This suite configures no provider, so the request fails there, past the
+    // source check rather than at it.
+    expect(res.json.error).not.toMatch(/unresolvable source|not yet implemented/);
   });
 
   it("a genuinely unknown id still says why", async () => {
