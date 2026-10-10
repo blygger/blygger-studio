@@ -145,9 +145,27 @@ export const MentionOutRowSchema = z.object({
   created: z.string(),
 }).openapi("MentionOutRow");
 
+const hexColor = z.string().regex(/^#[0-9a-fA-F]{6}$/, "a #rrggbb colour");
+/** An author-defined palette: the same nine values as a preset theme. Colours only. */
+export const CustomThemeSchema = z.object({
+  dark: z.boolean(),
+  page: hexColor,
+  paper: hexColor,
+  ink: hexColor,
+  inkSoft: hexColor,
+  rule: hexColor,
+  pencil: hexColor,
+  genBg: hexColor,
+  genRule: hexColor,
+}).strict().openapi("CustomTheme");
+
 export const SettingsSchema = z.object({
   site_title: z.string(),
   theme: z.string(),
+  custom_theme: CustomThemeSchema.nullable(),
+  custom_theme_dark: CustomThemeSchema.nullable(),
+  custom_theme_name: z.string(),
+  font: z.string(),
   author_name: z.string(),
   author_url: z.string(),
   author_bio: z.string(),

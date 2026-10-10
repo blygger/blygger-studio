@@ -3,6 +3,7 @@ import { conditionalHtmlResponse, htmlCacheResponse, publicHtmlKey, publicHtmlRe
 import { verifySession } from "./auth.ts";
 import { verifyBearer } from "./oauth.ts";
 import { requestError } from './request-error.ts';
+import { fontCss } from "./fonts.ts";
 import { listFeedItems } from "./public-feed.ts";
 import { studioSpa } from "./spa.ts";
 import { authorizationApi } from './authorization-api.ts';
@@ -98,7 +99,7 @@ export function makeApp(mount: string) {
   // up by fetching this route like any other.
   pub.get("/style.css", async (c) => {
     const settings = await getSettings(c.env.DB);
-    return c.text(STYLE_CSS + themeCss(settings.theme) + generatedHighlightCss(settings.highlight_generated_default), 200, { "Content-Type": "text/css; charset=utf-8" });
+    return c.text(STYLE_CSS + themeCss(settings.theme, settings.custom_theme, settings.custom_theme_dark) + fontCss(settings.font) + generatedHighlightCss(settings.highlight_generated_default), 200, { "Content-Type": "text/css; charset=utf-8" });
   });
 
   pub.get("/feed.xml", async (c) => {

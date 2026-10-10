@@ -20,6 +20,7 @@ import { readState } from '../versions.ts';
 import { displayUrl } from '../importer/util.ts';
 import { Sheet } from './sheets.tsx';
 import { applyTheme } from './theme.ts';
+import type { CustomTheme } from '../themes.ts';
 export { Button };
 export const mount =
   document.getElementById('studio-root')!.dataset.mount ?? '';
@@ -186,15 +187,27 @@ export function Layout({ children }: { children: ReactNode }) {
   // The studio wears the reading theme. Until settings load, the theme
   // applied at startup (the last one seen on this device) stays.
   const theme = settings?.theme;
+  // The palettes as strings, so the effect re-runs on a changed colour but not
+  // on every new settings object with the same values.
+  const customKey = settings?.custom_theme
+    ? JSON.stringify(settings.custom_theme)
+    : '';
+  const customDarkKey = settings?.custom_theme_dark
+    ? JSON.stringify(settings.custom_theme_dark)
+    : '';
   useEffect(() => {
     if (theme === undefined) return;
-    applyTheme(theme);
-    // `auto` follows the device; keep theme-color in step when it flips.
+    const custom = customKey ? (JSON.parse(customKey) as CustomTheme) : null;
+    const customDark = customDarkKey
+      ? (JSON.parse(customDarkKey) as CustomTheme)
+      : null;
+    applyTheme(theme, custom, customDark);
+    // `auto` and a custom light/dark pair follow the device; keep in step when it flips.
     const media = matchMedia('(prefers-color-scheme: dark)');
-    const flip = () => applyTheme(theme);
+    const flip = () => applyTheme(theme, custom, customDark);
     media.addEventListener('change', flip);
     return () => media.removeEventListener('change', flip);
-  }, [theme]);
+  }, [theme, customKey, customDarkKey]);
   useEffect(() => {
     document.body.classList.toggle('has-tabs', showTabs);
     document.body.classList.toggle('no-tabs', !showTabs);

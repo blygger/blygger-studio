@@ -1,3 +1,4 @@
+import type { CustomTheme } from "./themes.ts";
 export interface Env {
   DB: D1Database;
   MEDIA: R2Bucket;
@@ -373,8 +374,16 @@ export interface MentionOutRow {
 /** Site settings with defaults applied. */
 export interface Settings {
   site_title: string;
-  /** Reading theme for the public pages — a key of THEMES, or "auto" to follow the reader's system preference. */
+  /** Reading theme for the public pages — a key of THEMES, "custom" for custom_theme, or "auto" to follow the reader's system preference. */
   theme: string;
+  /** The author's own palette (the nine values a preset has), used when theme is "custom". Null until one is saved. */
+  custom_theme: CustomTheme | null;
+  /** Optional dark companion to custom_theme. When set, the custom theme follows the reader's light/dark preference, as Auto does. */
+  custom_theme_dark: CustomTheme | null;
+  /** What the custom look is called when shared ("Pink Quill"). Empty when unnamed. */
+  custom_theme_name: string;
+  /** Reading typeface for the public pages: a key of FONTS (system font stacks only). "book" is the stylesheet's own. */
+  font: string;
   author_name: string;
   /** Where the author is found on the web (§2.3 `author.url`); empty = the blyg's own address. */
   author_url: string;

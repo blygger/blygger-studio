@@ -429,6 +429,18 @@
           "theme": {
             "type": "string"
           },
+          "custom_theme": {
+            "$ref": "#/components/schemas/CustomTheme"
+          },
+          "custom_theme_dark": {
+            "$ref": "#/components/schemas/CustomTheme"
+          },
+          "custom_theme_name": {
+            "type": "string"
+          },
+          "font": {
+            "type": "string"
+          },
           "author_name": {
             "type": "string"
           },
@@ -523,6 +535,10 @@
         "required": [
           "site_title",
           "theme",
+          "custom_theme",
+          "custom_theme_dark",
+          "custom_theme_name",
+          "font",
           "author_name",
           "author_url",
           "author_bio",
@@ -546,6 +562,61 @@
           "update_notice_ack",
           "extensions"
         ]
+      },
+      "CustomTheme": {
+        "type": [
+          "object",
+          "null"
+        ],
+        "properties": {
+          "dark": {
+            "type": "boolean"
+          },
+          "page": {
+            "type": "string",
+            "pattern": "^#[0-9a-fA-F]{6}$"
+          },
+          "paper": {
+            "type": "string",
+            "pattern": "^#[0-9a-fA-F]{6}$"
+          },
+          "ink": {
+            "type": "string",
+            "pattern": "^#[0-9a-fA-F]{6}$"
+          },
+          "inkSoft": {
+            "type": "string",
+            "pattern": "^#[0-9a-fA-F]{6}$"
+          },
+          "rule": {
+            "type": "string",
+            "pattern": "^#[0-9a-fA-F]{6}$"
+          },
+          "pencil": {
+            "type": "string",
+            "pattern": "^#[0-9a-fA-F]{6}$"
+          },
+          "genBg": {
+            "type": "string",
+            "pattern": "^#[0-9a-fA-F]{6}$"
+          },
+          "genRule": {
+            "type": "string",
+            "pattern": "^#[0-9a-fA-F]{6}$"
+          }
+        },
+        "required": [
+          "dark",
+          "page",
+          "paper",
+          "ink",
+          "inkSoft",
+          "rule",
+          "pencil",
+          "genBg",
+          "genRule"
+        ],
+        "additionalProperties": false
       },
       "Subscription": {
         "type": "object",
@@ -5560,6 +5631,18 @@
                     "type": "string"
                   },
                   "theme": {
+                    "type": "string"
+                  },
+                  "custom_theme": {
+                    "$ref": "#/components/schemas/CustomTheme"
+                  },
+                  "custom_theme_dark": {
+                    "$ref": "#/components/schemas/CustomTheme"
+                  },
+                  "custom_theme_name": {
+                    "type": "string"
+                  },
+                  "font": {
                     "type": "string"
                   },
                   "author_name": {

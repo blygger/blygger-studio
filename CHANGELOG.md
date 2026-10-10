@@ -45,6 +45,50 @@ not have its own repo until session 26.
   or neither is needed.
 - Tests never reach real, billed Workers AI (`remoteBindings: false`).
 
+Custom theme and reading typeface (Miguel, #58; no migration, both live in `settings`). `/api` change, additive:
+`Settings` gains `custom_theme` and `custom_theme_dark` (each an object, or
+`null`), `custom_theme_name` and `font` (strings); `PATCH /api/settings` accepts
+them and
+answers 400 for anything invalid or incoherent.
+
+**Custom theme.** A *Custom* tile beside the presets opens an editor for the
+author's own palette: the same nine values a preset has (`dark` plus `page`,
+`paper`, `ink`, `inkSoft`, `rule`, `pencil`, `genBg`, `genRule`), so the public
+pages and the studio take it through the same path as any preset. It starts
+from whichever preset was showing, previews live, warns when text, secondary
+text, links or generated highlights fall below WCAG AA contrast on the paper
+(advisory, never blocking), and exports and imports the palette as JSON so a
+look can be passed from one blyg to another. **Colours only:** every value must
+be `#rrggbb`, checked in the studio and again by the server before it is
+stored, so nothing but a colour reaches `style.css`.
+
+**Light and dark.** *Follow the reader's light/dark setting* adds a dark
+companion (`custom_theme_dark`): the custom theme then behaves like Auto, with
+the author's colours — the light palette in the base block, the dark one under
+`prefers-color-scheme: dark`, and the studio flipping with the device the same
+way. Most devices switch on their own now, and a custom theme that ignored that
+would be a step back from Auto. The pair must be coherent (light `dark: false`,
+companion `dark: true`, never a companion without a light half), checked in
+the studio and by the server. Without a companion, a custom palette is fixed,
+like a preset. A pair exports and imports as `{"light": {…}, "dark": {…}}`.
+
+**A name for the look.** *Name this look* (`custom_theme_name`, optional,
+one line, at most 40 characters) labels the Custom tile and travels with the
+look when it is shared: `{"name": "Pink Quill", "light": {…}, "dark": {…}}`.
+It is shown as text and never reaches the stylesheet.
+
+Switching to a preset
+keeps the palette, so switching back restores it; `custom_theme: null` clears
+it, and is refused while the theme in use is `custom`.
+
+**Reading typeface.** A choice of eight system font stacks (from Modern Font
+Stacks, CC0): Book (the default, unchanged), Transitional, Humanist sans,
+Geometric sans, System sans, Rounded, Slab serif, Monospace. Each names fonts
+already on the reader's device, so nothing is downloaded and no third party
+sees a reader; "no web fonts" still holds. Only `--serif` changes, so all
+reading text follows the choice while the apparatus keeps its sans. Unknown
+ids are refused (400). Public pages only; the studio keeps its own type.
+
 ## 0.39.0 — 2026-10-09
 
 **Migrations: `0026_read_state.sql`** (a `read_state` table and five triggers).

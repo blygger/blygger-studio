@@ -41,16 +41,14 @@ import { EMBED_CSS, EMBED_SCRIPT } from "./embeds.ts";
  * a tool that repaints itself when you change your site's colours is a
  * surprise, not a feature.
  */
-import { THEMES } from "./themes.ts";
+import { CUSTOM_THEME_ID, resolveTheme, type CustomTheme, type Theme } from "./themes.ts";
 export { THEMES, type Theme } from "./themes.ts";
 
-export function themeCss(name: string): string {
-  const t = THEMES[name];
-  if (!t) return "";
+function themeVars(t: Theme): string {
   // Padding only when the two surfaces differ: on a theme where they match,
   // padding the block would draw a card edge around nothing.
   const pad = t.page === t.paper ? "0rem" : "2rem";
-  const vars = `  color-scheme: ${t.dark ? "dark" : "light"};
+  return `  color-scheme: ${t.dark ? "dark" : "light"};
   --block-pad: ${pad};
   --page: ${t.page};
   --paper: ${t.paper};
@@ -61,6 +59,28 @@ export function themeCss(name: string): string {
   --pencil: ${t.pencil};
   --gen-bg: ${t.genBg};
   --gen-rule: ${t.genRule};`;
+}
+
+export function themeCss(name: string, custom?: CustomTheme | null, customDark?: CustomTheme | null): string {
+  const t = resolveTheme(name, custom, customDark);
+  if (!t) return "";
+  const darkT = name === CUSTOM_THEME_ID ? resolveTheme(name, custom, customDark, true) : undefined;
+  if (darkT && darkT !== t && customDark) {
+    // A custom pair follows the reader's light/dark preference, as Auto does:
+    // the author picked both palettes, the reader's device picks which applies.
+    return `
+/* theme: Custom (light and dark) — the reader's light/dark preference picks the palette. */
+:root {
+${themeVars(t)}
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+${themeVars(darkT)}
+  }
+}
+`;
+  }
+  const vars = themeVars(t);
   return `
 /* theme: ${t.label} — author-chosen, so it overrides the reader's light/dark
    preference rather than being overridden by it. */
