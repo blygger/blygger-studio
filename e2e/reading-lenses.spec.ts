@@ -81,7 +81,9 @@ test('settings: a model per AI function from the manifest, other…, a reserved 
   try {
     await page.goto('/studio/settings');
     await expect(page.locator('.model-hint')).toContainText('models.json');
-    await expect(page.locator('.provider-keys li')).toHaveCount(3);
+    await expect(page.locator('.provider-keys li')).toHaveCount(4);
+    // Workers AI (studio#8) is a binding, not a key; the e2e server binds none.
+    await expect(page.locator('.provider-keys li').nth(3)).toContainText('Cloudflare Workers AI no binding (AI)');
     await page.locator('#ai_model_tk').selectOption('claude-sonnet-5-5');
     await page.locator('#ai_model_feed').selectOption('__other__');
     await page.getByLabel('feed scoring model id').fill('gemini-9-future');

@@ -39,7 +39,9 @@ both out of the config. Open `https://blyg.example.com/studio`, sign in, and set
 your title and author name in Settings. Add subscriptions and publish a fragment
 to check the setup. AI keys are optional: `AI_PROVIDER_KEY` (Anthropic), `OPENAI_API_KEY` or
 `GOOGLE_AI_KEY`, for whichever provider's models you choose in Settings; set
-one with `npx wrangler@4 secret put AI_PROVIDER_KEY`. This prebuilt worker
+one with `npx wrangler@4 secret put AI_PROVIDER_KEY`. The `@cf/…` models run
+on Cloudflare Workers AI with no key: uncomment the `"ai"` binding in the
+included `wrangler.jsonc` to offer them. This prebuilt worker
 carries the shipped model list; to use a model it does not list, choose
 *other…* in Settings and type its id.
 

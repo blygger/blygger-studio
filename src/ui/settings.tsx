@@ -521,6 +521,13 @@ const FUNCTIONS = [
 ] as const;
 const OTHER = '__other__';
 
+/** A provider's readiness in words: a key, a Workers AI binding (studio#8), or neither needed. */
+function providerStatus(p: AiModels['providers'][number]): string {
+  if (p.binding) return p.configured ? 'binding set' : 'no binding';
+  if (!p.key_secret) return 'no key needed';
+  return p.configured ? 'key set' : 'no key';
+}
+
 /**
  * One model per AI function (0.26.0), chosen from the model manifest
  * (models.json, plus the operator's models.local.json) or typed in. The
@@ -562,7 +569,13 @@ function ModelSettings({
             <li key={p.id} data-configured={p.configured}>
               {p.configured ? '✓' : '–'} {p.label}{' '}
               <span className="hint">
-                {p.configured ? 'key set' : 'no key'} (<code>{p.key_secret}</code>)
+                {providerStatus(p)}
+                {p.key_secret || p.binding ? (
+                  <>
+                    {' '}
+                    (<code>{p.key_secret ?? p.binding}</code>)
+                  </>
+                ) : null}
               </span>
             </li>
           ))}
@@ -590,7 +603,7 @@ function ModelSettings({
             >
               <option value="">— none —</option>
               {manifest?.providers.map((p) => (
-                <optgroup key={p.id} label={p.configured ? p.label : `${p.label} (no key)`}>
+                <optgroup key={p.id} label={p.configured ? p.label : `${p.label} (${providerStatus(p)})`}>
                   {manifest.models
                     .filter((m) => m.provider === p.id)
                     .map((m) => (

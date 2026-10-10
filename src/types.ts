@@ -39,6 +39,13 @@ export interface Env {
   OPENAI_API_KEY?: string;
   /** Google Gemini API key, when a Gemini model is chosen in Settings (0.26.0). Wrangler secret. */
   GOOGLE_AI_KEY?: string;
+  /**
+   * The Workers AI binding (`"ai": { "binding": "AI" }` in wrangler.jsonc), for
+   * `@cf/…` models (studio#8). Optional and off by default: a model only runs
+   * on it when the operator picks one in Settings. A `workers-ai` provider in
+   * models.local.json may name a different binding; this is the default.
+   */
+  AI?: Ai;
 }
 
 export interface ItemRow {

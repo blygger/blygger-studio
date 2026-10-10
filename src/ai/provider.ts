@@ -10,7 +10,7 @@
 import { admitAi } from "../security-budgets.ts";
 import { getSettings } from "../model.ts";
 import type { Env, Settings } from "../types.ts";
-import { providerFor, type AiPurpose } from "./models.ts";
+import { MODELS, bindingName, providerConfigured, providerFor, type AiPurpose, type Manifest, type ProviderSpec } from "./models.ts";
 
 export interface GenerateRequest {
   instruction: string;
@@ -111,8 +111,10 @@ export async function generate(
  * for every generation hook (TK scopes, changelog notes, later feed scoring).
  * `purpose` picks the model from settings (one per AI function, 0.26.0); the
  * model picks the provider from the manifest (src/ai/models.ts); the provider
- * names the Worker secret that holds its key. Every provider is called over
- * raw HTTP, for the same small-dependency reason given at the top of this file.
+ * names the Worker secret that holds its key, or (Workers AI, studio#8) the
+ * binding it runs on. Every keyed provider is called over raw HTTP, for the
+ * same small-dependency reason given at the top of this file. `models` is the
+ * embedded manifest; tests substitute their own.
  */
 export async function complete(
   env: Env,
@@ -120,25 +122,40 @@ export async function complete(
   user: string,
   fetchImpl: ProviderFetchLike = platformProviderFetch,
   purpose: AiPurpose = "tk",
+  models: Manifest = MODELS,
 ): Promise<GenerateResult> {
   const settings = await getSettings(env.DB);
   // No built-in default (session 32, Venkat): which model an operator pays for
-  // is the operator's choice, so a fresh install names none and says so.
+  // is the operator's choice, so a fresh install names none and says so. That
+  // holds for Workers AI too: a bound AI binding is never used unasked.
   const model = modelFor(settings, purpose).trim();
   if (!model) throw new ProviderError(`no AI model is configured for ${PURPOSE_LABELS[purpose]}: choose one in Settings (for example claude-sonnet-5-5)`);
-  const provider = providerFor(model);
+  const provider = providerFor(model, models);
   if (!provider) throw new ProviderError(`no provider is known for model "${model}": add it to models.json (or models.local.json)`);
-  const apiKey = (env as unknown as Record<string, unknown>)[provider.spec.key_secret];
-  if (typeof apiKey !== "string" || !apiKey) throw new ProviderError(`${provider.spec.key_secret} is not configured (the ${provider.spec.label} API key)`);
+  const { spec } = provider;
+  if (!providerConfigured(env, spec)) throw new ProviderError(notConfigured(spec));
+  const vars = env as unknown as Record<string, unknown>;
+  const apiKey = spec.key_secret ? (vars[spec.key_secret] as string) : "";
   if (!await admitAi(env)) throw new AiBudgetError('daily AI call budget exceeded');
-  switch (provider.spec.api) {
+  // Extra request members for the two chat-shaped apis: the provider's, then the model's.
+  const params = { ...spec.params, ...provider.model?.params };
+  switch (spec.api) {
     case "anthropic-messages":
       return anthropic(apiKey, model, system, user, fetchImpl);
     case "openai-responses":
       return openai(apiKey, model, system, user, fetchImpl);
     case "gemini-generate":
       return gemini(apiKey, model, system, user, fetchImpl);
+    case "workers-ai":
+      return workersAi(vars[bindingName(spec)] as WorkersAiBinding, model, system, user, params);
+    case "openai-chat":
+      return openaiChat(spec.base_url ?? "", apiKey, model, system, user, params, fetchImpl);
   }
+}
+
+function notConfigured(spec: ProviderSpec): string {
+  if (spec.api === "workers-ai") return `the ${bindingName(spec)} binding is not configured (${spec.label}): add an "ai" binding to wrangler.jsonc and redeploy`;
+  return `${spec.key_secret} is not configured (the ${spec.label} API key)`;
 }
 
 const PURPOSE_LABELS: Record<AiPurpose, string> = { tk: "TK generation", changelog: "changelog notes", feed: "feed scoring" };
@@ -225,4 +242,86 @@ async function gemini(apiKey: string, model: string, system: string, user: strin
     throw new ProviderError(reason && reason !== "STOP" ? `provider stopped without text (${reason})` : "provider returned no text content");
   }
   return { text, model: json.modelVersion ?? model };
+}
+
+/** The slice of the Workers AI binding this file uses; tests pass a fake. */
+export interface WorkersAiBinding {
+  run(model: string, input: unknown): Promise<unknown>;
+}
+
+interface ChatCompletion {
+  model?: string;
+  /** Older Workers AI text models answer with a bare `response`. */
+  response?: string;
+  choices?: {
+    finish_reason?: string;
+    message?: { content?: string | { type?: string; text?: string }[] | null; refusal?: string | null; reasoning_content?: unknown; reasoning?: unknown };
+  }[];
+}
+
+function chatMessages(system: string, user: string) {
+  return [
+    { role: "system", content: system },
+    { role: "user", content: user },
+  ];
+}
+
+/**
+ * Remove reasoning a model inlined into its answer. Separate reasoning fields
+ * (`reasoning_content`, `reasoning`) are never read at all; this handles the
+ * models that put it in the content instead: <think>-style blocks, Gemma's
+ * thought channel, and an unterminated block left by a truncated answer.
+ */
+export function stripReasoning(text: string): string {
+  return text
+    .replace(/<(think|thinking|thought|reasoning)>[\s\S]*?<\/\1>/gi, "")
+    .replace(/<\|channel>thought[\s\S]*?<channel\|>/g, "")
+    .replace(/^\s*<(think|thinking|thought|reasoning)>[\s\S]*$/i, "")
+    .trim();
+}
+
+/** The answer text of a chat-completion response, or a ProviderError. */
+function chatText(json: ChatCompletion): string {
+  const choice = json?.choices?.[0];
+  if (choice?.message?.refusal) throw new ProviderError(`provider declined the request: ${choice.message.refusal}`);
+  if (choice?.finish_reason === "content_filter") throw new ProviderError("provider declined the request (content_filter)");
+  const content = choice ? choice.message?.content : json?.response;
+  const raw = typeof content === "string"
+    ? content
+    : Array.isArray(content) ? content.filter((p) => !p.type || p.type === "text").map((p) => p.text ?? "").join("") : "";
+  const text = stripReasoning(raw);
+  if (!text) throw new ProviderError(choice?.finish_reason === "length" ? "provider stopped early (length)" : "provider returned no text content");
+  return text;
+}
+
+/**
+ * Cloudflare Workers AI, through the Worker's own `ai` binding: no key, billed
+ * to the account the Worker runs on. Chat-shaped input; the answer comes back
+ * in the OpenAI chat-completion shape (or `{response}` from older models).
+ */
+async function workersAi(binding: WorkersAiBinding, model: string, system: string, user: string, params: Record<string, unknown>): Promise<GenerateResult> {
+  let json: ChatCompletion;
+  try {
+    json = (await binding.run(model, { max_tokens: MAX_TOKENS, ...params, messages: chatMessages(system, user) })) as ChatCompletion;
+  } catch (e) {
+    throw new ProviderError(`provider request failed: ${e instanceof Error ? e.message : String(e)}`);
+  }
+  // Provenance records the model asked for: the "@cf/..." id is the honest
+  // disclosure, whatever display name the response's `model` carries.
+  return { text: chatText(json), model };
+}
+
+/**
+ * Any OpenAI-compatible Chat Completions endpoint at the provider's
+ * `base_url`: Cloudflare's OpenAI-compatible endpoint or AI Gateway,
+ * OpenRouter, Groq, Together, a local Ollama. Like the other adapters this
+ * calls a fixed destination: the base URL is the operator's build-time config
+ * (models.json / models.local.json, checked by build-models), never request
+ * input, and the key travels only in the Authorization header.
+ */
+async function openaiChat(baseUrl: string, apiKey: string, model: string, system: string, user: string, params: Record<string, unknown>, fetchImpl: ProviderFetchLike): Promise<GenerateResult> {
+  const url = `${baseUrl.replace(/\/+$/, "")}/chat/completions`;
+  const headers: Record<string, string> = apiKey ? { authorization: `Bearer ${apiKey}` } : {};
+  const json = (await postJson(fetchImpl, url, headers, { max_tokens: MAX_TOKENS, ...params, model, messages: chatMessages(system, user) })) as ChatCompletion;
+  return { text: chatText(json), model: json.model ?? model };
 }

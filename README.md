@@ -94,9 +94,11 @@ AI is optional. Each AI function (TK generation, changelog notes, and later
 feed scoring) takes its own model in Settings → AI models, chosen from
 `models.json`. Set the key for each provider you use: `AI_PROVIDER_KEY`
 (Anthropic), `OPENAI_API_KEY` (OpenAI) or `GOOGLE_AI_KEY` (Google), e.g.
-`npx wrangler@4 secret put AI_PROVIDER_KEY`. To change the model list without
+`npx wrangler@4 secret put AI_PROVIDER_KEY`, or bind Workers AI for the
+`@cf/…` models, which need no key. To change the model list without
 upgrade conflicts, copy entries into a `models.local.json` (gitignored, same
-shape; see the comment in `models.json`) and redeploy.
+shape; see the comment in `models.json`) and redeploy. See
+[AI models](#ai-models) for Workers AI and OpenAI-compatible endpoints.
 
 The archive includes the Worker bundle, migrations, licenses, and a deployment
 README. It needs no `npm ci` or source build. Wrangler's
@@ -209,6 +211,59 @@ mentions when you quote other people.
 When enabled, hourly rate limits apply to each source host, each registrable
 domain, and the endpoint as a whole. See
 [`src/mentions/store.ts`](src/mentions/store.ts) for the limits and their reasons.
+
+## AI models
+
+Every AI function (TK generation, changelog notes, later feed scoring) uses the
+model you choose for it in **Settings → AI models**. Studio has no default
+model and never falls back to another one: a function with no model chosen
+says so instead of generating. Every call counts against the daily AI budget
+(`AI_DAILY_CALL_LIMIT`, default 20), whichever provider serves it.
+
+The list comes from `models.json`, merged at build with your gitignored
+`models.local.json`. Each provider names an `api`:
+
+| `api` | Calls | Needs |
+|---|---|---|
+| `anthropic-messages` | Anthropic Messages | `key_secret` (shipped: `AI_PROVIDER_KEY`) |
+| `openai-responses` | OpenAI Responses | `key_secret` (shipped: `OPENAI_API_KEY`) |
+| `gemini-generate` | Gemini generateContent | `key_secret` (shipped: `GOOGLE_AI_KEY`) |
+| `workers-ai` | Cloudflare Workers AI, through the Worker's binding | an `ai` binding (`binding`, default `AI`); no key |
+| `openai-chat` | any OpenAI-compatible Chat Completions endpoint | `base_url`, and `key_secret` unless the endpoint is keyless |
+
+**Workers AI.** The shipped list includes Gemma 4 26B and a few other `@cf/…`
+models, and any `@cf/…` id typed in with *other…* runs there too. Inference is
+billed to the Cloudflare account the Worker runs on. To enable it, uncomment the
+`"ai": { "binding": "AI" }` line in `wrangler.jsonc` and redeploy; Settings shows
+the provider as *binding set*. Studio sends `max_tokens` and the model's
+`params` (Gemma 4 gets `chat_template_kwargs: { enable_thinking: false }`) and
+removes any reasoning a model inlines into its answer (`<think>` blocks,
+Gemma's thought channel). A separate reasoning field is never read.
+
+**OpenAI-compatible endpoints** (OpenRouter, Groq, Together, Cloudflare's
+OpenAI-compatible endpoint or AI Gateway, a local Ollama). Add a provider and
+its models in `models.local.json`; Studio posts to `{base_url}/chat/completions`
+with the key as a bearer token:
+
+```json
+{
+  "providers": {
+    "groq": { "label": "Groq", "api": "openai-chat", "base_url": "https://api.groq.com/openai/v1", "key_secret": "GROQ_API_KEY" }
+  },
+  "models": [
+    { "id": "qwen/qwen3-32b", "provider": "groq", "label": "Qwen3 32B", "params": { "reasoning_format": "hidden" } }
+  ]
+}
+```
+
+Then `npx wrangler@4 secret put GROQ_API_KEY` and redeploy. `key_secret` must
+name a Worker secret, never a value: keys stay out of the manifest, out of the
+URL and out of `GET /api/ai/models`, which reports names and whether each is
+set. `base_url` must be `https` (plain `http` only to `localhost`, for an
+Ollama under `wrangler dev`) with no credentials or query string, and the build
+refuses a manifest that breaks these rules. `params` (on a `workers-ai` or
+`openai-chat` provider or model) are extra request-body members; a model's
+merge over its provider's, and neither can replace the model or the messages.
 
 ## Releases and upgrading
 

@@ -18,6 +18,33 @@ not have its own repo until session 26.
 
 ---
 
+## Unreleased
+
+**Migrations: none.**
+
+- **Cloudflare Workers AI** (studio#8, after Aneesh Sathe's local patch). A
+  `workers-ai` provider in `models.json` runs `@cf/…` models on the Worker's
+  own `ai` binding, with no API key; Gemma 4 26B, Llama 4 Scout, Llama 3.3 70B
+  and Mistral Small 3.1 are listed, and any `@cf/…` id can be typed in. The
+  binding is commented out in `wrangler.jsonc` and in what `npm run init`
+  writes: uncomment it to offer these models. Nothing runs on it until a model
+  is chosen in Settings: still no default model and no fallback. Reasoning a
+  model inlines into its answer is removed, and Gemma 4 is asked not to think.
+- **OpenAI-compatible endpoints.** An `openai-chat` provider calls any Chat
+  Completions endpoint at its `base_url` (OpenRouter, Groq, Together,
+  Cloudflare's OpenAI-compatible endpoint, a local Ollama), with its key in a
+  Worker secret named by `key_secret`. Add one in `models.local.json`; README §
+  AI models has an example. The build now refuses a manifest whose provider
+  could not be called: an unknown api, a missing key secret or base URL, a
+  base URL that is not https or carries credentials, or a `key_secret` naming
+  `OWNER_PASSWORD` or `COOKIE_SECRET`.
+- Both spend the daily AI budget like every other provider.
+- **API:** in `GET /api/ai/models`, a provider's `key_secret` is now optional
+  (absent for Workers AI and keyless endpoints) and a Workers AI provider
+  carries `binding`. `configured` means the key is set, the binding is bound,
+  or neither is needed.
+- Tests never reach real, billed Workers AI (`remoteBindings: false`).
+
 ## 0.39.0 — 2026-10-09
 
 **Migrations: `0026_read_state.sql`** (a `read_state` table and five triggers).

@@ -20,6 +20,10 @@ export default defineConfig({
       const migrations = await readD1Migrations(path.join(import.meta.dirname, "migrations"));
       return {
         wrangler: { configPath: "./wrangler.jsonc" },
+        // An operator's wrangler.jsonc may bind Workers AI (studio#8), which
+        // is always remote: never proxy it to real, billed inference from a
+        // test. The suite passes a fake env.AI where it needs one.
+        remoteBindings: false,
         miniflare: {
           // Background delivery and update checks cannot reach the real network.
           outboundService: () => new Response(null, { status: 503 }),

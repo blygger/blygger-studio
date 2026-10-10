@@ -1,9 +1,10 @@
 {
-  "$comment": "The AI models offered in Settings → AI models. Edit this file to add, remove or relabel models, then redeploy. To keep your edits out of upgrade merges, put them in models.local.json instead (same shape, gitignored): its providers merge over these by key, its models replace or add by id, and ids listed in its \"remove\" array are dropped. Model ids not listed here can still be typed in with \"other…\"; the provider is then guessed from the id's prefix (claude-, gpt-, gemini-). Checked against each provider's model page 2026-10-04.",
+  "$comment": "The AI models offered in Settings → AI models. Edit this file to add, remove or relabel models, then redeploy. To keep your edits out of upgrade merges, put them in models.local.json instead (same shape, gitignored): its providers merge over these by key, its models replace or add by id, and ids listed in its \"remove\" array are dropped. Model ids not listed here can still be typed in with \"other…\"; the provider is then guessed from the id's prefix (claude-, gpt-, gemini-, @cf/). Provider apis: anthropic-messages, openai-responses and gemini-generate each need a key_secret; workers-ai calls the Worker's AI binding, with no key (optional \"binding\", default AI); openai-chat is any OpenAI-compatible Chat Completions endpoint and needs a base_url, plus a key_secret unless the endpoint is keyless. workers-ai and openai-chat providers and their models may carry \"params\", extra request-body members (a model's merge over its provider's). See README § AI models. Checked against each provider's model page 2026-10-09.",
   "providers": {
     "anthropic": { "label": "Anthropic", "api": "anthropic-messages", "key_secret": "AI_PROVIDER_KEY", "prefixes": ["claude-"] },
     "openai": { "label": "OpenAI", "api": "openai-responses", "key_secret": "OPENAI_API_KEY", "prefixes": ["gpt-", "o1", "o3", "o4"] },
-    "google": { "label": "Google", "api": "gemini-generate", "key_secret": "GOOGLE_AI_KEY", "prefixes": ["gemini-"] }
+    "google": { "label": "Google", "api": "gemini-generate", "key_secret": "GOOGLE_AI_KEY", "prefixes": ["gemini-"] },
+    "workers-ai": { "label": "Cloudflare Workers AI", "api": "workers-ai", "binding": "AI", "prefixes": ["@cf/"] }
   },
   "models": [
     { "id": "claude-fable-5-1", "provider": "anthropic", "label": "Claude Fable 5.1", "note": "most capable; highest cost" },
@@ -15,6 +16,10 @@
     { "id": "gpt-6-luna", "provider": "openai", "label": "GPT-6 Luna", "note": "fast and cheap" },
     { "id": "gemini-3.1-pro-preview", "provider": "google", "label": "Gemini 3.1 Pro (preview)", "note": "Google's most capable; preview" },
     { "id": "gemini-3.8-flash", "provider": "google", "label": "Gemini 3.8 Flash", "note": "balanced" },
-    { "id": "gemini-3.1-flash-lite", "provider": "google", "label": "Gemini 3.1 Flash-Lite", "note": "fast and cheap" }
+    { "id": "gemini-3.1-flash-lite", "provider": "google", "label": "Gemini 3.1 Flash-Lite", "note": "fast and cheap" },
+    { "id": "@cf/google/gemma-4-26b-a4b-it", "provider": "workers-ai", "label": "Gemma 4 26B", "note": "billed to your Cloudflare account", "params": { "chat_template_kwargs": { "enable_thinking": false } } },
+    { "id": "@cf/meta/llama-4-scout-17b-16e-instruct", "provider": "workers-ai", "label": "Llama 4 Scout 17B", "note": "billed to your Cloudflare account" },
+    { "id": "@cf/meta/llama-3.3-70b-instruct-fp8-fast", "provider": "workers-ai", "label": "Llama 3.3 70B (fast)", "note": "billed to your Cloudflare account" },
+    { "id": "@cf/mistralai/mistral-small-3.1-24b-instruct", "provider": "workers-ai", "label": "Mistral Small 3.1 24B", "note": "billed to your Cloudflare account" }
   ]
 }

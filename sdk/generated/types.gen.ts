@@ -261,7 +261,17 @@ export type AiModels = {
     providers: Array<{
         id: string;
         label: string;
-        key_secret: string;
+        /**
+         * The Worker secret holding this provider's key. Absent for a Workers AI provider (it uses `binding`) and for a keyless OpenAI-compatible endpoint.
+         */
+        key_secret?: string;
+        /**
+         * Workers AI only: the Worker binding the provider calls (studio#8).
+         */
+        binding?: string;
+        /**
+         * The key secret is set, the binding is bound, or the provider needs neither.
+         */
         configured: boolean;
     }>;
     models: Array<{

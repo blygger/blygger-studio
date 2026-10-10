@@ -11,7 +11,7 @@ import { renderMarkdown, plainTextFromHtml } from "./markdown.ts";
 import { clampText } from "./preview.ts";
 import { applyInternalLinks, previewInternalLinks, previewTransclusions, resolveBlockLinks } from "./transclusion.ts";
 import { siteOrigin } from "./protocol.ts";
-import { MODELS, configuredProviders } from "./ai/models.ts";
+import { MODELS, bindingName, configuredProviders } from "./ai/models.ts";
 import { INTERACTION_KINDS, listInteractions, listThumbs, type InteractionKind } from "./interactions.ts";
 import { normalizeMount } from "./util.ts";
 import type { Env, SignalRow, ImportedItemRow, ItemRow, SubscriptionRow, HopperRow, MentionInRow, MentionOutRow } from "./types.ts";
@@ -100,8 +100,16 @@ readApi.openapi(routes.listInteractions, async (c) => {
 readApi.openapi(routes.getAiModels, async (c) => {
   const configured = configuredProviders(c.env);
   return c.json({
-    providers: Object.entries(MODELS.providers).map(([id, p]) => ({ id, label: p.label, key_secret: p.key_secret, configured: configured[id] ?? false })),
-    models: MODELS.models,
+    // Names only: never a key's value, a base_url (it may be a private
+    // endpoint) or request params.
+    providers: Object.entries(MODELS.providers).map(([id, p]) => ({
+      id,
+      label: p.label,
+      ...(p.key_secret ? { key_secret: p.key_secret } : {}),
+      ...(p.api === "workers-ai" ? { binding: bindingName(p) } : {}),
+      configured: configured[id] ?? false,
+    })),
+    models: MODELS.models.map(({ id, provider, label, note }) => ({ id, provider, label, ...(note ? { note } : {}) })),
     local: MODELS.local,
   });
 });

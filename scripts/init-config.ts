@@ -63,6 +63,13 @@ export function initConfig(d: InitDeployment, date = new Date()): string {
       "bucket_name": "${d.bucketName}"
     }
   ]
+
+  // Optional: Cloudflare Workers AI, for the \`@cf/…\` models in Settings → AI
+  // models. No API key; inference is billed to this account. Nothing uses it
+  // until you choose such a model. To enable, add a comma after "r2_buckets"
+  // above and uncomment:
+  //
+  //   "ai": { "binding": "AI" }
 }
 `;
 }

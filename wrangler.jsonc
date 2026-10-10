@@ -72,6 +72,13 @@
     }
   ]
 
+  // OPTIONAL — Cloudflare Workers AI, for the `@cf/…` models in Settings →
+  // AI models (Gemma, Llama, Mistral). No API key: inference is billed to the
+  // account this Worker runs on. Nothing uses it until you choose such a model.
+  // To enable, add a comma after the "r2_buckets" block above and uncomment:
+  //
+  //   "ai": { "binding": "AI" }
+
   // FILL ME (4 of 4) — your account and your domain, neither of which has a
   // default worth guessing. `npm run init` writes them; by hand, add:
   //

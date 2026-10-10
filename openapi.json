@@ -1209,16 +1209,21 @@
                   "type": "string"
                 },
                 "key_secret": {
-                  "type": "string"
+                  "type": "string",
+                  "description": "The Worker secret holding this provider's key. Absent for a Workers AI provider (it uses `binding`) and for a keyless OpenAI-compatible endpoint."
+                },
+                "binding": {
+                  "type": "string",
+                  "description": "Workers AI only: the Worker binding the provider calls (studio#8)."
                 },
                 "configured": {
-                  "type": "boolean"
+                  "type": "boolean",
+                  "description": "The key secret is set, the binding is bound, or the provider needs neither."
                 }
               },
               "required": [
                 "id",
                 "label",
-                "key_secret",
                 "configured"
               ]
             }

@@ -209,7 +209,7 @@ describe("settings: the pre-0.26 ai_model alias", () => {
     expect(res.json).toMatchObject({ ai_model: "claude-opus-5-5", ai_model_tk: "claude-opus-5-5", ai_model_changelog: "claude-opus-5-5", ai_model_feed: "", feed_prompt: "Prioritize tech news." });
     const models = (await apiJson(cookie, "GET", "/api/ai/models")).json;
     expect(models.models.map((m: { id: string }) => m.id)).toContain("claude-sonnet-5-5");
-    expect(models.providers.map((p: { id: string }) => p.id)).toEqual(["anthropic", "openai", "google"]);
+    expect(models.providers.map((p: { id: string }) => p.id)).toEqual(["anthropic", "openai", "google", "workers-ai"]);
     expect(JSON.stringify(models)).not.toMatch(/sk-|test-key/);
   });
 });

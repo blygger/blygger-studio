@@ -55,7 +55,13 @@ export const InteractionSchema = z.object({ id: z.number().int(), at: z.string()
 export const ThumbSchema = z.object({ thumb: z.union([z.literal(1), z.literal(-1)]), at: z.string(), origin: z.string(), remote_id: z.string(), subscription_id: z.string().nullable(), label: z.string().nullable() }).openapi("Thumb");
 /** The model manifest for Settings (0.26.0): which models exist, and which providers have a key. Never a key's value. */
 export const AiModelsSchema = z.object({
-  providers: z.array(z.object({ id: z.string(), label: z.string(), key_secret: z.string(), configured: z.boolean() })),
+  providers: z.array(z.object({
+    id: z.string(),
+    label: z.string(),
+    key_secret: z.string().optional().describe("The Worker secret holding this provider's key. Absent for a Workers AI provider (it uses `binding`) and for a keyless OpenAI-compatible endpoint."),
+    binding: z.string().optional().describe("Workers AI only: the Worker binding the provider calls (studio#8)."),
+    configured: z.boolean().describe("The key secret is set, the binding is bound, or the provider needs neither."),
+  })),
   models: z.array(z.object({ id: z.string(), provider: z.string(), label: z.string(), note: z.string().optional() })),
   local: z.boolean(),
 }).openapi("AiModels");

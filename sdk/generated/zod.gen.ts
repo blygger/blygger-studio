@@ -302,7 +302,8 @@ export const zAiModels = z.object({
     providers: z.array(z.object({
         id: z.string(),
         label: z.string(),
-        key_secret: z.string(),
+        key_secret: z.string().optional(),
+        binding: z.string().optional(),
         configured: z.boolean()
     })),
     models: z.array(z.object({
