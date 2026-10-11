@@ -143,6 +143,8 @@ describe("generated SDK against the real Worker", () => {
       expect(await res.json()).toMatchObject({ error: expect.any(String) });
     }
   });
+  // Asserts a query count, not a speed: it seeds a full page first, which took
+  // 5.05 s on a slow CI runner against the 5 s default (run 38097466156).
   it("loads a full own reading page within the Free-plan D1 query budget", async () => {
     const client = clientFor(await login());
     const ids: string[] = [];
@@ -170,6 +172,6 @@ describe("generated SDK against the real Worker", () => {
       expect(detail?.media).toEqual([]);
     }
     expect(queries).toBeLessThanOrEqual(ids.length);
-  });
+  }, 30_000);
 
 });
