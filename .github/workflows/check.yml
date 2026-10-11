@@ -2,14 +2,17 @@ name: Check
 # Jobs run in parallel. A pull request runs e2e and the mutation suites only
 # where its changed files reach them (scripts/ci-scope.ts says why and how);
 # a push to main, or a manual run, runs everything, and Release requires that
-# run to be green. A newer push to the same pull request cancels the older run.
+# run to be green. A newer push to the same pull request cancels the older run;
+# every push to main gets its own group, because GitHub keeps one pending run
+# per group and cancels the rest, which would leave a tagged commit unchecked
+# and fail its Release.
 on:
   pull_request:
   push:
     branches: [main]
   workflow_dispatch:
 concurrency:
-  group: check-${{ github.event.pull_request.number || github.ref }}
+  group: check-${{ github.event.pull_request.number || github.sha }}
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 jobs:
   scope:
