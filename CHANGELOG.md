@@ -18,6 +18,22 @@ not have its own repo until session 26.
 
 ---
 
+## 0.41.1 — 2026-10-10
+
+**Migrations: none.**
+
+- **TK grammar quoted in code inside a scope is text** (#68). The parser
+  skipped code only when looking for an opening `[TK]`, so inside a scope a
+  `[TK]` in a code span read as a nested scope and a `[/TK]` as its close, and
+  an `impyrt` scope that quoted the grammar could not publish ("nested TK
+  scopes are not supported"). Every token search now skips code.
+- **The AI box's source links take the page's link colour** instead of the
+  browser default (0.41.0's "Drew on …" line).
+- **CI** (#67): Check runs its jobs in parallel and scopes a pull request's
+  e2e and mutation suites to the files it changes; Release publishes after the
+  tagged commit's green Check on `main` instead of rerunning the suite.
+  Nothing an operator runs changes.
+
 ## 0.41.0 — 2026-10-10
 
 **Migrations: `0027_imported_generated.sql`** (`imported_items.generated_json`,

@@ -439,6 +439,8 @@ article.fragment, article.thread, .thread-card { overflow-wrap: break-word; }
 .gen-pop dl { display: grid; grid-template-columns: auto 1fr; gap: 0.1rem 0.6rem; margin: 0; }
 .gen-pop dt { color: var(--ink-soft); }
 .gen-pop dd { margin: 0; overflow-wrap: anywhere; }
+.gen-pop a { color: var(--pencil); text-decoration: none; }
+.gen-pop a:hover { text-decoration: underline; }
 ${EMBED_CSS}
 ${generatedHighlightRules(".gen-on")}`;
 
