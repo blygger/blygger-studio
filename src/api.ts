@@ -110,7 +110,7 @@ async function quotedLink(db: D1Database, quoteOrigin: string, id: string, ourOr
     if (own) return blygItemUrl(ourOrigin, own.kind === "thread" ? "thread" : "fragment", id, null);
   }
   const row = await db
-    .prepare("SELECT ii.kind AS kind, ii.page AS page FROM imported_items ii JOIN subscriptions s ON s.id = ii.subscription_id WHERE ii.remote_id = ? AND s.origin = ?")
+    .prepare("SELECT ii.kind AS kind, ii.page AS page FROM imported_items ii JOIN subscriptions s ON s.id = ii.subscription_id WHERE ii.remote_id = ? AND s.origin = ? AND s.hopper_feed IS NULL")
     .bind(id, quoteOrigin)
     .first<{ kind: string; page: string | null }>();
   return row ? blygItemUrl(quoteOrigin, row.kind, id, row.page) : itemUrl(quoteOrigin, await storedSurface(db, quoteOrigin), id);
@@ -534,7 +534,7 @@ api.openapi(routes.updateSettings, async (c) => {
   for (const key of SETTINGS_KEYS) {
     if (typeof body[key] === "string") patch[key] = body[key] as string;
   }
-  for (const key of ["accept_mentions", "update_check", "show_responses_default", "highlight_generated_default", "auto_change_notes", "change_category_in_note", "update_notice_ack", "links_collections", "links_opml", "links_blygger_org", "links_blygger_com"] as const) {
+  for (const key of ["accept_mentions", "update_check", "show_responses_default", "highlight_generated_default", "auto_change_notes", "change_category_in_note", "update_notice_ack", "links_collections", "links_opml", "links_blygger_org", "links_blygger_com", "hopper_feeds"] as const) {
     if (typeof body[key] === "boolean") patch[key] = body[key] ? "on" : "off";
   }
   // Decision models answer questions and write no text (src/ai/models.ts): the

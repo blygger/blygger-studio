@@ -8,6 +8,11 @@ export function publicHtmlRequest(request: Request, mount: string): boolean {
   if (mount && path !== mount && !path.startsWith(mount + '/')) return false;
   const page = path.slice(mount.length).replace(/\/$/, '');
   return page === '' || page === '/archive' || /^\/(?:f|t)\/[^/]+(?:\/v\d+)?$/.test(page) || /^\/h\/[^/]+$/.test(page) ||
+    // A hopper feed (src/hopper-feed.ts) is cached like its page: the key's
+    // revision carries `hoppers`, `items`, `subscriptions` and `settings`, so a
+    // membership change, a hopper taken private or the setting turned off
+    // reads a fresh entry at once, and a 404 is never cached.
+    /^\/h\/[^/]+\/feed\.xml$/.test(page) ||
     // The posts page's address is a setting this check cannot read, so any
     // segment that could be one is a candidate; a wrong one renders a 404,
     // which is never cached. Reserved names include the studio's own path.
@@ -39,10 +44,13 @@ export function publicHtmlKey(request: Request, revision?: string): string {
   return url.href;
 }
 
+/** What the public cache stores: HTML pages, and hopper feeds beside them. */
+const CACHEABLE_TYPES = ['text/html', 'application/rss+xml'];
+
 export async function htmlCacheResponse(request: Request, response: Response): Promise<Response> {
   const headers = new Headers(response.headers);
   if (response.status !== 200 ||
-      headers.get('content-type')?.split(';')[0].trim().toLowerCase() !== 'text/html' ||
+      !CACHEABLE_TYPES.includes(headers.get('content-type')?.split(';')[0].trim().toLowerCase() ?? '') ||
       headers.has('set-cookie') || /\b(?:private|no-store)\b/i.test(headers.get('cache-control') ?? '')) {
     headers.set('Cache-Control', 'no-store');
     headers.delete('Cloudflare-CDN-Cache-Control');

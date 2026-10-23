@@ -138,7 +138,7 @@ async function withLabels<T extends { origin: string; remote_id: string }>(db: D
   const held = await db
     .prepare(
       `SELECT s.origin, ii.remote_id, ii.subscription_id, ii.content_html FROM json_each(?) p
-       JOIN subscriptions s ON rtrim(s.origin, '/') = rtrim(json_extract(p.value, '$.origin'), '/')
+       JOIN subscriptions s ON rtrim(s.origin, '/') = rtrim(json_extract(p.value, '$.origin'), '/') AND s.hopper_feed IS NULL
        JOIN imported_items ii ON ii.subscription_id = s.id AND ii.remote_id = json_extract(p.value, '$.id')`,
     )
     .bind(pairs)

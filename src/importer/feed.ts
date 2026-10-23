@@ -37,6 +37,8 @@ export interface ParsedFeedEntry {
    * store this, and the raw forms are not mutually comparable as strings.
    */
   pubDate?: string;
+  /** RSS `dc:creator` (or `<author>`), or Atom `<author><name>`, trimmed. */
+  author?: string;
   /** Present only when the entry carries `blyg:id` (§7) — absent on a plain RSS/L0 entry. */
   blyg?: {
     id: string;
@@ -96,6 +98,7 @@ function parseEntry(raw: unknown): ParsedFeedEntry | null {
     title: textOf(r.title),
     description: textOf(r.description),
     pubDate: toIsoUtc(textOf(r.pubDate)),
+    author: textOf(r["dc:creator"])?.trim() || textOf(r.author)?.trim() || undefined,
     blyg: blygExtension(r),
   };
 }

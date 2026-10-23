@@ -101,7 +101,7 @@ async function remoteTarget(
     .prepare(
       `SELECT ii.kind AS kind, ii.page AS page FROM imported_items ii
        JOIN subscriptions s ON s.id = ii.subscription_id
-       WHERE ii.remote_id = ? AND s.origin = ?`,
+       WHERE ii.remote_id = ? AND s.origin = ? AND s.hopper_feed IS NULL`,
     )
     .bind(id, origin)
     .first<{ kind: string; page: string | null }>();

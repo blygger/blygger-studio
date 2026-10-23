@@ -11,7 +11,7 @@ import { parseFeed } from "./feed.ts";
 import type { FetchLike, FetchResult } from "./http.ts";
 import { platformFetch } from "./http.ts";
 import { pollL0Subscription } from "./l0.ts";
-import { appendFlag, applyEffect, getImportedItem, listHoppersForItem, recordIndexSync, recordPollFailure, recordPollSuccess, refreshSourceTitle, toLocalState, updateSurface } from "./store.ts";
+import { appendFlag, applyEffect, dropImportedItemsExcept, getImportedItem, listHoppersForItem, recordIndexSync, recordPollFailure, recordPollSuccess, refreshSourceTitle, toLocalState, updateSurface } from "./store.ts";
 import { transition } from "./transition.ts";
 import { mapLimit } from "./util.ts";
 import type { SubscriptionRow } from "../types.ts";
@@ -177,10 +177,57 @@ async function refreshManifest(db: D1Database, sub: SubscriptionRow, fetchFn: Fe
   }
 }
 
+/** The flag a hopper subscription carries once its manifest stops listing it (§12.2, proposed). */
+export const HOPPER_UNLISTED_FLAG = "hopper-unlisted";
+
+/**
+ * A hopper subscription's daily manifest check (§12.2, proposed): is the
+ * hopper feed still listed in the manifest's `hoppers`? When it is not (taken
+ * private, removed, or the publisher turned hopper feeds off), polling stops:
+ * the subscription is paused and flagged, and its entries are handled as
+ * withdrawn, which for L0 rows means dropped. It is never turned into a
+ * subscription to the whole blyg. Returns false only when unlisted; a manifest
+ * that cannot be read leaves everything as it was and the poll goes on.
+ */
+async function hopperStillListed(db: D1Database, sub: SubscriptionRow, fetchFn: FetchLike): Promise<boolean> {
+  if (!sub.hopper_feed) return true;
+  const due = !sub.last_index_sync_at || Date.now() - Date.parse(sub.last_index_sync_at) >= INDEX_SYNC_PERIOD_MS;
+  if (!due) return true;
+  let manifest: Record<string, unknown>;
+  try {
+    const res = await fetchFn(manifestUrl(sub.origin, parseSurface(sub.surface)), { headers: { Accept: "application/json" } });
+    if (!res.ok) return true;
+    manifest = JSON.parse(await res.text()) as Record<string, unknown>;
+    if (!manifest || typeof manifest !== "object" || !("blyg" in manifest)) return true;
+  } catch {
+    return true;
+  }
+  // Keyed by (origin, hopper_feed): the feed named, resolved against the identity origin.
+  const origin = sub.origin;
+  const listed = Array.isArray(manifest.hoppers) && (manifest.hoppers as unknown[]).some((h) => {
+    const feed = h && typeof h === "object" ? (h as { feed?: unknown }).feed : undefined;
+    if (typeof feed !== "string") return false;
+    try {
+      return new URL(feed, origin).toString() === sub.hopper_feed;
+    } catch {
+      return false;
+    }
+  });
+  if (listed) {
+    await recordIndexSync(db, sub.id);
+    return true;
+  }
+  await dropImportedItemsExcept(db, sub.id, []);
+  await db.prepare("UPDATE subscriptions SET status = 'paused' WHERE id = ?").bind(sub.id).run();
+  await appendFlag(db, sub.id, HOPPER_UNLISTED_FLAG, "the blyg's manifest no longer lists this hopper; polling stopped");
+  return false;
+}
+
 /** One §3.2 poll cycle for a single subscription. `sub.kind === "rss"` defers entirely to the L0 wrapper (§3.5). */
 
 export async function pollSubscription(db: D1Database, sub: SubscriptionRow, fetchFn: FetchLike = platformFetch): Promise<PollResult> {
   if (sub.kind !== "blyg") {
+    if (!(await hopperStillListed(db, sub, fetchFn))) return { outcome: "skipped", itemsFetched: 0, reconciled: false };
     const r = await pollL0Subscription(db, sub, fetchFn);
     return { outcome: r.outcome, itemsFetched: r.itemsChanged, reconciled: false };
   }

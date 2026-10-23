@@ -19,9 +19,10 @@ import { type Context, Hono } from "hono";
 
 
 import { buildBlogrollOpml } from "./importer/opml.ts";
-import { publicHopperPage, type HopperItemView } from "./importer/pages.ts";
+import { loadHopperMembers, publicHopperPage } from "./importer/pages.ts";
+import { buildHopperFeedXml } from "./hopper-feed.ts";
 import { repairImportedUrls, runScheduledPoll } from "./importer/schedule.ts";
-import { getHopperBySlug, getImportedItem, getSubscription, listBlogrollSubscriptions, listHopperItems, OWN_SUBSCRIPTION } from "./importer/store.ts";
+import { getHopperBySlug, listBlogrollSubscriptions } from "./importer/store.ts";
 import { resolveFrontPage } from "./front-page.ts";
 import { authoredKind, getItem, getMedia, getSettings, getVersion, listPublic } from "./model.ts";
 import { archivePage, feedPage, generatedHighlightCss, permalinkPage, pinnedVersionPage, STYLE_CSS, themeCss, threadPage } from "./pages.ts";
@@ -152,28 +153,24 @@ export function makeApp(mount: string) {
   pub.get("/h/:slug", async (c) => {
     const hopper = await getHopperBySlug(c.env.DB, c.req.param("slug"));
     if (!hopper || hopper.public !== 1) return c.notFound();
-    const memberships = await listHopperItems(c.env.DB, hopper.id);
-    const subCache = new Map<string, Awaited<ReturnType<typeof getSubscription>>>();
-    const items: HopperItemView[] = [];
-    for (const m of memberships) {
-      // The owner's own items show once published, and not after withdrawal.
-      if (m.subscription_id === OWN_SUBSCRIPTION) {
-        const own = await getItem(c.env.DB, m.remote_id);
-        if (own?.status === "public") items.push({ own });
-        continue;
-      }
-      const row = await getImportedItem(c.env.DB, m.subscription_id, m.remote_id);
-      if (!row) continue;
-      let sub = subCache.get(m.subscription_id);
-      if (sub === undefined) {
-        sub = await getSubscription(c.env.DB, m.subscription_id);
-        subCache.set(m.subscription_id, sub);
-      }
-      if (!sub) continue;
-      items.push({ row, sub });
-    }
+    // The owner's own items show once published, and not after withdrawal.
+    const items = await loadHopperMembers(c.env.DB, hopper.id);
     const settings = await getSettings(c.env.DB);
     return c.html(await publicHopperPage(c.env.DB, settings, hopper, items, mount, siteOrigin(settings, c.req.url, mount)));
+  });
+
+  // A public hopper's own feed (src/hopper-feed.ts): proposed, pending Fable,
+  // and served only while `hopper_feeds` is on. Every other case is the same
+  // 404 as an unknown slug, so a private hopper leaks nothing, not even that
+  // it exists. The path is hopperFeedPath(); Hono needs it as a literal.
+  pub.get("/h/:slug/feed.xml", async (c) => {
+    const settings = await getSettings(c.env.DB);
+    if (!settings.hopper_feeds) return c.notFound();
+    const hopper = await getHopperBySlug(c.env.DB, c.req.param("slug"));
+    if (!hopper || hopper.public !== 1 || !hopper.slug) return c.notFound();
+    cors(c);
+    const xml = await buildHopperFeedXml(c.env.DB, settings, { ...hopper, slug: hopper.slug }, siteOrigin(settings, c.req.url, mount));
+    return c.body(xml, 200, { "Content-Type": "application/rss+xml; charset=utf-8" });
   });
 
   pub.get("/items/:file", async (c) => {

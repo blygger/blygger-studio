@@ -62,6 +62,7 @@ export const SubscriptionRowSchema = z.object({
   flags: z.string(),
   created: z.string(),
   title_auto: z.number(),
+  hopper_feed: z.string().nullable().optional().describe("A hopper subscription's feed URL (proposed §12.2: one public hopper at another blyg, its entries L0 rows); null otherwise."),
 }).openapi("SubscriptionRow");
 
 export const ImportedItemRowSchema = z.object({
@@ -198,6 +199,7 @@ export const SettingsSchema = z.object({
   links_opml: z.boolean().describe("Link the blogroll's OPML file in the links section, when the blogroll is not empty."),
   links_blygger_org: z.boolean().describe("Link blygger.org in the links section."),
   links_blygger_com: z.boolean().describe("Link blygger.com, the directory of blygs, in the links section."),
+  hopper_feeds: z.boolean().describe("Experimental, off by default, pending a protocol ruling: an RSS feed per public collection at {mount}/h/{slug}/feed.xml, linked from the collection page, and a hoppers list in blyg.json."),
   setup: z.enum(["pending", "notice", "done"]).describe("The setup wizard: pending on a fresh install, notice on a node that published before it existed, done once finished or dismissed."),
   defaults: z.record(z.string(), z.unknown()).optional().describe("Read-only: what each setting reads as with nothing stored, for \"reset to default\". site_title's default is the title derived from the address; store \"\" to keep it derived."),
   feed_orders: z.array(z.object({ id: z.string(), title: z.string(), description: z.string() })).optional().describe("Read-only: the home page orders this node can use now (core, plus enabled extensions')."),

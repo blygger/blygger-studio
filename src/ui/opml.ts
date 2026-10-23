@@ -140,12 +140,16 @@ export function feedKey(url: string): string {
     return url.trim();
   }
 }
-/** The keys of what the owner already follows: each subscription's feed and origin. */
-export function subscribedKeys(subs: readonly { origin: string; feed_url: string }[]): Set<string> {
+/**
+ * The keys of what the owner already follows: each subscription's feed and
+ * origin. A hopper subscription's origin is the blyg's (§12.2, proposed), but
+ * following one hopper is not following the blyg, so only its feed counts.
+ */
+export function subscribedKeys(subs: readonly { origin: string; feed_url: string; hopper_feed?: string | null }[]): Set<string> {
   const keys = new Set<string>();
   for (const sub of subs) {
     keys.add(feedKey(sub.feed_url));
-    keys.add(feedKey(sub.origin));
+    if (!sub.hopper_feed) keys.add(feedKey(sub.origin));
   }
   return keys;
 }

@@ -103,6 +103,13 @@ await save("feed.xml", "feed.xml");
 // (v0.3-plan §2.3.1/§6): a static export has no endpoint behind it, so it must
 // not advertise one. Everything else is written back byte-for-byte.
 const { webmention: _omitted, ...staticManifest } = manifest as Record<string, unknown>;
+// The proposed `hoppers` key (§6.1) may name only what this tree contains:
+// the hoppers named with --hoppers. None of them listed, no key.
+if (Array.isArray(staticManifest.hoppers)) {
+  const kept = (staticManifest.hoppers as { page?: string }[]).filter((h) => hopperSlugs.some((slug) => h.page === `h/${slug}/`));
+  if (kept.length) staticManifest.hoppers = kept;
+  else delete staticManifest.hoppers;
+}
 await write("blyg.json", new TextEncoder().encode(JSON.stringify(staticManifest)));
 await save("archive/", "archive/index.html");
 const indexBytes = await save("items/index.json", "items/index.json");
@@ -145,6 +152,8 @@ const blogroll = await trySave("blogroll.opml", "blogroll.opml");
 // v0.2: public hopper pages (§4.2 task 11), operator-named via --hoppers.
 for (const slug of hopperSlugs) {
   await save(`h/${slug}/`, `h/${slug}/index.html`);
+  // Its feed, while the experimental hopper_feeds setting serves one (404 otherwise).
+  await trySave(`h/${slug}/feed.xml`, `h/${slug}/feed.xml`);
 }
 
 console.log(

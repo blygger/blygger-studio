@@ -98,7 +98,7 @@ export async function loadProvenance(db: D1Database, threads: Transclusion[][]):
       LEFT JOIN versions v ON i.kind = 'withdrawn' AND v.item_id = i.id AND v.version = i.version - 1`)
       .bind(JSON.stringify([...localIds])),
     db.prepare(`SELECT s.origin, ii.remote_id AS id, ii.kind, ii.page, s.title
-      FROM json_each(?) r JOIN subscriptions s ON s.origin = json_extract(r.value, '$.origin')
+      FROM json_each(?) r JOIN subscriptions s ON s.origin = json_extract(r.value, '$.origin') AND s.hopper_feed IS NULL
       JOIN imported_items ii ON ii.subscription_id = s.id AND ii.remote_id = json_extract(r.value, '$.id')`)
       .bind(JSON.stringify([...remote.values()])),
   ]);

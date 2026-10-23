@@ -204,7 +204,7 @@ export async function composeStubCite(
     .prepare(
       `SELECT ii.content_html AS html, ii.author_json AS author_json, s.title AS title
        FROM imported_items ii JOIN subscriptions s ON s.id = ii.subscription_id
-       WHERE ii.remote_id = ? AND s.origin = ?`,
+       WHERE ii.remote_id = ? AND s.origin = ? AND s.hopper_feed IS NULL`,
     )
     .bind(stub.id, stub.origin)
     .first<{ html: string; author_json: string | null; title: string }>();
@@ -256,7 +256,7 @@ async function citedUrl(db: D1Database, stub: { origin: string; id: string }, ou
   const row = await db
     .prepare(
       `SELECT ii.kind AS kind, ii.page AS page FROM imported_items ii JOIN subscriptions s ON s.id = ii.subscription_id
-       WHERE ii.remote_id = ? AND s.origin = ?`,
+       WHERE ii.remote_id = ? AND s.origin = ? AND s.hopper_feed IS NULL`,
     )
     .bind(stub.id, stub.origin)
     .first<{ kind: string; page: string | null }>();

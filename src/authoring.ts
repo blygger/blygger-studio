@@ -24,7 +24,7 @@ export async function scopeSummariesWithSources(db: D1Database, scopes: TkScope[
   const titles = new Map<string, string>();
   const title = async (origin: string) => {
     if (!titles.has(origin)) {
-      const row = await db.prepare("SELECT title FROM subscriptions WHERE origin = ? LIMIT 1").bind(origin).first<{ title: string }>();
+      const row = await db.prepare("SELECT title FROM subscriptions WHERE origin = ? AND hopper_feed IS NULL LIMIT 1").bind(origin).first<{ title: string }>();
       titles.set(origin, row?.title || new URL(origin).host);
     }
     return titles.get(origin)!;

@@ -611,6 +611,10 @@
             "type": "boolean",
             "description": "Link blygger.com, the directory of blygs, in the links section."
           },
+          "hopper_feeds": {
+            "type": "boolean",
+            "description": "Experimental, off by default, pending a protocol ruling: an RSS feed per public collection at {mount}/h/{slug}/feed.xml, linked from the collection page, and a hoppers list in blyg.json."
+          },
           "setup": {
             "type": "string",
             "enum": [
@@ -700,6 +704,7 @@
           "links_opml",
           "links_blygger_org",
           "links_blygger_com",
+          "hopper_feeds",
           "setup",
           "update_feed_url",
           "update_notice_ack",
@@ -808,6 +813,13 @@
           },
           "created": {
             "type": "string"
+          },
+          "hopper_feed": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "A hopper subscription's feed URL (proposed §12.2: one public hopper at another blyg, its entries L0 rows); null otherwise."
           },
           "title_follows_source": {
             "type": "boolean"
@@ -6269,6 +6281,10 @@
                     "type": "boolean",
                     "description": "Link blygger.com, the directory of blygs, in the links section."
                   },
+                  "hopper_feeds": {
+                    "type": "boolean",
+                    "description": "Experimental, off by default, pending a protocol ruling: an RSS feed per public collection at {mount}/h/{slug}/feed.xml, linked from the collection page, and a hoppers list in blyg.json."
+                  },
                   "setup": {
                     "type": "string",
                     "enum": [
@@ -6642,6 +6658,10 @@
                   "backfill": {
                     "type": "boolean",
                     "description": "With confirm: start importing the archive at once (true, the default). false creates the subscription only; the next quarter-hour poll imports it, since a never-polled subscription is always due. For bulk imports such as OPML."
+                  },
+                  "whole_blyg": {
+                    "type": "boolean",
+                    "description": "When the URL names one of a blyg's public hoppers (kind hopper), subscribe to the whole blyg instead."
                   }
                 },
                 "required": [
@@ -6670,7 +6690,8 @@
                       "type": "string",
                       "enum": [
                         "blyg",
-                        "rss"
+                        "rss",
+                        "hopper"
                       ]
                     },
                     "origin": {
@@ -6696,6 +6717,30 @@
                         "asserted",
                         "actual"
                       ]
+                    },
+                    "hopper": {
+                      "type": "object",
+                      "properties": {
+                        "title": {
+                          "type": "string"
+                        },
+                        "page": {
+                          "type": "string"
+                        },
+                        "feed": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "title",
+                        "page",
+                        "feed"
+                      ],
+                      "description": "kind hopper: the public hopper the URL matched in the blyg's manifest (proposed §12.1 step 7, only while hopper_feeds is on)."
+                    },
+                    "blygTitle": {
+                      "type": "string",
+                      "description": "kind hopper: the whole blyg's title, for the subscribe-to-the-whole-blyg-instead choice."
                     }
                   },
                   "required": [
