@@ -56,6 +56,8 @@ import {
   useSettings,
   SourceLink,
 } from './components.tsx';
+import { ToggleGroup, ToggleGroupItem } from './buttons.tsx';
+import { Tab, Tabs } from './primitives.tsx';
 import { Sheet, confirm, menu, prompt, toast } from './sheets.tsx';
 import { displayUrl, sourceTitleAndUrl } from '../importer/util.ts';
 import { formatDateIn } from '../dates.ts';
@@ -1182,7 +1184,7 @@ function LensBar({ sub, hopper, sources }: { sub?: string; hopper?: string; sour
   const bar = useRef<HTMLDivElement>(null);
   // On a phone the bar scrolls sideways; keep the chosen lens in view.
   useEffect(() => {
-    const el = bar.current?.querySelector<HTMLElement>('[aria-pressed=true]');
+    const el = bar.current?.querySelector<HTMLElement>('[aria-checked=true]');
     const box = bar.current;
     if (!el || !box) return;
     // Scroll only the bar, never the page.
@@ -1199,20 +1201,21 @@ function LensBar({ sub, hopper, sources }: { sub?: string; hopper?: string; sour
   // Buttons, not router Links: a Link to /reading counts as "current" under
   // every lens, which would mark All active alongside the real choice.
   return (
-    <div ref={bar} className="segmented lens-bar" role="group" aria-label="reading lens">
+    <ToggleGroup ref={bar} className="lens-bar" aria-label="reading lens">
       {LENSES.map((value) => (
-        <Button
+        <ToggleGroupItem
           key={value}
-          className={`seg${lens === value ? ' is-active' : ''}${value === 'background' || value === 'smart' ? ' seg-dashed' : ''}`}
-          aria-pressed={lens === value}
+          role="radio"
+          className={value === 'background' || value === 'smart' ? 'seg-dashed' : undefined}
+          selected={lens === value}
           onClick={() =>
             void navigate({ to: '/reading', search: { ...place, ...(value === 'all' ? {} : { lens: value }) } })
           }
         >
           {LENS_LABELS[value]}
-        </Button>
+        </ToggleGroupItem>
       ))}
-    </div>
+    </ToggleGroup>
   );
 }
 export const BACKGROUND_NOTE =
@@ -1469,12 +1472,11 @@ function ReadingTabs({ active }: { active: 'feed' | 'sources' }) {
   const navigate = useNavigate();
   const lensSearch = useLensSearch();
   return (
-    <div className="segmented reading-tabs" role="group" aria-label="reading view">
+    <Tabs className="reading-tabs" label="reading view">
       {(['feed', 'sources'] as const).map((value) => (
-        <Button
+        <Tab
           key={value}
-          className={`seg${active === value ? ' is-active' : ''}`}
-          aria-pressed={active === value}
+          selected={active === value}
           onClick={() =>
             void navigate({
               to: '/reading',
@@ -1483,9 +1485,9 @@ function ReadingTabs({ active }: { active: 'feed' | 'sources' }) {
           }
         >
           {value === 'feed' ? 'Feed' : 'Sources'}
-        </Button>
+        </Tab>
       ))}
-    </div>
+    </Tabs>
   );
 }
 /**

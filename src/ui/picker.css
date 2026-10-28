@@ -28,13 +28,7 @@
 .picker-filters { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
 .picker select { width: auto; max-width: 100%; }
 .picker-filters select { font-size: 1rem; padding: 4px 6px; }
-.picker-seg { display: inline-flex; border: 1px solid var(--rule-strong); border-radius: 8px; overflow: hidden; }
-.picker-seg label { position: relative; }
-.picker-seg input { position: absolute; opacity: 0; inset: 0; margin: 0; cursor: pointer; }
-.picker-seg span { display: block; padding: 4px 10px; font-size: .85rem; }
-.picker-seg label + label span { border-left: 1px solid var(--rule-strong); }
-.picker-seg input:checked + span { background: var(--pencil); color: var(--on-pencil); }
-.picker-seg input:focus-visible + span { outline: 2px solid var(--pencil); outline-offset: -2px; }
+.picker-seg { overflow: visible; }
 .picker-count { font-size: .78rem; color: var(--ink-soft); }
 .picker-list { list-style: none; margin: 0; padding: 0; flex: 1; min-height: 0; overflow-y: auto; }
 .picker-list li { padding: 8px 10px; border-top: 1px solid var(--rule); cursor: pointer; }

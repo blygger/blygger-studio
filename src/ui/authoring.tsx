@@ -34,6 +34,7 @@ import {
   useSettings,
   publicPath,
 } from './components.tsx';
+import { ButtonMedium, ToggleGroup, ToggleGroupItem } from './buttons.tsx';
 import { Sheet, confirm, menu, prompt, toast } from './sheets.tsx';
 import { BracketPicker } from './picker.tsx';
 import { setTextAt } from './caret.ts';
@@ -1032,21 +1033,20 @@ export function Compose() {
       </SyntaxHelp>
       <PublishedBanner published={published} dismiss={() => setPublished(undefined)} />
       <div className="card composer">
-        <div className="segmented compact" role="radiogroup" aria-label="kind">
+        <ToggleGroup aria-label="kind">
           {(['fragment', 'thread'] as const).map((value) => (
-            <button
+            <ToggleGroupItem
               key={value}
-              type="button"
               role="radio"
               aria-checked={kind === value}
               data-kind={value}
-              className={kind === value ? 'seg is-active' : 'seg'}
+              selected={kind === value}
               onClick={() => setKindTo(value)}
             >
               {value}
-            </button>
+            </ToggleGroupItem>
           ))}
-        </div>
+        </ToggleGroup>
         <div className="ta-wrap">
           <textarea
             ref={input}
@@ -1101,22 +1101,21 @@ export function Compose() {
                 generate in editor →
               </Button>
             ) : null}
-            <Button
+            <ButtonMedium
               id="save-draft-btn"
-              className="btn btn-compact btn-neutral"
               disabled={action.busy}
               onClick={() => void action.run(save)}
             >
               save draft
-            </Button>
-            <Button
+            </ButtonMedium>
+            <ButtonMedium
               id="publish-btn"
-              className="btn btn-compact btn-primary"
+              variant="primary"
               disabled={action.busy}
               onClick={() => void action.run(publish)}
             >
               publish
-            </Button>
+            </ButtonMedium>
           </div>
         </div>
         {over ? (
@@ -1137,21 +1136,20 @@ export function Compose() {
       </div>
       {tools.sheet}
       {rows.length ? (
-        <div className="segmented filters" role="group" aria-label="show">
+        <ToggleGroup className="filters" aria-label="show">
           {(Object.keys(FILTERS) as Filter[]).map((key) => (
-            <button
+            <ToggleGroupItem
               key={key}
-              type="button"
               data-filter={key}
-              aria-pressed={filter === key}
-              className={filter === key ? 'seg is-active' : 'seg'}
+              role="radio"
+              selected={filter === key}
+              count={rows.filter(FILTERS[key].test).length}
               onClick={() => setFilter(key)}
             >
               {FILTERS[key].label}
-              <span className="n">{rows.filter(FILTERS[key].test).length}</span>
-            </button>
+            </ToggleGroupItem>
           ))}
-        </div>
+        </ToggleGroup>
       ) : null}
       {!result.isLoading && !rows.length ? (
         <p className="empty">
@@ -1914,20 +1912,20 @@ function Editor({ item }: { item: Detail }) {
           fork of {item.forked_from.id} v{item.forked_from.version}
         </p>
       ) : null}
-      <div className="segmented compact pane-toggle" role="group" aria-label="pane">
+      <ToggleGroup className="pane-toggle" aria-label="pane">
         {(['draft', 'preview'] as const).map((value) => (
-          <button
+          <ToggleGroupItem
             key={value}
-            type="button"
+            role="radio"
             data-pane={value}
-            aria-pressed={pane === value}
-            className={pane === value ? 'seg is-active' : 'seg'}
+            aria-checked={pane === value}
+            selected={pane === value}
             onClick={() => setPane(value)}
           >
             {value}
-          </button>
+          </ToggleGroupItem>
         ))}
-      </div>
+      </ToggleGroup>
       <div className="editor-grid" data-pane={pane}>
         <div className="editor-pane">
           <ToolRow
@@ -2344,22 +2342,21 @@ function Editor({ item }: { item: Detail }) {
         >
           <More />
         </Button>
-        <Button
+        <ButtonMedium
           id="save-draft-btn"
-          className="btn btn-compact btn-neutral"
           disabled={action.busy}
           onClick={() => void action.run(save)}
         >
           save draft
-        </Button>
-        <Button
+        </ButtonMedium>
+        <ButtonMedium
           id="publish-btn"
-          className="btn btn-compact btn-primary"
+          variant="primary"
           disabled={action.busy}
           onClick={publish}
         >
           {item.status === 'withdrawn' ? 'republish' : 'publish'}
-        </Button>
+        </ButtonMedium>
       </ActionBar>
     </div>
   );
