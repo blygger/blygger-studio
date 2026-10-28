@@ -15,7 +15,8 @@
 import type { ReactNode } from 'react';
 import { useEffect, useRef, useState, useSyncExternalStore } from 'react';
 import { Button } from '@base-ui/react/button';
-import { Dialog } from '@base-ui/react/dialog';
+import { Dialog as BaseDialog } from '@base-ui/react/dialog';
+import { Menu as SystemMenu, MenuItem } from './primitives.tsx';
 
 export interface ConfirmOptions {
   /** The question. Also the dialog's accessible name. */
@@ -140,28 +141,28 @@ export function Sheet({
   initialFocus?: React.RefObject<HTMLElement | null>;
 }) {
   return (
-    <Dialog.Root
+    <BaseDialog.Root
       open={open}
       onOpenChange={(value) => {
         if (!value) onClose();
       }}
     >
-      <Dialog.Portal>
-        <Dialog.Backdrop className="backdrop" />
-        <Dialog.Popup
+      <BaseDialog.Portal>
+        <BaseDialog.Backdrop className="backdrop" />
+        <BaseDialog.Popup
           className={className ? `sheet ${className}` : 'sheet'}
           initialFocus={initialFocus}
         >
-          <Dialog.Title className="sheet-title">{title}</Dialog.Title>
+          <BaseDialog.Title className="sheet-title">{title}</BaseDialog.Title>
           {description ? (
-            <Dialog.Description className="sheet-body" render={<div />}>
+            <BaseDialog.Description className="sheet-body" render={<div />}>
               {description}
-            </Dialog.Description>
+            </BaseDialog.Description>
           ) : null}
           {children}
-        </Dialog.Popup>
-      </Dialog.Portal>
-    </Dialog.Root>
+        </BaseDialog.Popup>
+      </BaseDialog.Portal>
+    </BaseDialog.Root>
   );
 }
 /** A button that closes the enclosing <Sheet>. */
@@ -173,11 +174,13 @@ Sheet.Close = function SheetClose({
   className?: string;
 }) {
   return (
-    <Dialog.Close render={<Button className={className} />}>
+    <BaseDialog.Close render={<Button className={className} />}>
       {children}
-    </Dialog.Close>
+    </BaseDialog.Close>
   );
 };
+/** The design-system name; Sheet remains as the established app API. */
+export const Dialog = Sheet;
 
 function ConfirmSheet({
   request,
@@ -295,47 +298,39 @@ function MenuSheet({
     row?.onSelect?.();
   };
   return (
-    <Dialog.Root
+    <BaseDialog.Root
       open
       onOpenChange={(value) => {
         if (!value) done(null);
       }}
     >
-      <Dialog.Portal>
-        <Dialog.Backdrop className="backdrop" />
-        <Dialog.Popup
+      <BaseDialog.Portal>
+        <BaseDialog.Backdrop className="backdrop" />
+        <BaseDialog.Popup
           className="sheet sheet-menu"
           aria-label={request.options.title ? undefined : 'actions'}
         >
           {request.options.title ? (
-            <Dialog.Title className="sheet-title">
+            <BaseDialog.Title className="sheet-title">
               {request.options.title}
-            </Dialog.Title>
+            </BaseDialog.Title>
           ) : null}
-          <ul className="menu-list">
+          <SystemMenu>
             {rows.map((row) => (
-              <li key={row.key ?? row.label}>
-                <Button
-                  className={row.danger ? 'danger' : undefined}
-                  disabled={row.disabled}
-                  onClick={() => done(row)}
-                >
-                  <span className="mi" aria-hidden="true">
-                    {row.icon ?? ''}
-                  </span>
-                  <span className="ml">
-                    {row.label}
-                    {row.description ? (
-                      <span className="md">{row.description}</span>
-                    ) : null}
-                  </span>
-                </Button>
-              </li>
+              <MenuItem
+                key={row.key ?? row.label}
+                icon={row.icon}
+                label={row.label}
+                description={row.description}
+                tone={row.danger ? 'destructive' : 'default'}
+                disabled={row.disabled}
+                onClick={() => done(row)}
+              />
             ))}
-          </ul>
-        </Dialog.Popup>
-      </Dialog.Portal>
-    </Dialog.Root>
+          </SystemMenu>
+        </BaseDialog.Popup>
+      </BaseDialog.Portal>
+    </BaseDialog.Root>
   );
 }
 function Toast() {
