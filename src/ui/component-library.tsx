@@ -30,18 +30,15 @@ import './component-library.css';
 
 function Specimen({
   eyebrow,
-  title,
   children,
 }: {
   eyebrow: string;
-  title: string;
   children: ReactNode;
 }) {
   return (
     <section className="component-specimen">
       <header>
         <span className="component-eyebrow">{eyebrow}</span>
-        <h3>{title}</h3>
       </header>
       <div className="component-sample">{children}</div>
     </section>
@@ -76,7 +73,7 @@ export function ComponentLibraryPage() {
       </header>
 
       <div className="component-board">
-        <Specimen eyebrow="Actions" title="Buttons">
+        <Specimen eyebrow="Actions">
           <ComponentName>ButtonStandard &gt; Default (Secondary), Primary, Plain</ComponentName>
           <div className="component-button-row">
             <ButtonStandard>save changes</ButtonStandard>
@@ -91,7 +88,7 @@ export function ComponentLibraryPage() {
           </div>
         </Specimen>
 
-        <Specimen eyebrow="Choices" title="ToggleGroup & Tabs">
+        <Specimen eyebrow="Choices">
           <ComponentName>ToggleGroup</ComponentName>
           <ToggleGroup aria-label="post type">
             {(['fragment', 'thread'] as const).map((value) => (
@@ -116,7 +113,7 @@ export function ComponentLibraryPage() {
           <p className="component-caption">ToggleGroup changes a local choice; Tabs change an in-page view.</p>
         </Specimen>
 
-        <Specimen eyebrow="Forms" title="Fields & selection">
+        <Specimen eyebrow="Forms">
           <ComponentName>Field &gt; TextInput</ComponentName>
           <Field label="Title" htmlFor="component-title" supportingText="Visible on the public page.">
             <TextInput id="component-title" defaultValue="A thoughtful fragment" />
@@ -141,7 +138,7 @@ export function ComponentLibraryPage() {
           </Select>
         </Specimen>
 
-        <Specimen eyebrow="Feedback" title="Alerts & empty state">
+        <Specimen eyebrow="Feedback">
           <ComponentName>InlineAlert</ComponentName>
           <InlineAlert tone="success" title="Draft saved">
             Your work is safe on this device.
@@ -158,7 +155,7 @@ export function ComponentLibraryPage() {
           />
         </Specimen>
 
-        <Specimen eyebrow="Progressive disclosure" title="Accordion & Card">
+        <Specimen eyebrow="Progressive disclosure">
           <ComponentName>Accordion &gt; AccordionItem</ComponentName>
           <Accordion>
             <AccordionItem title="edit note" supportingText="optional" defaultOpen>
@@ -177,7 +174,7 @@ export function ComponentLibraryPage() {
           </Card>
         </Specimen>
 
-        <Specimen eyebrow="Wayfinding" title="Header, navigation & menu">
+        <Specimen eyebrow="Wayfinding">
           <ComponentName>AppHeader &gt; PrimaryNavigation &gt; NavigationItem</ComponentName>
           <div className="component-shell-preview">
             <AppHeader title="blyg studio" actions={<IconButton label="more actions"><More /></IconButton>} />
