@@ -50,6 +50,7 @@ import { SignalsPage } from './signals.tsx';
 import { SheetHost } from './sheets.tsx';
 import { ExtensionPage } from './extension-page.tsx';
 import { SetupPage } from './setup.tsx';
+import { ComponentLibraryPage } from './component-library.tsx';
 import { applyCachedTheme } from './theme.ts';
 import { applyCachedTitle } from './tab.ts';
 // Paint the last theme this device saw before the first render; settings
@@ -345,6 +346,11 @@ const syntax = createRoute({
   path: '/syntax',
   component: SyntaxPage,
 });
+const components = createRoute({
+  getParentRoute: () => rootRoute,
+  path: '/components',
+  component: ComponentLibraryPage,
+});
 export const router = createRouter({
   routeTree: rootRoute.addChildren([
     compose,
@@ -364,6 +370,7 @@ export const router = createRouter({
     fork,
     more,
     syntax,
+    components,
     extensionPage,
   ]),
   basepath,
