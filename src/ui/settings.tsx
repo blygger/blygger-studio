@@ -28,6 +28,7 @@ import { DEFAULT_FEED_ORDER, FEED_ALGORITHMS } from '../feeds/index.ts';
 import { CLIENT } from '../client.ts';
 import { AddressBook } from './contacts.tsx';
 import { compiledExtensions } from '../../build/extensions.ui.ts';
+import { Tab, Tabs } from './primitives.tsx';
 
 const fields = [
   "siteTitle",
@@ -1214,19 +1215,17 @@ function CustomThemeFields({
         everyone else gets the light one.
       </p>
       {paired ? (
-        <div className="segmented" aria-label="Palette">
+        <Tabs label="Palette">
           {(['light', 'dark'] as const).map((which) => (
-            <button
+            <Tab
               key={which}
-              type="button"
-              aria-pressed={showing === which}
-              className={`seg${showing === which ? ' is-active' : ''}`}
+              selected={showing === which}
               onClick={() => setEditing(which)}
             >
               {which === 'light' ? 'Light palette' : 'Dark palette'}
-            </button>
+            </Tab>
           ))}
-        </div>
+        </Tabs>
       ) : null}
       {showing === 'dark' && dark ? (
         <ThemeEditor

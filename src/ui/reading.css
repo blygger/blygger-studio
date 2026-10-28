@@ -13,8 +13,8 @@
 .view-head .icon-btn:hover { color: var(--page-ink); background: color-mix(in srgb, var(--page-ink) 7%, transparent); }
 /* Feed | Sources: underlined tabs, so they do not read as a second lens bar. */
 .reading-tabs { gap: 20px; margin: 0 2px 6px; padding-bottom: 0; border-bottom: 1px solid var(--rule); }
-.reading-tabs .seg { background: none; border: none; border-bottom: 2px solid transparent; border-radius: 0; padding: 8px 2px 7px; font-size: .95rem; font-weight: 600; color: var(--page-ink-soft); margin-bottom: -1px; }
-.reading-tabs .seg.is-active, .reading-tabs .seg[aria-pressed=true] { background: none; color: var(--page-ink); border-bottom-color: var(--pencil); }
+.reading-tabs .tab { background: none; border: none; border-bottom: 2px solid transparent; border-radius: 0; padding: 8px 2px 7px; font-size: .95rem; font-weight: 600; color: var(--page-ink-soft); margin-bottom: -1px; }
+.reading-tabs .tab.is-selected, .reading-tabs .tab[aria-selected=true] { background: none; color: var(--page-ink); border-bottom-color: var(--pencil); }
 .view-actions { display: flex; align-items: center; gap: 6px; flex: 0 0 auto; }
 .back-link { display: inline-block; font-size: .86rem; color: var(--page-ink-soft); text-decoration: none; margin: 0 2px 2px; padding: 4px 0; }
 .back-link:hover { color: var(--page-ink); }
@@ -251,7 +251,9 @@
 .settings-form .check-hint { margin: 0 2px 14px 28px; }
 
 /* Reading lenses (0.25.0) */
-.lens-bar .seg { text-decoration: none; }
+.lens-bar { max-width: 100%; overflow-x: auto; scrollbar-width: none; }
+.lens-bar::-webkit-scrollbar { display: none; }
+.lens-bar .toggle-group-item { text-decoration: none; }
 .lens-placeholder a { font-weight: 600; }
 
 /* Custom theme editor (Settings → theme → Custom). */
