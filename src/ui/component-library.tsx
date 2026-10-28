@@ -1,0 +1,182 @@
+import type { ReactNode } from 'react';
+import { useState } from 'react';
+import { Link } from '@tanstack/react-router';
+import { ButtonMedium, ButtonSmall, ButtonStandard, ToggleGroup, ToggleGroupItem } from './buttons.tsx';
+import {
+  Accordion,
+  AccordionItem,
+  AppHeader,
+  Card,
+  Checkbox,
+  EmptyState,
+  Field,
+  IconButton,
+  InlineAlert,
+  Menu,
+  MenuItem,
+  NavigationItem,
+  PrimaryNavigation,
+  Radio,
+  RadioGroup,
+  Select,
+  Tab,
+  Tabs,
+  Textarea,
+  TextInput,
+} from './primitives.tsx';
+import { More, Sparkle } from './icons.tsx';
+import { useChrome } from './components.tsx';
+import './component-library.css';
+
+function Specimen({
+  eyebrow,
+  title,
+  children,
+}: {
+  eyebrow: string;
+  title: string;
+  children: ReactNode;
+}) {
+  return (
+    <section className="component-specimen">
+      <header>
+        <span className="component-eyebrow">{eyebrow}</span>
+        <h3>{title}</h3>
+      </header>
+      <div className="component-sample">{children}</div>
+    </section>
+  );
+}
+
+/** A live, compact reference for the V1 Studio component vocabulary. */
+export function ComponentLibraryPage() {
+  useChrome({ framed: false, wide: true });
+  const [kind, setKind] = useState<'fragment' | 'thread'>('fragment');
+  const [tab, setTab] = useState<'feed' | 'sources'>('feed');
+  return (
+    <div className="component-library">
+      <Link className="back-link system-back-link" to="/more">← more</Link>
+      <header className="component-hero">
+        <div>
+          <p className="component-kicker">Blygger Studio · V1</p>
+          <h2>Component library</h2>
+          <p>
+            A calm, working reference for the controls that make Studio feel like one product.
+          </p>
+        </div>
+        <div className="component-hero-note">
+          <span>14</span>
+          reusable patterns
+        </div>
+      </header>
+
+      <div className="component-board">
+        <Specimen eyebrow="Actions" title="Buttons">
+          <div className="component-button-row">
+            <ButtonStandard>save changes</ButtonStandard>
+            <ButtonStandard variant="primary">publish</ButtonStandard>
+            <ButtonStandard variant="plain">cancel</ButtonStandard>
+          </div>
+          <div className="component-button-row compact">
+            <ButtonMedium>save draft</ButtonMedium>
+            <ButtonSmall>reply</ButtonSmall>
+            <IconButton label="more actions"><More /></IconButton>
+          </div>
+          <p className="component-caption">Default (Secondary), Primary, Plain · Standard, Medium, Small</p>
+        </Specimen>
+
+        <Specimen eyebrow="Choices" title="ToggleGroup & Tabs">
+          <ToggleGroup aria-label="post type">
+            {(['fragment', 'thread'] as const).map((value) => (
+              <ToggleGroupItem
+                key={value}
+                role="radio"
+                selected={kind === value}
+                onClick={() => setKind(value)}
+              >
+                {value}
+              </ToggleGroupItem>
+            ))}
+          </ToggleGroup>
+          <Tabs label="reading view" className="component-tabs">
+            {(['feed', 'sources'] as const).map((value) => (
+              <Tab key={value} selected={tab === value} onClick={() => setTab(value)}>
+                {value}
+              </Tab>
+            ))}
+          </Tabs>
+          <p className="component-caption">ToggleGroup changes a local choice; Tabs change an in-page view.</p>
+        </Specimen>
+
+        <Specimen eyebrow="Forms" title="Fields & selection">
+          <Field label="Title" htmlFor="component-title" supportingText="Visible on the public page.">
+            <TextInput id="component-title" defaultValue="A thoughtful fragment" />
+          </Field>
+          <div className="component-check-grid">
+            <Checkbox label="Share with followers" defaultChecked />
+            <RadioGroup label="Visibility">
+              <Radio name="component-visibility" label="Public" defaultChecked />
+              <Radio name="component-visibility" label="Private" />
+            </RadioGroup>
+          </div>
+          <Select aria-label="Post status" defaultValue="draft">
+            <option value="draft">Draft</option>
+            <option value="published">Published</option>
+          </Select>
+        </Specimen>
+
+        <Specimen eyebrow="Feedback" title="Alerts & empty state">
+          <InlineAlert tone="success" title="Draft saved">
+            Your work is safe on this device.
+          </InlineAlert>
+          <InlineAlert tone="warning" title="One small note">
+            This fragment is close to its character limit.
+          </InlineAlert>
+          <EmptyState
+            icon={<Sparkle />}
+            title="Nothing here yet"
+            description="Start with a small thought."
+            action={<ButtonSmall variant="primary">compose</ButtonSmall>}
+          />
+        </Specimen>
+
+        <Specimen eyebrow="Progressive disclosure" title="Accordion & Card">
+          <Accordion>
+            <AccordionItem title="edit note" supportingText="optional" defaultOpen>
+              <Textarea aria-label="edit note" defaultValue="Clarifies why this changed." rows={2} />
+            </AccordionItem>
+            <AccordionItem title="attachments" supportingText="0">
+              <p className="component-muted">No attachments yet.</p>
+            </AccordionItem>
+          </Accordion>
+          <Card
+            header={<strong>Static Card</strong>}
+            footer={<span className="component-muted">Use a real link or button for actions.</span>}
+          >
+            <p className="component-card-copy">A quiet surface for related information—not a generic click target.</p>
+          </Card>
+        </Specimen>
+
+        <Specimen eyebrow="Wayfinding" title="Header, navigation & menu">
+          <div className="component-shell-preview">
+            <AppHeader title="blyg studio" actions={<IconButton label="more actions"><More /></IconButton>} />
+            <PrimaryNavigation label="Studio preview navigation">
+              <NavigationItem href="/studio/reading" icon="◫" label="reading" current />
+              <NavigationItem href="/studio" icon="✎" label="compose" />
+              <NavigationItem href="/studio/more" icon="⋯" label="more" badge="1" />
+            </PrimaryNavigation>
+          </div>
+          <Menu aria-label="Entry actions">
+            <MenuItem icon="⧉" label="copy link" description="Copies a public URL" />
+            <MenuItem icon="×" label="withdraw" tone="destructive" />
+          </Menu>
+        </Specimen>
+      </div>
+
+      <footer className="component-library-footer">
+        <span>Foundations—colour, type, spacing, radii, shadows, and icons—come next.</span>
+        <Link to="/more">back to Studio</Link>
+      </footer>
+    </div>
+  );
+}
