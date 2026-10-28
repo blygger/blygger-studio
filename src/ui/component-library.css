@@ -8,8 +8,7 @@
 .component-hero-note span { color: var(--pencil); font-family: var(--mono); font-size: 1.6rem; font-weight: 700; }
 .component-board { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; margin-top: 18px; }
 .component-specimen { min-width: 0; padding: 18px; border: 1px solid var(--rule); border-radius: var(--radius); background: var(--card); box-shadow: 0 1px 2px rgba(20,30,35,.035); }
-.component-specimen > header { display: flex; align-items: baseline; gap: 9px; margin-bottom: 16px; }
-.component-specimen h3 { margin: 0; font-size: 1rem; letter-spacing: -.01em; }
+.component-specimen > header { margin-bottom: 16px; }
 .component-sample { display: grid; gap: 13px; }
 .component-name {
   display: flex;
