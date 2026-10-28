@@ -11,7 +11,25 @@
 .component-specimen > header { display: flex; align-items: baseline; gap: 9px; margin-bottom: 16px; }
 .component-specimen h3 { margin: 0; font-size: 1rem; letter-spacing: -.01em; }
 .component-sample { display: grid; gap: 13px; }
-.component-name { margin: 2px 0 -5px; color: var(--ink-soft); font-family: var(--mono); font-size: .68rem; font-weight: 700; letter-spacing: .01em; text-transform: none; }
+.component-name {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 7px 0 1px;
+  color: var(--ink);
+  font-family: var(--mono);
+  font-size: .78rem;
+  font-weight: 700;
+  letter-spacing: .015em;
+  text-transform: none;
+}
+
+.component-name::after {
+  height: 1px;
+  flex: 1;
+  background: var(--rule);
+  content: '';
+}
 .component-button-row { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
 .component-button-row.compact { padding-top: 12px; border-top: 1px solid var(--rule); }
 .component-caption, .component-muted { margin: 0; color: var(--ink-soft); font-size: .77rem; line-height: 1.35; }
