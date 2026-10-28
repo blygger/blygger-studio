@@ -11,11 +11,13 @@
 .component-specimen > header { display: flex; align-items: baseline; gap: 9px; margin-bottom: 16px; }
 .component-specimen h3 { margin: 0; font-size: 1rem; letter-spacing: -.01em; }
 .component-sample { display: grid; gap: 13px; }
+.component-name { margin: 2px 0 -5px; color: var(--ink-soft); font-family: var(--mono); font-size: .68rem; font-weight: 700; letter-spacing: .01em; text-transform: none; }
 .component-button-row { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
 .component-button-row.compact { padding-top: 12px; border-top: 1px solid var(--rule); }
 .component-caption, .component-muted { margin: 0; color: var(--ink-soft); font-size: .77rem; line-height: 1.35; }
 .component-tabs { width: fit-content; min-width: 210px; }
-.component-check-grid { display: grid; grid-template-columns: 1.1fr .9fr; gap: 12px; padding: 10px 0 0; }
+.component-check-grid { display: grid; grid-template-columns: 1.1fr .9fr; gap: 12px; padding: 4px 0 0; }
+.component-check-grid > div { min-width: 0; }
 .component-check-grid .radio-group { margin: 0; }
 .component-sample > .system-input { min-height: 36px; }
 .component-sample .empty-state { min-height: 0; margin: 0; padding: 11px 4px 2px; border-top: 1px dashed var(--rule); }

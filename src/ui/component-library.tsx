@@ -48,6 +48,11 @@ function Specimen({
   );
 }
 
+/** The name directly above a live component, so the gallery also teaches its vocabulary. */
+function ComponentName({ children }: { children: ReactNode }) {
+  return <h4 className="component-name">{children}</h4>;
+}
+
 /** A live, compact reference for the V1 Studio component vocabulary. */
 export function ComponentLibraryPage() {
   useChrome({ framed: false, wide: true });
@@ -72,11 +77,13 @@ export function ComponentLibraryPage() {
 
       <div className="component-board">
         <Specimen eyebrow="Actions" title="Buttons">
+          <ComponentName>ButtonStandard</ComponentName>
           <div className="component-button-row">
             <ButtonStandard>save changes</ButtonStandard>
             <ButtonStandard variant="primary">publish</ButtonStandard>
             <ButtonStandard variant="plain">cancel</ButtonStandard>
           </div>
+          <ComponentName>ButtonMedium · ButtonSmall · IconButton</ComponentName>
           <div className="component-button-row compact">
             <ButtonMedium>save draft</ButtonMedium>
             <ButtonSmall>reply</ButtonSmall>
@@ -86,6 +93,7 @@ export function ComponentLibraryPage() {
         </Specimen>
 
         <Specimen eyebrow="Choices" title="ToggleGroup & Tabs">
+          <ComponentName>ToggleGroup</ComponentName>
           <ToggleGroup aria-label="post type">
             {(['fragment', 'thread'] as const).map((value) => (
               <ToggleGroupItem
@@ -98,6 +106,7 @@ export function ComponentLibraryPage() {
               </ToggleGroupItem>
             ))}
           </ToggleGroup>
+          <ComponentName>Tabs</ComponentName>
           <Tabs label="reading view" className="component-tabs">
             {(['feed', 'sources'] as const).map((value) => (
               <Tab key={value} selected={tab === value} onClick={() => setTab(value)}>
@@ -109,16 +118,24 @@ export function ComponentLibraryPage() {
         </Specimen>
 
         <Specimen eyebrow="Forms" title="Fields & selection">
+          <ComponentName>Field · TextInput</ComponentName>
           <Field label="Title" htmlFor="component-title" supportingText="Visible on the public page.">
             <TextInput id="component-title" defaultValue="A thoughtful fragment" />
           </Field>
           <div className="component-check-grid">
-            <Checkbox label="Share with followers" defaultChecked />
-            <RadioGroup label="Visibility">
-              <Radio name="component-visibility" label="Public" defaultChecked />
-              <Radio name="component-visibility" label="Private" />
-            </RadioGroup>
+            <div>
+              <ComponentName>Checkbox</ComponentName>
+              <Checkbox label="Share with followers" defaultChecked />
+            </div>
+            <div>
+              <ComponentName>RadioGroup · Radio</ComponentName>
+              <RadioGroup label="Visibility">
+                <Radio name="component-visibility" label="Public" defaultChecked />
+                <Radio name="component-visibility" label="Private" />
+              </RadioGroup>
+            </div>
           </div>
+          <ComponentName>Select</ComponentName>
           <Select aria-label="Post status" defaultValue="draft">
             <option value="draft">Draft</option>
             <option value="published">Published</option>
@@ -126,12 +143,14 @@ export function ComponentLibraryPage() {
         </Specimen>
 
         <Specimen eyebrow="Feedback" title="Alerts & empty state">
+          <ComponentName>InlineAlert</ComponentName>
           <InlineAlert tone="success" title="Draft saved">
             Your work is safe on this device.
           </InlineAlert>
           <InlineAlert tone="warning" title="One small note">
             This fragment is close to its character limit.
           </InlineAlert>
+          <ComponentName>EmptyState</ComponentName>
           <EmptyState
             icon={<Sparkle />}
             title="Nothing here yet"
@@ -141,6 +160,7 @@ export function ComponentLibraryPage() {
         </Specimen>
 
         <Specimen eyebrow="Progressive disclosure" title="Accordion & Card">
+          <ComponentName>Accordion · AccordionItem</ComponentName>
           <Accordion>
             <AccordionItem title="edit note" supportingText="optional" defaultOpen>
               <Textarea aria-label="edit note" defaultValue="Clarifies why this changed." rows={2} />
@@ -149,6 +169,7 @@ export function ComponentLibraryPage() {
               <p className="component-muted">No attachments yet.</p>
             </AccordionItem>
           </Accordion>
+          <ComponentName>Card</ComponentName>
           <Card
             header={<strong>Static Card</strong>}
             footer={<span className="component-muted">Use a real link or button for actions.</span>}
@@ -158,6 +179,7 @@ export function ComponentLibraryPage() {
         </Specimen>
 
         <Specimen eyebrow="Wayfinding" title="Header, navigation & menu">
+          <ComponentName>AppHeader · PrimaryNavigation · NavigationItem</ComponentName>
           <div className="component-shell-preview">
             <AppHeader title="blyg studio" actions={<IconButton label="more actions"><More /></IconButton>} />
             <PrimaryNavigation label="Studio preview navigation">
@@ -166,6 +188,7 @@ export function ComponentLibraryPage() {
               <NavigationItem href="/studio/more" icon="⋯" label="more" badge="1" />
             </PrimaryNavigation>
           </div>
+          <ComponentName>Menu · MenuItem</ComponentName>
           <Menu aria-label="Entry actions">
             <MenuItem icon="⧉" label="copy link" description="Copies a public URL" />
             <MenuItem icon="×" label="withdraw" tone="destructive" />
