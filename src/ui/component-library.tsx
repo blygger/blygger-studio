@@ -77,19 +77,18 @@ export function ComponentLibraryPage() {
 
       <div className="component-board">
         <Specimen eyebrow="Actions" title="Buttons">
-          <ComponentName>ButtonStandard</ComponentName>
+          <ComponentName>ButtonStandard &gt; Default (Secondary), Primary, Plain</ComponentName>
           <div className="component-button-row">
             <ButtonStandard>save changes</ButtonStandard>
             <ButtonStandard variant="primary">publish</ButtonStandard>
             <ButtonStandard variant="plain">cancel</ButtonStandard>
           </div>
-          <ComponentName>ButtonMedium · ButtonSmall · IconButton</ComponentName>
+          <ComponentName>ButtonMedium, ButtonSmall, IconButton</ComponentName>
           <div className="component-button-row compact">
             <ButtonMedium>save draft</ButtonMedium>
             <ButtonSmall>reply</ButtonSmall>
             <IconButton label="more actions"><More /></IconButton>
           </div>
-          <p className="component-caption">Default (Secondary), Primary, Plain · Standard, Medium, Small</p>
         </Specimen>
 
         <Specimen eyebrow="Choices" title="ToggleGroup & Tabs">
@@ -118,7 +117,7 @@ export function ComponentLibraryPage() {
         </Specimen>
 
         <Specimen eyebrow="Forms" title="Fields & selection">
-          <ComponentName>Field · TextInput</ComponentName>
+          <ComponentName>Field &gt; TextInput</ComponentName>
           <Field label="Title" htmlFor="component-title" supportingText="Visible on the public page.">
             <TextInput id="component-title" defaultValue="A thoughtful fragment" />
           </Field>
@@ -128,8 +127,8 @@ export function ComponentLibraryPage() {
               <Checkbox label="Share with followers" defaultChecked />
             </div>
             <div>
-              <ComponentName>RadioGroup · Radio</ComponentName>
-              <RadioGroup label="Visibility">
+              <ComponentName>RadioGroup &gt; Radio</ComponentName>
+              <RadioGroup label="Post visibility">
                 <Radio name="component-visibility" label="Public" defaultChecked />
                 <Radio name="component-visibility" label="Private" />
               </RadioGroup>
@@ -160,7 +159,7 @@ export function ComponentLibraryPage() {
         </Specimen>
 
         <Specimen eyebrow="Progressive disclosure" title="Accordion & Card">
-          <ComponentName>Accordion · AccordionItem</ComponentName>
+          <ComponentName>Accordion &gt; AccordionItem</ComponentName>
           <Accordion>
             <AccordionItem title="edit note" supportingText="optional" defaultOpen>
               <Textarea aria-label="edit note" defaultValue="Clarifies why this changed." rows={2} />
@@ -179,7 +178,7 @@ export function ComponentLibraryPage() {
         </Specimen>
 
         <Specimen eyebrow="Wayfinding" title="Header, navigation & menu">
-          <ComponentName>AppHeader · PrimaryNavigation · NavigationItem</ComponentName>
+          <ComponentName>AppHeader &gt; PrimaryNavigation &gt; NavigationItem</ComponentName>
           <div className="component-shell-preview">
             <AppHeader title="blyg studio" actions={<IconButton label="more actions"><More /></IconButton>} />
             <PrimaryNavigation label="Studio preview navigation">
@@ -188,7 +187,7 @@ export function ComponentLibraryPage() {
               <NavigationItem href="/studio/more" icon="⋯" label="more" badge="1" />
             </PrimaryNavigation>
           </div>
-          <ComponentName>Menu · MenuItem</ComponentName>
+          <ComponentName>Menu &gt; MenuItem</ComponentName>
           <Menu aria-label="Entry actions">
             <MenuItem icon="⧉" label="copy link" description="Copies a public URL" />
             <MenuItem icon="×" label="withdraw" tone="destructive" />
