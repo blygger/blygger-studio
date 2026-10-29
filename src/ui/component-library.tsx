@@ -22,7 +22,7 @@ import {
   Tab,
   Tabs,
   Textarea,
-  TextInput,
+  Input,
 } from './primitives.tsx';
 import { More, Sparkle } from './icons.tsx';
 import { useChrome } from './components.tsx';
@@ -102,9 +102,9 @@ export function ComponentLibraryPage() {
             ))}
           </ToggleGroup>
           <ComponentName>Tabs</ComponentName>
-          <Tabs label="reading view" className="component-tabs">
+          <Tabs label="reading view" className="component-tabs" value={tab} onValueChange={(value) => setTab(value as 'feed' | 'sources')}>
             {(['feed', 'sources'] as const).map((value) => (
-              <Tab key={value} selected={tab === value} onClick={() => setTab(value)}>
+              <Tab key={value} value={value}>
                 {value}
               </Tab>
             ))}
@@ -113,9 +113,9 @@ export function ComponentLibraryPage() {
         </Specimen>
 
         <Specimen eyebrow="Forms">
-          <ComponentName>Field &gt; TextInput</ComponentName>
+          <ComponentName>Field &gt; Input</ComponentName>
           <Field label="Title" htmlFor="component-title" supportingText="Visible on the public page.">
-            <TextInput id="component-title" defaultValue="A thoughtful fragment" />
+            <Input id="component-title" defaultValue="A thoughtful fragment" />
           </Field>
           <div className="component-check-grid">
             <div>

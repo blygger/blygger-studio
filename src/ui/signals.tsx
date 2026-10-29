@@ -64,9 +64,9 @@ export function SignalsPage() {
         and responded to. It is never published. A future feed agent will read it,
         with the prompt you set in Settings, to sort your Smart Feed.
       </p>
-      <Tabs label="signals view">
+      <Tabs label="signals view" value={view} onValueChange={(value) => setView(value as View)}>
         {VIEWS.map((v) => (
-          <Tab key={v} selected={view === v} onClick={() => setView(v)}>
+          <Tab key={v} value={v}>
             {v}
             {count(v) !== undefined ? <span className="n">{count(v)}</span> : null}
           </Tab>
