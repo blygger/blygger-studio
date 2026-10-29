@@ -56,7 +56,7 @@ import {
   useSettings,
   SourceLink,
 } from './components.tsx';
-import { ToggleGroup, ToggleGroupItem } from './buttons.tsx';
+import { Toggle, ToggleGroup } from './buttons.tsx';
 import { Tab, Tabs } from './primitives.tsx';
 import { Sheet, confirm, menu, prompt, toast } from './sheets.tsx';
 import { displayUrl, sourceTitleAndUrl } from '../importer/util.ts';
@@ -1201,19 +1201,18 @@ function LensBar({ sub, hopper, sources }: { sub?: string; hopper?: string; sour
   // Buttons, not router Links: a Link to /reading counts as "current" under
   // every lens, which would mark All active alongside the real choice.
   return (
-    <ToggleGroup ref={bar} className="lens-bar" aria-label="reading lens">
+    <ToggleGroup ref={bar} className="lens-bar" aria-label="reading lens" value={[lens]}>
       {LENSES.map((value) => (
-        <ToggleGroupItem
+        <Toggle
           key={value}
-          role="radio"
           className={value === 'background' || value === 'smart' ? 'seg-dashed' : undefined}
-          selected={lens === value}
+          value={value}
           onClick={() =>
             void navigate({ to: '/reading', search: { ...place, ...(value === 'all' ? {} : { lens: value }) } })
           }
         >
           {LENS_LABELS[value]}
-        </ToggleGroupItem>
+        </Toggle>
       ))}
     </ToggleGroup>
   );

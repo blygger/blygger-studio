@@ -3,7 +3,7 @@ import type { SearchResponses } from '../../sdk/dist/browser.js';
 import { BlyggerApi, unwrap } from '../../sdk/dist/browser.js';
 import { client } from './data.ts';
 import { Button, Failure, useSettings } from './components.tsx';
-import { ToggleGroup, ToggleGroupItem } from './buttons.tsx';
+import { Toggle, ToggleGroup } from './buttons.tsx';
 import { paletteTrigger, paletteInsert } from '../palette.ts';
 import { setTextAt } from './caret.ts';
 import './picker.css';
@@ -258,12 +258,11 @@ export function BracketPicker({
         </p>
       )}
       <div className="picker-filters">
-        <ToggleGroup aria-label="source" className="picker-seg">
+        <ToggleGroup aria-label="source" className="picker-seg" value={[source]}>
           {(['all', 'mine', 'imported'] as const).map((value) => (
-            <ToggleGroupItem
+            <Toggle
               key={value}
-              role="radio"
-              selected={source === value}
+              value={value}
               onClick={() => {
                   setSource(value);
                   store('blyg.picker.source', value);
@@ -271,7 +270,7 @@ export function BracketPicker({
               }}
             >
               {value === 'all' ? 'both' : value}
-            </ToggleGroupItem>
+            </Toggle>
           ))}
         </ToggleGroup>
         <select

@@ -34,7 +34,7 @@ import {
   useSettings,
   publicPath,
 } from './components.tsx';
-import { ButtonMedium, ToggleGroup, ToggleGroupItem } from './buttons.tsx';
+import { Button as DesignButton, Toggle, ToggleGroup } from './buttons.tsx';
 import { Sheet, confirm, menu, prompt, toast } from './sheets.tsx';
 import { BracketPicker } from './picker.tsx';
 import { setTextAt } from './caret.ts';
@@ -1033,18 +1033,16 @@ export function Compose() {
       </SyntaxHelp>
       <PublishedBanner published={published} dismiss={() => setPublished(undefined)} />
       <div className="card composer">
-        <ToggleGroup aria-label="kind">
+        <ToggleGroup aria-label="kind" value={[kind]}>
           {(['fragment', 'thread'] as const).map((value) => (
-            <ToggleGroupItem
+            <Toggle
               key={value}
-              role="radio"
-              aria-checked={kind === value}
               data-kind={value}
-              selected={kind === value}
+              value={value}
               onClick={() => setKindTo(value)}
             >
               {value}
-            </ToggleGroupItem>
+            </Toggle>
           ))}
         </ToggleGroup>
         <div className="ta-wrap">
@@ -1101,21 +1099,23 @@ export function Compose() {
                 generate in editor →
               </Button>
             ) : null}
-            <ButtonMedium
+            <DesignButton
+              size="medium"
               id="save-draft-btn"
               disabled={action.busy}
               onClick={() => void action.run(save)}
             >
               save draft
-            </ButtonMedium>
-            <ButtonMedium
+            </DesignButton>
+            <DesignButton
+              size="medium"
               id="publish-btn"
               variant="primary"
               disabled={action.busy}
               onClick={() => void action.run(publish)}
             >
               publish
-            </ButtonMedium>
+            </DesignButton>
           </div>
         </div>
         {over ? (
@@ -1136,18 +1136,17 @@ export function Compose() {
       </div>
       {tools.sheet}
       {rows.length ? (
-        <ToggleGroup className="filters" aria-label="show">
+        <ToggleGroup className="filters" aria-label="show" value={[filter]}>
           {(Object.keys(FILTERS) as Filter[]).map((key) => (
-            <ToggleGroupItem
+            <Toggle
               key={key}
               data-filter={key}
-              role="radio"
-              selected={filter === key}
+              value={key}
               count={rows.filter(FILTERS[key].test).length}
               onClick={() => setFilter(key)}
             >
               {FILTERS[key].label}
-            </ToggleGroupItem>
+            </Toggle>
           ))}
         </ToggleGroup>
       ) : null}
@@ -1912,18 +1911,16 @@ function Editor({ item }: { item: Detail }) {
           fork of {item.forked_from.id} v{item.forked_from.version}
         </p>
       ) : null}
-      <ToggleGroup className="pane-toggle" aria-label="pane">
+      <ToggleGroup className="pane-toggle" aria-label="pane" value={[pane]}>
         {(['draft', 'preview'] as const).map((value) => (
-          <ToggleGroupItem
+          <Toggle
             key={value}
-            role="radio"
             data-pane={value}
-            aria-checked={pane === value}
-            selected={pane === value}
+            value={value}
             onClick={() => setPane(value)}
           >
             {value}
-          </ToggleGroupItem>
+          </Toggle>
         ))}
       </ToggleGroup>
       <div className="editor-grid" data-pane={pane}>
@@ -2342,21 +2339,23 @@ function Editor({ item }: { item: Detail }) {
         >
           <More />
         </Button>
-        <ButtonMedium
+        <DesignButton
+          size="medium"
           id="save-draft-btn"
           disabled={action.busy}
           onClick={() => void action.run(save)}
         >
           save draft
-        </ButtonMedium>
-        <ButtonMedium
+        </DesignButton>
+        <DesignButton
+          size="medium"
           id="publish-btn"
           variant="primary"
           disabled={action.busy}
           onClick={publish}
         >
           {item.status === 'withdrawn' ? 'republish' : 'publish'}
-        </ButtonMedium>
+        </DesignButton>
       </ActionBar>
     </div>
   );

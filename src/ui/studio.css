@@ -221,9 +221,9 @@ button.link { background: none; border: none; padding: 0; font: inherit; color: 
 .toggle-group-item { border-color: transparent; background: transparent; }
 .toggle-group-item--standard { min-height: var(--ctl); padding: 0 12px; font-size: .82rem; }
 .toggle-group-count { color: var(--ink-soft); font-size: .9em; font-variant-numeric: tabular-nums; }
-.toggle-group-item.is-selected, .toggle-group-item[data-selected="true"] { color: var(--pencil); background: var(--card); border-color: var(--rule); box-shadow: 0 1px 2px rgba(20,30,35,.06); }
-.toggle-group-item.is-selected .toggle-group-count, .toggle-group-item[data-selected="true"] .toggle-group-count { color: currentColor; }
-.toggle-group-item.is-selected:hover:not(:disabled), .toggle-group-item[data-selected="true"]:hover:not(:disabled) { border-color: var(--rule-strong); }
+.toggle-group-item[data-pressed] { color: var(--pencil); background: var(--card); border-color: var(--rule); box-shadow: 0 1px 2px rgba(20,30,35,.06); }
+.toggle-group-item[data-pressed] .toggle-group-count { color: currentColor; }
+.toggle-group-item[data-pressed]:hover:not(:disabled) { border-color: var(--rule-strong); }
 
 /* ---------- V1 PRIMITIVES ---------- */
 .tooltip { position: relative; display: inline-flex; }
