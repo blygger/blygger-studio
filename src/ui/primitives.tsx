@@ -3,7 +3,6 @@ import type {
   ButtonHTMLAttributes,
   ComponentProps,
   ReactNode,
-  SelectHTMLAttributes,
   TextareaHTMLAttributes,
 } from 'react';
 import { useId, useState } from 'react';
@@ -15,6 +14,7 @@ import { Accordion as BaseAccordion } from '@base-ui/react/accordion';
 import { Checkbox as BaseCheckbox } from '@base-ui/react/checkbox';
 import { Radio as BaseRadio } from '@base-ui/react/radio';
 import { RadioGroup as BaseRadioGroup } from '@base-ui/react/radio-group';
+export { Select } from '@base-ui/react/select';
 
 const classes = (...names: Array<string | false | null | undefined>) =>
   names.filter(Boolean).join(' ');
@@ -93,11 +93,6 @@ export function Input(props: ComponentProps<typeof BaseInput>) {
 
 export function Textarea(props: TextareaHTMLAttributes<HTMLTextAreaElement>) {
   return <textarea {...props} className={classes('system-input', props.className)} />;
-}
-
-/** Native select behavior, styled to share the form-field language. */
-export function Select(props: SelectHTMLAttributes<HTMLSelectElement>) {
-  return <select {...props} className={classes('system-input', props.className)} />;
 }
 
 export function Checkbox({
