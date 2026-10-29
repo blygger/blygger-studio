@@ -156,11 +156,11 @@ export function ComponentLibraryPage() {
 
         <Specimen eyebrow="Progressive disclosure">
           <ComponentName>Accordion &gt; AccordionItem</ComponentName>
-          <Accordion>
-            <AccordionItem title="edit note" supportingText="optional" defaultOpen>
+          <Accordion defaultValue={['edit-note']}>
+            <AccordionItem value="edit-note" title="edit note" supportingText="optional">
               <Textarea aria-label="edit note" defaultValue="Clarifies why this changed." rows={2} />
             </AccordionItem>
-            <AccordionItem title="attachments" supportingText="0">
+            <AccordionItem value="attachments" title="attachments" supportingText="0">
               <p className="component-muted">No attachments yet.</p>
             </AccordionItem>
           </Accordion>
