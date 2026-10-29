@@ -1,6 +1,8 @@
-import type { ComponentProps, KeyboardEvent, ReactNode } from 'react';
+import type { ComponentProps, ReactNode } from 'react';
 import { forwardRef } from 'react';
 import { Button as BaseButton } from '@base-ui/react/button';
+import { Toggle as BaseToggle } from '@base-ui/react/toggle';
+import { ToggleGroup as BaseToggleGroup } from '@base-ui/react/toggle-group';
 
 type BaseButtonProps = Omit<
   ComponentProps<typeof BaseButton>,
@@ -55,96 +57,60 @@ function SystemButton({
   );
 }
 
-/** Main form and sheet actions. */
-export function ButtonStandard(props: ButtonProps) {
-  return <SystemButton {...props} size="standard" />;
+/**
+ * Studio's styled Base UI Button. Size and variant are component properties,
+ * rather than separate components, matching common design-system conventions.
+ */
+export function Button({ size = 'standard', ...props }: ButtonProps & { size?: ButtonSize }) {
+  return <SystemButton {...props} size={size} />;
 }
 
-/** Inline actions such as Compose's save and publish controls. */
-export function ButtonMedium(props: ButtonProps) {
-  return <SystemButton {...props} size="medium" />;
-}
+type ToggleGroupProps = ComponentProps<typeof BaseToggleGroup>;
 
-/** Compact actions that sit alongside dense UI. */
-export function ButtonSmall(props: ButtonProps) {
-  return <SystemButton {...props} size="small" />;
-}
-
-type ToggleGroupProps = ComponentProps<'div'>;
-
-/** A named, styled container for related selectable buttons. */
+/** Studio's styled Base UI ToggleGroup, for a local choice among related toggles. */
 export const ToggleGroup = forwardRef<HTMLDivElement, ToggleGroupProps>(function ToggleGroup({
   children,
   className,
-  role,
-  onKeyDown,
   ...props
 }, ref) {
-  const handleKeyDown = (event: KeyboardEvent<HTMLDivElement>) => {
-    onKeyDown?.(event);
-    if (event.defaultPrevented || !['ArrowLeft', 'ArrowRight', 'Home', 'End'].includes(event.key)) return;
-    const items = Array.from(event.currentTarget.querySelectorAll<HTMLButtonElement>('[role="radio"]:not(:disabled)'));
-    const current = items.indexOf(document.activeElement as HTMLButtonElement);
-    if (current < 0 || !items.length) return;
-    event.preventDefault();
-    const next = event.key === 'Home' ? 0 : event.key === 'End' ? items.length - 1 :
-      (current + (event.key === 'ArrowRight' ? 1 : -1) + items.length) % items.length;
-    items[next]?.focus();
-    items[next]?.click();
-  };
   return (
-    <div
+    <BaseToggleGroup
       {...props}
       ref={ref}
-      role={role ?? 'radiogroup'}
-      onKeyDown={handleKeyDown}
       className={['toggle-group', className].filter(Boolean).join(' ')}
     >
       {children}
-    </div>
+    </BaseToggleGroup>
   );
 });
 
-type ToggleGroupItemProps = BaseButtonProps & {
+type ToggleProps = ComponentProps<typeof BaseToggle> & {
   children: ReactNode;
-  selected: boolean;
   /** An optional count, such as the number of drafts in a filter. */
   count?: ReactNode;
   className?: string;
 };
 
-/**
- * An option inside ToggleGroup. Use role="radio" + aria-checked for mutually
- * exclusive choices (such as Fragment / Thread).
- */
-export function ToggleGroupItem({
+/** A Base UI Toggle participating in a ToggleGroup. */
+export function Toggle({
   children,
-  selected,
   count,
   className,
-  role,
-  disabled,
   ...props
-}: ToggleGroupItemProps) {
+}: ToggleProps) {
   return (
-    <BaseButton
+    <BaseToggle
       {...props}
-      role={role}
-      disabled={disabled}
-      aria-checked={role === 'radio' ? selected : undefined}
-      tabIndex={role === 'radio' ? (selected ? 0 : -1) : undefined}
-      data-selected={selected ? 'true' : 'false'}
       className={[
         'toggle-group-item',
         'toggle-group-item--standard',
-        selected ? 'is-selected' : '',
         className,
       ]
         .filter(Boolean)
         .join(' ')}
     >
-      <span className="button-label">{children}</span>
+      <span className="toggle-group-label">{children}</span>
       {count !== undefined ? <span className="toggle-group-count">{count}</span> : null}
-    </BaseButton>
+    </BaseToggle>
   );
 }

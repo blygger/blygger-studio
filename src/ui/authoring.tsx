@@ -36,7 +36,7 @@ import {
   useSettings,
   publicPath,
 } from './components.tsx';
-import { ButtonMedium, ToggleGroup, ToggleGroupItem } from './buttons.tsx';
+import { Button as DesignButton, Toggle, ToggleGroup } from './buttons.tsx';
 import { Sheet, confirm, menu, prompt, toast } from './sheets.tsx';
 import { compiledExtensions } from '../../build/extensions.ui.ts';
 import { DraftCounterSlot, enabledExtensions } from './extensions.tsx';
@@ -1073,18 +1073,16 @@ export function Compose({ q }: { q?: string } = {}) {
       </SyntaxHelp>
       <PublishedBanner published={published} dismiss={() => setPublished(undefined)} />
       <div className="card composer">
-        <ToggleGroup aria-label="kind">
+        <ToggleGroup aria-label="kind" value={[kind]}>
           {(['fragment', 'thread'] as const).map((value) => (
-            <ToggleGroupItem
+            <Toggle
               key={value}
-              role="radio"
-              aria-checked={kind === value}
               data-kind={value}
-              selected={kind === value}
+              value={value}
               onClick={() => setKindTo(value)}
             >
               {value}
-            </ToggleGroupItem>
+            </Toggle>
           ))}
         </ToggleGroup>
         <div className="ta-wrap">
@@ -1141,21 +1139,23 @@ export function Compose({ q }: { q?: string } = {}) {
                 generate in editor →
               </Button>
             ) : null}
-            <ButtonMedium
+            <DesignButton
+              size="medium"
               id="save-draft-btn"
               disabled={action.busy}
               onClick={() => void action.run(save)}
             >
               save draft
-            </ButtonMedium>
-            <ButtonMedium
+            </DesignButton>
+            <DesignButton
+              size="medium"
               id="publish-btn"
               variant="primary"
               disabled={action.busy}
               onClick={() => void action.run(publish)}
             >
               publish
-            </ButtonMedium>
+            </DesignButton>
           </div>
         </div>
         {over ? (
@@ -1179,19 +1179,18 @@ export function Compose({ q }: { q?: string } = {}) {
         <div className="page-search-row">
           <SearchBox value={q ?? ''} onChange={setQuery} label="search your items" />
           {q ? (
-            <ToggleGroup aria-label="search scope">
+            <ToggleGroup aria-label="search scope" value={[scope]}>
               {(['mine', 'all'] as const).map((value) => (
-                <ToggleGroupItem
+                <Toggle
                   key={value}
-                  role="radio"
-                  selected={scope === value}
+                  value={value}
                   onClick={() => {
                     setScope(value);
                     store('blyg.compose.searchScope', value);
                   }}
                 >
                   {value === 'mine' ? 'this blyg only' : 'everything'}
-                </ToggleGroupItem>
+                </Toggle>
               ))}
             </ToggleGroup>
           ) : null}
@@ -1201,18 +1200,17 @@ export function Compose({ q }: { q?: string } = {}) {
         <SearchResults filters={{ q, source: scope, include: 'drafts' }} ownOpens="editor" />
       ) : <>
       {totals?.all ? (
-        <ToggleGroup className="filters" aria-label="show">
+        <ToggleGroup className="filters" aria-label="show" value={[filter]}>
           {(Object.keys(FILTERS) as Filter[]).map((key) => (
-            <ToggleGroupItem
+            <Toggle
               key={key}
               data-filter={key}
-              role="radio"
-              selected={filter === key}
+              value={key}
               count={rows.filter(FILTERS[key].test).length}
               onClick={() => setFilter(key)}
             >
               {FILTERS[key].label}
-            </ToggleGroupItem>
+            </Toggle>
           ))}
         </ToggleGroup>
       ) : null}
@@ -2310,18 +2308,16 @@ function Editor({ item, onDiscarding }: { item: Detail; onDiscarding?: (active: 
           fork of {item.forkedFrom.id} v{item.forkedFrom.version}
         </p>
       ) : null}
-      <ToggleGroup className="pane-toggle" aria-label="pane">
+      <ToggleGroup className="pane-toggle" aria-label="pane" value={[pane]}>
         {(['draft', 'preview'] as const).map((value) => (
-          <ToggleGroupItem
+          <Toggle
             key={value}
-            role="radio"
             data-pane={value}
-            aria-checked={pane === value}
-            selected={pane === value}
+            value={value}
             onClick={() => setPane(value)}
           >
             {value}
-          </ToggleGroupItem>
+          </Toggle>
         ))}
       </ToggleGroup>
       <div className="editor-grid" data-pane={pane}>
@@ -2676,21 +2672,23 @@ function Editor({ item, onDiscarding }: { item: Detail; onDiscarding?: (active: 
         >
           <More />
         </Button>
-        <ButtonMedium
+        <DesignButton
+          size="medium"
           id="save-draft-btn"
           disabled={action.busy}
           onClick={() => void action.run(save)}
         >
           save draft
-        </ButtonMedium>
-        <ButtonMedium
+        </DesignButton>
+        <DesignButton
+          size="medium"
           id="publish-btn"
           variant="primary"
           disabled={action.busy}
           onClick={publish}
         >
           {item.status === 'withdrawn' ? 'republish' : 'publish'}
-        </ButtonMedium>
+        </DesignButton>
       </ActionBar>
     </div>
   );

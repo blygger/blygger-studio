@@ -1,7 +1,7 @@
 import type { ReactNode } from 'react';
 import { useState } from 'react';
 import { Link } from '@tanstack/react-router';
-import { ButtonMedium, ButtonSmall, ButtonStandard, ToggleGroup, ToggleGroupItem } from './buttons.tsx';
+import { Button, Toggle, ToggleGroup } from './buttons.tsx';
 import {
   Accordion,
   AccordionItem,
@@ -74,32 +74,31 @@ export function ComponentLibraryPage() {
 
       <div className="component-board">
         <Specimen eyebrow="Actions">
-          <ComponentName>ButtonStandard &gt; Default (Secondary), Primary, Plain</ComponentName>
+          <ComponentName>Button &gt; Size: Standard; Variant: Default (Secondary), Primary, Plain</ComponentName>
           <div className="component-button-row">
-            <ButtonStandard>save changes</ButtonStandard>
-            <ButtonStandard variant="primary">publish</ButtonStandard>
-            <ButtonStandard variant="plain">cancel</ButtonStandard>
+            <Button>save changes</Button>
+            <Button variant="primary">publish</Button>
+            <Button variant="plain">cancel</Button>
           </div>
-          <ComponentName>ButtonMedium, ButtonSmall, IconButton</ComponentName>
+          <ComponentName>Button &gt; Size: Medium, Small; IconButton</ComponentName>
           <div className="component-button-row compact">
-            <ButtonMedium>save draft</ButtonMedium>
-            <ButtonSmall>reply</ButtonSmall>
+            <Button size="medium">save draft</Button>
+            <Button size="small">reply</Button>
             <IconButton label="more actions"><More /></IconButton>
           </div>
         </Specimen>
 
         <Specimen eyebrow="Choices">
           <ComponentName>ToggleGroup</ComponentName>
-          <ToggleGroup aria-label="post type">
+          <ToggleGroup aria-label="post type" value={[kind]}>
             {(['fragment', 'thread'] as const).map((value) => (
-              <ToggleGroupItem
+              <Toggle
                 key={value}
-                role="radio"
-                selected={kind === value}
+                value={value}
                 onClick={() => setKind(value)}
               >
                 {value}
-              </ToggleGroupItem>
+              </Toggle>
             ))}
           </ToggleGroup>
           <ComponentName>Tabs</ComponentName>
@@ -151,7 +150,7 @@ export function ComponentLibraryPage() {
             icon={<Sparkle />}
             title="Nothing here yet"
             description="Start with a small thought."
-            action={<ButtonSmall variant="primary">compose</ButtonSmall>}
+            action={<Button size="small" variant="primary">compose</Button>}
           />
         </Specimen>
 
