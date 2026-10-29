@@ -432,9 +432,10 @@ button.link { background: none; border: none; padding: 0; font: inherit; color: 
 @keyframes fade { from { opacity: 0; } to { opacity: 1; } }
 @media (prefers-reduced-motion: reduce) { .sheet, .backdrop, .toast { animation: none; } }
 
-.toast { position: fixed; left: 50%; bottom: calc(84px + env(safe-area-inset-bottom)); transform: translateX(-50%); z-index: 70;
-  background: var(--ink); color: var(--card); padding: 7px 8px 7px 16px; border-radius: 999px; font-size: .85rem; box-shadow: 0 6px 20px rgba(0,0,0,.25); animation: up .2s ease-out; max-width: calc(100vw - 32px); text-align: center;
-  display: flex; align-items: center; gap: 8px; }
+.toast-viewport { position: fixed; left: 50%; bottom: calc(84px + env(safe-area-inset-bottom)); transform: translateX(-50%); z-index: 70; width: max-content; max-width: calc(100vw - 32px); pointer-events: none; }
+.toast { background: var(--ink); color: var(--card); border-radius: 999px; font-size: .85rem; box-shadow: 0 6px 20px rgba(0,0,0,.25); animation: up .2s ease-out; max-width: 100%; text-align: center; pointer-events: auto; }
+.toast-content { display: flex; align-items: center; gap: 8px; padding: 7px 8px 7px 16px; }
+.toast-message { margin: 0; }
 .toast[data-tone="ok"] { background: var(--ok); color: #fff; }
 .toast-x { background: none; border: 0; color: inherit; opacity: .75; font-size: .8rem; line-height: 1; padding: 4px 6px; border-radius: 999px; cursor: pointer; }
 .toast-x::before { content: "✕"; }
@@ -457,7 +458,7 @@ main.login .btn { width: 100%; }
   body.no-tabs .actionbar { left: 0; }
   .sheet { left: 50%; right: auto; width: 520px; max-width: calc(100vw - 32px); transform: translateX(-50%); bottom: auto; top: 12vh; max-height: 76vh; border-radius: 18px; animation: fade .15s; }
   .sheet::before { display: none; }
-  body.has-tabs .toast { margin-left: calc(var(--rail) / 2); }
+  body.has-tabs .toast-viewport { margin-left: calc(var(--rail) / 2); }
 }
 
 /* ======================================================================
