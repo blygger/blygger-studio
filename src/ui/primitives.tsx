@@ -1,14 +1,18 @@
 import type {
   AnchorHTMLAttributes,
   ButtonHTMLAttributes,
+  ComponentProps,
   InputHTMLAttributes,
   ReactNode,
   SelectHTMLAttributes,
   TextareaHTMLAttributes,
   KeyboardEvent,
 } from 'react';
-import { useEffect, useId, useRef, useState } from 'react';
+import { useId, useState } from 'react';
 import { Button as BaseButton } from '@base-ui/react/button';
+import { Checkbox as BaseCheckbox } from '@base-ui/react/checkbox';
+import { Radio as BaseRadio } from '@base-ui/react/radio';
+import { RadioGroup as BaseRadioGroup } from '@base-ui/react/radio-group';
 
 const classes = (...names: Array<string | false | null | undefined>) =>
   names.filter(Boolean).join(' ');
@@ -97,21 +101,17 @@ export function Select(props: SelectHTMLAttributes<HTMLSelectElement>) {
 export function Checkbox({
   label,
   description,
-  indeterminate = false,
   className,
   ...props
-}: Omit<InputHTMLAttributes<HTMLInputElement>, 'type'> & {
+}: ComponentProps<typeof BaseCheckbox.Root> & {
   label: ReactNode;
   description?: ReactNode;
-  indeterminate?: boolean;
 }) {
-  const input = useRef<HTMLInputElement>(null);
-  useEffect(() => {
-    if (input.current) input.current.indeterminate = indeterminate;
-  }, [indeterminate]);
   return (
-    <label className={classes('checkbox', className)}>
-      <input {...props} ref={input} type="checkbox" />
+    <label className={classes('checkbox', typeof className === 'string' && className)}>
+      <BaseCheckbox.Root {...props} className={classes('checkbox-control', typeof className === 'string' && className)}>
+        <BaseCheckbox.Indicator className="control-indicator">✓</BaseCheckbox.Indicator>
+      </BaseCheckbox.Root>
       <span>
         {label}
         {description ? <span className="control-description">{description}</span> : null}
@@ -124,16 +124,18 @@ export function RadioGroup({
   label,
   children,
   className,
+  ...props
 }: {
   label: ReactNode;
   children: ReactNode;
   className?: string;
-}) {
+} & ComponentProps<typeof BaseRadioGroup>) {
+  const labelId = useId();
   return (
-    <fieldset className={classes('radio-group', className)}>
-      <legend>{label}</legend>
-      {children}
-    </fieldset>
+    <div className={classes('radio-group', className)}>
+      <span className="radio-group-label" id={labelId}>{label}</span>
+      <BaseRadioGroup {...props} aria-labelledby={labelId}>{children}</BaseRadioGroup>
+    </div>
   );
 }
 
@@ -142,13 +144,15 @@ export function Radio({
   description,
   className,
   ...props
-}: Omit<InputHTMLAttributes<HTMLInputElement>, 'type'> & {
+}: ComponentProps<typeof BaseRadio.Root> & {
   label: ReactNode;
   description?: ReactNode;
 }) {
   return (
-    <label className={classes('radio', className)}>
-      <input {...props} type="radio" />
+    <label className={classes('radio', typeof className === 'string' && className)}>
+      <BaseRadio.Root {...props} className={classes('radio-control', typeof className === 'string' && className)}>
+        <BaseRadio.Indicator className="control-indicator" />
+      </BaseRadio.Root>
       <span>
         {label}
         {description ? <span className="control-description">{description}</span> : null}

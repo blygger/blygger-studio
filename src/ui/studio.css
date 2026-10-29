@@ -239,11 +239,17 @@ button.link { background: none; border: none; padding: 0; font: inherit; color: 
 .field-message.error { color: var(--alert); }
 .system-field.has-error .system-input { border-color: var(--alert); }
 .checkbox, .radio { display: flex; gap: 10px; align-items: flex-start; margin: 6px 0 12px; color: var(--ink); cursor: pointer; }
-.checkbox input, .radio input { flex: 0 0 auto; width: 16px; height: 16px; margin: 3px 0 0; accent-color: var(--pencil); }
-.checkbox:has(input:disabled), .radio:has(input:disabled) { opacity: .5; cursor: not-allowed; }
+.checkbox-control, .radio-control { display: inline-grid; flex: 0 0 auto; place-items: center; width: 16px; height: 16px; margin: 3px 0 0; border: 1px solid var(--ink-soft); background: var(--card); color: var(--card); }
+.checkbox-control { border-radius: 3px; }
+.radio-control { border-radius: 50%; }
+.checkbox-control[data-checked], .checkbox-control[data-indeterminate] { border-color: var(--pencil); background: var(--pencil); }
+.radio-control[data-checked] { border-color: var(--pencil); background: radial-gradient(circle, var(--pencil) 0 42%, var(--card) 47%); }
+.checkbox-control:focus-visible, .radio-control:focus-visible { outline: 2px solid var(--pencil); outline-offset: 2px; }
+.control-indicator { font-size: .72rem; line-height: 1; }
+.checkbox:has([data-disabled]), .radio:has([data-disabled]) { opacity: .5; cursor: not-allowed; }
 .control-description { display: block; margin-top: 2px; color: var(--ink-soft); font-size: .82rem; }
-.radio-group { min-width: 0; margin: 0 0 14px; padding: 0; border: 0; }
-.radio-group > legend { margin: 0 0 6px; color: var(--ink-soft); font-size: .82rem; }
+.radio-group { min-width: 0; margin: 0 0 14px; }
+.radio-group-label { display: block; margin: 0 0 6px; color: var(--ink-soft); font-size: .82rem; }
 .radio-group .radio:last-child { margin-bottom: 0; }
 
 .system-card .card-header { margin: 0 0 12px; }
