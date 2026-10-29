@@ -227,8 +227,7 @@ button.link { background: none; border: none; padding: 0; font: inherit; color: 
 
 /* ---------- V1 PRIMITIVES ---------- */
 .tooltip { position: relative; display: inline-flex; }
-.tooltip-content { position: absolute; z-index: 80; left: 50%; bottom: calc(100% + 7px); transform: translateX(-50%); width: max-content; max-width: min(240px, 80vw); padding: 5px 8px; border-radius: 6px; background: var(--ink); color: var(--card); box-shadow: var(--shadow); font-size: .75rem; line-height: 1.35; pointer-events: none; opacity: 0; visibility: hidden; transition: opacity .12s ease, visibility .12s ease; }
-.tooltip:hover .tooltip-content, .tooltip:focus-within .tooltip-content, .tooltip.is-open .tooltip-content { opacity: 1; visibility: visible; }
+.tooltip-content { z-index: 80; width: max-content; max-width: min(240px, 80vw); padding: 5px 8px; border-radius: 6px; background: var(--ink); color: var(--card); box-shadow: var(--shadow); font-size: .75rem; line-height: 1.35; pointer-events: none; }
 .icon-button { display: inline-grid; place-items: center; min-width: var(--hit); min-height: var(--hit); padding: 0; border: 1px solid transparent; border-radius: var(--radius-sm); color: var(--ink-soft); background: transparent; cursor: pointer; }
 .icon-button:hover:not(:disabled) { color: var(--ink); background: color-mix(in srgb, var(--ink) 7%, transparent); }
 .icon-button:disabled { opacity: .48; cursor: not-allowed; }
