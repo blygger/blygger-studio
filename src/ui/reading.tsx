@@ -1471,17 +1471,17 @@ function ReadingTabs({ active }: { active: 'feed' | 'sources' }) {
   const navigate = useNavigate();
   const lensSearch = useLensSearch();
   return (
-    <Tabs className="reading-tabs" label="reading view">
+    <Tabs className="reading-tabs" label="reading view" value={active} onValueChange={(value) => {
+      const next = value as 'feed' | 'sources';
+      void navigate({
+        to: '/reading',
+        search: { ...(next === 'sources' ? { view: 'sources' as const } : {}), ...lensSearch },
+      });
+    }}>
       {(['feed', 'sources'] as const).map((value) => (
         <Tab
           key={value}
-          selected={active === value}
-          onClick={() =>
-            void navigate({
-              to: '/reading',
-              search: { ...(value === 'sources' ? { view: 'sources' as const } : {}), ...lensSearch },
-            })
-          }
+          value={value}
         >
           {value === 'feed' ? 'Feed' : 'Sources'}
         </Tab>

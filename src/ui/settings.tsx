@@ -1132,12 +1132,11 @@ function CustomThemeFields({
         everyone else gets the light one.
       </p>
       {paired ? (
-        <Tabs label="Palette">
+        <Tabs label="Palette" value={showing} onValueChange={(value) => setEditing(value as 'light' | 'dark')}>
           {(['light', 'dark'] as const).map((which) => (
             <Tab
               key={which}
-              selected={showing === which}
-              onClick={() => setEditing(which)}
+              value={which}
             >
               {which === 'light' ? 'Light palette' : 'Dark palette'}
             </Tab>

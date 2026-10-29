@@ -2,13 +2,14 @@ import type {
   AnchorHTMLAttributes,
   ButtonHTMLAttributes,
   ComponentProps,
-  InputHTMLAttributes,
   ReactNode,
   SelectHTMLAttributes,
   TextareaHTMLAttributes,
-  KeyboardEvent,
 } from 'react';
 import { useId, useState } from 'react';
+import { Field as BaseField } from '@base-ui/react/field';
+import { Input as BaseInput } from '@base-ui/react/input';
+import { Tabs as BaseTabs } from '@base-ui/react/tabs';
 import { Button as BaseButton } from '@base-ui/react/button';
 import { Accordion as BaseAccordion } from '@base-ui/react/accordion';
 import { Checkbox as BaseCheckbox } from '@base-ui/react/checkbox';
@@ -77,17 +78,17 @@ export function Field({
   className?: string;
 }) {
   return (
-    <div className={classes('field', 'system-field', error ? 'has-error' : false, className)}>
-      <label htmlFor={htmlFor}>{label}</label>
+    <BaseField.Root className={classes('field', 'system-field', error ? 'has-error' : false, className)} invalid={!!error}>
+      <BaseField.Label htmlFor={htmlFor}>{label}</BaseField.Label>
       {children}
       {error ? <p className="field-message error" role="alert">{error}</p> : null}
-      {!error && supportingText ? <p className="field-message">{supportingText}</p> : null}
-    </div>
+      {!error && supportingText ? <BaseField.Description className="field-message">{supportingText}</BaseField.Description> : null}
+    </BaseField.Root>
   );
 }
 
-export function TextInput(props: InputHTMLAttributes<HTMLInputElement>) {
-  return <input {...props} className={classes('system-input', props.className)} />;
+export function Input(props: ComponentProps<typeof BaseInput>) {
+  return <BaseInput {...props} className={classes('system-input', typeof props.className === 'string' && props.className)} />;
 }
 
 export function Textarea(props: TextareaHTMLAttributes<HTMLTextAreaElement>) {
@@ -339,26 +340,19 @@ export function NavigationItem({
   );
 }
 
-/** A tab list; each Tab must be connected to its matching panel by the caller. */
-export function Tabs({ children, label, className }: { children: ReactNode; label: string; className?: string }) {
-  const moveFocus = (event: KeyboardEvent<HTMLDivElement>) => {
-    if (!['ArrowLeft', 'ArrowRight', 'Home', 'End'].includes(event.key)) return;
-    const tabs = Array.from(event.currentTarget.querySelectorAll<HTMLButtonElement>('[role="tab"]:not(:disabled)'));
-    const current = tabs.indexOf(document.activeElement as HTMLButtonElement);
-    if (current < 0 || !tabs.length) return;
-    event.preventDefault();
-    const next = event.key === 'Home' ? 0 : event.key === 'End' ? tabs.length - 1 :
-      (current + (event.key === 'ArrowRight' ? 1 : -1) + tabs.length) % tabs.length;
-    tabs[next]?.focus();
-  };
-  return <div className={classes('tabs', className)} role="tablist" aria-label={label} onKeyDown={moveFocus}>{children}</div>;
+/** Base UI tabs for switching an in-page view. */
+export function Tabs({ children, label, className, ...props }: ComponentProps<typeof BaseTabs.Root> & { label: string }) {
+  return (
+    <BaseTabs.Root {...props}>
+      <BaseTabs.List className={classes('tabs', typeof className === 'string' && className)} aria-label={label}>{children}</BaseTabs.List>
+    </BaseTabs.Root>
+  );
 }
 
 export function Tab({
-  selected,
   children,
   className,
   ...props
-}: ButtonHTMLAttributes<HTMLButtonElement> & { selected: boolean }) {
-  return <button {...props} role="tab" aria-selected={selected} className={classes('tab', selected && 'is-selected', className)}>{children}</button>;
+}: ComponentProps<typeof BaseTabs.Tab>) {
+  return <BaseTabs.Tab {...props} className={classes('tab', typeof className === 'string' && className)}>{children}</BaseTabs.Tab>;
 }
