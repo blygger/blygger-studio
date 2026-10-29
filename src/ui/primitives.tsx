@@ -2,13 +2,15 @@ import type {
   AnchorHTMLAttributes,
   ButtonHTMLAttributes,
   ComponentProps,
+  ReactElement,
   ReactNode,
   TextareaHTMLAttributes,
 } from 'react';
-import { useId, useState } from 'react';
+import { useId } from 'react';
 import { Field as BaseField } from '@base-ui/react/field';
 import { Input as BaseInput } from '@base-ui/react/input';
 import { Tabs as BaseTabs } from '@base-ui/react/tabs';
+import { Tooltip as BaseTooltip } from '@base-ui/react/tooltip';
 import { Button as BaseButton } from '@base-ui/react/button';
 import { Accordion as BaseAccordion } from '@base-ui/react/accordion';
 import { Checkbox as BaseCheckbox } from '@base-ui/react/checkbox';
@@ -19,23 +21,17 @@ export { Select } from '@base-ui/react/select';
 const classes = (...names: Array<string | false | null | undefined>) =>
   names.filter(Boolean).join(' ');
 
-/** Text-only helper that appears on hover and keyboard focus. */
-export function Tooltip({ label, children }: { label: string; children: ReactNode }) {
-  const [open, setOpen] = useState(false);
+/** A Base UI tooltip for a concise description of an icon-only action. */
+export function Tooltip({ label, children }: { label: string; children: ReactElement }) {
   return (
-    <span
-      className={classes('tooltip', open && 'is-open')}
-      onMouseEnter={() => setOpen(true)}
-      onMouseLeave={() => setOpen(false)}
-      onFocusCapture={() => setOpen(true)}
-      onBlurCapture={() => setOpen(false)}
-      onKeyDownCapture={(event) => {
-        if (event.key === 'Escape') setOpen(false);
-      }}
-    >
-      {children}
-      <span className="tooltip-content" role="tooltip">{label}</span>
-    </span>
+    <BaseTooltip.Root>
+      <BaseTooltip.Trigger render={children} />
+      <BaseTooltip.Portal>
+        <BaseTooltip.Positioner sideOffset={7}>
+          <BaseTooltip.Popup className="tooltip-content">{label}</BaseTooltip.Popup>
+        </BaseTooltip.Positioner>
+      </BaseTooltip.Portal>
+    </BaseTooltip.Root>
   );
 }
 
