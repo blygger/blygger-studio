@@ -124,9 +124,9 @@ export function ComponentLibraryPage() {
             </div>
             <div>
               <ComponentName>RadioGroup &gt; Radio</ComponentName>
-              <RadioGroup label="Post visibility">
-                <Radio name="component-visibility" label="Public" defaultChecked />
-                <Radio name="component-visibility" label="Private" />
+              <RadioGroup label="Post visibility" name="component-visibility" defaultValue="public">
+                <Radio value="public" label="Public" />
+                <Radio value="private" label="Private" />
               </RadioGroup>
             </div>
           </div>
