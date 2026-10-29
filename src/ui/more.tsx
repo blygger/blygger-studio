@@ -121,6 +121,20 @@ export function MorePage() {
             </span>
           </Link>
         </li>
+        <li>
+          <Link to="/components">
+            <span className="mi" aria-hidden="true">
+              ◫
+            </span>
+            <span className="ml">
+              components
+              <span className="md">the Studio interface reference</span>
+            </span>
+            <span className="chev" aria-hidden="true">
+              ›
+            </span>
+          </Link>
+        </li>
       </ul>
       {pages.length ? (
         <ul className="nav-list" aria-label="extensions">

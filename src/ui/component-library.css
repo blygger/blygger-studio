@@ -1,0 +1,59 @@
+/* A living specimen sheet, deliberately denser than a product screen. */
+.component-library { max-width: 1180px; margin: 0 auto; padding: 18px max(18px, env(safe-area-inset-right)) 48px max(18px, env(safe-area-inset-left)); }
+.component-hero { display: flex; align-items: flex-end; justify-content: space-between; gap: 24px; padding: 26px 0 24px; border-bottom: 1px solid var(--rule); }
+.component-kicker, .component-eyebrow { margin: 0; color: var(--pencil); font-size: .72rem; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; }
+.component-hero h2 { margin: 4px 0 6px; font-family: var(--serif); font-size: clamp(2rem, 5vw, 3.3rem); line-height: .95; letter-spacing: -.04em; }
+.component-hero > div > p:last-child { max-width: 46rem; margin: 0; color: var(--ink-soft); }
+.component-hero-note { display: grid; min-width: 106px; padding: 12px 14px; border-left: 2px solid var(--pencil); color: var(--ink-soft); font-size: .76rem; line-height: 1.25; }
+.component-hero-note span { color: var(--pencil); font-family: var(--mono); font-size: 1.6rem; font-weight: 700; }
+.component-board { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; margin-top: 18px; }
+.component-specimen { min-width: 0; padding: 18px; border: 1px solid var(--rule); border-radius: var(--radius); background: var(--card); box-shadow: 0 1px 2px rgba(20,30,35,.035); }
+.component-specimen > header { margin-bottom: 16px; }
+.component-sample { display: grid; gap: 13px; }
+.component-name {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 7px 0 1px;
+  color: var(--ink);
+  font-family: var(--mono);
+  font-size: .78rem;
+  font-weight: 700;
+  letter-spacing: .015em;
+  text-transform: none;
+}
+
+.component-name::after {
+  height: 1px;
+  flex: 1;
+  background: var(--rule);
+  content: '';
+}
+.component-button-row { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.component-button-row.compact { padding-top: 12px; border-top: 1px solid var(--rule); }
+.component-caption, .component-muted { margin: 0; color: var(--ink-soft); font-size: .77rem; line-height: 1.35; }
+.component-tabs { width: fit-content; min-width: 210px; }
+.component-check-grid { display: grid; grid-template-columns: 1.1fr .9fr; gap: 12px; padding: 4px 0 0; }
+.component-check-grid > div { min-width: 0; }
+.component-check-grid .radio-group { margin: 0; }
+.component-check-grid .component-name + .radio-group { margin-top: 10px; }
+.component-sample > .system-input { min-height: 36px; }
+.component-sample .empty-state { min-height: 0; margin: 0; padding: 11px 4px 2px; border-top: 1px dashed var(--rule); }
+.component-sample .empty-state-icon { font-size: 1.35rem; }
+.component-sample .empty-state h2 { font-size: .94rem; }
+.component-sample .empty-state-action { margin-top: 10px; }
+.component-sample .system-card { margin: 0; padding: 14px; box-shadow: none; }
+.component-card-copy { margin: 0; font-size: .85rem; line-height: 1.45; }
+.component-shell-preview { overflow: hidden; border: 1px solid var(--rule); border-radius: var(--radius-sm); }
+.component-shell-preview .app-header { position: static; min-height: 42px; padding: 6px 10px; }
+.component-shell-preview .app-header h1 { font-size: .9rem; }
+.component-shell-preview .icon-button { min-width: 32px; min-height: 32px; color: var(--on-pencil); }
+.component-shell-preview .primary-navigation { gap: 2px; padding: 7px 8px; background: var(--sunk); }
+.component-shell-preview .navigation-item { padding: 6px 8px; font-size: .78rem; }
+.component-shell-preview .navigation-item-icon { font-size: .9rem; }
+.component-sample .system-menu { margin: 0; border: 1px solid var(--rule); border-radius: var(--radius-sm); overflow: hidden; }
+.component-sample .system-menu li + li { border-top: 1px solid var(--rule); }
+.component-library-footer { display: flex; justify-content: space-between; gap: 16px; margin-top: 20px; padding-top: 14px; border-top: 1px solid var(--rule); color: var(--ink-soft); font-size: .78rem; }
+.component-library-footer a { color: var(--pencil); }
+@media (max-width: 720px) { .component-board { grid-template-columns: 1fr; } .component-hero { align-items: flex-start; flex-direction: column; } .component-hero-note { display: none; } }
+@media (max-width: 420px) { .component-library { padding-inline: 14px; } .component-specimen { padding: 14px; } .component-check-grid { grid-template-columns: 1fr; } .component-shell-preview .navigation-item { padding: 6px; } }

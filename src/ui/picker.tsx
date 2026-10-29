@@ -3,6 +3,7 @@ import type { SearchResponses } from '../../sdk/dist/browser.js';
 import { BlyggerApi, unwrap } from '../../sdk/dist/browser.js';
 import { client } from './data.ts';
 import { Button, Failure, useSettings } from './components.tsx';
+import { Toggle, ToggleGroup } from './buttons.tsx';
 import { paletteTrigger, paletteInsert } from '../palette.ts';
 import { setTextAt } from './caret.ts';
 import './picker.css';
@@ -257,24 +258,21 @@ export function BracketPicker({
         </p>
       )}
       <div className="picker-filters">
-        <div role="radiogroup" aria-label="source" className="picker-seg">
+        <ToggleGroup aria-label="source" className="picker-seg" value={[source]}>
           {(['all', 'mine', 'imported'] as const).map((value) => (
-            <label key={value}>
-              <input
-                type="radio"
-                name="picker-source"
-                value={value}
-                checked={source === value}
-                onChange={() => {
+            <Toggle
+              key={value}
+              value={value}
+              onClick={() => {
                   setSource(value);
                   store('blyg.picker.source', value);
                   afterControl();
-                }}
-              />
-              <span>{value === 'all' ? 'both' : value}</span>
-            </label>
+              }}
+            >
+              {value === 'all' ? 'both' : value}
+            </Toggle>
           ))}
-        </div>
+        </ToggleGroup>
         <select
           aria-label="sort"
           value={sort}
