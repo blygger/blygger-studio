@@ -10,6 +10,7 @@ import type {
 } from 'react';
 import { useId, useState } from 'react';
 import { Button as BaseButton } from '@base-ui/react/button';
+import { Accordion as BaseAccordion } from '@base-ui/react/accordion';
 import { Checkbox as BaseCheckbox } from '@base-ui/react/checkbox';
 import { Radio as BaseRadio } from '@base-ui/react/radio';
 import { RadioGroup as BaseRadioGroup } from '@base-ui/react/radio-group';
@@ -181,37 +182,36 @@ export function Card({
   );
 }
 
-/** Multiple AccordionItems can be open together. */
-export function Accordion({ children, className }: { children: ReactNode; className?: string }) {
-  return <div className={classes('accordion', className)}>{children}</div>;
+/** Studio's Base UI Accordion. Multiple sections may be open at once. */
+export function Accordion({ children, className, ...props }: ComponentProps<typeof BaseAccordion.Root>) {
+  return <BaseAccordion.Root {...props} multiple className={classes('accordion', typeof className === 'string' && className)}>{children}</BaseAccordion.Root>;
 }
 
 export function AccordionItem({
   title,
   supportingText,
   children,
-  defaultOpen = false,
   className,
+  ...props
 }: {
   title: ReactNode;
   supportingText?: ReactNode;
   children: ReactNode;
-  defaultOpen?: boolean;
   className?: string;
-}) {
-  const [open, setOpen] = useState(defaultOpen);
+} & ComponentProps<typeof BaseAccordion.Item>) {
   return (
-    <details
+    <BaseAccordion.Item
+      {...props}
       className={classes('card', 'accordion-item', className)}
-      open={open}
-      onToggle={(event) => setOpen((event.currentTarget as HTMLDetailsElement).open)}
     >
-      <summary aria-expanded={open}>
+      <BaseAccordion.Header className="accordion-header">
+        <BaseAccordion.Trigger className="accordion-trigger">
         <span>{title}</span>
         {supportingText ? <span className="muted">{supportingText}</span> : null}
-      </summary>
-      {children}
-    </details>
+        </BaseAccordion.Trigger>
+      </BaseAccordion.Header>
+      <BaseAccordion.Panel className="accordion-panel">{children}</BaseAccordion.Panel>
+    </BaseAccordion.Item>
   );
 }
 
