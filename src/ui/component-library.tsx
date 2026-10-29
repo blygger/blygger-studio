@@ -131,10 +131,22 @@ export function ComponentLibraryPage() {
             </div>
           </div>
           <ComponentName>Select</ComponentName>
-          <Select aria-label="Post status" defaultValue="draft">
-            <option value="draft">Draft</option>
-            <option value="published">Published</option>
-          </Select>
+          <Select.Root defaultValue="draft" items={{ draft: 'Draft', published: 'Published' }}>
+            <Select.Trigger className="system-input select-trigger" aria-label="Post status">
+              <Select.Value />
+              <Select.Icon aria-hidden="true">⌄</Select.Icon>
+            </Select.Trigger>
+            <Select.Portal>
+              <Select.Positioner sideOffset={4}>
+                <Select.Popup className="select-popup">
+                  <Select.List>
+                    <Select.Item value="draft" className="select-item"><Select.ItemText>Draft</Select.ItemText><Select.ItemIndicator>✓</Select.ItemIndicator></Select.Item>
+                    <Select.Item value="published" className="select-item"><Select.ItemText>Published</Select.ItemText><Select.ItemIndicator>✓</Select.ItemIndicator></Select.Item>
+                  </Select.List>
+                </Select.Popup>
+              </Select.Positioner>
+            </Select.Portal>
+          </Select.Root>
         </Specimen>
 
         <Specimen eyebrow="Feedback">
