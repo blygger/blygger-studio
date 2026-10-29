@@ -117,6 +117,10 @@ export function ComponentLibraryPage() {
           <Field label="Title" htmlFor="component-title" supportingText="Visible on the public page.">
             <Input id="component-title" defaultValue="A thoughtful fragment" />
           </Field>
+          <ComponentName>Field &gt; Textarea</ComponentName>
+          <Field label="Editor note" htmlFor="component-note" supportingText="Kept with this draft.">
+            <Textarea id="component-note" defaultValue="Clarifies why this changed." rows={2} />
+          </Field>
           <div className="component-check-grid">
             <div>
               <ComponentName>Checkbox</ComponentName>

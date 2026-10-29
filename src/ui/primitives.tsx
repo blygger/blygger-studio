@@ -88,7 +88,15 @@ export function Input(props: ComponentProps<typeof BaseInput>) {
 }
 
 export function Textarea(props: TextareaHTMLAttributes<HTMLTextAreaElement>) {
-  return <textarea {...props} className={classes('system-input', props.className)} />;
+  // Base UI does not ship a separate Textarea primitive. Field.Control gives
+  // this native textarea the same Field labelling and validation contract as
+  // Base UI's input controls.
+  return (
+    <BaseField.Control
+      render={<textarea {...props} />}
+      className={classes('system-input', props.className)}
+    />
+  );
 }
 
 export function Checkbox({
@@ -305,10 +313,12 @@ export function AppHeader({
   );
 }
 
+/** Persistent route navigation. This is deliberately a semantic nav, not a dropdown NavigationMenu. */
 export function PrimaryNavigation({ children, label = 'primary navigation' }: { children: ReactNode; label?: string }) {
   return <nav className="primary-navigation" aria-label={label}>{children}</nav>;
 }
 
+/** A route link in PrimaryNavigation. It becomes a menu item only when it gains popup content. */
 export function NavigationItem({
   href,
   icon,
