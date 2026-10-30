@@ -1,4 +1,4 @@
-import { test, expect, type Page } from '@playwright/test';
+import { test, expect, type Page } from './fixture';
 
 // Highlight generated portions (0.27.0): the blyg-wide default in settings
 // and an item's own override in the editor's TK card. Public rendering is
@@ -9,6 +9,12 @@ async function login(page: Page) {
   await expect(page.locator('#composer-text')).toBeVisible();
 }
 const settings = (page: Page) => page.evaluate(async () => (await fetch('/api/settings')).json());
+
+// Leave the shared fixture as found, even when a test fails half-way: a retry that
+// starts with the default already on fails at the first assertion instead.
+test.afterEach(async ({ page }) => {
+  await page.evaluate(async () => fetch('/api/settings', { method: 'PATCH', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ highlight_generated_default: false }) })).catch(() => {});
+});
 
 test('the default is a settings checkbox, and an item overrides it from its TK card', async ({ page }) => {
   await login(page);
@@ -29,9 +35,6 @@ test('the default is a settings checkbox, and an item overrides it from its TK c
   await group.getByRole('button', { name: 'off', exact: true }).click();
   await expect(group.locator('[aria-pressed=true]')).toHaveText('off');
   expect(await page.evaluate(async (id) => (await (await fetch(`/api/items/${id}`)).json()).highlight, id)).toBe('hide');
-
-  // Leave the shared fixture as found.
-  await page.evaluate(async () => fetch('/api/settings', { method: 'PATCH', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ highlight_generated_default: false }) }));
 });
 
 test('the robot opens what the author disclosed: hover peeks, a click keeps it, Escape closes', async ({ page }) => {
