@@ -233,9 +233,11 @@ export function Layout({ children }: { children: ReactNode }) {
     <ChromeContext.Provider value={setChrome}>
       <header className="topbar">
         <h1 className="topbar-title">
-          <span aria-hidden="true">❝ </span>
-          {settings?.site_title ? `${settings.site_title} ` : ''}
-          <small>blygger studio</small>
+          <Link to="/reading">
+            <span aria-hidden="true">❝ </span>
+            {settings?.site_title ? `${settings.site_title} ` : ''}
+            <small>blygger studio</small>
+          </Link>
         </h1>
         <div className="topbar-actions">
           {behind ? (
