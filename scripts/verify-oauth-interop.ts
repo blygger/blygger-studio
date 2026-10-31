@@ -99,14 +99,14 @@ async function genericOAuth(fixture: Awaited<ReturnType<typeof startOAuthFixture
     assert.equal(response.status(), 200, 'Omitted-resource code exchange must succeed');
     const tokens = await response.json();
     const checkToken = async (token: string) => {
-      const denied = await backchannel.get(fixture.origin + '/api/settings', { headers: { Authorization: 'Bearer ' + token } });
+      const denied = await backchannel.get(fixture.origin + fixture.mount + '/api/settings', { headers: { Authorization: 'Bearer ' + token } });
       assert.equal(denied.status(), 401, 'Default MCP grant cannot call REST');
       const called = await backchannel.post(fixture.mcp, { headers: { Authorization: 'Bearer ' + token, Accept: 'application/json, text/event-stream', 'MCP-Protocol-Version': '2026-07-28', 'MCP-Method': 'tools/call', 'MCP-Name': 'getSettings' }, data: { jsonrpc: '2.0', id: 1, method: 'tools/call', params: { name: 'getSettings', arguments: {}, _meta: { 'io.modelcontextprotocol/protocolVersion': '2026-07-28', 'io.modelcontextprotocol/clientCapabilities': {} } } } });
       assert.equal(called.status(), 200); const value = await called.json(); assert.notEqual(value.result.isError, true);
       assert.ok('site_title' in JSON.parse(value.result.content[0].text));
     };
     await checkToken(tokens.access_token);
-    const widened = await exchange({ grant_type: 'refresh_token', refresh_token: tokens.refresh_token, resource: fixture.origin + '/api' });
+    const widened = await exchange({ grant_type: 'refresh_token', refresh_token: tokens.refresh_token, resource: fixture.origin + fixture.mount + '/api' });
     assert.equal(widened.status(), 400); assert.equal((await widened.json()).error, 'invalid_target');
     const refreshed = await exchange({ grant_type: 'refresh_token', refresh_token: tokens.refresh_token });
     assert.equal(refreshed.status(), 200); const next = await refreshed.json(); assert.ok(next.refresh_token !== tokens.refresh_token, 'Refresh credentials must rotate'); await checkToken(next.access_token);

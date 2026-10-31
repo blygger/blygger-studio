@@ -153,3 +153,5 @@ function for background work. Input has validated `path`, `query`, and `body`
 fields. Return `success(value)` or a typed `failure(kind, details)`. Handlers do
 not receive Hono contexts or return HTTP responses. REST and MCP invoke the same
 operation runner, which owns scopes, live feature checks, and work admission.
+
+All REST addresses in this guide use `/api` as shorthand for `{mount}/api`. Generated operation paths are relative to the complete API base. Mounted nodes do not provide a host-root API alias.

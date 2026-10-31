@@ -20,7 +20,7 @@ it('rejects hostile JWT headers and algorithms without consulting attacker keys'
   const approved = await f.decide('browser-a', true); expect(approved.status).toBe(302);
   const issued = await f.token(new URL(approved.headers.get('location')!).searchParams.get('code')!); expect(issued.status).toBe(200);
   const { access_token } = await issued.json() as { access_token: string };
-  const read = (token: string) => f.request('/api/settings', { headers: { Authorization: 'Bearer ' + token } });
+  const read = (token: string) => f.request('/blyg/api/settings', { headers: { Authorization: 'Bearer ' + token } });
   expect((await read(access_token)).status).toBe(200);
   const keys = await (await f.request(f.issuer + '/jwks')).json() as { keys: { kid: string }[] };
   expect(keys.keys.length).toBeGreaterThan(0);
@@ -38,7 +38,7 @@ it('rejects hostile JWT headers and algorithms without consulting attacker keys'
   try {
     for (const token of candidates) {
       expect((await read(token)).status, 'hostile JWT cannot read owner material').toBe(401);
-      expect((await f.request('/api/items', { method: 'POST', headers: { Authorization: 'Bearer ' + token, 'Content-Type': 'application/json' }, body: JSON.stringify({ content_md: 'forbidden header write' }) })).status).toBe(401);
+      expect((await f.request('/blyg/api/items', { method: 'POST', headers: { Authorization: 'Bearer ' + token, 'Content-Type': 'application/json' }, body: JSON.stringify({ content_md: 'forbidden header write' }) })).status).toBe(401);
     }
     expect(spy.mock.calls.some(([input]) => String(input instanceof Request ? input.url : input).startsWith(attacker)), 'untrusted JOSE headers cannot trigger network key lookup').toBe(false);
   } finally { spy.mockRestore(); }

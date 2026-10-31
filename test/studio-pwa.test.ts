@@ -29,9 +29,18 @@ describe("studio PWA surface", () => {
     expect(res.headers.get("content-type")).toContain("javascript");
     expect(res.headers.get("service-worker-allowed")).toBe(STUDIO);
     const source = await res.text();
-    // Only the static shell assets are cached; /api never appears.
+    // Boot metadata names the API, but the worker must never intercept it.
     expect(source).toContain(JSON.stringify([`${STUDIO}/app.js`, `${STUDIO}/app.css`, `${STUDIO}/icon.svg`]));
-    expect(source).not.toContain("/api");
+    let fetchHandler: (event: unknown) => void = () => { throw new Error('missing fetch handler'); };
+    new Function('self', source)({
+      location: { origin: BASE },
+      addEventListener: (name: string, handler: typeof fetchHandler) => { if (name === 'fetch') fetchHandler = handler; },
+    });
+    for (const method of ['GET', 'POST']) {
+      let intercepted = false;
+      fetchHandler({ request: { method, url: `${BASE}/blyg/api/items`, mode: 'navigate' }, respondWith: () => { intercepted = true; } });
+      expect(intercepted).toBe(false);
+    }
   });
 
   it("links the manifest, icons and theme-color from both shells; login stays script-free", async () => {

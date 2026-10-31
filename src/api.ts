@@ -51,7 +51,7 @@ import type { ChangeCategory } from "./change-category.ts";
 import { isDecisionModel } from "./ai/models.ts";
 import { platformFetchFor } from "./importer/http.ts";
 import { reconcileIndex } from "./importer/poll.ts";
-import { hex, isFollowableUrl, isValidTimeZone, newMediaId, normalizeMount, nowIso } from "./util.ts";
+import { deploymentPaths, hex, isFollowableUrl, isValidTimeZone, newMediaId, normalizeMount, nowIso } from "./util.ts";
 
 const MEDIA_TYPES: Record<string, string> = {
   "image/png": "png",
@@ -70,7 +70,7 @@ const createItemOperation = async (context: OperationContext, input: OperationIn
   if (body.mode === "fork") return createForkResponse(context, body.source);
   if (body.mode === "response") {
     const item = await createResponseDraft(context, { ...body.source, selection: body.selection });
-    return created(itemResource(item), `/api/items/${item.id}`);
+    return created(itemResource(item), `${deploymentPaths(context.env.MOUNT).api}/items/${item.id}`);
   }
   const kind = body.kind === "thread" ? "thread" : "fragment";
   // A stub is a thread declaring one target (§2.2) — the stub action creates
@@ -87,7 +87,7 @@ const createItemOperation = async (context: OperationContext, input: OperationIn
     if (parsed.errors.length || parsed.scopes.length !== body.provenance.length) return failure('invalid-input', { error: 'provenance must have one entry per TK scope' });
   }
   const item = await createDraft(context.env.DB, body.content_md ?? "", kind, stub, body.provenance);
-  return created(itemResource(item), `/api/items/${item.id}`);
+  return created(itemResource(item), `${deploymentPaths(context.env.MOUNT).api}/items/${item.id}`);
 };
 
 /**
@@ -124,7 +124,7 @@ async function createForkResponse(context: OperationContext, body: { origin: str
   // plain blockquotes with attribution, generated spans as impyrt.
   const flat = await flattenFork(resolved.source, { origin: parsed.ref.origin, link: (o, id) => quotedLink(context.env.DB, o, id, origin) });
   const item = await createFork(context.env.DB, flat.contentMd, resolved.source.kind, parsed.ref, resolved.source.cite);
-  return created(itemResource(item), `/api/items/${item.id}`);
+  return created(itemResource(item), `${deploymentPaths(context.env.MOUNT).api}/items/${item.id}`);
 }
 
 const updateItemOperation = async (context: OperationContext, input: OperationInput) => {
@@ -462,7 +462,7 @@ const uploadMediaOperation = async (context: OperationContext, input: OperationI
   }
   // A published item lists it from its next version on (migration 0031).
   if (row.item_id) await context.env.DB.prepare("UPDATE items SET dirty = 1 WHERE id = ? AND status = 'public'").bind(row.item_id).run();
-  return created({ id: row.id, url: row.r2_key, mime: row.mime }, `/${normalizeMount(context.env.MOUNT).replace(/^\//, "")}/${row.r2_key}`.replace(/^\/\//, "/"));
+  return created({ id: row.id, url: row.r2_key, mime: row.mime }, `${deploymentPaths(context.env.MOUNT).publicBase}/${row.r2_key}`);
 };
 
 /**

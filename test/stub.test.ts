@@ -22,7 +22,7 @@ async function importItem(id: string): Promise<void> {
 }
 
 async function createStub(cookie: string, contentMd: string, stubOf: unknown): Promise<string> {
-  const created = await apiJson(cookie, "POST", "/api/items", { content_md: contentMd, kind: "thread", stub_of: stubOf });
+  const created = await apiJson(cookie, "POST", "/blyg/api/items", { content_md: contentMd, kind: "thread", stub_of: stubOf });
   expect(created.status).toBe(201);
   return created.json.id as string;
 }
@@ -42,7 +42,7 @@ describe("stub_of (§2.2)", () => {
       id: remoteId,
       version: 4,
     });
-    expect((await apiJson(cookie, "POST", `/api/items/${stubId}/publish`, {})).status).toBe(200);
+    expect((await apiJson(cookie, "POST", `/blyg/api/items/${stubId}/publish`, {})).status).toBe(200);
 
     const doc = await itemJson(stubId);
     expect(doc.kind).toBe("thread");
@@ -53,12 +53,12 @@ describe("stub_of (§2.2)", () => {
   it("the version-agreement rule moves the citation to the version actually baked", async () => {
     const cookie = await login();
     const target = await createAndPublish(cookie, "first cut");
-    await apiJson(cookie, "PATCH", `/api/items/${target}`, { content_md: "second cut" });
-    expect((await apiJson(cookie, "POST", `/api/items/${target}/publish`, {})).status).toBe(200);
+    await apiJson(cookie, "PATCH", `/blyg/api/items/${target}`, { content_md: "second cut" });
+    expect((await apiJson(cookie, "POST", `/blyg/api/items/${target}/publish`, {})).status).toBe(200);
 
     // Citation created against v1; the body bakes whatever is current (v2).
     const stubId = await createStub(cookie, `![[${target}]]`, { origin: OURS, id: target, version: 1 });
-    expect((await apiJson(cookie, "POST", `/api/items/${stubId}/publish`, {})).status).toBe(200);
+    expect((await apiJson(cookie, "POST", `/blyg/api/items/${stubId}/publish`, {})).status).toBe(200);
 
     const doc = await itemJson(stubId);
     expect(doc.stub_of).toMatchObject({ origin: OURS, id: target, version: 2 });
@@ -68,11 +68,11 @@ describe("stub_of (§2.2)", () => {
   it("a body that doesn't quote the target keeps the version the author saw", async () => {
     const cookie = await login();
     const target = await createAndPublish(cookie, "v1 text");
-    await apiJson(cookie, "PATCH", `/api/items/${target}`, { content_md: "v2 text" });
-    await apiJson(cookie, "POST", `/api/items/${target}/publish`, {});
+    await apiJson(cookie, "PATCH", `/blyg/api/items/${target}`, { content_md: "v2 text" });
+    await apiJson(cookie, "POST", `/blyg/api/items/${target}/publish`, {});
 
     const stubId = await createStub(cookie, "A response by link alone.", { origin: OURS, id: target, version: 1 });
-    expect((await apiJson(cookie, "POST", `/api/items/${stubId}/publish`, {})).status).toBe(200);
+    expect((await apiJson(cookie, "POST", `/blyg/api/items/${stubId}/publish`, {})).status).toBe(200);
 
     const doc = await itemJson(stubId);
     expect(doc.stub_of).toMatchObject({ origin: OURS, id: target, version: 1 });
@@ -83,7 +83,7 @@ describe("stub_of (§2.2)", () => {
     const cookie = await login();
     const url = "https://simonwillison.net/2026/Sep/10/some-post/";
     const stubId = await createStub(cookie, "Responding to a post out on the open web.", { url });
-    expect((await apiJson(cookie, "POST", `/api/items/${stubId}/publish`, {})).status).toBe(200);
+    expect((await apiJson(cookie, "POST", `/blyg/api/items/${stubId}/publish`, {})).status).toBe(200);
     expect((await itemJson(stubId)).stub_of).toMatchObject({ url });
   });
 
@@ -91,13 +91,13 @@ describe("stub_of (§2.2)", () => {
     const cookie = await login();
     const target = await createAndPublish(cookie, "the target");
     const stubId = await createStub(cookie, `![[${target}]]`, { origin: OURS, id: target, version: 1 });
-    await apiJson(cookie, "POST", `/api/items/${stubId}/publish`, {});
-    expect((await apiJson(cookie, "PUT", `/api/items/${stubId}/versions/${1}/pin`)).status).toBe(200);
+    await apiJson(cookie, "POST", `/blyg/api/items/${stubId}/publish`, {});
+    expect((await apiJson(cookie, "PUT", `/blyg/api/items/${stubId}/versions/${1}/pin`)).status).toBe(200);
 
     const pinned = await (await getPublic(`/blyg/items/${stubId}/v1.json`)).json<any>();
     expect(pinned.stub_of).toMatchObject({ origin: OURS, id: target, version: 1 });
 
-    expect((await apiJson(cookie, "POST", `/api/items/${stubId}/withdraw`, {})).status).toBe(200);
+    expect((await apiJson(cookie, "POST", `/blyg/api/items/${stubId}/withdraw`, {})).status).toBe(200);
     const endcap = await itemJson(stubId);
     expect(endcap.kind).toBe("withdrawn");
     expect(endcap.stub_of).toBeUndefined();
@@ -109,7 +109,7 @@ describe("stub_of (§2.2)", () => {
     });
 
     // Republishing restores it: the working copy kept the citation.
-    expect((await apiJson(cookie, "POST", `/api/items/${stubId}/publish`, {})).status).toBe(200);
+    expect((await apiJson(cookie, "POST", `/blyg/api/items/${stubId}/publish`, {})).status).toBe(200);
     expect((await itemJson(stubId)).stub_of).toMatchObject({ origin: OURS, id: target, version: 1 });
   });
 
@@ -117,8 +117,8 @@ describe("stub_of (§2.2)", () => {
     const cookie = await login();
     const target = await createAndPublish(cookie, "the target");
     const stubId = await createStub(cookie, `![[${target}]]`, { origin: OURS, id: target, version: 1 });
-    expect((await apiJson(cookie, "PATCH", `/api/items/${stubId}`, { stub_of: null })).status).toBe(200);
-    await apiJson(cookie, "POST", `/api/items/${stubId}/publish`, {});
+    expect((await apiJson(cookie, "PATCH", `/blyg/api/items/${stubId}`, { stub_of: null })).status).toBe(200);
+    await apiJson(cookie, "POST", `/blyg/api/items/${stubId}/publish`, {});
 
     const doc = await itemJson(stubId);
     expect(doc.stub_of).toBeUndefined();
@@ -128,7 +128,7 @@ describe("stub_of (§2.2)", () => {
   it("rejects a stub on a fragment, and every malformed citation", async () => {
     const cookie = await login();
     const target = await createAndPublish(cookie, "the target");
-    const onFragment = await apiJson(cookie, "POST", "/api/items", { content_md: "x", stub_of: { url: "https://a.example/" } });
+    const onFragment = await apiJson(cookie, "POST", "/blyg/api/items", { content_md: "x", stub_of: { url: "https://a.example/" } });
     expect(onFragment.status).toBe(400);
 
     const bad: unknown[] = [
@@ -141,7 +141,7 @@ describe("stub_of (§2.2)", () => {
       "a string",
     ];
     for (const stub of bad) {
-      const res = await apiJson(cookie, "POST", "/api/items", { content_md: "x", kind: "thread", stub_of: stub });
+      const res = await apiJson(cookie, "POST", "/blyg/api/items", { content_md: "x", kind: "thread", stub_of: stub });
       expect(res.status, JSON.stringify(stub)).toBe(400);
     }
   });
@@ -150,7 +150,7 @@ describe("stub_of (§2.2)", () => {
     const cookie = await login();
     const target = await createAndPublish(cookie, "the target");
     const stubId = await createStub(cookie, "no quote", { origin: "https://example.com/blyg", id: target, version: 1 });
-    await apiJson(cookie, "POST", `/api/items/${stubId}/publish`, {});
+    await apiJson(cookie, "POST", `/blyg/api/items/${stubId}/publish`, {});
     expect((await itemJson(stubId)).stub_of.origin).toBe(OURS);
   });
 });
@@ -158,11 +158,11 @@ describe("stub_of (§2.2)", () => {
 describe("the citation a stub carries (session 23 ruling: conventional citation norms)", () => {
   it("prints source, excerpt, id, version, URL and retrieval date on the permalink", async () => {
     const cookie = await login();
-    await apiJson(cookie, "PATCH", "/api/settings", { site_url: OURS });
+    await apiJson(cookie, "PATCH", "/blyg/api/settings", { site_url: OURS });
     const remoteId = newId();
     await importItem(remoteId);
     const stubId = await createStub(cookie, `![[${remoteId}]]\n\nMy answer.`, { origin: THEIRS, id: remoteId, version: 4 });
-    await apiJson(cookie, "POST", `/api/items/${stubId}/publish`, {});
+    await apiJson(cookie, "POST", `/blyg/api/items/${stubId}/publish`, {});
 
     const html = await (await getPublic(`/blyg/t/${stubId}/`)).text();
     expect(html).toContain("In response to");
@@ -176,11 +176,11 @@ describe("the citation a stub carries (session 23 ruling: conventional citation 
 
   it("keeps reading correctly after the subscription that named the source is gone", async () => {
     const cookie = await login();
-    await apiJson(cookie, "PATCH", "/api/settings", { site_url: OURS });
+    await apiJson(cookie, "PATCH", "/blyg/api/settings", { site_url: OURS });
     const remoteId = newId();
     await importItem(remoteId);
     const stubId = await createStub(cookie, `![[${remoteId}]]\n\nMy answer.`, { origin: THEIRS, id: remoteId, version: 4 });
-    await apiJson(cookie, "POST", `/api/items/${stubId}/publish`, {});
+    await apiJson(cookie, "POST", `/blyg/api/items/${stubId}/publish`, {});
 
     // The whole subscription disappears — rename, unsubscribe, origin moves.
     await env.DB.prepare("DELETE FROM imported_items").run();
@@ -194,12 +194,12 @@ describe("the citation a stub carries (session 23 ruling: conventional citation 
 
   it("carries the citation onto a pin, and the pin keeps the version it froze", async () => {
     const cookie = await login();
-    await apiJson(cookie, "PATCH", "/api/settings", { site_url: OURS });
+    await apiJson(cookie, "PATCH", "/blyg/api/settings", { site_url: OURS });
     const remoteId = newId();
     await importItem(remoteId);
     const stubId = await createStub(cookie, "Answering by link alone.", { origin: THEIRS, id: remoteId, version: 4 });
-    await apiJson(cookie, "POST", `/api/items/${stubId}/publish`, {});
-    expect((await apiJson(cookie, "PUT", `/api/items/${stubId}/versions/${1}/pin`)).status).toBe(200);
+    await apiJson(cookie, "POST", `/blyg/api/items/${stubId}/publish`, {});
+    expect((await apiJson(cookie, "PUT", `/blyg/api/items/${stubId}/versions/${1}/pin`)).status).toBe(200);
 
     const pinned = await (await getPublic(`/blyg/t/${stubId}/v1/`)).text();
     expect(pinned).toContain("In response to");
@@ -208,10 +208,10 @@ describe("the citation a stub carries (session 23 ruling: conventional citation 
 
   it("cites a plain-web target by host, and never claims more than it knows", async () => {
     const cookie = await login();
-    await apiJson(cookie, "PATCH", "/api/settings", { site_url: OURS });
+    await apiJson(cookie, "PATCH", "/blyg/api/settings", { site_url: OURS });
     const url = "https://simonwillison.net/2026/Sep/10/some-post/";
     const stubId = await createStub(cookie, "Responding to the open web.", { url });
-    await apiJson(cookie, "POST", `/api/items/${stubId}/publish`, {});
+    await apiJson(cookie, "POST", `/blyg/api/items/${stubId}/publish`, {});
 
     const html = await (await getPublic(`/blyg/t/${stubId}/`)).text();
     expect(html).toContain("<cite>simonwillison.net</cite>");
@@ -222,11 +222,11 @@ describe("the citation a stub carries (session 23 ruling: conventional citation 
 
   it("shows a compact form on the feed card and in the RSS description", async () => {
     const cookie = await login();
-    await apiJson(cookie, "PATCH", "/api/settings", { site_url: OURS });
+    await apiJson(cookie, "PATCH", "/blyg/api/settings", { site_url: OURS });
     const remoteId = newId();
     await importItem(remoteId);
     const stubId = await createStub(cookie, `![[${remoteId}]]`, { origin: THEIRS, id: remoteId, version: 4 });
-    await apiJson(cookie, "POST", `/api/items/${stubId}/publish`, {});
+    await apiJson(cookie, "POST", `/blyg/api/items/${stubId}/publish`, {});
 
     const feedPage = await (await getPublic("/blyg/")).text();
     expect(feedPage).toContain("stub-cite compact");
@@ -239,8 +239,8 @@ describe("the citation a stub carries (session 23 ruling: conventional citation 
 
   it("a thread that is not a stub carries no citation at all", async () => {
     const cookie = await login();
-    const plain = (await apiJson(cookie, "POST", "/api/items", { content_md: "just a thread", kind: "thread" })).json.id;
-    await apiJson(cookie, "POST", `/api/items/${plain}/publish`, {});
+    const plain = (await apiJson(cookie, "POST", "/blyg/api/items", { content_md: "just a thread", kind: "thread" })).json.id;
+    await apiJson(cookie, "POST", `/blyg/api/items/${plain}/publish`, {});
     expect(await (await getPublic(`/blyg/t/${plain}/`)).text()).not.toContain("In response to");
   });
 });
@@ -267,18 +267,18 @@ describe("version agreement matches the stub's target by origin and id (studio#2
 // as hoppers address own items; same-origin, so no mention goes out (§15.2).
 describe("stub ↗ on an own item", () => {
   const respond = (cookie: string, id: string, selection?: string) =>
-    apiJson(cookie, "POST", "/api/items", { mode: "response", source: { subscription_id: "~own", remote_id: id }, ...(selection ? { selection } : {}) });
+    apiJson(cookie, "POST", "/blyg/api/items", { mode: "response", source: { subscription_id: "~own", remote_id: id }, ...(selection ? { selection } : {}) });
 
   it("drafts a thread quoting the live version, with a same-origin stub_of, and publishes", async () => {
     const cookie = await login();
     const target = await createAndPublish(cookie, "first cut");
-    await apiJson(cookie, "PATCH", `/api/items/${target}`, { content_md: "second cut, the one to answer" });
-    expect((await apiJson(cookie, "POST", `/api/items/${target}/publish`, {})).status).toBe(200);
+    await apiJson(cookie, "PATCH", `/blyg/api/items/${target}`, { content_md: "second cut, the one to answer" });
+    expect((await apiJson(cookie, "POST", `/blyg/api/items/${target}/publish`, {})).status).toBe(200);
     const created = await respond(cookie, target);
     expect(created.status).toBe(201);
     expect(created.json.kind).toBe("thread");
     expect(created.json.content_md).toBe(`![[${target}]]\n\n`);
-    expect((await apiJson(cookie, "POST", `/api/items/${created.json.id}/publish`, {})).status).toBe(200);
+    expect((await apiJson(cookie, "POST", `/blyg/api/items/${created.json.id}/publish`, {})).status).toBe(200);
     const doc = await itemJson(created.json.id);
     expect(doc.stub_of).toMatchObject({ origin: OURS, id: target, version: 2 });
     expect(doc.transclusions).toMatchObject([{ id: target, version: 2 }]);
@@ -297,11 +297,11 @@ describe("stub ↗ on an own item", () => {
   it("cites a withdrawn item without quoting it, and refuses a draft that was never published", async () => {
     const cookie = await login();
     const target = await createAndPublish(cookie, "soon gone");
-    expect((await apiJson(cookie, "POST", `/api/items/${target}/withdraw`, {})).status).toBe(200);
+    expect((await apiJson(cookie, "POST", `/blyg/api/items/${target}/withdraw`, {})).status).toBe(200);
     const created = await respond(cookie, target);
     expect(created.status).toBe(201);
     expect(created.json.content_md).toBe("");
-    const draft = await apiJson(cookie, "POST", "/api/items", { content_md: "never published" });
+    const draft = await apiJson(cookie, "POST", "/blyg/api/items", { content_md: "never published" });
     expect((await respond(cookie, draft.json.id)).status).toBe(404);
   });
 });

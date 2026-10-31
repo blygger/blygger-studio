@@ -12,9 +12,9 @@ import { authorizationApi } from './authorization-api.ts';
 import { oauthRoutes } from './oauth-routes.ts';
 import { serveMcp } from './mcp.ts';
 import { conditionalResponse, EXPOSED_RESPONSE_HEADERS, setResponseHeaders, validatedResponse } from './http-response.ts';
-import { ownerApi } from "./owner-api.ts";
+import { createOwnerApi } from "./owner-api.ts";
 // Studio is mounted at {mount}/studio and its assets share that range.
-// The owner API remains host-rooted at /api. Register both before the public
+// The API shares the deployment mount. Register both before the public
 // sub-app so public-page cache middleware cannot wrap private responses.
 
 import { type Context, Hono } from "hono";
@@ -37,7 +37,7 @@ import { drainOutbound } from "./mentions/send.ts";
 import { pruneFailedInbound } from "./mentions/store.ts";
 import type { Env, Settings } from "./types.ts";
 import { FEED_PAGE_SIZE, WEBMENTION_PATH } from "./types.ts";
-import { normalizeMount, studioPath } from "./util.ts";
+import { normalizeMount, deploymentPaths } from "./util.ts";
 
 const cors = (c: { header: (k: string, v: string) => void }) =>
   c.header("Access-Control-Allow-Origin", "*");
@@ -45,6 +45,7 @@ const cors = (c: { header: (k: string, v: string) => void }) =>
 /** Build the app for one normalized mount ("" = root, else "/path"). */
 export function makeApp(mount: string) {
   const app = new Hono<{ Bindings: Env }>({ strict: false });
+  const paths = deploymentPaths(mount);
   app.onError((_error, c) => {
     // Authentication driver failures can contain SQL parameters and secrets.
     // Keep a bounded event rather than Hono's default raw Error/stack output.
@@ -52,8 +53,9 @@ export function makeApp(mount: string) {
     return c.json({ error: 'internal server error' }, 500, { 'Cache-Control': 'no-store' });
   });
   app.use('*', async (c, next) => {
-    const path = c.req.path, studio = studioPath(mount);
-    if (path === '/api' || path.startsWith('/api/') || path === studio || path.startsWith(studio + '/')) {
+    c.env = { ...c.env, MOUNT: mount };
+    const path = c.req.path, studio = paths.studio;
+    if (path === paths.api || path.startsWith(paths.api + '/') || path === studio || path.startsWith(studio + '/')) {
       const url = new URL(c.req.url);
       const loopback = ['localhost', '127.0.0.1', '[::1]'].includes(url.hostname);
       if (url.protocol !== 'https:' && !loopback) return c.json({ error: 'HTTPS required' }, 400, { 'Cache-Control': 'no-store' });
@@ -61,11 +63,11 @@ export function makeApp(mount: string) {
     await next();
   });
 
-  // --- Studio: cookie auth, mount-relative (see header note). API: cookie auth, host-rooted. Registered first. ---
+  // --- Private deployment routes precede public cache middleware. ---
 
-  app.route(studioPath(mount) + '/auth', oauthRoutes());
-  app.all(studioPath(mount) + '/mcp', c => serveMcp(c.req.raw, c.env, c.executionCtx));
-  app.use('/api/*', async (c, next) => {
+  app.route(paths.studio + '/auth', oauthRoutes());
+  app.all(paths.studio + '/mcp', c => serveMcp(c.req.raw, c.env, c.executionCtx));
+  app.use(paths.api + '/*', async (c, next) => {
     if (c.req.header('authorization') || c.req.method === 'OPTIONS') {
       c.header('Access-Control-Allow-Origin', '*');
       c.header('Access-Control-Allow-Methods', 'GET, HEAD, POST, PATCH, PUT, DELETE, OPTIONS');
@@ -75,10 +77,10 @@ export function makeApp(mount: string) {
     }
     await next();
   });
-  app.route('/api', authorizationApi);
-  app.route(studioPath(mount), studioSpa(mount));
+  app.route(paths.api, authorizationApi);
+  app.route(paths.studio, studioSpa(mount));
 
-  app.route("/api", ownerApi);
+  app.route(paths.api, createOwnerApi(undefined, undefined, paths.api));
 
   // --- Public surface: mount-relative — cache 60s; JSON/XML get permissive CORS. ---
 
@@ -231,7 +233,7 @@ export function makeApp(mount: string) {
 
   /**
    * Webmention endpoint (§2.3.1, decision #28) — inside the origin surface,
-   * unlike host-rooted /studio and /api, because it is a protocol surface: a
+   * because it is a protocol surface: a
    * stranger's client finds it from the manifest or a page link, both of
    * which are origin-relative.
    *

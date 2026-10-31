@@ -6,7 +6,7 @@ This branch adds owner-approved OAuth grants and manual tokens. Studio keeps its
 
 Open **More → Client access** in Studio. Enter a client name, choose REST API or MCP, select its permissions, and create a token. Copy the token from the dialog before closing it. It expires after 30 days and has no refresh token. Mint a replacement when needed.
 
-The REST API remains at `/api`. MCP is at `{mount}/studio/mcp`, such as `https://example.com/blyg/studio/mcp`. A token is bound to the selected resource: an MCP token cannot call REST, and a REST token cannot connect to MCP.
+The REST API is at `{mount}/api`, such as `https://example.com/blyg/api`. MCP is at `{mount}/studio/mcp`, such as `https://example.com/blyg/studio/mcp`. A token is bound to the selected resource: an MCP token cannot call REST, and a REST token cannot connect to MCP.
 
 | Scope | Allows |
 | --- | --- |
@@ -26,7 +26,7 @@ Use the release SDK in browsers and Node.js. Configure the generated client's na
 import { BlyggerApi, createBlyggerClient, unwrap } from '@blygger/sdk';
 
 const client = createBlyggerClient({
-  baseUrl: 'https://example.com',
+  baseUrl: 'https://example.com/blyg/api',
   auth: scheme => scheme.scheme === 'bearer' ? accessToken : undefined,
 });
 const items = await unwrap(BlyggerApi.listItems({ client }));
@@ -46,7 +46,7 @@ Changing `OWNER_PASSWORD` invalidates existing Studio sessions and preserves del
 
 OAuth uses S256 PKCE, explicit owner consent, one-hour access tokens and rotating refresh credentials. Grants end no later than 30 days after the owner session began. Resource metadata, login, consent, registration, tokens and MCP are under the Studio mount.
 
-Authorization requests that omit `resource` default to `{mount}/studio/mcp`. The login continuation and consent page include that resource, and the resulting access and refresh credentials cannot gain REST API access. REST OAuth clients must request `resource=https://example.com/api` explicitly. Token requests may omit `resource` to retain the audience approved at authorization.
+Authorization requests that omit `resource` default to `{mount}/studio/mcp`. The login continuation and consent page include that resource, and the resulting access and refresh credentials cannot gain REST API access. REST OAuth clients must request `resource=https://example.com/blyg/api` explicitly. Token requests may omit `resource` to retain the audience approved at authorization.
 
 Better Auth and its OAuth Provider supply native OIDC discovery at `{mount}/studio/auth/.well-known/openid-configuration`. The official MCP client has completed discovery, owner consent and tool calls through the Worker at root, `/blyg` and `/nested/blyg` mounts. Protected-resource challenges point to mounted metadata at `{mount}/studio/auth/resources/mcp`. No host-root discovery route is exposed.
 
@@ -77,3 +77,7 @@ Resetting the owner password or cookie secret also invalidates owner login cooki
 Upgrading to 0.28.0 invalidates owner cookies from earlier releases. Log in again in Studio and refresh the cookies used by owner tools. SDK 0.2.0 changes owner credential configuration: replace a plain `auth` session string with `headers.Cookie` in Node.js or the cookie scheme callback shown in the SDK README. Browser Studio sessions use their HttpOnly cookie without an `auth` option.
 
 Protected Studio and API routes refuse plain HTTP outside loopback. For LAN testing from a phone, use an HTTPS tunnel or an HTTPS development proxy. Configure HTTPS at the ingress before deploying; the Worker refuses cleartext auth requests rather than redirecting credentials that have already arrived over HTTP.
+
+## Mounted REST cutover
+
+Mounted nodes no longer serve host-root `/api`. Update SDK base URLs to the full API URL advertised by capabilities or OpenAPI. Generated operation paths are relative to that URL. REST grants for the former host-root audience cannot access the mounted API. Replace manual tokens or obtain new OAuth consent for the new resource; refresh cannot change the approved audience. MCP URLs and audiences stay the same. Root deployments retain `/api`.

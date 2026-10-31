@@ -5,7 +5,7 @@ import { join, resolve } from "node:path";
 import { build } from "esbuild";
 import { chromium } from "@playwright/test";
 
-export async function verifySdkConsumer(temp: string, archive: string, baseUrl: string, token: string) {
+export async function verifySdkConsumer(temp: string, archive: string, baseUrl: string, token: string, studioUrl: string) {
   const consumer = join(temp, "consumer"); mkdirSync(consumer);
   writeFileSync(join(consumer, "package.json"), JSON.stringify({ name: "release-consumer", private: true, type: "module" }));
   // Keep the consumer install offline while supplying the schema export's
@@ -28,7 +28,7 @@ console.log('Installed Node package exports/read/write/upload/auth passed');`;
   writeFileSync(join(consumer, "smoke.mjs"), smoke);
   execFileSync(process.execPath, ["smoke.mjs"], { cwd: consumer, env: { ...process.env, TEST_URL: baseUrl, TEST_TOKEN: token }, stdio: "inherit" });
   writeFileSync(join(consumer, "types.ts"), `import { BlyggerApi, createBlyggerClient, unwrap, type BlyggerClientOptions } from '@blygger/sdk';
-const options: BlyggerClientOptions = {baseUrl: 'https://example.org'};
+const options: BlyggerClientOptions = {baseUrl: 'https://example.org/api'};
 const client = createBlyggerClient(options);
 import { zItem } from '@blygger/sdk/schemas';
 const item = await unwrap(BlyggerApi.createItem({client, body: {content_md: 'typed'}}));
@@ -53,7 +53,8 @@ await BlyggerApi.createItem({client, body: {content_md: 42}});
     const context = await browser.newContext();
     await context.addCookies([{ name: "blyg_session", value: token, url: baseUrl }]);
     const page = await context.newPage();
-    await page.goto(`${baseUrl}/studio/login`);
+    const navigation = await page.goto(studioUrl);
+    assert.equal(navigation?.status(), 200, "Installed SDK browser fixture must load Studio");
     await page.addScriptTag({ content: bundle.outputFiles[0].text });
     const result = await page.evaluate(async baseUrl => {
       const sdk = (globalThis as unknown as { consumerSdk: typeof import("../sdk/dist/browser.js") }).consumerSdk;

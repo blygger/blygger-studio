@@ -6,7 +6,7 @@ import { describe, expect, it } from "vitest";
 import { apiJson, createAndPublish, getPublic, login } from "./helpers.ts";
 
 async function createThread(cookie: string, contentMd: string): Promise<string> {
-  const created = await apiJson(cookie, "POST", "/api/items", { content_md: contentMd, kind: "thread" });
+  const created = await apiJson(cookie, "POST", "/blyg/api/items", { content_md: contentMd, kind: "thread" });
   expect(created.status).toBe(201);
   expect(created.json.kind).toBe("thread");
   return created.json.id as string;
@@ -18,7 +18,7 @@ describe("threads & transclusion (§2.9)", () => {
     const f1 = await createAndPublish(cookie, "first fragment");
     const f2 = await createAndPublish(cookie, "second fragment");
     const threadId = await createThread(cookie, `# A thread\n\nIntro.\n\n![[${f1}]]\n\nMiddle.\n\n![[${f2}]]\n\nOutro.`);
-    const pub = await apiJson(cookie, "POST", `/api/items/${threadId}/publish`, { note: "first cut" });
+    const pub = await apiJson(cookie, "POST", `/blyg/api/items/${threadId}/publish`, { note: "first cut" });
     expect(pub.status).toBe(200);
     expect(pub.json.version).toBe(1);
 
@@ -51,9 +51,9 @@ describe("threads & transclusion (§2.9)", () => {
   // is unchanged from 0.2.
   it("rejects unresolvable transclusions: draft, withdrawn, unknown", async () => {
     const cookie = await login();
-    const draftFrag = (await apiJson(cookie, "POST", "/api/items", { content_md: "never published" })).json.id;
+    const draftFrag = (await apiJson(cookie, "POST", "/blyg/api/items", { content_md: "never published" })).json.id;
     const withdrawnFrag = await createAndPublish(cookie, "to be withdrawn");
-    await apiJson(cookie, "POST", `/api/items/${withdrawnFrag}/withdraw`, {});
+    await apiJson(cookie, "POST", `/blyg/api/items/${withdrawnFrag}/withdraw`, {});
 
     const cases: [string, string][] = [
       ["draft", draftFrag],
@@ -62,7 +62,7 @@ describe("threads & transclusion (§2.9)", () => {
     ];
     for (const [label, id] of cases) {
       const threadId = await createThread(cookie, `bad ref\n\n![[${id}]]`);
-      const pub = await apiJson(cookie, "POST", `/api/items/${threadId}/publish`, {});
+      const pub = await apiJson(cookie, "POST", `/blyg/api/items/${threadId}/publish`, {});
       expect(pub.status, label).toBe(400);
       expect(pub.json.errors.length, label).toBe(1);
     }
@@ -72,7 +72,7 @@ describe("threads & transclusion (§2.9)", () => {
     const cookie = await login();
     const f1 = await createAndPublish(cookie, "fragment");
     const threadId = await createThread(cookie, `![[${f1}@v1]]`);
-    const pub = await apiJson(cookie, "POST", `/api/items/${threadId}/publish`, {});
+    const pub = await apiJson(cookie, "POST", `/blyg/api/items/${threadId}/publish`, {});
     expect(pub.status).toBe(400);
     expect(pub.json.errors[0].reason).toMatch(/reserved/);
   });
@@ -81,22 +81,22 @@ describe("threads & transclusion (§2.9)", () => {
     const cookie = await login();
     const f1 = await createAndPublish(cookie, "original text");
     const threadId = await createThread(cookie, `![[${f1}]]`);
-    await apiJson(cookie, "POST", `/api/items/${threadId}/publish`, {});
+    await apiJson(cookie, "POST", `/blyg/api/items/${threadId}/publish`, {});
     let item = await (await getPublic(`/blyg/items/${threadId}.json`)).json<any>();
     expect(item.content_html).toContain("original text");
 
-    await apiJson(cookie, "PATCH", `/api/items/${f1}`, { content_md: "revised text" });
-    await apiJson(cookie, "POST", `/api/items/${f1}/publish`, {});
+    await apiJson(cookie, "PATCH", `/blyg/api/items/${f1}`, { content_md: "revised text" });
+    await apiJson(cookie, "POST", `/blyg/api/items/${f1}/publish`, {});
     item = await (await getPublic(`/blyg/items/${threadId}.json`)).json<any>();
     expect(item.content_html).toContain("original text");
     expect(item.content_html).not.toContain("revised text");
 
-    await apiJson(cookie, "POST", `/api/items/${f1}/withdraw`, {});
+    await apiJson(cookie, "POST", `/blyg/api/items/${f1}/withdraw`, {});
     item = await (await getPublic(`/blyg/items/${threadId}.json`)).json<any>();
     expect(item.content_html).toContain("original text");
 
     // Republishing re-resolves against current state — now fails since f1 is withdrawn.
-    const rePub = await apiJson(cookie, "POST", `/api/items/${threadId}/publish`, {});
+    const rePub = await apiJson(cookie, "POST", `/blyg/api/items/${threadId}/publish`, {});
     expect(rePub.status).toBe(400);
   });
 
@@ -104,11 +104,11 @@ describe("threads & transclusion (§2.9)", () => {
     const cookie = await login();
     const f1 = await createAndPublish(cookie, "v1 text");
     const threadId = await createThread(cookie, `![[${f1}]]`);
-    await apiJson(cookie, "POST", `/api/items/${threadId}/publish`, {});
-    await apiJson(cookie, "PATCH", `/api/items/${f1}`, { content_md: "v2 text" });
-    await apiJson(cookie, "POST", `/api/items/${f1}/publish`, {});
+    await apiJson(cookie, "POST", `/blyg/api/items/${threadId}/publish`, {});
+    await apiJson(cookie, "PATCH", `/blyg/api/items/${f1}`, { content_md: "v2 text" });
+    await apiJson(cookie, "POST", `/blyg/api/items/${f1}/publish`, {});
 
-    const rePub = await apiJson(cookie, "POST", `/api/items/${threadId}/publish`, {});
+    const rePub = await apiJson(cookie, "POST", `/blyg/api/items/${threadId}/publish`, {});
     expect(rePub.status).toBe(200);
     expect(rePub.json.version).toBe(2);
     const item = await (await getPublic(`/blyg/items/${threadId}.json`)).json<any>();
@@ -120,15 +120,15 @@ describe("threads & transclusion (§2.9)", () => {
     const cookie = await login();
     const f1 = await createAndPublish(cookie, "fragment content");
     const threadId = await createThread(cookie, `![[${f1}]]`);
-    await apiJson(cookie, "POST", `/api/items/${threadId}/publish`, {});
-    const wd = await apiJson(cookie, "POST", `/api/items/${threadId}/withdraw`, {});
+    await apiJson(cookie, "POST", `/blyg/api/items/${threadId}/publish`, {});
+    const wd = await apiJson(cookie, "POST", `/blyg/api/items/${threadId}/withdraw`, {});
     expect(wd.status).toBe(200);
     const item = await (await getPublic(`/blyg/items/${threadId}.json`)).json<any>();
     expect(item.kind).toBe("withdrawn");
     expect(item.transclusions).toEqual([]);
     expect(item.content_html).toBe("");
 
-    const rePub = await apiJson(cookie, "POST", `/api/items/${threadId}/publish`, {});
+    const rePub = await apiJson(cookie, "POST", `/blyg/api/items/${threadId}/publish`, {});
     expect(rePub.status).toBe(200);
     const restored = await (await getPublic(`/blyg/items/${threadId}.json`)).json<any>();
     expect(restored.kind).toBe("thread");
@@ -138,7 +138,7 @@ describe("threads & transclusion (§2.9)", () => {
   it("threads have no fragment length cap", async () => {
     const cookie = await login();
     const threadId = await createThread(cookie, "x".repeat(5000));
-    const pub = await apiJson(cookie, "POST", `/api/items/${threadId}/publish`, {});
+    const pub = await apiJson(cookie, "POST", `/blyg/api/items/${threadId}/publish`, {});
     expect(pub.status).toBe(200);
   });
 
@@ -146,8 +146,8 @@ describe("threads & transclusion (§2.9)", () => {
     const cookie = await login();
     const f1 = await createAndPublish(cookie, "pinned fragment source");
     const threadId = await createThread(cookie, `![[${f1}]]`);
-    await apiJson(cookie, "POST", `/api/items/${threadId}/publish`, {});
-    const pin = await apiJson(cookie, "PUT", `/api/items/${threadId}/versions/${1}/pin`);
+    await apiJson(cookie, "POST", `/blyg/api/items/${threadId}/publish`, {});
+    const pin = await apiJson(cookie, "PUT", `/blyg/api/items/${threadId}/versions/${1}/pin`);
     expect(pin.status).toBe(200);
 
     const res = await getPublic(`/blyg/items/${threadId}/v1.json`);
@@ -157,7 +157,7 @@ describe("threads & transclusion (§2.9)", () => {
     expect(v1.transclusions).toEqual([{ id: f1, version: 1 }]);
     expect(v1.content_html).toContain("pinned fragment source");
 
-    await apiJson(cookie, "POST", `/api/items/${threadId}/withdraw`, {});
+    await apiJson(cookie, "POST", `/blyg/api/items/${threadId}/withdraw`, {});
     expect((await getPublic(`/blyg/items/${threadId}/v1.json`)).status).toBe(200);
   });
 
@@ -165,8 +165,8 @@ describe("threads & transclusion (§2.9)", () => {
     const cookie = await login();
     const f1 = await createAndPublish(cookie, "the quoted fragment");
     const threadId = await createThread(cookie, `Intro line.\n\n![[${f1}]]`);
-    await apiJson(cookie, "POST", `/api/items/${threadId}/publish`, {});
-    await apiJson(cookie, "PUT", `/api/items/${threadId}/versions/${1}/pin`);
+    await apiJson(cookie, "POST", `/blyg/api/items/${threadId}/publish`, {});
+    await apiJson(cookie, "PUT", `/blyg/api/items/${threadId}/versions/${1}/pin`);
 
     const res = await getPublic(`/blyg/t/${threadId}/v1/`);
     expect(res.status).toBe(200);
@@ -180,7 +180,7 @@ describe("threads & transclusion (§2.9)", () => {
     expect((await getPublic(`/blyg/f/${threadId}/v1/`)).status).toBe(404);
 
     // And it survives withdrawal, on the same route.
-    await apiJson(cookie, "POST", `/api/items/${threadId}/withdraw`, {});
+    await apiJson(cookie, "POST", `/blyg/api/items/${threadId}/withdraw`, {});
     expect((await getPublic(`/blyg/t/${threadId}/v1/`)).status).toBe(200);
   });
 
@@ -188,7 +188,7 @@ describe("threads & transclusion (§2.9)", () => {
     const cookie = await login();
     const f1 = await createAndPublish(cookie, "quotable line");
     const threadId = await createThread(cookie, `intro\n\n![[${f1}]]`);
-    await apiJson(cookie, "POST", `/api/items/${threadId}/publish`, { note: "first cut" });
+    await apiJson(cookie, "POST", `/blyg/api/items/${threadId}/publish`, { note: "first cut" });
     const xml = await (await getPublic("/blyg/feed.xml")).text();
     expect(xml).toContain(`blyg:${threadId}:v1`);
     expect(xml).toContain(`t/${threadId}/`);
@@ -200,7 +200,7 @@ describe("threads & transclusion (§2.9)", () => {
     const cookie = await login();
     const f1 = await createAndPublish(cookie, "card source text");
     const threadId = await createThread(cookie, `intro text\n\n![[${f1}]]`);
-    await apiJson(cookie, "POST", `/api/items/${threadId}/publish`, {});
+    await apiJson(cookie, "POST", `/blyg/api/items/${threadId}/publish`, {});
     const html = await (await getPublic("/blyg/")).text();
     expect(html).toContain('class="card-kind"');
     expect(html).toContain('class="item-content card-clip"');
@@ -212,11 +212,11 @@ describe("threads & transclusion (§2.9)", () => {
     const cookie = await login();
     const f1 = await createAndPublish(cookie, "archived source");
     const threadId = await createThread(cookie, `![[${f1}]]`);
-    await apiJson(cookie, "POST", `/api/items/${threadId}/publish`, {});
+    await apiJson(cookie, "POST", `/blyg/api/items/${threadId}/publish`, {});
     const index = await (await getPublic("/blyg/items/index.json")).json<any>();
     expect(index.items.find((i: any) => i.id === threadId).kind).toBe("thread");
 
-    await apiJson(cookie, "POST", `/api/items/${threadId}/withdraw`, {});
+    await apiJson(cookie, "POST", `/blyg/api/items/${threadId}/withdraw`, {});
     expect((await getPublic(`/blyg/t/${threadId}/`)).status).toBe(200);
     expect((await getPublic(`/blyg/f/${threadId}/`)).status).toBe(404);
   });

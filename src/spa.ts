@@ -7,7 +7,7 @@ import {
   issueSessionCookie,
   verifySession,
 } from './auth.ts';
-import { escapeHtml } from './util.ts';
+import { deploymentPaths, escapeHtml } from './util.ts';
 import { authorizationServer, ownerLoginRateLimit } from './oauth.ts';
 import { verifyOAuthQueryParams } from '@better-auth/oauth-provider';
 import { CLIENT } from './client.ts';
@@ -58,7 +58,7 @@ export function studioManifest(base: string) {
  * network answers and the installed app still launches offline. It never
  * touches /api or any server-rendered page: navigations it can't reach fall
  * back to an owner-free shell (the same markup the Worker serves, which
- * carries only the mount), never to a cached response.
+ * carries only deployment paths), never to a cached response.
  *
  * It is a TS template literal emitted as JavaScript, so the AGENTS.md escape
  * hazard applies: no backslashes in it. test/inline-scripts.test.ts parses it.
@@ -133,7 +133,7 @@ export function studioSpa(mount: string) {
   const shell = (body: string, spa = false) =>
     `<!doctype html><html lang="en" class="js" data-theme="auto"><head>${head(`blyg studio${spa ? '' : ' — login'}`)}</head><body>${body}${spa ? `<script defer src="${b}/app.js"></script>` : ''}</body></html>`;
   const spaShell = shell(
-    `<div id="studio-root" data-mount="${escapeHtml(mount)}"></div>`,
+    `<div id="studio-root" data-mount="${escapeHtml(mount)}" data-api-base="${escapeHtml(deploymentPaths(mount).api)}"></div>`,
     true,
   );
   const login = (error = '', next = base, oauthQuery?: string) =>

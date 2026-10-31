@@ -2,12 +2,12 @@
   "openapi": "3.1.0",
   "info": {
     "title": "Blygger Studio API",
-    "version": "1.0.0",
+    "version": "2.0.0",
     "description": "Private authoring and reading API. Protocol files remain a separate public interface."
   },
   "servers": [
     {
-      "url": "http://localhost:8787"
+      "url": "http://localhost:8787/api"
     }
   ],
   "components": {
@@ -2632,7 +2632,7 @@
     "parameters": {}
   },
   "paths": {
-    "/api/authorizations": {
+    "/authorizations": {
       "get": {
         "operationId": "listAuthorizations",
         "tags": [
@@ -2999,7 +2999,7 @@
         }
       }
     },
-    "/api/authorizations/{id}": {
+    "/authorizations/{id}": {
       "delete": {
         "operationId": "revokeAuthorization",
         "tags": [
@@ -3113,7 +3113,7 @@
         }
       }
     },
-    "/api/capabilities": {
+    "/capabilities": {
       "get": {
         "operationId": "getCapabilities",
         "tags": [
@@ -3261,7 +3261,7 @@
         }
       }
     },
-    "/api/changes": {
+    "/changes": {
       "get": {
         "operationId": "getChanges",
         "tags": [
@@ -3411,7 +3411,7 @@
         }
       }
     },
-    "/api/items": {
+    "/items": {
       "post": {
         "operationId": "createItem",
         "tags": [
@@ -3916,7 +3916,7 @@
         }
       }
     },
-    "/api/items/{id}": {
+    "/items/{id}": {
       "patch": {
         "operationId": "updateItem",
         "tags": [
@@ -4658,7 +4658,7 @@
         }
       }
     },
-    "/api/items/{id}/publish": {
+    "/items/{id}/publish": {
       "post": {
         "operationId": "publishItem",
         "tags": [
@@ -4867,7 +4867,7 @@
         }
       }
     },
-    "/api/items/{id}/classify": {
+    "/items/{id}/classify": {
       "post": {
         "operationId": "classifyChange",
         "tags": [
@@ -5071,7 +5071,7 @@
         }
       }
     },
-    "/api/items/{id}/note-draft": {
+    "/items/{id}/note-draft": {
       "post": {
         "operationId": "draftNote",
         "tags": [
@@ -5248,7 +5248,7 @@
         }
       }
     },
-    "/api/items/{id}/generate": {
+    "/items/{id}/generate": {
       "post": {
         "operationId": "generateItem",
         "tags": [
@@ -5445,7 +5445,7 @@
         }
       }
     },
-    "/api/items/{id}/withdraw": {
+    "/items/{id}/withdraw": {
       "post": {
         "operationId": "withdrawItem",
         "tags": [
@@ -5634,7 +5634,7 @@
         }
       }
     },
-    "/api/items/{id}/versions/{version}/pin": {
+    "/items/{id}/versions/{version}/pin": {
       "put": {
         "operationId": "pinItem",
         "tags": [
@@ -5820,7 +5820,7 @@
         }
       }
     },
-    "/api/items/{id}/restore": {
+    "/items/{id}/restore": {
       "post": {
         "operationId": "restoreItem",
         "tags": [
@@ -6017,7 +6017,7 @@
         }
       }
     },
-    "/api/media": {
+    "/media": {
       "post": {
         "operationId": "uploadMedia",
         "tags": [
@@ -6249,7 +6249,7 @@
         }
       }
     },
-    "/api/media/{id}": {
+    "/media/{id}": {
       "delete": {
         "operationId": "deleteMedia",
         "tags": [
@@ -6426,7 +6426,7 @@
         }
       }
     },
-    "/api/settings": {
+    "/settings": {
       "patch": {
         "operationId": "updateSettings",
         "tags": [
@@ -6953,7 +6953,7 @@
         }
       }
     },
-    "/api/subscriptions": {
+    "/subscriptions": {
       "post": {
         "operationId": "createSubscription",
         "tags": [
@@ -7384,7 +7384,7 @@
         }
       }
     },
-    "/api/subscriptions/{id}": {
+    "/subscriptions/{id}": {
       "patch": {
         "operationId": "updateSubscription",
         "tags": [
@@ -7898,7 +7898,7 @@
         }
       }
     },
-    "/api/subscriptions/poll": {
+    "/subscriptions/poll": {
       "post": {
         "operationId": "pollAllSubscriptions",
         "tags": [
@@ -8057,7 +8057,7 @@
         }
       }
     },
-    "/api/subscriptions/{id}/resync": {
+    "/subscriptions/{id}/resync": {
       "post": {
         "operationId": "resyncSubscription",
         "tags": [
@@ -8230,7 +8230,7 @@
         }
       }
     },
-    "/api/hoppers": {
+    "/hoppers": {
       "post": {
         "operationId": "createHopper",
         "tags": [
@@ -8597,7 +8597,7 @@
         }
       }
     },
-    "/api/hoppers/{id}": {
+    "/hoppers/{id}": {
       "patch": {
         "operationId": "updateHopper",
         "tags": [
@@ -9151,7 +9151,7 @@
         }
       }
     },
-    "/api/hoppers/{id}/items/{sub}/{remoteId}": {
+    "/hoppers/{id}/items/{sub}/{remoteId}": {
       "put": {
         "operationId": "addHopperItem",
         "tags": [
@@ -9523,7 +9523,7 @@
         }
       }
     },
-    "/api/signals/{sub}/{remoteId}": {
+    "/signals/{sub}/{remoteId}": {
       "put": {
         "operationId": "setSignal",
         "tags": [
@@ -9909,7 +9909,7 @@
         }
       }
     },
-    "/api/reading/{sub}/{remoteId}/read": {
+    "/reading/{sub}/{remoteId}/read": {
       "put": {
         "operationId": "markRead",
         "tags": [
@@ -10311,7 +10311,7 @@
         }
       }
     },
-    "/api/reading/read": {
+    "/reading/read": {
       "post": {
         "operationId": "markReadBatch",
         "tags": [
@@ -10525,7 +10525,7 @@
         }
       }
     },
-    "/api/reading/unread": {
+    "/reading/unread": {
       "post": {
         "operationId": "markUnreadBatch",
         "tags": [
@@ -10728,7 +10728,7 @@
         }
       }
     },
-    "/api/mentions/{id}": {
+    "/mentions/{id}": {
       "patch": {
         "operationId": "updateMention",
         "tags": [
@@ -10920,7 +10920,7 @@
         }
       }
     },
-    "/api/signals": {
+    "/signals": {
       "get": {
         "operationId": "listSignals",
         "tags": [
@@ -11120,7 +11120,7 @@
         }
       }
     },
-    "/api/interactions": {
+    "/interactions": {
       "get": {
         "operationId": "listInteractions",
         "tags": [
@@ -11338,7 +11338,7 @@
         }
       }
     },
-    "/api/thumbs": {
+    "/thumbs": {
       "get": {
         "operationId": "listThumbs",
         "tags": [
@@ -11499,7 +11499,7 @@
         }
       }
     },
-    "/api/ai/models": {
+    "/ai/models": {
       "get": {
         "operationId": "getAiModels",
         "tags": [
@@ -11649,7 +11649,7 @@
         }
       }
     },
-    "/api/mentions": {
+    "/mentions": {
       "get": {
         "operationId": "listMentions",
         "tags": [
@@ -11876,7 +11876,7 @@
         }
       }
     },
-    "/api/preview": {
+    "/preview": {
       "post": {
         "operationId": "preview",
         "tags": [
@@ -12174,7 +12174,7 @@
         }
       }
     },
-    "/api/search": {
+    "/search": {
       "get": {
         "operationId": "search",
         "tags": [
@@ -12471,7 +12471,7 @@
         }
       }
     },
-    "/api/items/{id}/versions/{v}": {
+    "/items/{id}/versions/{v}": {
       "get": {
         "operationId": "getVersion",
         "tags": [
@@ -12641,7 +12641,7 @@
         }
       }
     },
-    "/api/reading": {
+    "/reading": {
       "get": {
         "operationId": "listReading",
         "tags": [
@@ -12914,7 +12914,7 @@
         }
       }
     },
-    "/api/reading/imported": {
+    "/reading/imported": {
       "get": {
         "operationId": "listImportedReading",
         "tags": [
@@ -13111,7 +13111,7 @@
         }
       }
     },
-    "/api/imports/{sub}/{id}": {
+    "/imports/{sub}/{id}": {
       "get": {
         "operationId": "getImportedItem",
         "tags": [
@@ -13281,7 +13281,7 @@
         }
       }
     },
-    "/api/imports/{sub}/{id}/history": {
+    "/imports/{sub}/{id}/history": {
       "get": {
         "operationId": "getImportedHistory",
         "tags": [
@@ -13497,7 +13497,7 @@
         }
       }
     },
-    "/api/imports/{sub}/{id}/versions/{v}": {
+    "/imports/{sub}/{id}/versions/{v}": {
       "get": {
         "operationId": "getImportedVersion",
         "tags": [
@@ -13699,7 +13699,7 @@
         }
       }
     },
-    "/api/peek": {
+    "/peek": {
       "get": {
         "operationId": "peekItem",
         "tags": [
@@ -13867,7 +13867,7 @@
         }
       }
     },
-    "/api/peek/links": {
+    "/peek/links": {
       "post": {
         "operationId": "classifyLinks",
         "tags": [
@@ -14083,7 +14083,7 @@
         }
       }
     },
-    "/api/browse": {
+    "/browse": {
       "get": {
         "operationId": "listBrowse",
         "tags": [
@@ -14677,7 +14677,7 @@
         }
       }
     },
-    "/api/update-state": {
+    "/update-state": {
       "get": {
         "operationId": "getUpdateState",
         "tags": [
@@ -14830,7 +14830,7 @@
         }
       }
     },
-    "/api/mentions/{id}/source": {
+    "/mentions/{id}/source": {
       "get": {
         "operationId": "getMentionSource",
         "tags": [
@@ -15013,7 +15013,7 @@
         }
       }
     },
-    "/api/freshness": {
+    "/freshness": {
       "get": {
         "operationId": "listStaleThreads",
         "tags": [
@@ -15174,7 +15174,7 @@
         }
       }
     },
-    "/api/items/{id}/freshness": {
+    "/items/{id}/freshness": {
       "get": {
         "operationId": "getItemFreshness",
         "tags": [
@@ -15347,7 +15347,7 @@
         }
       }
     },
-    "/api/items/{id}/refresh": {
+    "/items/{id}/refresh": {
       "post": {
         "operationId": "refreshItem",
         "tags": [
@@ -15551,7 +15551,7 @@
         }
       }
     },
-    "/api/fork-options": {
+    "/fork-options": {
       "get": {
         "operationId": "getForkOptions",
         "tags": [
@@ -15768,7 +15768,7 @@
         }
       }
     },
-    "/api/ext/lineage-glyph/lineage": {
+    "/ext/lineage-glyph/lineage": {
       "get": {
         "operationId": "extLineageGlyphGetLineage",
         "tags": [
@@ -15947,7 +15947,7 @@
         }
       }
     },
-    "/api/ext/lineage-glyph/summaries": {
+    "/ext/lineage-glyph/summaries": {
       "get": {
         "operationId": "extLineageGlyphListSummaries",
         "tags": [

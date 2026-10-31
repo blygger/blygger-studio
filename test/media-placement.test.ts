@@ -13,20 +13,20 @@ async function upload(cookie: string, itemId: string, name: string, inline: bool
   form.set("file", new File([new Uint8Array([0x89, 0x50, 0x4e, 0x47, 1, 2])], name, { type: "image/png" }));
   form.set("item_id", itemId);
   if (inline) form.set("inline", "true");
-  const res = await SELF.fetch(`${BASE}/api/media`, { method: "POST", headers: { cookie }, body: form });
+  const res = await SELF.fetch(`${BASE}/blyg/api/media`, { method: "POST", headers: { cookie }, body: form });
   return (await res.json()) as { id: string; url: string };
 }
 // Rendered images only — og:image in the head names the first image too, correctly.
 const count = (html: string, key: string) => [...html.matchAll(/<img[^>]*>/g)].filter((m) => m[0].includes(key)).length;
 async function publishText(cookie: string, id: string, md: string) {
-  await apiJson(cookie, "PATCH", `/api/items/${id}`, { content_md: md });
-  expect((await apiJson(cookie, "POST", `/api/items/${id}/publish`, {})).status).toBe(200);
+  await apiJson(cookie, "PATCH", `/blyg/api/items/${id}`, { content_md: md });
+  expect((await apiJson(cookie, "POST", `/blyg/api/items/${id}/publish`, {})).status).toBe(200);
 }
 
 describe("placed and appended media", () => {
   it("a placed image renders once; deleting its line removes it everywhere; a tool's attachment is appended", async () => {
     const cookie = await login();
-    const id = (await apiJson(cookie, "POST", "/api/items", { content_md: "draft" })).json.id as string;
+    const id = (await apiJson(cookie, "POST", "/blyg/api/items", { content_md: "draft" })).json.id as string;
     const placed = await upload(cookie, id, "placed.png", true);
     const tool = await upload(cookie, id, "tool.png", false);
     await publishText(cookie, id, `Look:\n\n![a picture](${placed.url})\n\nThat is all.`);
@@ -59,32 +59,32 @@ describe("placed and appended media", () => {
 describe("removing an attachment", () => {
   it("deletes bytes nothing published shows", async () => {
     const cookie = await login();
-    const id = (await apiJson(cookie, "POST", "/api/items", { content_md: "draft" })).json.id as string;
+    const id = (await apiJson(cookie, "POST", "/blyg/api/items", { content_md: "draft" })).json.id as string;
     const m = await upload(cookie, id, "unused.png", false);
-    const res = await apiJson(cookie, "DELETE", `/api/media/${m.id}`);
+    const res = await apiJson(cookie, "DELETE", `/blyg/api/media/${m.id}`);
     expect(res.json).toMatchObject({ ok: true, outcome: "deleted" });
     expect((await getPublic(`/blyg/${m.url}`)).status).toBe(404);
-    expect((await apiJson(cookie, "GET", `/api/items/${id}`)).json.media).toEqual([]);
+    expect((await apiJson(cookie, "GET", `/blyg/api/items/${id}`)).json.media).toEqual([]);
   });
 
   it("keeps bytes a published version shows, and only detaches the row (§5.4)", async () => {
     const cookie = await login();
-    const id = (await apiJson(cookie, "POST", "/api/items", { content_md: "draft" })).json.id as string;
+    const id = (await apiJson(cookie, "POST", "/blyg/api/items", { content_md: "draft" })).json.id as string;
     const m = await upload(cookie, id, "kept.png", true);
     await publishText(cookie, id, `![](${m.url})`);
     await publishText(cookie, id, "Image line deleted in v2.");
-    const res = await apiJson(cookie, "DELETE", `/api/media/${m.id}`);
+    const res = await apiJson(cookie, "DELETE", `/blyg/api/media/${m.id}`);
     expect(res.json).toMatchObject({ outcome: "detached" });
     expect((await getPublic(`/blyg/${m.url}`)).status).toBe(200);
-    expect((await apiJson(cookie, "GET", `/api/items/${id}`)).json.media).toEqual([]);
+    expect((await apiJson(cookie, "GET", `/blyg/api/items/${id}`)).json.media).toEqual([]);
   });
 
   it("refuses the avatar", async () => {
     const cookie = await login();
-    const id = (await apiJson(cookie, "POST", "/api/items", { content_md: "draft" })).json.id as string;
+    const id = (await apiJson(cookie, "POST", "/blyg/api/items", { content_md: "draft" })).json.id as string;
     const m = await upload(cookie, id, "face.png", false);
     await env.DB.prepare("INSERT OR REPLACE INTO settings (key, value) VALUES ('avatar_media_id', ?)").bind(m.id).run();
-    expect((await apiJson(cookie, "DELETE", `/api/media/${m.id}`)).status).toBe(409);
+    expect((await apiJson(cookie, "DELETE", `/blyg/api/media/${m.id}`)).status).toBe(409);
   });
 });
 

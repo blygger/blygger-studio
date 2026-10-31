@@ -53,14 +53,14 @@ describe("what an unconfigured blyg actually publishes", () => {
   it("titles itself by host once site_url is known, not 'blyg'", async () => {
     const cookie = await login();
     // site_url set (as `npm run init` now does), title never touched.
-    await apiJson(cookie, "PATCH", "/api/settings", { site_url: "https://blyg.stranger.example/" });
+    await apiJson(cookie, "PATCH", "/blyg/api/settings", { site_url: "https://blyg.stranger.example/" });
     const manifest = (await (await getPublic("/blyg/blyg.json")).json()) as any;
     expect(manifest.title).toBe("stranger.example");
   });
 
   it("an operator's own title always wins over the derivation", async () => {
     const cookie = await login();
-    await apiJson(cookie, "PATCH", "/api/settings", {
+    await apiJson(cookie, "PATCH", "/blyg/api/settings", {
       site_url: "https://blyg.stranger.example/",
       site_title: "A Name I Chose",
     });
@@ -70,7 +70,7 @@ describe("what an unconfigured blyg actually publishes", () => {
 
   it("an emptied title falls back to the derivation, not to the empty string", async () => {
     const cookie = await login();
-    await apiJson(cookie, "PATCH", "/api/settings", { site_url: "https://blyg.stranger.example/", site_title: "" });
+    await apiJson(cookie, "PATCH", "/blyg/api/settings", { site_url: "https://blyg.stranger.example/", site_title: "" });
     const manifest = (await (await getPublic("/blyg/blyg.json")).json()) as any;
     expect(manifest.title).toBe("stranger.example");
   });

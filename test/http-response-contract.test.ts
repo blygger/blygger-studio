@@ -12,7 +12,7 @@ const headerTokens = (response: Response, name: string) => (response.headers.get
 
 async function publishedFixture() {
   const cookie = await login();
-  expect((await apiJson(cookie, 'PATCH', '/api/settings', { site_url: `${BASE}/blyg/` })).status).toBe(200);
+  expect((await apiJson(cookie, 'PATCH', '/blyg/api/settings', { site_url: `${BASE}/blyg/` })).status).toBe(200);
   const id = await createAndPublish(cookie, 'HTTP response contract body');
   return { cookie, id };
 }
@@ -59,10 +59,10 @@ describe('public HTTP response contract', () => {
     const form = new FormData();
     form.set('file', new File(['fixed image bytes'], 'public.png', { type: 'image/png' }));
     form.set('item_id', id);
-    const uploaded = await request('/api/media', { method: 'POST', headers: { cookie }, body: form });
+    const uploaded = await request('/blyg/api/media', { method: 'POST', headers: { cookie }, body: form });
     expect(uploaded.status).toBe(201);
     const media = await uploaded.json<{ url: string }>();
-    expect((await apiJson(cookie, 'POST', `/api/items/${id}/publish`, {})).status).toBe(200);
+    expect((await apiJson(cookie, 'POST', `/blyg/api/items/${id}/publish`, {})).status).toBe(200);
     const path = `/blyg/${media.url}`;
     const response = await request(path);
     expect(response.status).toBe(200);
@@ -75,7 +75,7 @@ describe('public HTTP response contract', () => {
 
   it('validates complete public JSON documents on GET and HEAD', async () => {
     const { cookie, id } = await publishedFixture();
-    expect((await apiJson(cookie, 'PUT', `/api/items/${id}/versions/1/pin`)).status).toBe(200);
+    expect((await apiJson(cookie, 'PUT', `/blyg/api/items/${id}/versions/1/pin`)).status).toBe(200);
     for (const path of ['/blyg/blyg.json', '/blyg/items/index.json', `/blyg/items/${id}.json`, `/blyg/items/${id}/v1.json`]) {
       const response = await request(path, { headers: { Origin: READER } });
       expect(response.status).toBe(200);
@@ -98,7 +98,7 @@ describe('public HTTP response contract', () => {
     expect(etag).toBeTruthy();
     const before = await first.json<{ content_hash: string; changelog: Array<{ pinned?: boolean }> }>();
     expect(before.changelog[0].pinned).toBeUndefined();
-    expect((await apiJson(cookie, 'PUT', `/api/items/${id}/versions/1/pin`)).status).toBe(200);
+    expect((await apiJson(cookie, 'PUT', `/blyg/api/items/${id}/versions/1/pin`)).status).toBe(200);
     const next = await request(path, { headers: { 'If-None-Match': etag } });
     expect(next.status).toBe(200);
     expect(next.headers.get('etag')).not.toBe(etag);
@@ -109,13 +109,13 @@ describe('public HTTP response contract', () => {
 
   it('revalidates pinned metadata instead of treating its markdown hash as document identity', async () => {
     const { cookie, id } = await publishedFixture();
-    expect((await apiJson(cookie, 'PUT', `/api/items/${id}/versions/1/pin`)).status).toBe(200);
+    expect((await apiJson(cookie, 'PUT', `/blyg/api/items/${id}/versions/1/pin`)).status).toBe(200);
     const path = `/blyg/items/${id}/v1.json`;
     const first = await request(path);
     const etag = first.headers.get('etag')!;
     expect(etag).toBeTruthy();
     const before = await first.json<{ content_md: string; content_hash: string; author: { name: string; url: string }; origin: string }>();
-    expect((await apiJson(cookie, 'PATCH', '/api/settings', {
+    expect((await apiJson(cookie, 'PATCH', '/blyg/api/settings', {
       author_name: 'Updated HTTP Author', author_url: 'https://author.example.test/', site_url: 'https://new-origin.example.test/notes/',
     })).status).toBe(200);
     const response = await request(path, { headers: { 'If-None-Match': etag } });
@@ -132,7 +132,7 @@ describe('public HTTP response contract', () => {
 
   it('keeps changing public absence uncached and readable across origins', async () => {
     const { cookie, id } = await publishedFixture();
-    const draft = await apiJson(cookie, 'POST', '/api/items', { content_md: 'Private working copy' });
+    const draft = await apiJson(cookie, 'POST', '/blyg/api/items', { content_md: 'Private working copy' });
     expect(draft.status).toBe(201);
     for (const path of [`/blyg/items/${draft.json.id}.json`, '/blyg/items/http-contract-missing.json', `/blyg/items/${id}/v1.json`, '/blyg/blogroll.opml']) {
       for (const method of ['GET', 'HEAD']) {
@@ -145,7 +145,7 @@ describe('public HTTP response contract', () => {
         else await response.arrayBuffer();
       }
     }
-    expect((await apiJson(cookie, 'PUT', `/api/items/${id}/versions/1/pin`)).status).toBe(200);
+    expect((await apiJson(cookie, 'PUT', `/blyg/api/items/${id}/versions/1/pin`)).status).toBe(200);
     const available = await request(`/blyg/items/${id}/v1.json`, { headers: { Origin: READER } });
     expect(available.status).toBe(200);
     await available.arrayBuffer();
@@ -180,10 +180,10 @@ describe('private HTTP response contract', () => {
     const bytes = new Uint8Array([0x89, 0x50, 0x4e, 0x47, 1, 2, 3, 4]);
     const form = new FormData();
     form.set('file', new File([bytes], 'http-contract.png', { type: 'image/png' }));
-    const uploaded = await request('/api/media', { method: 'POST', headers: { cookie }, body: form });
+    const uploaded = await request('/blyg/api/media', { method: 'POST', headers: { cookie }, body: form });
     expect(uploaded.status).toBe(201);
     const media = await uploaded.json<{ url: string }>();
-    const grant = await apiJson(cookie, 'POST', '/api/authorizations', { name: 'HTTP media reader', scope: ['owner:read'], resource: 'api' });
+    const grant = await apiJson(cookie, 'POST', '/blyg/api/authorizations', { name: 'HTTP media reader', scope: ['owner:read'], resource: 'api' });
     expect(grant.status).toBe(200);
     const path = `/blyg/${media.url}`;
     const preflight = await request(path, { method: 'OPTIONS', headers: { Origin: READER, 'Access-Control-Request-Method': 'GET', 'Access-Control-Request-Headers': 'authorization' } });
@@ -206,7 +206,7 @@ describe('private HTTP response contract', () => {
   it('sets no-store even when body limits reject before authentication or dispatch', async () => {
     const app = makeApp('/blyg');
     const cases: Array<{ path: string; body: string; bindings: Env }> = [
-      { path: '/api/items', body: 'x'.repeat(33), bindings: { ...env, API_BODY_LIMIT: '32' } },
+      { path: '/blyg/api/items', body: 'x'.repeat(33), bindings: { ...env, API_BODY_LIMIT: '32' } },
       { path: `${AUTH}/oauth2/register`, body: 'x'.repeat(1024 * 1024 + 1), bindings: env },
     ];
     for (const { path, body, bindings } of cases) {
@@ -221,13 +221,13 @@ describe('private HTTP response contract', () => {
 
   it('reports allowed API, authorization-management, OpenAPI and MCP methods', async () => {
     const cookie = await login();
-    const grant = await apiJson(cookie, 'POST', '/api/authorizations', { name: 'HTTP MCP method fixture', scope: ['owner:read'], resource: 'mcp' });
+    const grant = await apiJson(cookie, 'POST', '/blyg/api/authorizations', { name: 'HTTP MCP method fixture', scope: ['owner:read'], resource: 'mcp' });
     expect(grant.status).toBe(200);
     const cases: Array<{ path: string; method: string; expected: string[]; headers: Record<string, string> }> = [
-      { path: '/api/settings', method: 'POST', expected: ['get', 'head', 'patch'], headers: { cookie } },
-      { path: '/api/authorizations', method: 'PATCH', expected: ['delete', 'get', 'head', 'post'], headers: { cookie } },
-      { path: '/api/authorizations/http-contract-missing', method: 'POST', expected: ['delete'], headers: { cookie } },
-      { path: '/api/openapi.json', method: 'POST', expected: ['get', 'head'], headers: { cookie } },
+      { path: '/blyg/api/settings', method: 'POST', expected: ['get', 'head', 'patch'], headers: { cookie } },
+      { path: '/blyg/api/authorizations', method: 'PATCH', expected: ['delete', 'get', 'head', 'post'], headers: { cookie } },
+      { path: '/blyg/api/authorizations/http-contract-missing', method: 'POST', expected: ['delete'], headers: { cookie } },
+      { path: '/blyg/api/openapi.json', method: 'POST', expected: ['get', 'head'], headers: { cookie } },
       { path: `${STUDIO}/mcp`, method: 'PUT', expected: ['post'], headers: { Authorization: `Bearer ${grant.json.access_token}` } },
     ];
     for (const { path, method, expected, headers } of cases) {
@@ -237,7 +237,7 @@ describe('private HTTP response contract', () => {
       expect(headerTokens(response, 'allow').filter(value => value !== 'options').sort(), path).toEqual(expected);
       await response.arrayBuffer();
     }
-    const missing = await request('/api/openapiXjson', { method: 'POST', headers: { cookie } });
+    const missing = await request('/blyg/api/openapiXjson', { method: 'POST', headers: { cookie } });
     expect(missing.status).toBe(404);
     expect(missing.headers.get('allow')).toBeNull();
     await missing.arrayBuffer();
@@ -275,7 +275,7 @@ describe('OAuth HTTP response contract', () => {
     await decision.arrayBuffer();
     const exchange = (value: string) => f.request(`${f.issuer}/oauth2/token`, {
       method: 'POST', headers: { Origin: READER, 'Content-Type': 'application/x-www-form-urlencoded' },
-      body: new URLSearchParams({ grant_type: 'authorization_code', code: value, client_id: f.client.client_id, redirect_uri: f.redirect, resource: `${f.base}/api`, code_verifier: f.verifier }),
+      body: new URLSearchParams({ grant_type: 'authorization_code', code: value, client_id: f.client.client_id, redirect_uri: f.redirect, resource: `${f.base}/blyg/api`, code_verifier: f.verifier }),
     });
     const response = await exchange(code);
     expect(response.status).toBe(200);

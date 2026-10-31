@@ -44,7 +44,7 @@ it.each([[], ['reading:state']].map(scope => [scope] as const))('lets any authen
   expect(value.operations).toEqual(expected);
   expect((await inventory(access)).map(tool => tool.name).sort()).toEqual(expected);
   expect(value.endpoints).toEqual({ publicBase: 'https://policy.example/nested/blyg', studio: 'https://policy.example/nested/blyg/studio',
-    api: 'https://policy.example/api', issuer: 'https://policy.example/nested/blyg/studio/auth', mcp: 'https://policy.example/nested/blyg/studio/mcp', media: 'https://policy.example/nested/blyg/media' });
+    api: 'https://policy.example/nested/blyg/api', issuer: 'https://policy.example/nested/blyg/studio/auth', mcp: 'https://policy.example/nested/blyg/studio/mcp', media: 'https://policy.example/nested/blyg/media' });
 });
 it.each([
   ['declared only', [], true, ['owner:read'], false, true],
@@ -85,7 +85,7 @@ it('describes actual effects and conditional permission rules in MCP and OpenAPI
   expect(tool('markRead').annotations).toMatchObject({ readOnlyHint: false, destructiveHint: false });
   expect(tool('updateItem').description).toContain('also requires owner:publish');
   expect(tool('updateSettings').description).toContain('also requires owner:publish');
-  expect(spec.paths['/api/items/{id}'].patch.description).toContain('also requires owner:publish');
+  expect(spec.paths['/items/{id}'].patch.description).toContain('also requires owner:publish');
   expect(JSON.stringify(spec)).not.toContain('conditionalScopes');
   expect(JSON.stringify(spec)).not.toContain('"policy"');
 });

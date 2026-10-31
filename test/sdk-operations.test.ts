@@ -9,7 +9,7 @@ import { BASE, login } from "./helpers.ts";
 // The independent oracles own semantic correctness. Generate/subscribe success
 // needs a provider fixture; this matrix explicitly credits only their errors.
 it("exercises every declared operation through its named SDK method, including auth", async () => {
-  const clientFor = (cookie = "") => createBlyggerClient({ baseUrl: BASE, headers: { cookie }, fetch: (input, init) => SELF.fetch(input instanceof Request ? input : new Request(input, init)) });
+  const clientFor = (cookie = "") => createBlyggerClient({ baseUrl: BASE + '/blyg/api', headers: { cookie }, fetch: (input, init) => SELF.fetch(input instanceof Request ? input : new Request(input, init)) });
   const client = clientFor(await login()), denied = clientFor();
   const draft = await unwrap(api.createItem({ client, body: { content_md: "matrix" } }));
   const sub = await createSubscription(env.DB, { kind: "rss", origin: "https://matrix.example/", feedUrl: "https://matrix.example/feed", title: "Matrix" });

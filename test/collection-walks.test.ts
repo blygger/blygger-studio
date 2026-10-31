@@ -20,7 +20,7 @@ import { BASE, login } from "./helpers.ts";
 // Static fixtures, exact ordered IDs. Concurrent changes during offset walks
 // are outside this contract. Signals have the generated pagination oracle.
 it("walks every other collection completely across tied timestamps and page boundaries", async () => {
-  const client = createBlyggerClient({ baseUrl: BASE, headers: { cookie: await login() }, fetch: (input, init) => SELF.fetch(input instanceof Request ? input : new Request(input, init)) });
+  const client = createBlyggerClient({ baseUrl: BASE + '/blyg/api', headers: { cookie: await login() }, fetch: (input, init) => SELF.fetch(input instanceof Request ? input : new Request(input, init)) });
   const ids: string[] = [], keys = Array.from({ length: 11 }, (_, i) => `walk-${String(i).padStart(2, "0")}`);
   for (const key of keys) {
     const item = await unwrap(api.createItem({ client, body: { content_md: `collection ${key}` } }));

@@ -1,3 +1,4 @@
+import { deploymentPaths } from '../util.ts';
 import { success, created, failure, type OperationContext, type OperationInput } from '../operation-types.ts';
 import { feedUrl as surfaceFeedUrl, surfaceFromManifest } from "../surface.ts";
 import { platformFetchFor } from "./http.ts";
@@ -97,7 +98,7 @@ const createSubscriptionOperation = async (context: OperationContext, input: Ope
   // `backfill: false` (bulk imports, e.g. OPML) skips it: isDue() treats a
   // null last_poll_at as due, so the next quarter-hour tick imports it instead.
   if (body.backfill !== false) context.defer(pollSubscription(context.env.DB, sub, platformFetchFor(context.env)).catch(() => {}));
-  return created(subscriptionResource(sub), `/api/subscriptions/${sub.id}`);
+  return created(subscriptionResource(sub), `${deploymentPaths(context.env.MOUNT).api}/subscriptions/${sub.id}`);
 };
 
 const updateSubscriptionOperation = async (context: OperationContext, input: OperationInput) => {
@@ -166,7 +167,7 @@ const createHopperOperation = async (context: OperationContext, input: Operation
   const body = (input.body as { name: string });
   if (!body.name.trim()) return failure('invalid-input', { error: "name required" });
   const hopper = await createHopper(context.env.DB, body.name.trim(), await uniqueSlug(context.env.DB, body.name.trim()));
-  return created(hopperResource(hopper), `/api/hoppers/${hopper.id}`);
+  return created(hopperResource(hopper), `${deploymentPaths(context.env.MOUNT).api}/hoppers/${hopper.id}`);
 };
 
 const updateHopperOperation = async (context: OperationContext, input: OperationInput) => {

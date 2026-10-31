@@ -42,7 +42,7 @@ const toolDefinitions = Object.entries(routes).map(([name, definition]) => {
   if (name === 'uploadMedia') fields.body = z.object({ file: z.object({ filename: z.string(), contentType: z.string(), dataBase64: z.string().describe('Canonical padded Base64. Decoded image file limit: 5 MiB.') }).strict(), item_id: z.string().optional(), alt: z.string().optional(), inline: z.enum(['true', 'false']).optional() }).strict();
   else if (body) fields.body = route.request!.body!.required ? body : body.optional();
   const inputSchema = z.object(fields).strict();
-  const description = `${route.method.toUpperCase()} /api${route.path}. Required scopes: ${operationScopes(name).join(', ') || 'any authenticated identity'}.${route.policy.conditionalScopes ? ' ' + route.policy.conditionalScopes.description : ''}${route.policy.scopeNotes ? ' ' + route.policy.scopeNotes : ''}${name === 'createItem' || name === 'updateItem' ? ' For generated text, record provenance alongside TK scopes; provenance is client-asserted.' : ''}`;
+  const description = `${route.method.toUpperCase()} {api}${route.path}. Required scopes: ${operationScopes(name).join(', ') || 'any authenticated identity'}.${route.policy.conditionalScopes ? ' ' + route.policy.conditionalScopes.description : ''}${route.policy.scopeNotes ? ' ' + route.policy.scopeNotes : ''}${name === 'createItem' || name === 'updateItem' ? ' For generated text, record provenance alongside TK scopes; provenance is client-asserted.' : ''}`;
   const annotations = operationHints(route.policy);
   return { name, route, inputSchema, description, annotations, wireSchema: z.toJSONSchema(inputSchema, { io: 'input' }) as Tool['inputSchema'] };
 });
@@ -61,8 +61,10 @@ export async function serveMcp(request: Request, env: Env, ctx: Context['executi
 export async function serveAuthorizedMcp(request: Request, env: Env, ctx: Context['executionCtx'], access: OwnerAccess, extensions: readonly ServerExtension[] = compiledServerExtensions) {
   const definitions = operationDefinitions(extensions);
   const handler = createMcpHandler(() => {
+    const apiBase = authLocations(request.url, env).api;
+    const tools = toolDefinitions.map(tool => ({ ...tool, description: tool.description.replace('{api}', apiBase) }));
     const server = new McpServer({ name: 'blygger-studio', version: API_CONTRACT_VERSION });
-    for (const { name, route, inputSchema, description, annotations } of toolDefinitions) {
+    for (const { name, route, inputSchema, description, annotations } of tools) {
       server.registerTool(name, { description, inputSchema, annotations, scopeChallenge: context => {
         const args = context.request.params?.arguments as { body?: unknown } | undefined;
         const required = operationScopes(name, args);
@@ -90,7 +92,7 @@ export async function serveAuthorizedMcp(request: Request, env: Env, ctx: Contex
         console.error('MCP discovery failed', { errorType: error instanceof Error ? error.name : typeof error });
         throw new Error('internal server error');
       }
-      return { tools: toolDefinitions.filter(tool => available.operations.includes(tool.name)).map(({ name, description, wireSchema, annotations }) =>
+      return { tools: tools.filter(tool => available.operations.includes(tool.name)).map(({ name, description, wireSchema, annotations }) =>
         ({ name, description, inputSchema: wireSchema, annotations })) };
     });
     return server;

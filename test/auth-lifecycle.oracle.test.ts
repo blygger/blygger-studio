@@ -36,7 +36,7 @@ async function issue() {
   const tokens = await response.json() as { access_token: string; refresh_token: string; expires_in: number };
   return { ...f, code, tokens };
 }
-const refresh = (f: Awaited<ReturnType<typeof issue>>) => f.request(f.issuer + '/oauth2/token', { method: 'POST', body: new URLSearchParams({ grant_type: 'refresh_token', client_id: f.client.client_id, refresh_token: f.tokens.refresh_token, resource: f.base + '/api' }) });
+const refresh = (f: Awaited<ReturnType<typeof issue>>) => f.request(f.issuer + '/oauth2/token', { method: 'POST', body: new URLSearchParams({ grant_type: 'refresh_token', client_id: f.client.client_id, refresh_token: f.tokens.refresh_token, resource: f.base + '/blyg/api' }) });
 async function withEnv(url: string, currentEnv: Env, init: RequestInit = {}) {
   const ctx = createExecutionContext(), headers = new Headers(init.headers);
   headers.set('cf-connecting-ip', '198.51.100.230');
@@ -50,20 +50,20 @@ describe('native auth lifecycle receiving boundaries', () => {
     const revoke = (token: string, hint: string) => f.request(f.issuer + '/oauth2/revoke', { method: 'POST', body: new URLSearchParams({ client_id: f.client.client_id, token, token_type_hint: hint }) });
     const jwt = await revoke(f.tokens.access_token, 'access_token');
     expect(jwt.status).toBe(400); expect(await jwt.json()).toMatchObject({ error: 'unsupported_token_type' });
-    expect((await f.request('/api/settings', { headers: { Authorization: 'Bearer ' + f.tokens.access_token } })).status).toBe(200);
+    expect((await f.request('/blyg/api/settings', { headers: { Authorization: 'Bearer ' + f.tokens.access_token } })).status).toBe(200);
     expect((await revoke(f.tokens.refresh_token, 'refresh_token')).status).toBe(200);
-    expect((await f.request('/api/settings', { headers: { Authorization: 'Bearer ' + f.tokens.access_token } })).status).toBe(200);
+    expect((await f.request('/blyg/api/settings', { headers: { Authorization: 'Bearer ' + f.tokens.access_token } })).status).toBe(200);
     expect((await refresh(f)).status).toBe(400);
-    expect((await f.request('/api/settings', { headers: { Authorization: 'Bearer ' + f.tokens.access_token } })).status).toBe(401);
+    expect((await f.request('/blyg/api/settings', { headers: { Authorization: 'Bearer ' + f.tokens.access_token } })).status).toBe(401);
   });
 
   it('keeps authenticated server API issuance separate from an exhausted public DCR budget', async () => {
     const f = await flow();
     for (let i = 0; i < 4; i++) expect((await f.request(f.issuer + '/oauth2/register', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ redirect_uris: [f.redirect], token_endpoint_auth_method: 'none' }) })).status).toBe(201);
     expect((await f.request(f.issuer + '/oauth2/register', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ redirect_uris: [f.redirect], token_endpoint_auth_method: 'none' }) })).status).toBe(429);
-    const manual = await f.request('/api/authorizations', { method: 'POST', headers: { cookie: f.owner, 'Content-Type': 'application/json' }, body: JSON.stringify({ name: 'authenticated API bypass', scope: ['owner:read'], resource: 'api' }) });
+    const manual = await f.request('/blyg/api/authorizations', { method: 'POST', headers: { cookie: f.owner, 'Content-Type': 'application/json' }, body: JSON.stringify({ name: 'authenticated API bypass', scope: ['owner:read'], resource: 'api' }) });
     expect(manual.status).toBe(200); expect(await manual.json()).toHaveProperty('access_token');
-    expect((await f.request('/api/authorizations', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}' })).status).toBe(401);
+    expect((await f.request('/blyg/api/authorizations', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}' })).status).toBe(401);
   });
 
   it('rejects hostile native consent origins and false wrapper owner credentials', async () => {
@@ -89,9 +89,9 @@ describe('native auth lifecycle receiving boundaries', () => {
     const approval = await pending.decide('browser-a', true);
     const code = new URL(approval.headers.get('location')!).searchParams.get('code')!;
     const rotated = { ...env, COOKIE_SECRET: env.COOKIE_SECRET + '-lifecycle-rotation' };
-    const exchange = await withEnv(pending.issuer + '/oauth2/token', rotated, { method: 'POST', body: new URLSearchParams({ grant_type: 'authorization_code', code, client_id: pending.client.client_id, redirect_uri: pending.redirect, resource: pending.base + '/api', code_verifier: pending.verifier }) });
+    const exchange = await withEnv(pending.issuer + '/oauth2/token', rotated, { method: 'POST', body: new URLSearchParams({ grant_type: 'authorization_code', code, client_id: pending.client.client_id, redirect_uri: pending.redirect, resource: pending.base + '/blyg/api', code_verifier: pending.verifier }) });
     expect(exchange.status).toBe(400);
-    expect((await withEnv(f.base + '/api/settings', rotated, { headers: { Authorization: 'Bearer ' + f.tokens.access_token } })).status).toBe(401);
+    expect((await withEnv(f.base + '/blyg/api/settings', rotated, { headers: { Authorization: 'Bearer ' + f.tokens.access_token } })).status).toBe(401);
   });
 
   it('expires issued OAuth access at the exact one-hour JWT deadline', async () => {
@@ -101,9 +101,9 @@ describe('native auth lifecycle receiving boundaries', () => {
     vi.useFakeTimers({ toFake: ['Date'] });
     try {
       vi.setSystemTime(claims.exp * 1000 - 1);
-      expect((await f.request('/api/settings', { headers: { Authorization: 'Bearer ' + f.tokens.access_token } })).status).toBe(200);
+      expect((await f.request('/blyg/api/settings', { headers: { Authorization: 'Bearer ' + f.tokens.access_token } })).status).toBe(200);
       vi.setSystemTime(claims.exp * 1000);
-      expect((await f.request('/api/settings', { headers: { Authorization: 'Bearer ' + f.tokens.access_token } })).status).toBe(401);
+      expect((await f.request('/blyg/api/settings', { headers: { Authorization: 'Bearer ' + f.tokens.access_token } })).status).toBe(401);
     } finally { vi.useRealTimers(); }
   });
 
@@ -157,7 +157,7 @@ describe('native auth lifecycle receiving boundaries', () => {
       const response = await refresh(f);
       if (response.status === 500) {
         const server = await authorizationServer(nativeFlow.issuer, env);
-        const native = await server.handler(new Request(nativeFlow.issuer + '/oauth2/token', { method: 'POST', headers: { 'cf-connecting-ip': '198.51.100.233' }, body: new URLSearchParams({ grant_type: 'refresh_token', client_id: nativeFlow.client.client_id, refresh_token: nativeFlow.tokens.refresh_token, resource: nativeFlow.base + '/api' }) }));
+        const native = await server.handler(new Request(nativeFlow.issuer + '/oauth2/token', { method: 'POST', headers: { 'cf-connecting-ip': '198.51.100.233' }, body: new URLSearchParams({ grant_type: 'refresh_token', client_id: nativeFlow.client.client_id, refresh_token: nativeFlow.tokens.refresh_token, resource: nativeFlow.base + '/blyg/api' }) }));
         const value = await native.json() as { access_token?: string };
         let rejected: { name?: string; status?: string; body?: { error?: string; error_description?: string } } | undefined;
         try { if (value.access_token) await server.api.delegatedAccess({ body: { token: value.access_token } }); }
@@ -167,17 +167,17 @@ describe('native auth lifecycle receiving boundaries', () => {
       }
       expect(response.status).toBe(200);
       const renewed = await response.json() as { access_token: string; refresh_token: string };
-      expect((await f.request('/api/settings', { headers: { Authorization: 'Bearer ' + renewed.access_token } })).status).toBe(200);
+      expect((await f.request('/blyg/api/settings', { headers: { Authorization: 'Bearer ' + renewed.access_token } })).status).toBe(200);
       vi.setSystemTime(now + 2592000 * 1000);
-      expect((await f.request('/api/settings', { headers: { Authorization: 'Bearer ' + renewed.access_token } })).status).toBe(401);
-      expect((await f.request(f.issuer + '/oauth2/token', { method: 'POST', body: new URLSearchParams({ grant_type: 'refresh_token', client_id: f.client.client_id, refresh_token: renewed.refresh_token, resource: f.base + '/api' }) })).status).toBe(400);
+      expect((await f.request('/blyg/api/settings', { headers: { Authorization: 'Bearer ' + renewed.access_token } })).status).toBe(401);
+      expect((await f.request(f.issuer + '/oauth2/token', { method: 'POST', body: new URLSearchParams({ grant_type: 'refresh_token', client_id: f.client.client_id, refresh_token: renewed.refresh_token, resource: f.base + '/blyg/api' }) })).status).toBe(400);
     } finally { vi.useRealTimers(); }
   });
 
   it.each([undefined, '', 'b'.repeat(43)])('rejects omitted, empty or grammatically valid wrong verifier %s', async verifier => {
     const f = await flow(), approval = await f.decide('browser-a', true);
     const code = new URL(approval.headers.get('location')!).searchParams.get('code')!;
-    const form = new URLSearchParams({ grant_type: 'authorization_code', code, client_id: f.client.client_id, redirect_uri: f.redirect, resource: f.base + '/api' });
+    const form = new URLSearchParams({ grant_type: 'authorization_code', code, client_id: f.client.client_id, redirect_uri: f.redirect, resource: f.base + '/blyg/api' });
     if (verifier !== undefined) form.set('code_verifier', verifier);
     const response = await f.request(f.issuer + '/oauth2/token', { method: 'POST', body: form });
     expect(response.status).toBe(400);

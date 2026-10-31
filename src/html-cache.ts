@@ -1,3 +1,4 @@
+import { deploymentPaths } from './util.ts';
 import type { ChangeDomain, ChangeState } from './change-state.ts';
 import { PATH_SHAPE, RESERVED_PATHS } from './front-page.ts';
 import { conditionalResponse, representationEtag } from './http-response.ts';
@@ -5,7 +6,8 @@ import { conditionalResponse, representationEtag } from './http-response.ts';
 export function publicHtmlRequest(request: Request, mount: string): boolean {
   if (request.method !== 'GET' && request.method !== 'HEAD') return false;
   const path = new URL(request.url).pathname;
-  if (path === '/api' || path.startsWith('/api/')) return false;
+  const api = deploymentPaths(mount).api;
+  if (path === api || path.startsWith(api + '/')) return false;
   if (mount && path !== mount && !path.startsWith(mount + '/')) return false;
   const page = path.slice(mount.length).replace(/\/$/, '');
   return page === '' || page === '/archive' || /^\/(?:f|t)\/[^/]+(?:\/v\d+)?$/.test(page) || /^\/h\/[^/]+$/.test(page) ||

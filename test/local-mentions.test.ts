@@ -8,9 +8,9 @@ const OURS = "https://example.com/blyg/";
 const section = (html: string) => /<section class="responses local-mentions">([\s\S]*?)<\/section>/.exec(html)?.[1] ?? null;
 const page = async (id: string, kind = "f") => (await getPublic(`/blyg/${kind}/${id}/`)).text();
 const publishThread = async (cookie: string, content_md: string, extra: Record<string, unknown> = {}) => {
-  const created = await apiJson(cookie, "POST", "/api/items", { content_md, kind: "thread", ...extra });
+  const created = await apiJson(cookie, "POST", "/blyg/api/items", { content_md, kind: "thread", ...extra });
   expect(created.status).toBe(201);
-  expect((await apiJson(cookie, "POST", `/api/items/${created.json.id}/publish`, {})).status).toBe(200);
+  expect((await apiJson(cookie, "POST", `/blyg/api/items/${created.json.id}/publish`, {})).status).toBe(200);
   return created.json.id as string;
 };
 
@@ -23,9 +23,9 @@ describe("local mentions on a public page", () => {
     await publishThread(cookie, `# A whole quote\n\n![[${target}]]`);
     await publishThread(cookie, `# A passage\n\n![[${target}]]\n> It has two sentences.`);
     const stub = await publishThread(cookie, `# My stub\n\n![[${target}]]\n\nAgreed.`, { stub_of: { origin: OURS, id: target, version: 1 } });
-    expect((await apiJson(cookie, "PUT", `/api/items/${target}/versions/1/pin`)).status).toBe(200);
-    const fork = await apiJson(cookie, "POST", "/api/items", { mode: "fork", source: { origin: OURS, id: target, version: 1 } });
-    expect((await apiJson(cookie, "POST", `/api/items/${fork.json.id}/publish`, {})).status).toBe(200);
+    expect((await apiJson(cookie, "PUT", `/blyg/api/items/${target}/versions/1/pin`)).status).toBe(200);
+    const fork = await apiJson(cookie, "POST", "/blyg/api/items", { mode: "fork", source: { origin: OURS, id: target, version: 1 } });
+    expect((await apiJson(cookie, "POST", `/blyg/api/items/${fork.json.id}/publish`, {})).status).toBe(200);
     // A remote item that shares the id is not this item.
     await publishThread(cookie, `# Unrelated\n\nNothing quoted.`, { stub_of: { url: `https://elsewhere.example/${target}` } });
 
@@ -44,9 +44,9 @@ describe("local mentions on a public page", () => {
     const edited = await publishThread(cookie, `# Edited\n\n![[${target}]]`);
     const withdrawn = await publishThread(cookie, `# Withdrawn\n\n![[${target}]]`);
     expect((section(await page(target)) ?? "").match(/<li>/g)?.length).toBe(2);
-    await apiJson(cookie, "PATCH", `/api/items/${edited}`, { content_md: "# Edited\n\nNo quote now." });
-    expect((await apiJson(cookie, "POST", `/api/items/${edited}/publish`, {})).status).toBe(200);
-    expect((await apiJson(cookie, "POST", `/api/items/${withdrawn}/withdraw`, {})).status).toBe(200);
+    await apiJson(cookie, "PATCH", `/blyg/api/items/${edited}`, { content_md: "# Edited\n\nNo quote now." });
+    expect((await apiJson(cookie, "POST", `/blyg/api/items/${edited}/publish`, {})).status).toBe(200);
+    expect((await apiJson(cookie, "POST", `/blyg/api/items/${withdrawn}/withdraw`, {})).status).toBe(200);
     expect(section(await page(target))).toBeNull();
   });
 

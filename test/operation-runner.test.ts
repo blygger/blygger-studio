@@ -18,7 +18,7 @@ it('executes domain work without an HTTP context and returns typed outcomes', as
   expect(created).toMatchObject({ ok: true, created: true, value: { content_md: 'direct operation', status: 'draft' } });
   if (!created.ok) throw new Error('creation failed');
   const id = (created.value as { id: string }).id;
-  expect(created.location).toBe('/api/items/' + id);
+  expect(created.location).toBe('/blyg/api/items/' + id);
   const read = await runOperation(definitions.get('getItem')!, { ...input, path: { id } }, ctx);
   expect(read).toMatchObject({ ok: true, created: false, value: { id, content_md: 'direct operation' } });
   const invalid = await runOperation(definitions.get('createItem')!, { ...input, body: { unknown: true } }, ctx);

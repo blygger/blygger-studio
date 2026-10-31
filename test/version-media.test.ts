@@ -12,12 +12,12 @@ async function upload(cookie: string, item: string, bytes: number[], extra: Reco
   form.set("file", new File([new Uint8Array([0x89, 0x50, 0x4e, 0x47, ...bytes])], "p.png", { type: "image/png" }));
   form.set("item_id", item);
   for (const [k, v] of Object.entries(extra)) form.set(k, v);
-  const res = await SELF.fetch(`${BASE}/api/media`, { method: "POST", headers: { cookie }, body: form });
+  const res = await SELF.fetch(`${BASE}/blyg/api/media`, { method: "POST", headers: { cookie }, body: form });
   expect(res.status).toBe(201);
   return (await res.json()) as { id: string; url: string };
 }
-const publish = async (cookie: string, id: string) => expect((await apiJson(cookie, "POST", `/api/items/${id}/publish`, {})).status).toBe(200);
-const remove = async (cookie: string, media: string) => (await apiJson(cookie, "DELETE", `/api/media/${media}`)).json.outcome;
+const publish = async (cookie: string, id: string) => expect((await apiJson(cookie, "POST", `/blyg/api/items/${id}/publish`, {})).status).toBe(200);
+const remove = async (cookie: string, media: string) => (await apiJson(cookie, "DELETE", `/blyg/api/media/${media}`)).json.outcome;
 const document = async (id: string) => (await (await getPublic(`/blyg/items/${id}.json`)).json()) as { version: number; media: { url: string }[] };
 const urls = async (id: string) => (await document(id)).media.map((m) => m.url);
 const dirty = async (id: string) => (await env.DB.prepare("SELECT dirty FROM items WHERE id = ?").bind(id).first<{ dirty: number }>())!.dirty;
@@ -71,13 +71,13 @@ describe("attachments per version (studio#7)", () => {
 
   it("an inline attachment follows its version's text", async () => {
     const cookie = await login();
-    const created = await apiJson(cookie, "POST", "/api/items", { content_md: "draft" });
+    const created = await apiJson(cookie, "POST", "/blyg/api/items", { content_md: "draft" });
     const id = created.json.id as string;
     const a = await upload(cookie, id, [5], { inline: "true" });
-    expect((await apiJson(cookie, "PATCH", `/api/items/${id}`, { content_md: `![a](/blyg/${a.url})` })).status).toBe(200);
+    expect((await apiJson(cookie, "PATCH", `/blyg/api/items/${id}`, { content_md: `![a](/blyg/${a.url})` })).status).toBe(200);
     await publish(cookie, id);
     expect(await urls(id)).toEqual([a.url]);
-    expect((await apiJson(cookie, "PATCH", `/api/items/${id}`, { content_md: "no picture now" })).status).toBe(200);
+    expect((await apiJson(cookie, "PATCH", `/blyg/api/items/${id}`, { content_md: "no picture now" })).status).toBe(200);
     await publish(cookie, id);
     expect(await urls(id)).toEqual([]);
   });
@@ -90,8 +90,8 @@ describe("attachments per version (studio#7)", () => {
     expect(await remove(cookie, original.id)).toBe("detached");
     const added = await upload(cookie, id, [9]);
 
-    expect((await apiJson(cookie, "POST", `/api/items/${id}/restore`, { version: 2 })).status).toBe(200);
-    const detail = (await apiJson(cookie, "GET", `/api/items/${id}`)).json;
+    expect((await apiJson(cookie, "POST", `/blyg/api/items/${id}/restore`, { version: 2 })).status).toBe(200);
+    const detail = (await apiJson(cookie, "GET", `/blyg/api/items/${id}`)).json;
     expect(detail).toMatchObject({ dirty: false, version: 2 });
     expect(detail.media.map((m: { id: string }) => m.id)).toEqual([original.id]);
     expect(detail.published_media.map((m: { id: string }) => m.id)).toEqual([original.id]);
@@ -112,8 +112,8 @@ describe("attachments per version (studio#7)", () => {
     const current = await upload(cookie, id, [11]);
     await publish(cookie, id); // v3
 
-    expect((await apiJson(cookie, "POST", `/api/items/${id}/restore`, { version: 2 })).status).toBe(200);
-    const detail = (await apiJson(cookie, "GET", `/api/items/${id}`)).json;
+    expect((await apiJson(cookie, "POST", `/blyg/api/items/${id}/restore`, { version: 2 })).status).toBe(200);
+    const detail = (await apiJson(cookie, "GET", `/blyg/api/items/${id}`)).json;
     expect(detail).toMatchObject({ dirty: true, version: 3 });
     expect(detail.media.map((m: { id: string }) => m.id)).toEqual([old.id]);
     expect(detail.published_media.map((m: { id: string }) => m.id)).toEqual([current.id]);
@@ -132,11 +132,11 @@ describe("attachments per version (studio#7)", () => {
     await remove(cookie, original.id);
     const added = await upload(cookie, id, [13]);
     const stale = (await getItem(env.DB, id))!;
-    await apiJson(cookie, "PATCH", `/api/items/${id}`, { content_md: "concurrent edit" });
-    const before = (await apiJson(cookie, "GET", `/api/items/${id}`)).json;
+    await apiJson(cookie, "PATCH", `/blyg/api/items/${id}`, { content_md: "concurrent edit" });
+    const before = (await apiJson(cookie, "GET", `/blyg/api/items/${id}`)).json;
 
     await expect(restoreVersion(env.DB, stale, 2)).rejects.toThrow("item changed while restoring");
-    expect((await apiJson(cookie, "GET", `/api/items/${id}`)).json).toEqual(before);
+    expect((await apiJson(cookie, "GET", `/blyg/api/items/${id}`)).json).toEqual(before);
     expect(before.media.map((m: { id: string }) => m.id)).toEqual([added.id]);
     expect(await env.DB.prepare("SELECT item_id FROM media WHERE id = ?").bind(original.id).first()).toEqual({ item_id: null });
   });

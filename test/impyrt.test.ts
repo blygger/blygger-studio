@@ -11,8 +11,8 @@ import { markImported, parseScopes } from "../src/tk.ts";
 import { apiJson, getPublic, login } from "./helpers.ts";
 
 async function publishDraft(cookie: string, md: string, kind: "fragment" | "thread" = "fragment") {
-  const id = (await apiJson(cookie, "POST", "/api/items", { content_md: md, kind })).json.id as string;
-  const pub = await apiJson(cookie, "POST", `/api/items/${id}/publish`, {});
+  const id = (await apiJson(cookie, "POST", "/blyg/api/items", { content_md: md, kind })).json.id as string;
+  const pub = await apiJson(cookie, "POST", `/blyg/api/items/${id}/publish`, {});
   return { id, pub };
 }
 
@@ -84,9 +84,9 @@ describe("publishing", () => {
     // Positional provenance is the hazard impyrt avoids: its record is in the
     // grammar, so inserting another scope ahead of it cannot move it.
     const cookie = await login();
-    const id = (await apiJson(cookie, "POST", "/api/items", { content_md: "Start. [TK]impyrt=pasted[/TK]" })).json.id as string;
-    await apiJson(cookie, "PATCH", `/api/items/${id}`, { content_md: "[TK]hand-written[=]typed by me[/TK] Start. [TK]impyrt=pasted[/TK]" });
-    expect((await apiJson(cookie, "POST", `/api/items/${id}/publish`, {})).status).toBe(200);
+    const id = (await apiJson(cookie, "POST", "/blyg/api/items", { content_md: "Start. [TK]impyrt=pasted[/TK]" })).json.id as string;
+    await apiJson(cookie, "PATCH", `/blyg/api/items/${id}`, { content_md: "[TK]hand-written[=]typed by me[/TK] Start. [TK]impyrt=pasted[/TK]" });
+    expect((await apiJson(cookie, "POST", `/blyg/api/items/${id}/publish`, {})).status).toBe(200);
     const doc = await (await getPublic(`/blyg/items/${id}.json`)).json<any>();
     expect(doc.content_html).toContain('<span class="blyg-tk-gen">pasted</span>');
     // The hand-written output has no recorded provenance, so it is not disclosed.
@@ -96,15 +96,15 @@ describe("publishing", () => {
 
   it("refuses to regenerate an impyrt scope", async () => {
     const cookie = await login();
-    const id = (await apiJson(cookie, "POST", "/api/items", { content_md: "[TK]impyrt=pasted[/TK]" })).json.id as string;
-    const res = await apiJson(cookie, "POST", `/api/items/${id}/generate`, { scope: 0 });
+    const id = (await apiJson(cookie, "POST", "/blyg/api/items", { content_md: "[TK]impyrt=pasted[/TK]" })).json.id as string;
+    const res = await apiJson(cookie, "POST", `/blyg/api/items/${id}/generate`, { scope: 0 });
     expect(res.status).toBe(400);
     expect(res.json.error).toMatch(/not regenerated/);
   });
 
   it("the preview marks the scope as imported", async () => {
     const cookie = await login();
-    const res = await apiJson(cookie, "POST", "/api/preview", { content_md: "[TK]impyrt=pasted[/TK] and [TK]write more[/TK]", kind: "fragment" });
+    const res = await apiJson(cookie, "POST", "/blyg/api/preview", { content_md: "[TK]impyrt=pasted[/TK] and [TK]write more[/TK]", kind: "fragment" });
     expect(res.json.scopes.map((s: { imported: boolean }) => s.imported)).toEqual([true, false]);
   });
 });

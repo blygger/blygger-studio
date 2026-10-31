@@ -17,12 +17,12 @@ import { authRoutes } from './contract/auth-routes.ts';
  * build (scripts/build-extensions.ts); tests pass their own. Their routes sit
  * behind the same middleware as every other route here.
  */
-export function createOwnerApi(access?: OwnerAccess, extensions: readonly ServerExtension[] = compiledServerExtensions) {
+export function createOwnerApi(access?: OwnerAccess, extensions: readonly ServerExtension[] = compiledServerExtensions, apiPath = '/api') {
 const ownerApi = contractApp();
 const definitions = operationDefinitions(extensions);
 const compiledRoutes = [...definitions.values()].map(definition => definition.route);
 const registered = new Map([...definitions].map(([id, { route }]) => [
-  `${route.method.toUpperCase()} /api${route.path.replace(/\{(\w+)\}/g, ':$1')}`, [id, route] as const,
+  `${route.method.toUpperCase()} ${apiPath}${route.path.replace(/\{(\w+)\}/g, ':$1')}`, [id, route] as const,
 ]));
 const methodInventory = [...compiledRoutes, ...Object.values(authRoutes), { path: '/openapi.json', method: 'get' }].map(route => {
   const pattern = route.path.split(/(\{\w+\})/).map(part =>
@@ -77,15 +77,15 @@ for (const definition of definitions.values()) {
 
 ownerApi.get('/openapi.json', c => {
   const document = structuredClone(spec);
-  const { issuer } = authLocations(c.req.url, c.env);
+  const { issuer, api } = authLocations(c.req.url, c.env);
   document.components.securitySchemes.ownerOAuth.flows.authorizationCode.authorizationUrl = issuer + '/oauth2/authorize';
   document.components.securitySchemes.ownerOAuth.flows.authorizationCode.tokenUrl = issuer + '/oauth2/token';
-  document.servers = [{ url: new URL(c.req.url).origin }];
+  document.servers = [{ url: api }];
   return c.json(document);
 });
 
 ownerApi.all("*", async (c) => {
-  const path = c.req.path.replace(/^\/api(?=\/|$)/, "");
+  const path = c.req.path.slice(apiPath.length);
   const extension = extensions.find(extension => path.startsWith(`/ext/${extension.name}/`));
   if (extension && !await isExtensionEnabled(c.env.DB, extension.name)) return c.json({ error: `extension ${extension.name} is not enabled` }, 404);
   const methods = methodInventory.filter(route => route.pattern.test(path)).map(route => route.method);

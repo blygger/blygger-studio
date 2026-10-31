@@ -31,12 +31,10 @@ import { linkLabel } from "./link-label.ts";
 import { versionState } from './version-state.ts';
 import { operationAvailability } from './operation-availability.ts';
 import { API_CONTRACT_VERSION } from './operation-policy.ts';
-import { authLocations } from './oauth.ts';
+import { deploymentUrls } from './deployment-urls.ts';
 
 const getCapabilitiesOperation = async (context: OperationContext, input: OperationInput) => {
-  const { base, api, issuer, mcp } = authLocations(context.url, context.env);
-  const publicBase = new URL(context.url).origin + normalizeMount(context.env.MOUNT);
-  return success({ contractVersion: API_CONTRACT_VERSION, endpoints: { publicBase, studio: base, api, issuer, mcp, media: publicBase + '/media' },
+  return success({ contractVersion: API_CONTRACT_VERSION, endpoints: deploymentUrls(context.url, context.env),
     ...await operationAvailability(context.env.DB, context.access, context.extensions) });
 };
 const getChangesOperation = async (context: OperationContext, input: OperationInput) => success(await readChanges(context.env.DB));

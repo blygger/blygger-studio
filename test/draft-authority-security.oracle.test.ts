@@ -30,13 +30,13 @@ async function fixture() {
   expect(login.status).toBe(302);
   const cookie = login.headers.get('set-cookie')!.split(';')[0];
   const owner = (path: string, method = 'GET', body?: unknown) => receive(app, path, { method, headers: { cookie, 'Content-Type': 'application/json' }, ...(body === undefined ? {} : { body: JSON.stringify(body) }) });
-  const created = await owner('/api/items', 'POST', { kind: 'thread', content_md: 'Public authority fixture' });
+  const created = await owner('/blyg/api/items', 'POST', { kind: 'thread', content_md: 'Public authority fixture' });
   expect(created.status).toBe(201); const { id } = await created.json() as { id: string };
   return { app, owner, id, cookie };
 }
 it('draft edits and restoration leave every named public projection unchanged', async () => {
   const f = await fixture();
-  expect((await f.owner(`/api/items/${f.id}/publish`, 'POST')).status).toBe(200);
+  expect((await f.owner(`/blyg/api/items/${f.id}/publish`, 'POST')).status).toBe(200);
   const publicPath = `/blyg/items/${f.id}.json`;
   const before = await (await receive(f.app, publicPath)).text();
   const draft = new Hono().route('/api', createOwnerApi({ scope: ['owner:draft'], clientId: 'draft-fixture', userId: 'owner' }));
@@ -55,7 +55,7 @@ it('a draft-only deletion cannot remove an item published during its stale-state
   const f = await fixture();
   const form = new FormData(); form.set('item_id', f.id);
   form.set('file', new File(['disposable fixture'], 'fixture.png', { type: 'image/png' }));
-  const upload = await receive(f.app, '/api/media', { method: 'POST', headers: { cookie: f.cookie }, body: form });
+  const upload = await receive(f.app, '/blyg/api/media', { method: 'POST', headers: { cookie: f.cookie }, body: form });
   expect(upload.status).toBe(201); const media = await upload.json() as { id: string };
   let reached!: () => void, release!: () => void;
   const claimed = new Promise<void>(resolve => { reached = resolve; });
@@ -79,7 +79,7 @@ it('a draft-only deletion cannot remove an item published during its stale-state
   const deletion = receive(draft, `/api/items/${f.id}`, { method: 'DELETE' }, { ...env, DB: database });
   try {
     await Promise.race([claimed, deletion.then(() => { throw new Error('Deletion did not reach the batch checkpoint'); })]);
-    const published = await f.owner(`/api/items/${f.id}/publish`, 'POST'); expect(published.status).toBe(200);
+    const published = await f.owner(`/blyg/api/items/${f.id}/publish`, 'POST'); expect(published.status).toBe(200);
     const path = `/blyg/items/${f.id}.json`, baseline = await receive(f.app, path); expect(baseline.status).toBe(200);
     const bytes = await baseline.text();
     release(); expect((await deletion).status, 'draft deletion must reject stale published authority').toBe(409);

@@ -14,8 +14,8 @@ import { describe, expect, it } from "vitest";
 import { apiJson, createAndPublish, getPublic, login } from "./helpers.ts";
 
 async function publishThread(cookie: string, contentMd: string): Promise<string> {
-  const id = (await apiJson(cookie, "POST", "/api/items", { content_md: contentMd, kind: "thread" })).json.id as string;
-  expect((await apiJson(cookie, "POST", `/api/items/${id}/publish`, {})).status).toBe(200);
+  const id = (await apiJson(cookie, "POST", "/blyg/api/items", { content_md: contentMd, kind: "thread" })).json.id as string;
+  expect((await apiJson(cookie, "POST", `/blyg/api/items/${id}/publish`, {})).status).toBe(200);
   return id;
 }
 

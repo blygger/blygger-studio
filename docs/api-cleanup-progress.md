@@ -23,12 +23,12 @@ Update the plan when a finding changes its scope or design.
 
 | Part | Status | Branch and base | PR |
 | --- | --- | --- | --- |
-| 1a Attachment restore and provenance validation | Open, restacked; prior CI green, new CI pending | `codex/api-cleanup`, based on upstream `main` at `2582d73` | [90](https://github.com/blygger/blygger-studio/pull/90) |
-| 1b Explicit version state | Open, all local and prep-pr checks passed, CI in progress | `codex/api-version-state`, based on `codex/api-http` | [93](https://github.com/blygger/blygger-studio/pull/93) |
-| 2 HTTP behavior | Open, reviewed and restacked, new CI pending | `codex/api-http`, based on `codex/api-cleanup` | [91](https://github.com/blygger/blygger-studio/pull/91) |
-| 3a Operation policies and discovery | In progress; checkpoint retained during restack | `codex/api-operation-policy`, after 93 | Pending |
-| 3b Shared operation execution | Planned | After 3a | Pending |
-| 4 Mounted API cutover | Planned | After 3 | Pending |
+| 1a Attachment restore and provenance validation | Open, all nine upstream CI jobs pass | `codex/api-cleanup`, based on upstream `main` at `2582d73` | [90](https://github.com/blygger/blygger-studio/pull/90) |
+| 1b Explicit version state | Open, all nine upstream CI jobs pass | `codex/api-version-state`, based on `codex/api-http` | [93](https://github.com/blygger/blygger-studio/pull/93) |
+| 2 HTTP behavior | Open, all nine upstream CI jobs pass | `codex/api-http`, based on `codex/api-cleanup` | [91](https://github.com/blygger/blygger-studio/pull/91) |
+| 3a Operation policies and discovery | Open, all nine upstream CI jobs pass | `codex/api-operation-policy`, after 93 | [95](https://github.com/blygger/blygger-studio/pull/95) |
+| 3b Shared operation execution | Open, eight checks pass; final mutation job running | `codex/api-operation-runner`, after 95 | [96](https://github.com/blygger/blygger-studio/pull/96) |
+| 4 Mounted API cutover | Local checks pass; publication in progress | `codex/api-mount-cutover`, after 96 | Pending |
 | 5 Conditional mutations | Planned | After 3 | Pending |
 | 6 Private resources | Planned | After 5, with 4 integrated | Pending |
 | 7 Cursor pages and TanStack loading | Planned | After 6 | Pending |
@@ -429,3 +429,43 @@ retained. No open evidence gap, omitted idea or new design decision.
 Local validation must serialize SDK rebuilds with typecheck. One overlapping
 browser build temporarily removed sdk/dist while tsc ran. Repeating tsc after
 that build completed passed without a source change.
+
+Part 3b is published as [PR 96](https://github.com/blygger/blygger-studio/pull/96),
+head `623a413`, on PR 95. All nine upstream CI jobs for PR95 at `2dfca6e` passed.
+Reviews and inline comments are empty. PR96 CI is still running.
+
+## Part 4: mounted API cutover — 2026-10-31
+
+The private API now follows the deployment mount. Shared deployment paths and
+URLs supply routing, audiences, capabilities, OpenAPI servers, creation
+Location headers and Studio boot data. Generated operation paths are relative
+to the complete API base. Root deployments retain `/api`; mounted deployments
+serve `{mount}/api` without a host-root alias. Contract version is 2.0.0.
+
+Client and grant notes describe replacement or new consent for the old mounted
+REST audience. MCP audiences stay unchanged. Receiving fixtures now use the
+node's actual mounted REST address. Initial mounted route/SDK/OAuth/MCP suite:
+80 passed. Typecheck passes. Full Worker, UI and prep-pr reviews are in progress.
+No plan change.
+
+Final part4 results:156 Worker files passed,1,937 tests passed,five skipped.
+UI:112 passed. Desktop/mobile Studio, access, extensions and forwarded nested
+Studio:40 passed. Pinned MCP Inspector and browser OAuth interoperability:8
+passed. Controlled cross-isolate refresh/revoke replay passed. Installed SDK
+0.3.0 Node/Chromium consumers, both TypeScript resolution modes and fresh
+Worker D1/R2 persistence pass. The0.8.3 upgrade path passes through the new
+SDK contract and declines deployment. Typecheck, SDK generation, release check,
+syntax and whitespace checks pass. All81 mutation anchors remain valid.
+
+prep-pr/evaluate-review retained10 raw claims in `/tmp/blygger-api-mount`:
+nine fixed and one duplicate with its intentional negative-control detail
+preserved. Repairs corrected receiving fixtures, package navigation, the SDK's
+independent version, CLI guidance and repeated URL resolution. No production
+fault or novel design decision arose. The initial full run's four stale
+fixture failures have exact focused GREEN receipts and a full GREEN rerun.
+
+The service-worker assertion now executes the fetch handler: API GET/POST
+requests are never intercepted, even though the owner-free offline shell
+correctly includes the API boot path. SDK archive names use a version
+placeholder so old generated paths cannot be paired with new base URLs.
+Client0.49.7, private contract2.0.0, SDK0.3.0. No migration.

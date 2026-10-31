@@ -44,21 +44,21 @@ describe("the per-node setting", () => {
   it("starts with every extension disabled", async () => {
     await enable([]);
     const cookie = await login();
-    const got = await apiJson(cookie, "GET", "/api/settings");
+    const got = await apiJson(cookie, "GET", "/blyg/api/settings");
     expect(got.json.extensions).toEqual([]);
   });
 
   it("turns on only extensions compiled into this build, deduped and sorted", async () => {
     const cookie = await login();
     expect(EXTENSIONS).toContain("example");
-    const on = await apiJson(cookie, "PATCH", "/api/settings", { extensions: ["example", "example"] });
+    const on = await apiJson(cookie, "PATCH", "/blyg/api/settings", { extensions: ["example", "example"] });
     expect(on.status).toBe(200);
     expect(on.json.extensions).toEqual(["example"]);
-    const unknown = await apiJson(cookie, "PATCH", "/api/settings", { extensions: ["example", "not-compiled"] });
+    const unknown = await apiJson(cookie, "PATCH", "/blyg/api/settings", { extensions: ["example", "not-compiled"] });
     expect(unknown.status).toBe(400);
     expect(unknown.json.error).toContain("not-compiled");
-    expect((await apiJson(cookie, "GET", "/api/settings")).json.extensions).toEqual(["example"]);
-    expect((await apiJson(cookie, "PATCH", "/api/settings", { extensions: [] })).json.extensions).toEqual([]);
+    expect((await apiJson(cookie, "GET", "/blyg/api/settings")).json.extensions).toEqual(["example"]);
+    expect((await apiJson(cookie, "PATCH", "/blyg/api/settings", { extensions: [] })).json.extensions).toEqual([]);
   });
 
   it("reads a malformed stored value as nothing enabled", () => {

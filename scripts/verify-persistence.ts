@@ -27,7 +27,7 @@ export async function verifyPersistence(worker: string, temp: string) {
   try {
     const login = await fetch(`${fixture.baseUrl}/studio/login`, { method: "POST", body: new URLSearchParams({ password: "test" }), redirect: "manual" });
     const token = login.headers.get("set-cookie")?.match(/blyg_session=([^;]+)/)?.[1]; assert.ok(token);
-    let client = createBlyggerClient({ baseUrl: fixture.baseUrl, auth: scheme => scheme.in === 'cookie' ? token : undefined });
+    let client = createBlyggerClient({ baseUrl: fixture.baseUrl + "/api", auth: scheme => scheme.in === 'cookie' ? token : undefined });
     await unwrap(BlyggerApi.updateSettings({ client, body: { site_url: "https://restart.example/" } }));
     const draft = await unwrap(BlyggerApi.createItem({ client, body: { content_md: "Unpublished restart draft" } }));
     const published = await unwrap(BlyggerApi.createItem({ client, body: { kind: "thread", content_md: "Frozen citation", stub_of: { url: "https://source.example/article" } } }));
@@ -46,7 +46,7 @@ export async function verifyPersistence(worker: string, temp: string) {
     await fixture.stop();
     fixture = undefined;
     fixture = await start(worker, join(temp, "persistent-storage"), false);
-    client = createBlyggerClient({ baseUrl: fixture.baseUrl, auth: scheme => scheme.in === 'cookie' ? token : undefined });
+    client = createBlyggerClient({ baseUrl: fixture.baseUrl + "/api", auth: scheme => scheme.in === 'cookie' ? token : undefined });
     assert.equal((await unwrap(BlyggerApi.getItem({ client, path: { id: draft.id } }))).content_md, "Unpublished restart draft");
     assert.deepEqual(await unwrap(BlyggerApi.getItem({ client, path: { id: published.id } })), before);
     const retainedPin = await fetch(`${fixture.baseUrl}/items/${published.id}/v1.json`);

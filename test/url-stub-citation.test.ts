@@ -21,9 +21,9 @@ describe("a {url} stub's citation", () => {
       contentMd: "[How to write with an LLM](https://simon.example/2026/how-to-write/)",
       contentHtml: '<p><a href="https://simon.example/2026/how-to-write/">How to write with an LLM</a></p>', contentHash: "h",
     });
-    const draft = await apiJson(cookie, "POST", "/api/items", { mode: "response", source: { subscription_id: sub.id, remote_id: "entry1" } });
+    const draft = await apiJson(cookie, "POST", "/blyg/api/items", { mode: "response", source: { subscription_id: sub.id, remote_id: "entry1" } });
     expect(draft.status).toBe(201);
-    expect((await apiJson(cookie, "POST", `/api/items/${draft.json.id}/publish`, {})).status).toBe(200);
+    expect((await apiJson(cookie, "POST", `/blyg/api/items/${draft.json.id}/publish`, {})).status).toBe(200);
     const doc = await (await getPublic(`/blyg/items/${draft.json.id}.json`)).json<any>();
     expect(doc.stub_of).toEqual({
       url: "https://simon.example/2026/how-to-write/",
@@ -33,11 +33,11 @@ describe("a {url} stub's citation", () => {
 
   it("an author-set cited is validated: retrieved is required, the caption is clamped", async () => {
     const cookie = await login();
-    const id = (await apiJson(cookie, "POST", "/api/items", { content_md: "Re: that page", kind: "thread" })).json.id as string;
-    const missing = await apiJson(cookie, "PATCH", `/api/items/${id}`, { stub_of: { url: "https://x.test/p", cited: { source: "X", url: "https://x.test/p" } } });
+    const id = (await apiJson(cookie, "POST", "/blyg/api/items", { content_md: "Re: that page", kind: "thread" })).json.id as string;
+    const missing = await apiJson(cookie, "PATCH", `/blyg/api/items/${id}`, { stub_of: { url: "https://x.test/p", cited: { source: "X", url: "https://x.test/p" } } });
     expect(missing.status).toBe(400);
     const long = "word ".repeat(80);
-    const ok = await apiJson(cookie, "PATCH", `/api/items/${id}`, { stub_of: { url: "https://x.test/p", cited: { source: "X", excerpt: long, url: "https://x.test/p", retrieved: "2026-10-03T00:00:00Z" } } });
+    const ok = await apiJson(cookie, "PATCH", `/blyg/api/items/${id}`, { stub_of: { url: "https://x.test/p", cited: { source: "X", excerpt: long, url: "https://x.test/p", retrieved: "2026-10-03T00:00:00Z" } } });
     expect(ok.status).toBe(200);
     expect(ok.json.stub_of.cited.excerpt.length).toBeLessThanOrEqual(200);
   });

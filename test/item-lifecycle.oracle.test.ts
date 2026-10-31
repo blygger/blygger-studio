@@ -45,7 +45,7 @@ const instruction = fc.record({ choice: fc.nat(30), version: fc.nat(30), text: f
 const histories = fc.record({ kind: fc.constantFrom("fragment" as const, "thread" as const), instructions: fc.array(instruction, { minLength: 1, maxLength: 10 }) });
 
 async function run(kind: Model["kind"], actions?: Action[], instructions?: { choice: number; version: number; text: number }[]) {
-  const client = createBlyggerClient({ baseUrl: BASE, headers: { cookie: await login() }, fetch: (input, init) => SELF.fetch(input instanceof Request ? input : new Request(input, init)) });
+  const client = createBlyggerClient({ baseUrl: BASE + '/blyg/api', headers: { cookie: await login() }, fetch: (input, init) => SELF.fetch(input instanceof Request ? input : new Request(input, init)) });
   const created = await unwrap(BlyggerApi.createItem({ client, body: { kind, content_md: "initial" } }));
   const id = created.id, model: Model = { content: "initial", status: "draft", dirty: true, kind, versions: [] };
   const pinnedSnapshots = new Map<number, string>();

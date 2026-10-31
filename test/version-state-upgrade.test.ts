@@ -41,9 +41,9 @@ it('backfills only known version states and preserves ambiguous legacy behavior'
   const cookie = await login();
   const ambiguous = (await getVersion(env.DB, 'ambiguous-old-empty', 1))!;
   expect(versionResource(ambiguous).kind).toBe('withdrawn');
-  expect((await apiJson(cookie, 'PUT', '/api/items/ambiguous-old-empty/versions/1/pin')).status).toBe(409);
-  expect((await apiJson(cookie, 'POST', '/api/items/ambiguous-old-empty/restore', { version: 1 })).status).toBe(409);
-  expect((await apiJson(cookie, 'GET', '/api/fork-options?id=ambiguous-old-empty')).json.versions).toEqual([]);
+  expect((await apiJson(cookie, 'PUT', '/blyg/api/items/ambiguous-old-empty/versions/1/pin')).status).toBe(409);
+  expect((await apiJson(cookie, 'POST', '/blyg/api/items/ambiguous-old-empty/restore', { version: 1 })).status).toBe(409);
+  expect((await apiJson(cookie, 'GET', '/blyg/api/fork-options?id=ambiguous-old-empty')).json.versions).toEqual([]);
   const history = await loadFeedHistory(env.DB);
   expect(history.items.find(row => row.id === 'ambiguous-old-empty')?.versions).toEqual([]);
   expect(history.items.find(row => row.id === 'known-old-empty-thread')?.versions).toMatchObject([{ version: 1 }]);

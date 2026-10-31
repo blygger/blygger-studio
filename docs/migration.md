@@ -6,7 +6,7 @@ Land the API/SDK and SPA changes as complete chunks, then tackle ecosystem compa
 
 Keep the existing Studio UI. Put its data access behind authenticated OpenAPI Hono routes, generate a JavaScript/TypeScript SDK with Hey API from the unchanged OpenAPI spec, including cookie auth, and use that SDK for both server-rendered reads and browser writes. Use resource routes with POST for creation, PATCH for partial edits, and PUT for permanent version pins. Remove the replaced routes and migrate all Studio callers in this chunk. Share Zod definitions for request validation, resource responses, and the OpenAPI 3.1 contract. See [the API guide](api.md) for the resulting routes and update rules.
 
-The contract lives in `src/contract/`; `npm run openapi` writes `openapi.json`. The owner can also fetch `/api/openapi.json`. Generation is pinned and CI checks contract and SDK drift. Tests check API response shapes, SDK uploads/errors, and browser flows. Build output is ignored and rebuilt before development, tests, and deployment. Each pushed `v{version}` tag runs CI and publishes the OpenAPI spec, an installable SDK archive, and a bundled Worker with migrations and generic config. A manifest and checksums record the versions and source commit; CI verifies the extracted downloads before publication.
+The contract lives in `src/contract/`; `npm run openapi` writes `openapi.json`. The owner can also fetch `{mount}/api/openapi.json`. Generation is pinned and CI checks contract and SDK drift. Tests check API response shapes, SDK uploads/errors, and browser flows. Build output is ignored and rebuilt before development, tests, and deployment. Each pushed `v{version}` tag runs CI and publishes the OpenAPI spec, an installable SDK archive, and a bundled Worker with migrations and generic config. A manifest and checksums record the versions and source commit; CI verifies the extracted downloads before publication.
 
 ## 2. SPA — implemented in Studio 0.10.0
 
@@ -44,3 +44,7 @@ Roll out OAuth for these clients through shared auth middleware and document the
 ## Initial state
 
 The app used Hono on Cloudflare Workers, D1 with 12 migrations, R2 for uploads, and Markdown rendering. Studio was three server-rendered modules with inline JavaScript and direct data-store reads. Public pages and protocol output are separate. TypeScript was strict, with unused-local checks. The baseline suite had 755 tests: 750 passed and five required private deployment configuration. There was no browser suite or CI workflow.
+
+## Mounted API cutover
+
+The private REST contract is now version 2.0.0, with SDK version 0.3.0. REST lives at `{mount}/api`, with no host-root alias on mounted nodes. Set the generated SDK base URL to this complete API URL. Replace old mounted REST credentials or request new consent for the mounted resource. Existing MCP credentials retain their audience. See [client access](client-access.md#mounted-rest-cutover). No database migration is required.

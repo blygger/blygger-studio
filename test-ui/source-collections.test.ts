@@ -29,7 +29,7 @@ const json = (data: unknown, status = 200) => new Response(JSON.stringify(data),
 beforeAll(async () => {
   vi.stubGlobal('location', { origin: 'http://studio.test' });
   vi.stubGlobal('window', new EventTarget());
-  vi.stubGlobal('document', Object.assign(new EventTarget(), { visibilityState: 'hidden' }));
+  vi.stubGlobal('document', Object.assign(new EventTarget(), { visibilityState: 'hidden', getElementById: (id: string) => id === 'studio-root' ? { dataset: { apiBase: '/api' } } : null }));
   vi.stubGlobal('fetch', async (request: Request) => {
     const url = new URL(request.url);
     requests.push({ path: url.pathname, params: url.searchParams });

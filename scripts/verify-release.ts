@@ -57,18 +57,18 @@ try {
   assert.equal(login.status, 302);
   const token = login.headers.get("set-cookie")?.match(/blyg_session=([^;]+)/)?.[1];
   assert.ok(token);
-  const client = sdk.createBlyggerClient({ baseUrl, auth: (scheme: { in?: string }) => scheme.in === 'cookie' ? token : undefined });
+  const client = sdk.createBlyggerClient({ baseUrl: baseUrl + "/api", auth: (scheme: { in?: string }) => scheme.in === 'cookie' ? token : undefined });
   const draft = await sdk.unwrap(sdk.BlyggerApi.createItem({ client, body: { content_md: "Packaged Node SDK" } }));
   const detail = await sdk.unwrap(sdk.BlyggerApi.getItem({ client, path: { id: draft.id } }));
   assert.equal(detail.content_md, "Packaged Node SDK");
   const media = await sdk.unwrap(sdk.BlyggerApi.uploadMedia({ client, body: { file: new File([new Uint8Array([1, 2, 3])], "image.png", { type: "image/png" }) } }));
   assert.equal(media.mime, "image/png");
-  const unauthorized = await sdk.BlyggerApi.getSettings({ client: sdk.createBlyggerClient({ baseUrl }) });
+  const unauthorized = await sdk.BlyggerApi.getSettings({ client: sdk.createBlyggerClient({ baseUrl: baseUrl + "/api" }) });
   assert.equal(unauthorized.response.status, 401);
   assert.equal(unauthorized.error.error, "unauthorized");
   assert.ok(readFileSync(join(temp, "package/LICENSE"), "utf8").includes("MIT"));
   assert.equal(JSON.parse(readFileSync(join(temp, "package/package.json"), "utf8")).version, manifest.sdkVersion);
-  await verifySdkConsumer(temp, join(output, sdkArchive), baseUrl, token);
+  await verifySdkConsumer(temp, join(output, sdkArchive), baseUrl + "/api", token, baseUrl + "/studio");
   await verifyPersistence(worker, temp);
   console.log("Release checksums, extracted Worker, and packaged Node SDK auth/read/write/upload verified");
 } finally {

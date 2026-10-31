@@ -77,7 +77,7 @@ async function itemJson(id: string): Promise<any> {
 /** Publish, pin v1, and hand back the item id — the only state a fork can start from. */
 async function publishAndPin(cookie: string, md: string): Promise<string> {
   const id = await createAndPublish(cookie, md);
-  expect((await apiJson(cookie, "PUT", `/api/items/${id}/versions/${1}/pin`)).status).toBe(200);
+  expect((await apiJson(cookie, "PUT", `/blyg/api/items/${id}/versions/${1}/pin`)).status).toBe(200);
   return id;
 }
 
@@ -86,15 +86,15 @@ describe("forking a pinned version of our own (§2.4)", () => {
     const cookie = await login();
     const parent = await publishAndPin(cookie, "the original text");
 
-    const forked = await apiJson(cookie, "POST", "/api/items", { mode: "fork", source: { origin: OURS, id: parent, version: 1 } });
+    const forked = await apiJson(cookie, "POST", "/blyg/api/items", { mode: "fork", source: { origin: OURS, id: parent, version: 1 } });
     expect(forked.status).toBe(201);
     const id = forked.json.id as string;
 
-    const draft = await apiJson(cookie, "GET", `/api/items/${id}`);
+    const draft = await apiJson(cookie, "GET", `/blyg/api/items/${id}`);
     expect(draft.status).toBe(200);
     expect(draft.json.content_md).toBe("the original text");
 
-    expect((await apiJson(cookie, "POST", `/api/items/${id}/publish`, {})).status).toBe(200);
+    expect((await apiJson(cookie, "POST", `/blyg/api/items/${id}/publish`, {})).status).toBe(200);
     const doc = await itemJson(id);
     expect(doc.forked_from).toMatchObject({ origin: OURS, id: parent, version: 1 });
   });
@@ -102,7 +102,7 @@ describe("forking a pinned version of our own (§2.4)", () => {
   it("refuses a version that is not pinned — the whole basis of the claim", async () => {
     const cookie = await login();
     const parent = await createAndPublish(cookie, "never pinned");
-    const res = await apiJson(cookie, "POST", "/api/items", { mode: "fork", source: { origin: OURS, id: parent, version: 1 } });
+    const res = await apiJson(cookie, "POST", "/blyg/api/items", { mode: "fork", source: { origin: OURS, id: parent, version: 1 } });
     expect(res.status).toBe(400);
     expect(res.json.error).toContain("not pinned");
   });
@@ -110,25 +110,25 @@ describe("forking a pinned version of our own (§2.4)", () => {
   it("refuses a malformed reference rather than coercing one", async () => {
     const cookie = await login();
     // `origin` is REQUIRED even for our own item (#27: a citation is absolute).
-    expect((await apiJson(cookie, "POST", "/api/items", { mode: "fork", source: { id: "x", version: 1 } })).status).toBe(400);
-    expect((await apiJson(cookie, "POST", "/api/items", { mode: "fork", source: { origin: OURS, id: "x", version: 0 } })).status).toBe(400);
+    expect((await apiJson(cookie, "POST", "/blyg/api/items", { mode: "fork", source: { id: "x", version: 1 } })).status).toBe(400);
+    expect((await apiJson(cookie, "POST", "/blyg/api/items", { mode: "fork", source: { origin: OURS, id: "x", version: 0 } })).status).toBe(400);
   });
 
   it("forks a thread as a thread, flattening its quotes from the pinned document (#57)", async () => {
     const cookie = await login();
     const quoted = await createAndPublish(cookie, "a fragment to quote");
-    const created = await apiJson(cookie, "POST", "/api/items", { content_md: `intro\n\n![[${quoted}]]`, kind: "thread" });
+    const created = await apiJson(cookie, "POST", "/blyg/api/items", { content_md: `intro\n\n![[${quoted}]]`, kind: "thread" });
     const threadId = created.json.id as string;
-    expect((await apiJson(cookie, "POST", `/api/items/${threadId}/publish`, {})).status).toBe(200);
-    expect((await apiJson(cookie, "PUT", `/api/items/${threadId}/versions/${1}/pin`)).status).toBe(200);
+    expect((await apiJson(cookie, "POST", `/blyg/api/items/${threadId}/publish`, {})).status).toBe(200);
+    expect((await apiJson(cookie, "PUT", `/blyg/api/items/${threadId}/versions/${1}/pin`)).status).toBe(200);
 
-    const forked = await apiJson(cookie, "POST", "/api/items", { mode: "fork", source: { origin: OURS, id: threadId, version: 1 } });
+    const forked = await apiJson(cookie, "POST", "/blyg/api/items", { mode: "fork", source: { origin: OURS, id: threadId, version: 1 } });
     expect(forked.status).toBe(201);
     expect(forked.json.kind).toBe("thread");
     // Decision #57 overrules the session-24 call this test used to assert: the
     // directive re-resolved in the forker's context, so the fork descended from
     // a composition, not from the pinned bytes. The quote is now flattened.
-    const draft = await apiJson(cookie, "GET", `/api/items/${forked.json.id}`);
+    const draft = await apiJson(cookie, "GET", `/blyg/api/items/${forked.json.id}`);
     expect(draft.json.content_md).toBe(`intro\n\n> a fragment to quote\n>\n> — quoted from [example.com · v1](${OURS}f/${quoted}/)`);
   });
 });
@@ -137,10 +137,10 @@ describe("lineage on the wire and on the page", () => {
   it("rides the pinned version document too, and cannot drift from the live item", async () => {
     const cookie = await login();
     const parent = await publishAndPin(cookie, "ancestor");
-    const forked = await apiJson(cookie, "POST", "/api/items", { mode: "fork", source: { origin: OURS, id: parent, version: 1 } });
+    const forked = await apiJson(cookie, "POST", "/blyg/api/items", { mode: "fork", source: { origin: OURS, id: parent, version: 1 } });
     const id = forked.json.id as string;
-    expect((await apiJson(cookie, "POST", `/api/items/${id}/publish`, {})).status).toBe(200);
-    expect((await apiJson(cookie, "PUT", `/api/items/${id}/versions/${1}/pin`)).status).toBe(200);
+    expect((await apiJson(cookie, "POST", `/blyg/api/items/${id}/publish`, {})).status).toBe(200);
+    expect((await apiJson(cookie, "PUT", `/blyg/api/items/${id}/versions/${1}/pin`)).status).toBe(200);
 
     const pinned = await (await getPublic(`/blyg/items/${id}/v1.json`)).json<any>();
     expect(pinned.forked_from).toMatchObject({ origin: OURS, id: parent, version: 1 });
@@ -149,10 +149,10 @@ describe("lineage on the wire and on the page", () => {
   it("survives withdrawal — the endcap empties the work, not where the work came from", async () => {
     const cookie = await login();
     const parent = await publishAndPin(cookie, "ancestor");
-    const forked = await apiJson(cookie, "POST", "/api/items", { mode: "fork", source: { origin: OURS, id: parent, version: 1 } });
+    const forked = await apiJson(cookie, "POST", "/blyg/api/items", { mode: "fork", source: { origin: OURS, id: parent, version: 1 } });
     const id = forked.json.id as string;
-    expect((await apiJson(cookie, "POST", `/api/items/${id}/publish`, {})).status).toBe(200);
-    expect((await apiJson(cookie, "POST", `/api/items/${id}/withdraw`, {})).status).toBe(200);
+    expect((await apiJson(cookie, "POST", `/blyg/api/items/${id}/publish`, {})).status).toBe(200);
+    expect((await apiJson(cookie, "POST", `/blyg/api/items/${id}/withdraw`, {})).status).toBe(200);
 
     const doc = await itemJson(id);
     expect(doc.kind).toBe("withdrawn");
@@ -163,9 +163,9 @@ describe("lineage on the wire and on the page", () => {
   it("states the lineage on the item's own page, citing the pinned version page", async () => {
     const cookie = await login();
     const parent = await publishAndPin(cookie, "ancestor text");
-    const forked = await apiJson(cookie, "POST", "/api/items", { mode: "fork", source: { origin: OURS, id: parent, version: 1 } });
+    const forked = await apiJson(cookie, "POST", "/blyg/api/items", { mode: "fork", source: { origin: OURS, id: parent, version: 1 } });
     const id = forked.json.id as string;
-    expect((await apiJson(cookie, "POST", `/api/items/${id}/publish`, {})).status).toBe(200);
+    expect((await apiJson(cookie, "POST", `/blyg/api/items/${id}/publish`, {})).status).toBe(200);
 
     const html = await (await getPublic(`/blyg/f/${id}/`)).text();
     expect(html).toContain("Forked from");
@@ -179,14 +179,14 @@ describe("the publish-time check (§2.4)", () => {
   it("blocks publishing when a local lineage target turns out not to be pinned", async () => {
     const cookie = await login();
     const parent = await publishAndPin(cookie, "ancestor");
-    const forked = await apiJson(cookie, "POST", "/api/items", { mode: "fork", source: { origin: OURS, id: parent, version: 1 } });
+    const forked = await apiJson(cookie, "POST", "/blyg/api/items", { mode: "fork", source: { origin: OURS, id: parent, version: 1 } });
     const id = forked.json.id as string;
     // Pins are irrevocable through every supported path, so the only way to
     // reach this state is to corrupt it directly — which is exactly the state
     // the check exists to catch.
     await env.DB.prepare("UPDATE versions SET pinned = 0 WHERE item_id = ? AND version = 1").bind(parent).run();
 
-    const res = await apiJson(cookie, "POST", `/api/items/${id}/publish`, {});
+    const res = await apiJson(cookie, "POST", `/blyg/api/items/${id}/publish`, {});
     expect(res.status).toBe(400);
     expect(res.json.error).toContain("not pinned");
   });
@@ -203,7 +203,7 @@ describe("the publish-time check (§2.4)", () => {
       { origin: THEIRS, id: "remote-item", version: 2 },
       { source: "Friend", url: `${THEIRS}items/remote-item/v2.json`, retrieved: new Date().toISOString() },
     );
-    const res = await apiJson(cookie, "POST", `/api/items/${item.id}/publish`, {});
+    const res = await apiJson(cookie, "POST", `/blyg/api/items/${item.id}/publish`, {});
     expect(res.status).toBe(200);
     expect(res.json.warning).toContain("not re-checked");
     expect((await itemJson(item.id)).forked_from).toMatchObject({ origin: THEIRS, id: "remote-item", version: 2 });
@@ -219,7 +219,7 @@ describe("the publish-time check (§2.4)", () => {
       { origin: THEIRS, id: "remote-item", version: 2 },
       { source: "Friend", url: `${THEIRS}items/remote-item/v2.json`, retrieved: new Date().toISOString() },
     );
-    expect((await apiJson(cookie, "POST", `/api/items/${item.id}/publish`, {})).status).toBe(200);
+    expect((await apiJson(cookie, "POST", `/blyg/api/items/${item.id}/publish`, {})).status).toBe(200);
     // The mention targets the live item, not the pinned file: a receiver
     // verifies against the item a `target` names. Nothing imported declares
     // a `page`, so that is the item document, never a guessed `f/{id}/`

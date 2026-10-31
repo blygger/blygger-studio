@@ -35,7 +35,7 @@ import { atCheckpoint, campaign } from "./oracle-campaign.ts";
 // A fragment-stub case exercises domain rejection beyond JSON shape validation.
 // Sampling does not exhaust all eighty boolean/rejection cells.
 const input = fc.record({ text: fc.boolean(), kind: fc.boolean(), responses: fc.boolean(), clear: fc.boolean(), invalid: fc.constantFrom("none", "responses", "stub", "immutable", "domain") });
-const clientFor = (cookie: string) => createBlyggerClient({ baseUrl: BASE, headers: { cookie }, fetch: (request, init) => SELF.fetch(request instanceof Request ? request : new Request(request, init)) });
+const clientFor = (cookie: string) => createBlyggerClient({ baseUrl: BASE + '/blyg/api', headers: { cookie }, fetch: (request, init) => SELF.fetch(request instanceof Request ? request : new Request(request, init)) });
 async function patch(input: { text: boolean; kind: boolean; responses: boolean; clear: boolean; invalid: string }) {
   const client = clientFor(await login());
   const draft = await unwrap(BlyggerApi.createItem({ client, body: { kind: input.invalid === "domain" ? "fragment" : "thread", content_md: "before" } }));

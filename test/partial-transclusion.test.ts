@@ -19,7 +19,7 @@ import { SELF } from "cloudflare:test";
 import { apiJson, BASE, createAndPublish, getPublic, login } from "./helpers.ts";
 
 async function createThread(cookie: string, contentMd: string): Promise<string> {
-  const created = await apiJson(cookie, "POST", "/api/items", { content_md: contentMd, kind: "thread" });
+  const created = await apiJson(cookie, "POST", "/blyg/api/items", { content_md: contentMd, kind: "thread" });
   expect(created.status).toBe(201);
   return created.json.id as string;
 }
@@ -43,7 +43,7 @@ describe("the grammar: adjacency makes it partial", () => {
       cookie,
       `![[${target}]]\n> Stigmergy is what a protocol looks like from inside,\n> and the reason it looks like nothing at all is the point.\n\nCommentary after.`,
     );
-    expect((await apiJson(cookie, "POST", `/api/items/${thread}/publish`, {})).status).toBe(200);
+    expect((await apiJson(cookie, "POST", `/blyg/api/items/${thread}/publish`, {})).status).toBe(200);
 
     const doc = await (await getPublic(`/blyg/items/${thread}.json`)).json<any>();
     expect(doc.content_html).toContain('class="blyg-transclusion blyg-partial"');
@@ -62,7 +62,7 @@ describe("the grammar: adjacency makes it partial", () => {
       cookie,
       `![[${target}]]\n\n> My own pull-quote, which is not a selection.\n\nAnd commentary.`,
     );
-    expect((await apiJson(cookie, "POST", `/api/items/${thread}/publish`, {})).status).toBe(200);
+    expect((await apiJson(cookie, "POST", `/blyg/api/items/${thread}/publish`, {})).status).toBe(200);
 
     const doc = await (await getPublic(`/blyg/items/${thread}.json`)).json<any>();
     // Whole form: no partial class, no selector, and the target's second
@@ -82,7 +82,7 @@ describe("the grammar: adjacency makes it partial", () => {
       cookie,
       `![[${target}]]\n> First paragraph here.\n>\n> Second paragraph here.\n\nAfter.`,
     );
-    expect((await apiJson(cookie, "POST", `/api/items/${thread}/publish`, {})).status).toBe(200);
+    expect((await apiJson(cookie, "POST", `/blyg/api/items/${thread}/publish`, {})).status).toBe(200);
 
     const doc = await (await getPublic(`/blyg/items/${thread}.json`)).json<any>();
     expect(doc.transclusions[0].selector.exact).toBe("First paragraph here.\nSecond paragraph here.");
@@ -98,7 +98,7 @@ describe("the grammar: adjacency makes it partial", () => {
       cookie,
       `![[${target}]]\n> Stigmergy is what a protocol looks like from inside,\nCommentary on the same line-run.`,
     );
-    expect((await apiJson(cookie, "POST", `/api/items/${thread}/publish`, {})).status).toBe(200);
+    expect((await apiJson(cookie, "POST", `/blyg/api/items/${thread}/publish`, {})).status).toBe(200);
     const doc = await (await getPublic(`/blyg/items/${thread}.json`)).json<any>();
     expect(doc.content_html).toContain("blyg-partial");
     expect(doc.content_html).toContain("Commentary on the same line-run.");
@@ -111,7 +111,7 @@ describe("the check: the passage must be in the target", () => {
     const cookie = await login();
     const target = await createAndPublish(cookie, TARGET);
     const thread = await createThread(cookie, `![[${target}]]\n> Words the target never said.`);
-    const res = await apiJson(cookie, "POST", `/api/items/${thread}/publish`, {});
+    const res = await apiJson(cookie, "POST", `/blyg/api/items/${thread}/publish`, {});
     expect(res.status).toBe(400);
     expect(JSON.stringify(res.json)).toContain("quoted passage not found in the target's version 1");
   });
@@ -120,11 +120,11 @@ describe("the check: the passage must be in the target", () => {
     const cookie = await login();
     const target = await createAndPublish(cookie, TARGET);
     // The target moves on, dropping the sentence.
-    await apiJson(cookie, "PATCH", `/api/items/${target}`, { content_md: "Rewritten entirely." });
-    expect((await apiJson(cookie, "POST", `/api/items/${target}/publish`, {})).status).toBe(200);
+    await apiJson(cookie, "PATCH", `/blyg/api/items/${target}`, { content_md: "Rewritten entirely." });
+    expect((await apiJson(cookie, "POST", `/blyg/api/items/${target}/publish`, {})).status).toBe(200);
 
     const thread = await createThread(cookie, `![[${target}]]\n> ${PARA_ONE}`);
-    const res = await apiJson(cookie, "POST", `/api/items/${thread}/publish`, {});
+    const res = await apiJson(cookie, "POST", `/blyg/api/items/${thread}/publish`, {});
     expect(res.status).toBe(400);
     // v2 is what would be baked, so v2 is what the error names.
     expect(JSON.stringify(res.json)).toContain("quoted passage not found in the target's version 2");
@@ -138,7 +138,7 @@ describe("the check: the passage must be in the target", () => {
       cookie,
       `![[${target}]]\n> Stigmergy is what a\n> protocol looks like from inside, and the reason\n> it looks like nothing at all is the point.`,
     );
-    expect((await apiJson(cookie, "POST", `/api/items/${thread}/publish`, {})).status).toBe(200);
+    expect((await apiJson(cookie, "POST", `/blyg/api/items/${thread}/publish`, {})).status).toBe(200);
     const doc = await (await getPublic(`/blyg/items/${thread}.json`)).json<any>();
     expect(doc.transclusions[0].selector.exact).toBe(PARA_ONE);
   });
@@ -147,7 +147,7 @@ describe("the check: the passage must be in the target", () => {
     const cookie = await login();
     const target = await createAndPublish(cookie, "Alpha line.\n\nBeta line.\n\nGamma line.");
     const thread = await createThread(cookie, `![[${target}]]\n> Alpha line.\n>\n> Beta line.`);
-    expect((await apiJson(cookie, "POST", `/api/items/${thread}/publish`, {})).status).toBe(200);
+    expect((await apiJson(cookie, "POST", `/blyg/api/items/${thread}/publish`, {})).status).toBe(200);
   });
 
   it("refuses a quote that welds two of the target's blocks into one line", async () => {
@@ -155,14 +155,14 @@ describe("the check: the passage must be in the target", () => {
     const target = await createAndPublish(cookie, "Alpha line.\n\nBeta line.");
     // The target has a block boundary between these; this quote does not.
     const thread = await createThread(cookie, `![[${target}]]\n> Alpha line. Beta line.`);
-    expect((await apiJson(cookie, "POST", `/api/items/${thread}/publish`, {})).status).toBe(400);
+    expect((await apiJson(cookie, "POST", `/blyg/api/items/${thread}/publish`, {})).status).toBe(400);
   });
 
   it("refuses an empty blockquote rather than baking a zero-length selection", async () => {
     const cookie = await login();
     const target = await createAndPublish(cookie, TARGET);
     const thread = await createThread(cookie, `![[${target}]]\n>\n>`);
-    const res = await apiJson(cookie, "POST", `/api/items/${thread}/publish`, {});
+    const res = await apiJson(cookie, "POST", `/blyg/api/items/${thread}/publish`, {});
     expect(res.status).toBe(400);
     expect(JSON.stringify(res.json)).toContain("empty");
   });
@@ -173,7 +173,7 @@ describe("the wire entry", () => {
     const cookie = await login();
     const target = await createAndPublish(cookie, "Before it. The middle bit. After it.");
     const thread = await createThread(cookie, `![[${target}]]\n> The middle bit.`);
-    expect((await apiJson(cookie, "POST", `/api/items/${thread}/publish`, {})).status).toBe(200);
+    expect((await apiJson(cookie, "POST", `/blyg/api/items/${thread}/publish`, {})).status).toBe(200);
 
     const doc = await (await getPublic(`/blyg/items/${thread}.json`)).json<any>();
     const entry = doc.transclusions[0];
@@ -191,7 +191,7 @@ describe("the wire entry", () => {
     const cookie = await login();
     const target = await createAndPublish(cookie, "Exactly this.");
     const thread = await createThread(cookie, `![[${target}]]\n> Exactly this.`);
-    expect((await apiJson(cookie, "POST", `/api/items/${thread}/publish`, {})).status).toBe(200);
+    expect((await apiJson(cookie, "POST", `/blyg/api/items/${thread}/publish`, {})).status).toBe(200);
     const doc = await (await getPublic(`/blyg/items/${thread}.json`)).json<any>();
     expect(doc.transclusions[0].selector).toEqual({ exact: "Exactly this." });
   });
@@ -200,7 +200,7 @@ describe("the wire entry", () => {
     const cookie = await login();
     const target = await createAndPublish(cookie, TARGET);
     const thread = await createThread(cookie, `![[${target}]]`);
-    expect((await apiJson(cookie, "POST", `/api/items/${thread}/publish`, {})).status).toBe(200);
+    expect((await apiJson(cookie, "POST", `/blyg/api/items/${thread}/publish`, {})).status).toBe(200);
     const doc = await (await getPublic(`/blyg/items/${thread}.json`)).json<any>();
     expect(doc.transclusions).toEqual([{ id: target, version: 1 }]);
   });
@@ -214,7 +214,7 @@ describe("the bake", () => {
     // is a separate project. Recorded in v0.4-plan §7.3 P4 in advance.
     const target = await createAndPublish(cookie, "the *thin* layer where coordination happens");
     const thread = await createThread(cookie, `![[${target}]]\n> the thin layer where coordination happens`);
-    expect((await apiJson(cookie, "POST", `/api/items/${thread}/publish`, {})).status).toBe(200);
+    expect((await apiJson(cookie, "POST", `/blyg/api/items/${thread}/publish`, {})).status).toBe(200);
 
     const doc = await (await getPublic(`/blyg/items/${thread}.json`)).json<any>();
     expect(doc.content_html).toContain("<p>the thin layer where coordination happens</p>");
@@ -225,7 +225,7 @@ describe("the bake", () => {
     const cookie = await login();
     const target = await createAndPublish(cookie, "a < b and c > d");
     const thread = await createThread(cookie, `![[${target}]]\n> a < b and c > d`);
-    expect((await apiJson(cookie, "POST", `/api/items/${thread}/publish`, {})).status).toBe(200);
+    expect((await apiJson(cookie, "POST", `/blyg/api/items/${thread}/publish`, {})).status).toBe(200);
     const doc = await (await getPublic(`/blyg/items/${thread}.json`)).json<any>();
     expect(doc.content_html).toContain("&lt; b and c &gt;");
   });
@@ -234,7 +234,7 @@ describe("the bake", () => {
     const cookie = await login();
     const target = await createAndPublish(cookie, TARGET);
     const thread = await createThread(cookie, `![[${target}]]\n> ${PARA_ONE}`);
-    expect((await apiJson(cookie, "POST", `/api/items/${thread}/publish`, {})).status).toBe(200);
+    expect((await apiJson(cookie, "POST", `/blyg/api/items/${thread}/publish`, {})).status).toBe(200);
     const doc = await (await getPublic(`/blyg/items/${thread}.json`)).json<any>();
     expect(doc.content_html).toContain(`data-blyg-id="${target}"`);
     expect(doc.content_html).toContain('data-blyg-version="1"');
@@ -249,11 +249,11 @@ describe("staleness and the rest are unchanged", () => {
     const cookie = await login();
     const target = await createAndPublish(cookie, TARGET);
     const thread = await createThread(cookie, `![[${target}]]\n> ${PARA_ONE}`);
-    expect((await apiJson(cookie, "POST", `/api/items/${thread}/publish`, {})).status).toBe(200);
+    expect((await apiJson(cookie, "POST", `/blyg/api/items/${thread}/publish`, {})).status).toBe(200);
 
     // Target moves; our snapshot and our selector both still name version 1.
-    await apiJson(cookie, "PATCH", `/api/items/${target}`, { content_md: `${TARGET}\n\nAnd more.` });
-    expect((await apiJson(cookie, "POST", `/api/items/${target}/publish`, {})).status).toBe(200);
+    await apiJson(cookie, "PATCH", `/blyg/api/items/${target}`, { content_md: `${TARGET}\n\nAnd more.` });
+    expect((await apiJson(cookie, "POST", `/blyg/api/items/${target}/publish`, {})).status).toBe(200);
 
     const doc = await (await getPublic(`/blyg/items/${thread}.json`)).json<any>();
     expect(doc.transclusions[0].version).toBe(1);
@@ -264,16 +264,16 @@ describe("staleness and the rest are unchanged", () => {
     const cookie = await login();
     const target = await createAndPublish(cookie, TARGET);
     const thread = await createThread(cookie, `![[${target}]]\n> ${PARA_ONE}`);
-    expect((await apiJson(cookie, "POST", `/api/items/${thread}/publish`, {})).status).toBe(200);
+    expect((await apiJson(cookie, "POST", `/blyg/api/items/${thread}/publish`, {})).status).toBe(200);
 
     // The target keeps the quoted sentence, so a republish must succeed and
     // move the snapshot to v2 — the passage is still faithfully there.
-    await apiJson(cookie, "PATCH", `/api/items/${target}`, { content_md: `${TARGET}\n\nA third paragraph.` });
-    expect((await apiJson(cookie, "POST", `/api/items/${target}/publish`, {})).status).toBe(200);
-    await apiJson(cookie, "PATCH", `/api/items/${thread}`, {
+    await apiJson(cookie, "PATCH", `/blyg/api/items/${target}`, { content_md: `${TARGET}\n\nA third paragraph.` });
+    expect((await apiJson(cookie, "POST", `/blyg/api/items/${target}/publish`, {})).status).toBe(200);
+    await apiJson(cookie, "PATCH", `/blyg/api/items/${thread}`, {
       content_md: `![[${target}]]\n> ${PARA_ONE}\n\nRevisited.`,
     });
-    expect((await apiJson(cookie, "POST", `/api/items/${thread}/publish`, {})).status).toBe(200);
+    expect((await apiJson(cookie, "POST", `/blyg/api/items/${thread}/publish`, {})).status).toBe(200);
 
     const doc = await (await getPublic(`/blyg/items/${thread}.json`)).json<any>();
     expect(doc.transclusions[0].version).toBe(2);
@@ -287,7 +287,7 @@ describe("staleness and the rest are unchanged", () => {
 // publish would show the author a passage that publish then refuses.
 describe("the editor preview matches what publish will do", () => {
   const preview = async (cookie: string, contentMd: string) => {
-    const res = await SELF.fetch(`${BASE}/api/preview`, {
+    const res = await SELF.fetch(`${BASE}/blyg/api/preview`, {
       method: "POST",
       headers: { cookie, "content-type": "application/json" },
       body: JSON.stringify({ kind: "thread", content_md: contentMd }),
@@ -324,7 +324,7 @@ describe("a partial quote discloses itself on the page", () => {
     const cookie = await login();
     const target = await createAndPublish(cookie, TARGET);
     const thread = await createThread(cookie, `![[${target}]]\n> ${PARA_ONE}\n\nAnd my answer.`);
-    expect((await apiJson(cookie, "POST", `/api/items/${thread}/publish`, {})).status).toBe(200);
+    expect((await apiJson(cookie, "POST", `/blyg/api/items/${thread}/publish`, {})).status).toBe(200);
 
     const html = await (await getPublic(`/blyg/t/${thread}/`)).text();
     expect(html).toContain('class="provenance"');
@@ -339,7 +339,7 @@ describe("a partial quote discloses itself on the page", () => {
     const cookie = await login();
     const target = await createAndPublish(cookie, TARGET);
     const thread = await createThread(cookie, `![[${target}]]\n\nAnd my answer.`);
-    expect((await apiJson(cookie, "POST", `/api/items/${thread}/publish`, {})).status).toBe(200);
+    expect((await apiJson(cookie, "POST", `/blyg/api/items/${thread}/publish`, {})).status).toBe(200);
     const html = await (await getPublic(`/blyg/t/${thread}/`)).text();
     expect(html).toContain("snapshot of v1");
     expect(html).not.toContain("excerpt of");
@@ -356,7 +356,7 @@ describe("a partial quote discloses itself on the page", () => {
       cookie,
       `![[${whole}]]\n\nOne.\n\n![[${partial}]]\n> ${PARA_ONE}\n\nTwo.\n\n![[${third}]]\n\nThree.`,
     );
-    expect((await apiJson(cookie, "POST", `/api/items/${thread}/publish`, {})).status).toBe(200);
+    expect((await apiJson(cookie, "POST", `/blyg/api/items/${thread}/publish`, {})).status).toBe(200);
 
     const html = await (await getPublic(`/blyg/t/${thread}/`)).text();
     const lines = [...html.matchAll(/<p class="provenance">.*?<\/p>/g)].map((m) => m[0]);

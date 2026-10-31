@@ -18,6 +18,12 @@ not have its own repo until session 26.
 
 ---
 
+## 0.49.7 — Mounted private API
+
+REST now lives at `{mount}/api`. Set SDK base URLs to that full address. Mounted nodes remove host-root `/api`; replace old REST tokens or request new OAuth consent. MCP audiences stay the same. Private contract version: 2.0.0. SDK version: 0.3.0.
+
+**Migrations:** none.
+
 ## 0.49.6 — 2026-10-31
 
 **Migrations: none.**

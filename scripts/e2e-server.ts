@@ -92,7 +92,7 @@ const proxy = createServer(async (request, response) => {
       response.writeHead(204); response.end();
       return;
     }
-    if (!path.startsWith("/notes/b/") && !path.startsWith("/api/")) { response.writeHead(404); response.end("outside forwarding ranges"); return; }
+    if (!path.startsWith("/notes/b/")) { response.writeHead(404); response.end("outside forwarding ranges"); return; }
     const chunks: Buffer[] = [];
     for await (const chunk of request) chunks.push(Buffer.from(chunk));
     const headers = new Headers();

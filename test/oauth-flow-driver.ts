@@ -33,7 +33,7 @@ export async function flow(options: { redirect?: string; authorize?: Record<stri
   const client = await registered.json() as { client_id: string };
   const digest = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(verifier));
   const challenge = btoa(String.fromCharCode(...new Uint8Array(digest))).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
-  const authorize = issuer + '/oauth2/authorize?' + new URLSearchParams({ client_id: client.client_id, response_type: 'code', redirect_uri: redirect, state: 'oracle-state', scope: options.scope ?? 'owner:read owner:draft offline_access', resource: base + '/api', code_challenge_method: 'S256', code_challenge: challenge, ...options.authorize });
+  const authorize = issuer + '/oauth2/authorize?' + new URLSearchParams({ client_id: client.client_id, response_type: 'code', redirect_uri: redirect, state: 'oracle-state', scope: options.scope ?? 'owner:read owner:draft offline_access', resource: base + '/blyg/api', code_challenge_method: 'S256', code_challenge: challenge, ...options.authorize });
   const consent = await request(authorize, { headers: { cookie: owner } });
   atCheckpoint('OAuth consent is rendered safely', () => { expect(consent.status).toBe(200); expect(consent.headers.get('content-security-policy')).toContain('frame-ancestors'); });
   const html = await consent.text();
@@ -42,6 +42,6 @@ export async function flow(options: { redirect?: string; authorize?: Record<stri
   const binding = consent.headers.getSetCookie().map(cookie => cookie.split(';')[0]).join('; ');
   model.consent(handle, 'browser-a', ['owner:read', 'owner:draft']);
   const decide = (browser: 'browser-a' | 'browser-b', allow: boolean, origin = base) => request(issuer + '/consent', { method: 'POST', headers: { cookie: owner + (browser === 'browser-a' ? '; ' + binding : ''), Origin: origin }, body: new URLSearchParams([['handle', handle], ['decision', allow ? 'allow' : 'deny'], ['scope', 'owner:read'], ['scope', 'owner:draft']]) });
-  const token = (code: string, values: Record<string, string> = {}) => request(issuer + '/oauth2/token', { method: 'POST', headers: { 'Content-Type': 'application/x-www-form-urlencoded' }, body: new URLSearchParams({ grant_type: 'authorization_code', code, client_id: client.client_id, redirect_uri: redirect, resource: base + '/api', code_verifier: verifier, ...values }) });
+  const token = (code: string, values: Record<string, string> = {}) => request(issuer + '/oauth2/token', { method: 'POST', headers: { 'Content-Type': 'application/x-www-form-urlencoded' }, body: new URLSearchParams({ grant_type: 'authorization_code', code, client_id: client.client_id, redirect_uri: redirect, resource: base + '/blyg/api', code_verifier: verifier, ...values }) });
   return { model, base, issuer, verifier, redirect, client, request, owner, binding, handle, decide, token, authorize };
 }

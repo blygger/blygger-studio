@@ -1,6 +1,6 @@
 # Owner API
 
-The owner API lives at `/api`, including installations with a mounted Studio.
+The owner API lives at `{mount}/api`: `/api` for a root node and `/blyg/api` for a node mounted at `/blyg`. Mounted nodes do not serve a host-root `/api` alias.
 The public Blygger protocol remains separate.
 Sign into Studio before calling the API from a browser on the same origin.
 Delegated clients use scoped bearer tokens. See [Client access](client-access.md)
@@ -14,7 +14,7 @@ Hey API generates the SDK directly from the contract, without changes to generat
 
 ## Capability discovery
 
-`GET /api/capabilities` accepts an owner session or any valid delegated grant.
+`GET {mount}/api/capabilities` accepts an owner session or any valid delegated grant.
 The response contains `contractVersion`, canonical `endpoints`, available
 `operations` by ID, and `extensions` with separate declared, compiled, enabled,
 and caller-granted states. This includes grants with only `reading:state`.
@@ -68,7 +68,7 @@ and signing keys revalidate. Token responses use `no-store`.
 
 ## Resources and operations
 
-All paths below start with `/api`.
+All paths below are relative to `{mount}/api`. OpenAPI paths are relative to its canonical API server URL; the SDK base URL includes this API path.
 Consult `openapi.json` for every field and response.
 
 | Resource | Read | Write |

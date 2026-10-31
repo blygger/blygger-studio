@@ -13,7 +13,7 @@ describe("reading: withdrawn posts are background", () => {
     const cookie = await login();
     const live = await createAndPublish(cookie, "Background lens live post");
     const gone = await createAndPublish(cookie, "Background lens withdrawn post");
-    expect((await apiJson(cookie, "POST", `/api/items/${gone}/withdraw`, {})).status).toBe(200);
+    expect((await apiJson(cookie, "POST", `/blyg/api/items/${gone}/withdraw`, {})).status).toBe(200);
 
     const origin = "https://bg.example/";
     const sub = await createSubscription(env.DB, { kind: "blyg", origin, feedUrl: `${origin}feed.xml`, title: "Bg" });
@@ -24,7 +24,7 @@ describe("reading: withdrawn posts are background", () => {
     await env.DB.prepare("UPDATE imported_items SET state = 'tombstone' WHERE subscription_id = ? AND remote_id = ?").bind(sub.id, drop).run();
 
     const keys = async (query: string) => {
-      const res = await apiJson(cookie, "GET", `/api/reading?limit=50${query}`);
+      const res = await apiJson(cookie, "GET", `/blyg/api/reading?limit=50${query}`);
       expect(res.status).toBe(200);
       return { keys: (res.json.items as { key: string }[]).map((e) => e.key), counts: res.json.counts };
     };

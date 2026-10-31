@@ -101,11 +101,11 @@ describe("browsing path", () => {
   it("is written and read through /api, for the owner only", async () => {
     const cookie = await login();
     const body = { trail: "trail-cccc-3", origin: O, remote_id: ID, via: "start", version: 2, title: "T" };
-    const posted = await apiJson(cookie, "POST", "/api/browse", body);
+    const posted = await apiJson(cookie, "POST", "/blyg/api/browse", body);
     expect(posted.status).toBe(201);
-    const listed = await apiJson(cookie, "GET", "/api/browse?trail=trail-cccc-3");
+    const listed = await apiJson(cookie, "GET", "/blyg/api/browse?trail=trail-cccc-3");
     expect(listed.json.items).toEqual([expect.objectContaining({ id: posted.json.id, via: "start", title: "T" })]);
-    expect((await apiJson(cookie, "POST", "/api/browse", { ...body, via: "teleport" })).status).toBe(400);
-    expect((await apiJson(cookie, "DELETE", "/api/browse?trail=trail-cccc-3")).status).toBe(200);
+    expect((await apiJson(cookie, "POST", "/blyg/api/browse", { ...body, via: "teleport" })).status).toBe(400);
+    expect((await apiJson(cookie, "DELETE", "/blyg/api/browse?trail=trail-cccc-3")).status).toBe(200);
   });
 });
