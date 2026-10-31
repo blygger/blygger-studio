@@ -1,0 +1,37 @@
+{
+  "$schema": "https://docs.renovatebot.com/renovate-schema.json",
+  "extends": ["config:recommended"],
+  "rangeStrategy": "bump",
+  "automerge": false,
+  "lockFileMaintenance": {
+    "enabled": true
+  },
+  "packageRules": [
+    {
+      "matchPackageNames": ["better-auth", "@better-auth/oauth-provider"],
+      "groupName": "Better Auth",
+      "separateMajorMinor": false
+    },
+    {
+      "matchPackageNames": ["@modelcontextprotocol/client", "@modelcontextprotocol/server"],
+      "groupName": "MCP SDK",
+      "separateMajorMinor": false
+    },
+    {
+      "matchPackageNames": ["@tanstack/db", "@tanstack/react-db", "@tanstack/query-db-collection"],
+      "groupName": "TanStack DB",
+      "separateMajorMinor": false
+    },
+    {
+      "matchPackageNames": ["@cloudflare/vitest-plugin", "@cloudflare/workers-types", "miniflare", "wrangler"],
+      "groupName": "Cloudflare tooling",
+      "separateMajorMinor": false
+    },
+    {
+      "description": "Follow the prerelease lines already used by this project.",
+      "matchPackageNames": ["@tanstack/db", "@tanstack/react-db", "miniflare"],
+      "ignoreUnstable": false,
+      "respectLatest": false
+    }
+  ]
+}

@@ -1,3 +1,4 @@
+import { authoredVersionKind } from '../version-state.ts';
 // Inbound Webmention + structural verification — v0.3-plan §2.3.5,
 // decision #28. The endpoint accepts a *claim*; verification decides whether
 // the claim is true, by reading the source's own item document rather than
@@ -86,12 +87,12 @@ export async function targetItemId(db: D1Database, target: URL, ourOrigin: strin
   // withdrawn item the kind of the version before its endcap.
   const row = await db
     .prepare(
-      `SELECT i.id, i.kind, v.transclusions FROM items i
+      `SELECT i.id, i.kind, v.kind AS previous_kind, v.transclusions FROM items i
        LEFT JOIN versions v ON v.item_id = i.id AND v.version = i.version - 1
        WHERE i.id = ? AND i.status IN ('public','withdrawn')`,
     )
     .bind(id)
-    .first<{ id: string; kind: string; transclusions: string | null }>();
+    .first<{ id: string; kind: string; previous_kind: 'fragment' | 'thread' | 'withdrawn' | null; transclusions: string | null }>();
   if (!row) return null;
   const seg = m[1];
   if (version === undefined) {
@@ -99,19 +100,19 @@ export async function targetItemId(db: D1Database, target: URL, ourOrigin: strin
     // /t/:id): a fragment at t/{id}/ is a 404, so not ours to name. The item
     // document is served for both kinds and stays kind-agnostic.
     if (seg) {
-      const isThread = row.kind === "thread" || (row.kind !== "fragment" && row.transclusions !== null);
+      const isThread = row.kind === "thread" || (row.kind !== "fragment" && authoredVersionKind({ kind: row.previous_kind, transclusions: row.transclusions }) === "thread");
       if ((seg === "t") !== isThread) return null;
     }
     return row.id;
   }
   const pin = await db
-    .prepare("SELECT transclusions FROM versions WHERE item_id = ? AND version = ? AND pinned = 1")
+    .prepare("SELECT kind, transclusions FROM versions WHERE item_id = ? AND version = ? AND pinned = 1")
     .bind(row.id, Number(version))
-    .first<{ transclusions: string | null }>();
+    .first<{ kind: "fragment" | "thread" | "withdrawn" | null; transclusions: string | null }>();
   if (!pin) return null;
   // A pinned page is served only under its authored kind (index.ts
   // pinnedPage): a thread's pin at f/{id}/v{n}/ is a 404, so not ours to name.
-  if (seg && (seg === "t") !== (pin.transclusions !== null)) return null;
+  if (seg && (seg === "t") !== (authoredVersionKind(pin) === "thread")) return null;
   return row.id;
 }
 

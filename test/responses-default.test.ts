@@ -34,9 +34,9 @@ async function respondTo(itemId: string, origin = "https://friend.example/blyg/"
 }
 
 const setDefault = (cookie: string, on: boolean) =>
-  apiJson(cookie, "PATCH", "/api/settings", { show_responses_default: on });
+  apiJson(cookie, "PATCH", "/blyg/api/settings", { show_responses_default: on });
 const setItem = (cookie: string, id: string, mode: string) =>
-  apiJson(cookie, "PATCH", `/api/items/${id}`, { responses: mode });
+  apiJson(cookie, "PATCH", `/blyg/api/items/${id}`, { responses: mode });
 const page = async (id: string) => (await getPublic(`/blyg/f/${id}/`)).text();
 
 // Settings are one row per blyg and this file's storage is shared across its
@@ -121,7 +121,7 @@ describe("a per-item override beats the default, both ways", () => {
     const id = await createAndPublish(cookie, "an item");
     await respondTo(id);
     // Third-party tools already call this endpoint.
-    const res = await apiJson(cookie, "PATCH", `/api/items/${id}`, { responses: "show" });
+    const res = await apiJson(cookie, "PATCH", `/blyg/api/items/${id}`, { responses: "show" });
     expect(res.status).toBe(200);
     expect(res.json.responses).toBe("show");
     expect(await page(id)).toContain("A Stranger");
@@ -141,7 +141,7 @@ describe("per-mention hiding is unaffected", () => {
     const mentionId = await respondTo(id);
     await setDefault(cookie, true);
     expect(await page(id)).toContain("A Stranger");
-    await apiJson(cookie, "PATCH", `/api/mentions/${mentionId}`, { hidden: true });
+    await apiJson(cookie, "PATCH", `/blyg/api/mentions/${mentionId}`, { hidden: true });
     expect(await page(id)).not.toContain("A Stranger");
   });
 });

@@ -8,6 +8,7 @@ import { zListItemsResponse, zHopper, zSubscription, zAuthorization } from '../s
 
 let db: typeof import('../src/ui/data.ts');
 let revision = 0;
+let itemRevision = 1;
 let epoch = 'test';
 let text = 'original';
 let missing = false;
@@ -17,9 +18,11 @@ let orphanMember = false;
 let invalidItem = false;
 let releaseWrite: (() => void) | undefined;
 let writeGate: Promise<void> | undefined;
+let detailGate: Promise<void> | undefined;
+let detailEntered: (() => void) | undefined;
 const requests: { path: string; params: URLSearchParams }[] = [];
 const views: { cleanup(): Promise<void> | void }[] = [];
-const item = () => ({ id: 'a', content_md: text, kind: 'fragment' as const, status: 'draft' as const, created: '2026-10-06', updated: '2026-10-06', version: 0, dirty: false, responses: 'default' as const, highlight: 'default' as const, provenance: [], stub_of: null, forked_from: null, fork_cite: null, pins: [] });
+const item = () => ({ id: 'a', revision: itemRevision, content_md: text, kind: 'fragment' as const, status: 'draft' as const, created: '2026-10-06', updated: '2026-10-06', version: 0, dirty: false, responses: 'default' as const, highlight: 'default' as const, provenance: [], stub_of: null, forked_from: null, fork_cite: null, pins: [] });
 const detail = (): Detail => ({ ...item(), authored_kind: 'fragment', media: [], published_media: [], versions: [], published: null });
 const hopper = { id: 'h', name: 'Hopper', public: false, slug: null, created: '2026-10-06', slug_frozen: false, description: null };
 const contents = () => ({ hopper, items: Array.from({ length: 4 }, (_, i) => ({ subscription_id: 's', remote_id: String(i), content_html: `${text} ${i}`, content_md: text, kind: 'fragment', state: 'current', version: 1, created: null, updated: null, observed_at: '2026-10-06', content_hash: null, author_json: null, media_json: null, transclusions_json: null, l0: false, pinned_version_retained: null, page: null, stub_of_json: null, forked_from_json: null, generated_json: null })), memberships: Array.from({ length: 4 }, (_, i) => ({ hopper_id: 'h', subscription_id: 's', remote_id: String(i), added_at: '2026-10-06' })), total: 4, source_count: 1 });
@@ -29,7 +32,7 @@ const json = (data: unknown, status = 200) => new Response(JSON.stringify(data),
 beforeAll(async () => {
   vi.stubGlobal('location', { origin: 'http://studio.test' });
   vi.stubGlobal('window', new EventTarget());
-  vi.stubGlobal('document', Object.assign(new EventTarget(), { visibilityState: 'hidden' }));
+  vi.stubGlobal('document', Object.assign(new EventTarget(), { visibilityState: 'hidden', getElementById: (id: string) => id === 'studio-root' ? { dataset: { apiBase: '/api' } } : null }));
   vi.stubGlobal('fetch', async (request: Request) => {
     const url = new URL(request.url);
     requests.push({ path: url.pathname, params: url.searchParams });
@@ -38,10 +41,18 @@ beforeAll(async () => {
       const body = await request.json();
       await writeGate;
       if (failWrite) return json({ error: 'write failed' }, 503);
-      text = body.content_md; revision++;
+      if (body.expectedRevision !== itemRevision) return json({ error: 'item revision conflict', code: 'revision-conflict' }, 409);
+      text = body.content_md; revision++; itemRevision++;
       return json(item());
     }
+    if (url.pathname === '/api/items/a/restore' && request.method === 'POST') {
+      const body = await request.json();
+      if (body.expectedRevision !== itemRevision) return json({ error: 'item revision conflict' }, 409);
+      text = 'restored text'; revision++; itemRevision++;
+      return json({ ok: true, restored: 1, publishesAs: 2, revision: itemRevision });
+    }
     if (url.pathname === '/api/items/a') {
+      detailEntered?.(); await detailGate;
       if (failRead) return json({ error: 'read failed' }, 503);
       return missing ? json({ error: 'not found' }, 404) : json({ ...detail(), ...(invalidItem ? { content_md: 42 } : {}) });
     }
@@ -70,7 +81,7 @@ beforeAll(async () => {
   db = await import('../src/ui/data.ts');
 });
 
-beforeEach(() => { revision = 0; epoch = 'test'; text = 'original'; missing = false; failWrite = false; failRead = false; orphanMember = false; invalidItem = false; writeGate = undefined; releaseWrite = undefined; requests.length = 0; });
+beforeEach(() => { revision = 0; itemRevision = 1; epoch = 'test'; text = 'original'; missing = false; failWrite = false; failRead = false; orphanMember = false; invalidItem = false; writeGate = undefined; detailGate = undefined; detailEntered = undefined; releaseWrite = undefined; requests.length = 0; });
 afterEach(async () => {
   releaseWrite?.();
   await Promise.all(views.splice(0).map((view) => view.cleanup()));
@@ -97,6 +108,45 @@ test('editor projections share one item read on open and per changed revision', 
   await db.changed('items');
   expect(requests.filter((request) => request.path === '/api/items/a')).toHaveLength(2);
   expect(editor.toArray[0].content_md).toBe('fresh');
+});
+
+test('an open editor does not adopt a foreign revision from polling for its unsaved text', async () => {
+  const editor = db.itemDetail('a'); views.push(editor);
+  await editor.preload();
+  const write = db.createDraftAction('a', editor.toArray[0].revision);
+  text = 'foreign edit'; itemRevision++; revision++;
+  await db.changed('items');
+  expect(editor.toArray[0].revision).toBe(2);
+  await expect(write({ type: 'save', text: 'local unsaved text' })).rejects.toMatchObject({ statusCode: 409 });
+  expect(text).toBe('foreign edit');
+  expect(itemRevision).toBe(2);
+});
+
+test('an editor advances its revision from each acknowledged local write', async () => {
+  const editor = db.itemDetail('a'); views.push(editor);
+  await editor.preload();
+  const write = db.createDraftAction('a', editor.toArray[0].revision);
+  expect(await write({ type: 'save', text: 'one' })).toMatchObject({ revision: 2 });
+  expect(await write({ type: 'save', text: 'two' })).toMatchObject({ revision: 3 });
+  expect(text).toBe('two');
+});
+
+test('restore read-back cannot grant a queued old-text save a foreign revision', async () => {
+  const editor = db.itemDetail('a'); views.push(editor);
+  await editor.preload();
+  const write = db.createDraftAction('a', editor.toArray[0].revision);
+  let release!: () => void;
+  const entered = new Promise<void>(resolve => { detailEntered = resolve; });
+  detailGate = new Promise<void>(resolve => { release = resolve; });
+  const restoring = write({ type: 'restore', version: 1 });
+  await entered;
+  text = 'foreign edit after restore'; itemRevision++; revision++;
+  // Navigation's Draft.save captures local text while restore is still pending.
+  const queued = write({ type: 'save', text: 'old local text' });
+  const results = Promise.allSettled([restoring, queued]);
+  release();
+  expect((await results).map(result => result.status)).toEqual(['rejected', 'rejected']);
+  expect(text).toBe('foreign edit after restore');
 });
 
 test('hopper projections share each preview and full response per revision', async () => {

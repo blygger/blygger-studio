@@ -1,3 +1,4 @@
+import { fixtureJson } from './api-fixture';
 import { test, expect, type Page } from './fixture';
 
 // Reading lenses and the signals page (0.25.0). The fixture is shared by both
@@ -11,13 +12,7 @@ async function login(page: Page) {
   await expect(page.locator('#composer-text')).toBeVisible();
 }
 const api = (page: Page, method: string, path: string, body?: unknown) =>
-  page.evaluate(
-    async ({ method, path, body }) => {
-      const response = await fetch(`/api${path}`, { method, headers: { 'content-type': 'application/json' }, ...(body === undefined ? {} : { body: JSON.stringify(body) }) });
-      return { status: response.status, json: await response.json().catch(() => null) };
-    },
-    { method, path, body },
-  );
+  page.evaluate(fixtureJson, { method, path: `/api${path}`, body });
 
 test('lenses filter by kind, keep themselves across screens, keep withdrawn posts to Background, and show the Smart Feed placeholder', async ({ page }) => {
   await login(page);

@@ -35,7 +35,7 @@ describe("blogroll.opml (§2.2)", () => {
     const sub = await createSubscription(env.DB, { kind: "blyg", origin: "https://paused.example/", feedUrl: "https://paused.example/feed.xml", title: "Paused" });
     await setBlogrollFlag(env.DB, sub.id, true);
     const cookie = await login();
-    await apiJson(cookie, "PATCH", `/api/subscriptions/${sub.id}`, { paused: true });
+    await apiJson(cookie, "PATCH", `/blyg/api/subscriptions/${sub.id}`, { paused: true });
     const xml = await (await getPublic("/blyg/blogroll.opml")).text().catch(() => "");
     expect(xml).not.toContain("paused.example");
   });
@@ -79,7 +79,7 @@ describe("public hopper page (§4.2 task 11)", () => {
     await applyEffect(env.DB, sub.id, "desc-1", transition({ local: { status: "absent" }, doc: JSON.parse(doc) }).effect, "2026-08-01T00:00:00Z");
     const hopper = await createHopper(env.DB, "Stigmergy Reading", "stigmergy-reading");
     await addHopperItem(env.DB, hopper.id, sub.id, "desc-1");
-    const patched = await apiJson(cookie, "PATCH", `/api/hoppers/${hopper.id}`, { public: true, description: "Things about traces & trails" });
+    const patched = await apiJson(cookie, "PATCH", `/blyg/api/hoppers/${hopper.id}`, { public: true, description: "Things about traces & trails" });
     expect(patched.status).toBe(200);
     expect(patched.json.description).toBe("Things about traces & trails");
 
@@ -100,9 +100,9 @@ describe("public hopper page (§4.2 task 11)", () => {
     }
 
     // Clearing the description falls back to a generated one; going private delists.
-    expect((await apiJson(cookie, "PATCH", `/api/hoppers/${hopper.id}`, { description: "" })).json.description).toBeNull();
+    expect((await apiJson(cookie, "PATCH", `/blyg/api/hoppers/${hopper.id}`, { description: "" })).json.description).toBeNull();
     expect(await (await getPublic("/blyg/h/stigmergy-reading/")).text()).toContain("A collection on ");
-    await apiJson(cookie, "PATCH", `/api/hoppers/${hopper.id}`, { public: false });
+    await apiJson(cookie, "PATCH", `/blyg/api/hoppers/${hopper.id}`, { public: false });
     expect(await (await getPublic("/blyg/")).text()).not.toContain("/blyg/h/stigmergy-reading/");
   });
 

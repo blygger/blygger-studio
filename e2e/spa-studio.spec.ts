@@ -14,8 +14,8 @@ async function seedReading(page: Page, minimum: number) {
     const total = (await (await fetch('/api/reading')).json()).total as number;
     for (let i = total; i < minimum; i++) {
       const response = await fetch('/api/items', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ content_md: `Preload fixture ${i}` }) });
-      const item = await response.json() as { id: string };
-      const published = await fetch(`/api/items/${item.id}/publish`, { method: 'POST' });
+      const item = await response.json() as { id: string; revision: number };
+      const published = await fetch(`/api/items/${item.id}/publish`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ expectedRevision: item.revision }) });
       if (!response.ok || !published.ok) throw new Error('Cannot seed reading fixture');
     }
   }, minimum);
@@ -54,7 +54,11 @@ test('polling updates cached reads without replacing editor text', async ({ page
   await page.locator('#md-input').fill('Local draft');
   const published = page.waitForResponse(response => response.url().endsWith(`/api/items/${id}`) && response.request().method() === 'PATCH');
   await page.clock.runFor(401); await published;
-  await page.evaluate(async id => { await fetch(`/api/items/${id}`, { method: 'PATCH', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ content_md: 'Changed in another client' }) }); }, id);
+  await page.evaluate(async id => {
+    const observed = await (await fetch(`/api/items/${id}`)).json();
+    const response = await fetch(`/api/items/${id}`, { method: 'PATCH', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ content_md: 'Changed in another client', expectedRevision: observed.revision }) });
+    if (!response.ok) throw new Error('Foreign fixture edit failed');
+  }, id);
   const polled = page.waitForResponse(response => response.url().endsWith(`/api/items/${id}`) && response.request().method() === 'GET');
   await page.clock.runFor(15_000); await polled;
   await expect(page.locator('#md-input')).toHaveValue('Local draft');
@@ -64,8 +68,8 @@ test('reading walks real API pages without gaps or repeats', async ({ page }) =>
   const ids = await page.evaluate(async () => {
     const ids: string[] = [];
     for (let i = 0; i < 52; i++) {
-      const item = await (await fetch('/api/items', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ content_md: `Page fixture ${i}` }) })).json() as { id: string };
-      await fetch(`/api/items/${item.id}/publish`, { method: 'POST' }); ids.push(item.id);
+      const item = await (await fetch('/api/items', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ content_md: `Page fixture ${i}` }) })).json() as { id: string; revision: number };
+      await fetch(`/api/items/${item.id}/publish`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ expectedRevision: item.revision }) }); ids.push(item.id);
     } return ids;
   });
   await page.goto('/studio/reading?sub=all');

@@ -1,10 +1,10 @@
 # Owner API
 
-The owner API lives at `/api`, including installations with a mounted Studio.
+The owner API lives at `{mount}/api`: `/api` for a root node and `/blyg/api` for a node mounted at `/blyg`. Mounted nodes do not serve a host-root `/api` alias.
 The public Blygger protocol remains separate.
 Sign into Studio before calling the API from a browser on the same origin.
-Server clients must send the owner session cookie.
-OAuth and cross-origin clients belong to the next compatibility phase.
+Delegated clients use scoped bearer tokens. See [Client access](client-access.md)
+for OAuth, manual tokens, and browser access.
 
 Shared Zod definitions validate JSON bodies, path parameters, and query parameters.
 They also define resource responses and generate the OpenAPI 3.1 contract.
@@ -12,9 +12,63 @@ Resource projectors validate their output with these schemas.
 Contract tests validate successful responses against the same definitions.
 Hey API generates the SDK directly from the contract, without changes to generated code.
 
+## Capability discovery
+
+`GET {mount}/api/capabilities` accepts an owner session or any valid delegated grant.
+The response contains `contractVersion`, canonical `endpoints`, available
+`operations` by ID, and `extensions` with separate declared, compiled, enabled,
+and caller-granted states. This includes grants with only `reading:state`.
+The generated SDK exposes `getCapabilities`.
+
+OpenAPI describes the whole static contract. Capability discovery and MCP tool
+lists reflect the current node and caller. An operation appears when the caller
+can supply at least one permitted input. Some fields require extra scopes:
+response visibility and generated highlighting need `owner:publish` alongside
+`owner:draft`, and selecting an avatar needs it alongside `owner:manage`.
+Attaching new media to a published item also needs `owner:publish`. Returning an
+existing duplicate does not. The server checks these rules on each execution.
+A discovery result cannot authorize a later call after an extension is disabled.
+
+Operation declarations also name effects and work budgets. Rendering a preview
+stores no domain state and spends the read budget. Link classification can
+store probe results and spends the write budget while requiring `owner:read`.
+Owner grant administration stays session-only and has no delegated MCP tools.
+
+## Shared execution
+
+REST and MCP verify their own credentials, then invoke the same operation runner.
+The runner applies scopes, conditional permissions, live feature checks, work
+budgets, and input validation. Domain operations return typed outcomes. Each
+transport maps them to its own response. Resource-dependent rules stay with the
+state they govern, including upload duplication and published-item attachment
+permissions.
+
+REST multipart and MCP Base64 decoders supply the same media byte input. MCP
+creates no internal REST request. Publication, refresh, warnings, and deferred
+mention delivery run through the same operation as Studio's REST call.
+
+## HTTP responses
+
+Private API responses use `Cache-Control: no-store`, including errors rejected
+before dispatch. Browser bearer requests can read `ETag`, `Retry-After`, `Allow`,
+`Location`, and `WWW-Authenticate` when those headers apply. Wrong-method
+responses identify supported methods in `Allow`.
+
+Public JSON, RSS, OPML, CSS, and stable asset URLs support ETags and conditional
+GET/HEAD. Save the returned ETag and send it as `If-None-Match` on a later read.
+A matching current representation returns 304 without a body. Resource and
+access checks precede validation, so a validator does not bypass private media
+access or make an absent resource available.
+
+Validators cover complete response bytes. A pinned document can get a new ETag
+when live author or origin metadata changes, even when its markdown hash stays
+the same. Legacy media URLs contain random IDs and revalidate. They do not
+promise immutable caching. OAuth discovery keeps its native public cache policy,
+and signing keys revalidate. Token responses use `no-store`.
+
 ## Resources and operations
 
-All paths below start with `/api`.
+All paths below are relative to `{mount}/api`. OpenAPI paths are relative to its canonical API server URL; the SDK base URL includes this API path.
 Consult `openapi.json` for every field and response.
 
 | Resource | Read | Write |
@@ -37,7 +91,8 @@ Consult `openapi.json` for every field and response.
 Publication, withdrawal, restoration, and generation remain explicit operations:
 
 - `POST /items/{id}/publish` and `POST /items/{id}/withdraw` accept an optional publication note.
-- `POST /items/{id}/restore` copies a stored version into the working copy. It does not publish.
+- Empty publications, including media-only versions, retain their authored kind and support pinning, restoration, and forking. Withdrawal endcaps reject pinning and restoration. Ambiguous historical empty versions keep their legacy interpretation after upgrade.
+- `POST /items/{id}/restore` copies a stored version's text and attachment membership into the working copy. It does not publish. Restoring the current version discards attachment additions and restores detached attachments; historical version memberships and retained bytes stay intact.
 - `POST /items/{id}/generate` generates one TK scope.
 - `POST /subscriptions/{id}/resync` refreshes a Blyg subscription.
 - `POST /items/{id}/note-draft` drafts a changelog note from the change between the published version and the working copy. It never publishes. When the published version is unpinned, the note must not reproduce wording that only that version had; a draft that does returns 422. Send `note_generated: true` with `POST /items/{id}/publish` only when the note is that draft, unedited: it becomes `changelog[].generated` on the wire.
@@ -178,7 +233,8 @@ Delegated clients have less room: 120 a minute per grant, and 60 a minute shared
 
 ## Partial edits
 
-PATCH changes only supplied fields.
+Item commands require the observed `expectedRevision`.
+PATCH changes only supplied edit fields.
 Omitted fields retain their values.
 Null clears only fields that explicitly allow null, such as an item's `stub_of`.
 Unknown JSON fields fail validation rather than disappearing silently.
@@ -188,14 +244,17 @@ Preferences use booleans, not database integers or strings such as `"on"`.
 const item = await unwrap(BlyggerApi.updateItem({
   client,
   path: { id: blank.id },
-  body: { content_md: "Revised text", responses: "hide" },
+  body: { content_md: "Revised text", responses: "hide", expectedRevision: blank.revision },
 }));
 ```
 
 Item edits accept `content_md`, `kind`, `stub_of`, and `responses`.
 The response policy is `default`, `show`, or `hide`.
 Kind becomes fixed after the first publication.
-Fork lineage and generation provenance cannot change through PATCH.
+Fork lineage cannot change through PATCH. Client-recorded generation provenance
+can change when it matches the resulting TK scopes. A provenance-only patch
+guards the stored text used by that validation. A competing text change returns
+409 rather than applying provenance to different scopes.
 
 All requested changes must pass schema and domain validation before a write.
 Item and hopper writes guard the state that their domain rules used.
@@ -382,3 +441,31 @@ Run `npm run sdk:generate` after changing the shared contract.
 Commit `openapi.json` and `sdk/generated/` with the server changes.
 CI validates generation drift, Worker behavior, browser flows, and packaged release artifacts.
 See [SDK usage](../sdk/README.md) for browser and server transports.
+
+### Conditional item commands
+
+Items have a private `revision` independent of their published `version`.
+Creation starts at1. Reads and successful commands return the current revision.
+Each command supplies `expectedRevision` from the snapshot it changes. A stale
+command returns409 with `code: "revision-conflict"`, `itemId`, and the rejected
+`expectedRevision`. A detached media conflict names `mediaId` because the owning
+attachment no longer exists.
+
+Working text, provenance, presentation preferences, attachment membership, and
+publication transitions advance revision atomically. Generation and remote
+refresh work retain their captured premise until commit. Pinning a version
+that is already pinned is repeat-safe and retains the current revision.
+Classifier and drafted-note reads require the observed revision without
+advancing it.
+
+Attached uploads require multipart `expectedRevision`; MCP carries the same
+number in the upload body. Attachment deletion requires JSON
+`{ "expectedRevision": n }`. Unattached upload/delete has no item precondition.
+Every item mutation, including publish, withdraw, restore and delete, requires
+a JSON condition. An empty creation body remains valid.
+
+Studio retains its observed revision for unsaved text. Successful receipts
+advance its paced command queue. A foreign polled revision cannot authorize an
+old queued edit. A clean quick-edit session accepts text and revision together.
+Conflicts require reconciliation. No blind retry or general idempotency receipt
+store is provided.

@@ -23,6 +23,7 @@ import type {
 } from '../../sdk/dist/browser.js';
 import {
   BlyggerApi,
+  BlyggerApiError,
   createBlyggerClient,
   unwrap,
 } from '../../sdk/dist/browser.js';
@@ -36,7 +37,8 @@ import { sourceSchemas, readingResponseSchema } from './data-schemas.ts';
 import { zGetItemResponse, zGetHopperResponse } from '../../sdk/dist/schemas.js';
 import { planReadWrites, type ReadWrite, type UnreadWrite } from './read-state.ts';
 
-export const client = createBlyggerClient({ baseUrl: location.origin });
+export const apiBase = new URL(document.getElementById('studio-root')!.dataset.apiBase!, location.origin).href;
+export const client = createBlyggerClient({ baseUrl: apiBase });
 queryClient.mount();
 function cachedQuery<S extends z.ZodType>(
   context: QueryFunctionContext,
@@ -158,7 +160,7 @@ export const items = createCollection(
     onUpdate: async ({ transaction, collection }) => {
       for (const mutation of transaction.mutations) {
         const changes = mutation.changes;
-        const body: UpdateItemData['body'] = {};
+        const body: UpdateItemData['body'] = { expectedRevision: mutation.original.revision };
         for (const field of ['content_md', 'responses', 'highlight', 'stub_of'] as const)
           if (field in changes)
             Object.assign(body, { [field]: changes[field] });
@@ -180,6 +182,7 @@ export const items = createCollection(
           BlyggerApi.deleteItem({
             client,
             path: { id: mutation.key as string },
+            body: { expectedRevision: mutation.original.revision },
           }),
         );
       await collection.utils.refetch({ throwOnError: true });
@@ -376,8 +379,8 @@ export const itemDetail = scoped((id) => createLiveQueryCollection({
     .where(({ item, history }) => and(eq(item.id, id), eq(history.id, id)))
     .fn.select(({ item, history }): Detail => ({ ...item, ...history })),
 }));
-export function createDraftAction(id?: string) {
-  let itemId = id;
+export function createDraftAction(id?: string, observedRevision?: number) {
+  let itemId = id, revision = observedRevision;
   return createPacedDraftAction(async command => {
     let result;
     if (command.type === 'save' && !itemId) {
@@ -387,22 +390,31 @@ export function createDraftAction(id?: string) {
       itemId = result.id;
     } else {
       if (!itemId) throw new Error('Save the draft before running this command');
-      const path = { id: itemId };
+      if (revision === undefined) throw new Error('Load the item revision before changing it');
+      const path = { id: itemId }, condition = { expectedRevision: revision };
       switch (command.type) {
-        case 'save': result = await unwrap(BlyggerApi.updateItem({ client, path, body: { content_md: command.text, kind: command.kind } })); break;
-        case 'generate': result = await unwrap(BlyggerApi.generateItem({ client, path, body: { scope: command.scope } })); break;
-        case 'restore':
-          await unwrap(BlyggerApi.restoreItem({ client, path, body: { version: command.version } }));
-          result = await unwrap(BlyggerApi.getItem({ client, path })); break;
-        case 'publish': result = await unwrap(BlyggerApi.publishItem({ client, path, body: { note: command.note, note_generated: command.generated, ...(command.category !== undefined ? { change_category: command.category } : {}) } })); break;
-        case 'delete': result = await unwrap(BlyggerApi.deleteItem({ client, path })); break;
-        case 'withdraw': result = await unwrap(BlyggerApi.withdrawItem({ client, path })); break;
-        case 'pin': result = await unwrap(BlyggerApi.pinItem({ client, path: { ...path, version: command.version } })); break;
-        case 'draft-note': result = await unwrap(BlyggerApi.draftNote({ client, path })); break;
-        case 'classify': result = await unwrap(BlyggerApi.classifyChange({ client, path })); break;
-        case 'update': result = await unwrap(BlyggerApi.updateItem({ client, path, body: command.changes })); break;
+        case 'upload': result = await unwrap(BlyggerApi.uploadMedia({ client, body: { file: command.file, inline: command.inline ? 'true' : 'false', item_id: itemId, ...condition } })); break;
+        case 'delete-media': result = await unwrap(BlyggerApi.deleteMedia({ client, path: { id: command.mediaId }, body: condition })); break;
+        case 'refresh': result = await unwrap(BlyggerApi.refreshItem({ client, path, body: { ...condition, note: command.note } })); break;
+        case 'save': result = await unwrap(BlyggerApi.updateItem({ client, path, body: { ...condition, content_md: command.text, kind: command.kind } })); break;
+        case 'generate': result = await unwrap(BlyggerApi.generateItem({ client, path, body: { ...condition, scope: command.scope } })); break;
+        case 'restore': {
+          const restored = await unwrap(BlyggerApi.restoreItem({ client, path, body: { ...condition, version: command.version } }));
+          revision = restored.revision;
+          result = await unwrap(BlyggerApi.getItem({ client, path }));
+          if (result.revision !== revision) throw new BlyggerApiError(409, { error: 'item changed after restore; reload and try again', code: 'revision-conflict', itemId, expectedRevision: revision });
+          break;
+        }
+        case 'publish': result = await unwrap(BlyggerApi.publishItem({ client, path, body: { ...condition, note: command.note, note_generated: command.generated, ...(command.category !== undefined ? { change_category: command.category } : {}) } })); break;
+        case 'delete': result = await unwrap(BlyggerApi.deleteItem({ client, path, body: condition })); break;
+        case 'withdraw': result = await unwrap(BlyggerApi.withdrawItem({ client, path, body: condition })); break;
+        case 'pin': result = await unwrap(BlyggerApi.pinItem({ client, path: { ...path, version: command.version }, body: condition })); break;
+        case 'draft-note': result = await unwrap(BlyggerApi.draftNote({ client, path, body: condition })); break;
+        case 'classify': result = await unwrap(BlyggerApi.classifyChange({ client, path, body: condition })); break;
+        case 'update': result = await unwrap(BlyggerApi.updateItem({ client, path, body: { ...command.changes, ...condition } })); break;
       }
     }
+    if (result && 'revision' in result && typeof result.revision === 'number') revision = result.revision;
     // Finish read-back inside the handler, before another command starts.
     if (command.type === 'save' || command.type === 'update') await items.utils.writeUpsert(sourceSchemas.items.parse({ ...result, pins: items.get(itemId!)?.pins }));
     // A delete caller refreshes after leaving the editor, so its active view

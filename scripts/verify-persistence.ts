@@ -27,14 +27,14 @@ export async function verifyPersistence(worker: string, temp: string) {
   try {
     const login = await fetch(`${fixture.baseUrl}/studio/login`, { method: "POST", body: new URLSearchParams({ password: "test" }), redirect: "manual" });
     const token = login.headers.get("set-cookie")?.match(/blyg_session=([^;]+)/)?.[1]; assert.ok(token);
-    let client = createBlyggerClient({ baseUrl: fixture.baseUrl, auth: scheme => scheme.in === 'cookie' ? token : undefined });
+    let client = createBlyggerClient({ baseUrl: fixture.baseUrl + "/api", auth: scheme => scheme.in === 'cookie' ? token : undefined });
     await unwrap(BlyggerApi.updateSettings({ client, body: { site_url: "https://restart.example/" } }));
     const draft = await unwrap(BlyggerApi.createItem({ client, body: { content_md: "Unpublished restart draft" } }));
     const published = await unwrap(BlyggerApi.createItem({ client, body: { kind: "thread", content_md: "Frozen citation", stub_of: { url: "https://source.example/article" } } }));
-    await unwrap(BlyggerApi.publishItem({ client, path: { id: published.id } }));
-    await unwrap(BlyggerApi.pinItem({ client, path: { id: published.id, version: 1 } }));
-    await unwrap(BlyggerApi.updateItem({ client, path: { id: published.id }, body: { content_md: "Second edition" } }));
-    await unwrap(BlyggerApi.publishItem({ client, path: { id: published.id } }));
+    const first = await unwrap(BlyggerApi.publishItem({ client, path: { id: published.id }, body: { expectedRevision: published.revision } }));
+    const pin = await unwrap(BlyggerApi.pinItem({ client, path: { id: published.id, version: 1 }, body: { expectedRevision: first.revision } }));
+    const edited = await unwrap(BlyggerApi.updateItem({ client, path: { id: published.id }, body: { content_md: "Second edition", expectedRevision: pin.revision } }));
+    await unwrap(BlyggerApi.publishItem({ client, path: { id: published.id }, body: { expectedRevision: edited.revision } }));
     const before = await unwrap(BlyggerApi.getItem({ client, path: { id: published.id } }));
     assert.equal(before.versions.length, 2); assert.equal(before.versions[0].pinned, true);
     assert.ok(before.versions[0].stub_cite, "Citation fixture must be present before restart");
@@ -46,7 +46,7 @@ export async function verifyPersistence(worker: string, temp: string) {
     await fixture.stop();
     fixture = undefined;
     fixture = await start(worker, join(temp, "persistent-storage"), false);
-    client = createBlyggerClient({ baseUrl: fixture.baseUrl, auth: scheme => scheme.in === 'cookie' ? token : undefined });
+    client = createBlyggerClient({ baseUrl: fixture.baseUrl + "/api", auth: scheme => scheme.in === 'cookie' ? token : undefined });
     assert.equal((await unwrap(BlyggerApi.getItem({ client, path: { id: draft.id } }))).content_md, "Unpublished restart draft");
     assert.deepEqual(await unwrap(BlyggerApi.getItem({ client, path: { id: published.id } })), before);
     const retainedPin = await fetch(`${fixture.baseUrl}/items/${published.id}/v1.json`);

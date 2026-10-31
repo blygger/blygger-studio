@@ -1,3 +1,4 @@
+import { fixtureJson } from './api-fixture';
 import { test, expect, type Page } from './fixture';
 
 // The composer and the editor after Substack's composer: one row of small
@@ -11,13 +12,7 @@ async function login(page: Page) {
   await expect(page.locator('#composer-text')).toBeVisible();
 }
 const api = (page: Page, method: string, path: string, body?: unknown) =>
-  page.evaluate(
-    async ({ method, path, body }) => {
-      const response = await fetch(`/api${path}`, { method, headers: { 'content-type': 'application/json' }, ...(body === undefined ? {} : { body: JSON.stringify(body) }) });
-      return { status: response.status, json: await response.json().catch(() => null) };
-    },
-    { method, path, body },
-  );
+  page.evaluate(fixtureJson, { method, path: `/api${path}`, body });
 /** Every control in `row` sits inside the viewport and is a 40px target. */
 async function fits(page: Page, selector: string) {
   const width = page.viewportSize()!.width;

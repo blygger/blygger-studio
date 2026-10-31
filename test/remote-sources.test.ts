@@ -100,8 +100,8 @@ describe("resolution (R2): §10.2's order against the local snapshot", () => {
   it("our own thread is a source now, with no origin and no cite", async () => {
     const cookie = await login();
     const frag = await createAndPublish(cookie, "Quoted fragment.");
-    const thread = (await apiJson(cookie, "POST", "/api/items", { content_md: `![[${frag}]]\n\nThread words.`, kind: "thread" })).json.id as string;
-    expect((await apiJson(cookie, "POST", `/api/items/${thread}/publish`, {})).status).toBe(200);
+    const thread = (await apiJson(cookie, "POST", "/blyg/api/items", { content_md: `![[${frag}]]\n\nThread words.`, kind: "thread" })).json.id as string;
+    expect((await apiJson(cookie, "POST", `/blyg/api/items/${thread}/publish`, {})).status).toBe(200);
     const { result, calls, provenance } = await generateWith(`[TK]summarize ![[${thread}]][/TK]`);
     expect(result.ok).toBe(true);
     expect(calls[0].messages[0].content).toContain("Quoted fragment.\nThread words.");
@@ -144,7 +144,7 @@ describe("emission (R3): the published reference is the stored one", () => {
     await seedImported("them", R2, { md: "Their words.", html: "<p>Their words.</p>" });
     const { item } = await generateWith(`[TK]compare ![[${own}]] with ![[${R2}]][/TK]`);
     await publish(env.DB, (await getItem(env.DB, item.id))!, null, OURS);
-    expect((await apiJson(cookie, "PUT", `/api/items/${item.id}/versions/1/pin`)).status).toBe(200);
+    expect((await apiJson(cookie, "PUT", `/blyg/api/items/${item.id}/versions/1/pin`)).status).toBe(200);
 
     const doc = await (await getPublic(`/blyg/items/${item.id}.json`)).json<any>();
     const sources = doc.generated[0].sources;
@@ -171,7 +171,7 @@ describe("send (R4): a remote source is a remote reference", () => {
     const cookie = await login();
     await seedImported("them", R1, { md: "Their words.", version: 4 });
     const { item } = await generateWith(`[TK]summarize ![[${R1}]][/TK]`);
-    expect((await apiJson(cookie, "POST", `/api/items/${item.id}/publish`, {})).status).toBe(200);
+    expect((await apiJson(cookie, "POST", `/blyg/api/items/${item.id}/publish`, {})).status).toBe(200);
     const queued = (await listOutbound(env.DB)).filter((r) => r.item_id === item.id);
     expect(queued).toHaveLength(1);
     expect(queued[0].target).toBe(`${THEM}f/${R1}/`);
@@ -184,7 +184,7 @@ describe("send (R4): a remote source is a remote reference", () => {
     const thread = await createDraft(env.DB, `![[${R1}]]\n\n[TK]answer ![[${R1}]][/TK]`, "thread");
     const { fetchImpl } = provider("My answer.");
     expect((await runGenerateScope({ ...env, AI_PROVIDER_KEY: "k" }, thread, 0, fetchImpl, OURS)).ok).toBe(true);
-    expect((await apiJson(cookie, "POST", `/api/items/${thread.id}/publish`, {})).status).toBe(200);
+    expect((await apiJson(cookie, "POST", `/blyg/api/items/${thread.id}/publish`, {})).status).toBe(200);
     expect((await listOutbound(env.DB)).filter((r) => r.item_id === thread.id)).toHaveLength(1);
   });
 
@@ -192,7 +192,7 @@ describe("send (R4): a remote source is a remote reference", () => {
     const cookie = await login();
     const own = await createAndPublish(cookie, "Own words.");
     const { item } = await generateWith(`[TK]summarize ![[${own}]][/TK]`);
-    expect((await apiJson(cookie, "POST", `/api/items/${item.id}/publish`, {})).status).toBe(200);
+    expect((await apiJson(cookie, "POST", `/blyg/api/items/${item.id}/publish`, {})).status).toBe(200);
     expect((await listOutbound(env.DB)).filter((r) => r.item_id === item.id)).toHaveLength(0);
   });
 });
@@ -225,7 +225,7 @@ describe("receive (R5): `source`, the fourth relation", () => {
   it("verifies end to end, and the public responses list says the source drew on it", async () => {
     const cookie = await login();
     const ours = await createAndPublish(cookie, "Our words, read by their model.");
-    expect((await apiJson(cookie, "PATCH", `/api/items/${ours}`, { responses: "show" })).status).toBe(200);
+    expect((await apiJson(cookie, "PATCH", `/blyg/api/items/${ours}`, { responses: "show" })).status).toBe(200);
     const id = "00000000000000000000000s01";
     const page = `${THEM}f/${id}/`;
     const docUrl = `${THEM}items/${id}.json`;
@@ -266,9 +266,9 @@ describe("import (R8c, migration 0027): generated[] survives verbatim", () => {
     await applyEffect(env.DB, "them", R1, transition({ local: { status: "absent" }, doc: doc(1, { generated }) }).effect, "2026-10-10T00:00:00Z");
     expect(JSON.parse((await row())!.generated_json!)).toEqual(generated);
 
-    const api = await apiJson(cookie, "GET", `/api/imports/them/${R1}`);
+    const api = await apiJson(cookie, "GET", `/blyg/api/imports/them/${R1}`);
     expect(JSON.parse(api.json.generated_json)).toEqual(generated);
-    const feed = await apiJson(cookie, "GET", "/api/reading/imported?limit=100");
+    const feed = await apiJson(cookie, "GET", "/blyg/api/reading/imported?limit=100");
     expect(feed.json.items.find((i: { remoteId: string }) => i.remoteId === R1).generated).toEqual(generated);
 
     await applyEffect(env.DB, "them", R1, transition({ local: { status: "current", version: 1 }, doc: doc(2) }).effect, "2026-10-10T01:00:00Z");
@@ -289,7 +289,7 @@ describe("studio (R6): the preview names each scope's sources before generating"
     await seedImported("them", R1, { md: "Their words.", html: "<p>Their words.</p>" });
     const own = await createAndPublish(cookie, "Own words.");
     await seedImported("them", R2, { l0: 1 });
-    const res = await apiJson(cookie, "POST", "/api/preview", { content_md: `[TK]compare ![[${R1}]] ![[${own}]] ![[${R2}]][/TK]` });
+    const res = await apiJson(cookie, "POST", "/blyg/api/preview", { content_md: `[TK]compare ![[${R1}]] ![[${own}]] ![[${R2}]][/TK]` });
     expect(res.status).toBe(200);
     expect(res.json.scopes[0].sources).toEqual([
       { id: R1, ok: true, from: "Friend's Blyg", remote: true, excerpt: "Their words." },

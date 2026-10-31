@@ -30,16 +30,16 @@ it('lists both grants and preserves neighboring access after owner grant revocat
   const decision = await f.request(f.issuer + '/consent', { method: 'POST', headers: { cookie: f.owner + '; ' + binding, Origin: f.base }, body: new URLSearchParams({ handle, decision: 'allow', scope: 'owner:read' }) });
   expect(decision.status).toBe(302);
   const narrowed = await (await f.token(new URL(decision.headers.get('location')!).searchParams.get('code')!)).json() as { access_token: string; refresh_token: string };
-  expect((await f.request('/api/settings', { headers: { Authorization: 'Bearer ' + original.access_token } })).status).toBe(200);
-  const listing = await (await f.request('/api/authorizations', { headers: { cookie: f.owner } })).json() as { items: { id: string; clientId: string; scope: string[] }[] };
+  expect((await f.request('/blyg/api/settings', { headers: { Authorization: 'Bearer ' + original.access_token } })).status).toBe(200);
+  const listing = await (await f.request('/blyg/api/authorizations', { headers: { cookie: f.owner } })).json() as { items: { id: string; clientId: string; scope: string[] }[] };
   const grants = listing.items.filter(item => item.clientId === f.client.client_id);
   expect(grants).toHaveLength(2);
   const old = grants.find(item => item.scope.includes('owner:draft'))!;
   expect(old).toBeDefined();
-  expect((await f.request('/api/authorizations/' + encodeURIComponent(old.id), { method: 'DELETE', headers: { cookie: f.owner } })).status).toBe(200);
-  expect((await f.request('/api/settings', { headers: { Authorization: 'Bearer ' + original.access_token } })).status).toBe(401);
-  expect((await f.request('/api/settings', { headers: { Authorization: 'Bearer ' + narrowed.access_token } })).status).toBe(200);
-  const renewal = await f.request(f.issuer + '/oauth2/token', { method: 'POST', body: new URLSearchParams({ grant_type: 'refresh_token', client_id: f.client.client_id, refresh_token: narrowed.refresh_token, resource: f.base + '/api' }) });
+  expect((await f.request('/blyg/api/authorizations/' + encodeURIComponent(old.id), { method: 'DELETE', headers: { cookie: f.owner } })).status).toBe(200);
+  expect((await f.request('/blyg/api/settings', { headers: { Authorization: 'Bearer ' + original.access_token } })).status).toBe(401);
+  expect((await f.request('/blyg/api/settings', { headers: { Authorization: 'Bearer ' + narrowed.access_token } })).status).toBe(200);
+  const renewal = await f.request(f.issuer + '/oauth2/token', { method: 'POST', body: new URLSearchParams({ grant_type: 'refresh_token', client_id: f.client.client_id, refresh_token: narrowed.refresh_token, resource: f.base + '/blyg/api' }) });
   expect(renewal.status, 'individual owner revocation preserves neighboring refresh authority').toBe(200);
 });
 
@@ -51,9 +51,9 @@ it('applies owner grant revocation to the forwarded native UserInfo endpoint', a
   const token = await response.json() as { access_token: string };
   const read = () => f.request(f.issuer + '/oauth2/userinfo', { headers: { Authorization: 'Bearer ' + token.access_token } });
   expect((await read()).status).toBe(200);
-  const listing = await (await f.request('/api/authorizations', { headers: { cookie: f.owner } })).json() as { items: { id: string; clientId: string }[] };
+  const listing = await (await f.request('/blyg/api/authorizations', { headers: { cookie: f.owner } })).json() as { items: { id: string; clientId: string }[] };
   const grant = listing.items.find(item => item.clientId === f.client.client_id)!;
-  expect((await f.request('/api/authorizations/' + encodeURIComponent(grant.id), { method: 'DELETE', headers: { cookie: f.owner } })).status).toBe(200);
+  expect((await f.request('/blyg/api/authorizations/' + encodeURIComponent(grant.id), { method: 'DELETE', headers: { cookie: f.owner } })).status).toBe(200);
   expect((await read()).status).toBe(401);
 });
 
@@ -70,15 +70,15 @@ it('requires new owner consent after individually revoking a grant', async () =>
   const issued = await f.token(new URL(approval.headers.get('location')!).searchParams.get('code')!);
   expect(issued.status).toBe(200);
   const token = await issued.json() as { access_token: string };
-  const listing = await (await f.request('/api/authorizations', { headers: { cookie: f.owner } })).json() as { items: { id: string; clientId: string }[] };
+  const listing = await (await f.request('/blyg/api/authorizations', { headers: { cookie: f.owner } })).json() as { items: { id: string; clientId: string }[] };
   const grant = listing.items.find(value => value.clientId === f.client.client_id)!;
   consent.searchParams.set('prompt', 'none');
   // Establish the same noninteractive path before revocation.
   const before = await f.request(consent.href, { headers: { cookie: f.owner } });
   expect(before.status).toBe(302);
   expect(new URL(before.headers.get('location')!).searchParams.get('code')).toBeTruthy();
-  expect((await f.request('/api/authorizations/' + grant.id, { method: 'DELETE', headers: { cookie: f.owner } })).status).toBe(200);
-  expect((await f.request('/api/settings', { headers: { Authorization: 'Bearer ' + token.access_token } })).status).toBe(401);
+  expect((await f.request('/blyg/api/authorizations/' + grant.id, { method: 'DELETE', headers: { cookie: f.owner } })).status).toBe(200);
+  expect((await f.request('/blyg/api/settings', { headers: { Authorization: 'Bearer ' + token.access_token } })).status).toBe(401);
   const after = await f.request(consent.href, { headers: { cookie: f.owner } });
   expect(after.status).toBe(302);
   const result = new URL(after.headers.get('location')!).searchParams;

@@ -19,12 +19,12 @@ const PALETTE = {
   genRule: "#dcc7a3",
 };
 const css = async () => (await getPublic("/blyg/style.css")).text();
-const settings = (cookie: string, body: unknown) => apiJson(cookie, "PATCH", "/api/settings", body);
+const settings = (cookie: string, body: unknown) => apiJson(cookie, "PATCH", "/blyg/api/settings", body);
 
 describe("custom theme: settings API", () => {
   it("starts with no palette", async () => {
     const cookie = await login();
-    const { json } = await apiJson(cookie, "GET", "/api/settings");
+    const { json } = await apiJson(cookie, "GET", "/blyg/api/settings");
     expect(json.custom_theme).toBeNull();
   });
 
@@ -33,7 +33,7 @@ describe("custom theme: settings API", () => {
     await settings(cookie, { custom_theme: null, theme: "auto" });
     const res = await settings(cookie, { theme: "custom" });
     expect(res.status).toBe(400);
-    expect((await apiJson(cookie, "GET", "/api/settings")).json.theme).toBe("auto");
+    expect((await apiJson(cookie, "GET", "/blyg/api/settings")).json.theme).toBe("auto");
   });
 
   it("stores a palette (lower-cased) and paints style.css with it", async () => {
@@ -64,7 +64,7 @@ describe("custom theme: settings API", () => {
       const res = await settings(cookie, { custom_theme: bad });
       expect(res.status).toBe(400);
     }
-    expect((await apiJson(cookie, "GET", "/api/settings")).json.custom_theme.ink).toBe("#1f2a2e");
+    expect((await apiJson(cookie, "GET", "/blyg/api/settings")).json.custom_theme.ink).toBe("#1f2a2e");
     expect(await css()).not.toContain("display:none");
   });
 
@@ -212,6 +212,6 @@ describe("custom theme: a name for sharing", () => {
     for (const bad of ["x".repeat(41), "Pink\nQuill", "*/ body { display:none } /*\u0000"]) {
       expect((await settings(cookie, { custom_theme_name: bad })).status).toBe(400);
     }
-    expect((await apiJson(cookie, "GET", "/api/settings")).json.custom_theme_name).not.toContain("display");
+    expect((await apiJson(cookie, "GET", "/blyg/api/settings")).json.custom_theme_name).not.toContain("display");
   });
 });

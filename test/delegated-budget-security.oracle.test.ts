@@ -1,3 +1,4 @@
+import { testItemRevision } from './helpers.ts';
 /**
  * Owner ruling: delegated grants have separate quotas and an aggregate ceiling;
  * owner capacity is reserved. OWASP DoS guidance requires bounded costly work:
@@ -17,23 +18,23 @@ async function fixture() {
   const f = await flow();
   const tokens: string[] = [];
   for (const name of ['delegated A', 'delegated B']) {
-    const minted = await f.request('/api/authorizations', { method: 'POST', headers: { cookie: f.owner, 'Content-Type': 'application/json' }, body: JSON.stringify({ name, scope: ['owner:read'], resource: 'api' }) });
+    const minted = await f.request('/blyg/api/authorizations', { method: 'POST', headers: { cookie: f.owner, 'Content-Type': 'application/json' }, body: JSON.stringify({ name, scope: ['owner:read'], resource: 'api' }) });
     expect(minted.status).toBe(200); tokens.push((await minted.json() as {access_token:string}).access_token);
   }
   return { ...f, tokens };
 }
 it('delegated aggregate exhaustion leaves the owner capacity available', async () => {
   const f = await fixture(), bindings = { ...env, API_READ_LIMIT: '2', API_DELEGATED_READ_LIMIT: '2' };
-  for (let i=0;i<3;i++) expect((await f.request('/api/settings', { headers: { Authorization: 'Bearer ' + f.tokens[0] } }, bindings)).status).toBe(i<2?200:429);
-  expect((await f.request('/api/settings', { headers: { cookie: f.owner } }, bindings)).status, 'a delegated grant cannot spend reserved owner capacity').toBe(200);
-  expect((await f.request('/api/settings', { headers: { Authorization: 'Bearer ' + f.tokens[1] } }, bindings)).status, 'multiple grants cannot evade the delegated aggregate ceiling').toBe(429);
+  for (let i=0;i<3;i++) expect((await f.request('/blyg/api/settings', { headers: { Authorization: 'Bearer ' + f.tokens[0] } }, bindings)).status).toBe(i<2?200:429);
+  expect((await f.request('/blyg/api/settings', { headers: { cookie: f.owner } }, bindings)).status, 'a delegated grant cannot spend reserved owner capacity').toBe(200);
+  expect((await f.request('/blyg/api/settings', { headers: { Authorization: 'Bearer ' + f.tokens[1] } }, bindings)).status, 'multiple grants cannot evade the delegated aggregate ceiling').toBe(429);
 });
 it('each grant has its own quota within the delegated aggregate ceiling', async () => {
   const f = await fixture(), bindings = { ...env, API_READ_LIMIT: '2', API_DELEGATED_READ_LIMIT: '4' };
   for (const token of f.tokens) {
-    for (let i=0;i<3;i++) expect((await f.request('/api/settings', { headers: { Authorization: 'Bearer ' + token } }, bindings)).status, 'one grant must not spend another grant quota').toBe(i<2?200:429);
+    for (let i=0;i<3;i++) expect((await f.request('/blyg/api/settings', { headers: { Authorization: 'Bearer ' + token } }, bindings)).status, 'one grant must not spend another grant quota').toBe(i<2?200:429);
   }
-  expect((await f.request('/api/settings', { headers: { cookie: f.owner } }, bindings)).status).toBe(200);
+  expect((await f.request('/blyg/api/settings', { headers: { cookie: f.owner } }, bindings)).status).toBe(200);
 });
 
 // Provider seam: authority is fixed by the driver at the same request-local
@@ -61,10 +62,10 @@ it('AI work through an MCP tool spends the grant share, not the owner reserve', 
   const { putSettings } = await import('../src/model.ts');
   await putSettings(env.DB, { ai_model_tk: 'claude-opus-5' });
   const f = await flow(), bindings = { ...env, AI_PROVIDER_KEY: 'disposable-provider-fixture', AI_DAILY_CALL_LIMIT: '3', AI_OWNER_RESERVED_CALLS: '2', AI_GRANT_DAILY_CALL_LIMIT: '3' };
-  const created = await f.request('/api/items', { method: 'POST', headers: { cookie: f.owner, 'Content-Type': 'application/json' }, body: JSON.stringify({ content_md: '[TK]write more[/TK]' }) }, bindings);
+  const created = await f.request('/blyg/api/items', { method: 'POST', headers: { cookie: f.owner, 'Content-Type': 'application/json' }, body: JSON.stringify({ content_md: '[TK]write more[/TK]' }) }, bindings);
   expect(created.status).toBe(201);
   const { id } = await created.json() as { id: string };
-  const minted = await f.request('/api/authorizations', { method: 'POST', headers: { cookie: f.owner, 'Content-Type': 'application/json' }, body: JSON.stringify({ name: 'MCP AI', scope: ['owner:draft'], resource: 'mcp' }) }, bindings);
+  const minted = await f.request('/blyg/api/authorizations', { method: 'POST', headers: { cookie: f.owner, 'Content-Type': 'application/json' }, body: JSON.stringify({ name: 'MCP AI', scope: ['owner:draft'], resource: 'mcp' }) }, bindings);
   expect(minted.status).toBe(200);
   const { access_token } = await minted.json() as { access_token: string };
   const original = globalThis.fetch;
@@ -76,7 +77,7 @@ it('AI work through an MCP tool spends the grant share, not the owner reserve', 
   });
   try {
     const viaMcp = async () => {
-      const response = await f.request('/blyg/studio/mcp', { method: 'POST', headers: { Authorization: 'Bearer ' + access_token, 'Content-Type': 'application/json', Accept: 'application/json, text/event-stream', 'mcp-protocol-version': '2026-07-28', 'mcp-method': 'tools/call', 'mcp-name': 'generateItem' }, body: JSON.stringify({ jsonrpc: '2.0', id: 1, method: 'tools/call', params: { name: 'generateItem', arguments: { path: { id }, body: { scope: 0 } }, _meta: { 'io.modelcontextprotocol/protocolVersion': '2026-07-28', 'io.modelcontextprotocol/clientCapabilities': {} } } }) }, bindings);
+      const response = await f.request('/blyg/studio/mcp', { method: 'POST', headers: { Authorization: 'Bearer ' + access_token, 'Content-Type': 'application/json', Accept: 'application/json, text/event-stream', 'mcp-protocol-version': '2026-07-28', 'mcp-method': 'tools/call', 'mcp-name': 'generateItem' }, body: JSON.stringify({ jsonrpc: '2.0', id: 1, method: 'tools/call', params: { name: 'generateItem', arguments: { path: { id }, body: { scope: 0, expectedRevision: await testItemRevision(id) } }, _meta: { 'io.modelcontextprotocol/protocolVersion': '2026-07-28', 'io.modelcontextprotocol/clientCapabilities': {} } } }) }, bindings);
       expect(response.status).toBe(200);
       return (await response.json() as { result: { isError?: boolean; content: { text: string }[] } }).result;
     };
@@ -85,7 +86,7 @@ it('AI work through an MCP tool spends the grant share, not the owner reserve', 
     expect(refused.isError, 'MCP AI work cannot reach the owner reserve').toBe(true);
     expect(refused.content[0].text).toContain('budget');
     expect(calls).toBe(1);
-    const viaOwner = () => f.request('/api/items/' + id + '/generate', { method: 'POST', headers: { cookie: f.owner, 'Content-Type': 'application/json' }, body: JSON.stringify({ scope: 0 }) }, bindings);
+    const viaOwner = async () => f.request('/blyg/api/items/' + id + '/generate', { method: 'POST', headers: { cookie: f.owner, 'Content-Type': 'application/json' }, body: JSON.stringify({ scope: 0, expectedRevision: await testItemRevision(id) }) }, bindings);
     for (let i = 0; i < 2; i++) expect((await viaOwner()).status, 'the owner reserve survives delegated MCP work').toBe(200);
     expect((await viaOwner()).status).toBe(429);
     expect(calls).toBe(3);

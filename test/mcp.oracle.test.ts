@@ -30,7 +30,7 @@ import { atCheckpoint } from './oracle-campaign.ts';
 import { flow } from './oauth-flow-driver.ts';
 import { withOracleCleanup } from './oracle-cleanup.ts';
 
-const reads = ['getChanges','listItems','getItem','getSettings','listSubscriptions','getSubscription','listHoppers','getHopper','listSignals','listMentions','search','getVersion','listReading','listImportedReading','getImportedItem','getImportedHistory','getImportedVersion','getUpdateState','getMentionSource','listStaleThreads','getItemFreshness','getForkOptions','listInteractions','listThumbs','getAiModels','peekItem','classifyLinks','listBrowse','extLineageGlyphGetLineage','extLineageGlyphListSummaries'];
+const reads = ['getChanges','listItems','getItem','getSettings','listSubscriptions','getSubscription','listHoppers','getHopper','listSignals','listMentions','search','getVersion','listReading','listImportedReading','getImportedItem','getImportedHistory','getImportedVersion','getUpdateState','getMentionSource','listStaleThreads','getItemFreshness','getForkOptions','listInteractions','listThumbs','getAiModels','peekItem','classifyLinks','listBrowse'];
 const drafting = ['createItem','updateItem','deleteItem','restoreItem','uploadMedia','generateItem','draftNote','classifyChange','preview'];
 const publishing = ['publishItem','withdrawItem','pinItem','refreshItem','deleteMedia'];
 const management = ['updateSettings','createSubscription','updateSubscription','resyncSubscription','pollAllSubscriptions','deleteSubscription','createHopper','updateHopper','deleteHopper','addHopperItem','removeHopperItem','setSignal','deleteSignal','updateMention'];
@@ -40,7 +40,7 @@ const all = ['owner:read', 'owner:draft', 'owner:publish', 'owner:manage', 'read
 // never infer read access from draft/publish/manage. This finite reference owns
 // the capability law, independently of the production tool registry.
 function expectedTools(scope: string[]) {
-  return [...(scope.includes('owner:read') ? reads : []), ...(scope.includes('owner:draft') ? drafting : []), ...(scope.includes('owner:publish') ? publishing : []), ...(scope.includes('owner:manage') ? management : []), ...(scope.includes('reading:state') ? readState : [])].sort();
+  return ['getCapabilities', ...(scope.includes('owner:read') ? reads : []), ...(scope.includes('owner:draft') ? drafting : []), ...(scope.includes('owner:publish') ? publishing : []), ...(scope.includes('owner:manage') ? management : []), ...(scope.includes('reading:state') ? readState : [])].sort();
 }
 async function driver(mount = '/blyg') {
   const base = 'https://mcp-oracle.example.test', app = makeApp(mount), currentEnv = { ...env, MOUNT: mount };
@@ -57,7 +57,7 @@ async function driver(mount = '/blyg') {
   const cookie = login.headers.get('set-cookie')!.split(';')[0];
   const owner = (path: string, method = 'GET', body?: unknown) => fetch(base + path, { method, headers: { cookie, ...(body === undefined ? {} : { 'Content-Type': 'application/json' }) }, ...(body === undefined ? {} : { body: JSON.stringify(body) }) });
   const manual = async (scope: string[]) => {
-    const response = await owner('/api/authorizations', 'POST', { name: 'MCP oracle', scope, resource: 'mcp' });
+    const response = await owner(mount + '/api/authorizations', 'POST', { name: 'MCP oracle', scope, resource: 'mcp' });
     expect(response.status).toBe(200); return await response.json() as { access_token: string; authorization: { id: string } };
   };
   const connect = async (token: string) => {
@@ -128,8 +128,8 @@ describe('MCP contract oracles', () => {
     const called = await rawMcp(d, tokens.access_token);
     expect(called.status).toBe(200);
     expect(content((await called.json() as any).result).site_title).toBeDefined();
-    expect((await d.fetch(d.base + '/api/settings', { headers: { Authorization: 'Bearer ' + tokens.access_token } })).status).toBe(401);
-    const widened = await exchange({ grant_type: 'refresh_token', refresh_token: tokens.refresh_token, resource: d.base + '/api' });
+    expect((await d.fetch(d.base + d.mount + '/api/settings', { headers: { Authorization: 'Bearer ' + tokens.access_token } })).status).toBe(401);
+    const widened = await exchange({ grant_type: 'refresh_token', refresh_token: tokens.refresh_token, resource: d.base + d.mount + '/api' });
     expect(widened.status).toBe(400);
     expect(await widened.json()).toMatchObject({ error: 'invalid_target' });
     const renewed = await exchange({ grant_type: 'refresh_token', refresh_token: tokens.refresh_token });
@@ -137,7 +137,7 @@ describe('MCP contract oracles', () => {
     const next = await renewed.json() as { access_token: string; refresh_token: string };
     expect(next.refresh_token).not.toBe(tokens.refresh_token);
     expect((await rawMcp(d, next.access_token)).status).toBe(200);
-    expect((await d.fetch(d.base + '/api/settings', { headers: { Authorization: 'Bearer ' + next.access_token } })).status).toBe(401);
+    expect((await d.fetch(d.base + d.mount + '/api/settings', { headers: { Authorization: 'Bearer ' + next.access_token } })).status).toBe(401);
   });
   it.each(['2025-03-26', '2025-06-18', '2025-11-25'])('completes a %s Streamable HTTP handshake and tool call', async version => {
     const d = await driver(), credential = await d.manual(['owner:read']);
@@ -197,7 +197,7 @@ describe('MCP contract oracles', () => {
   });
   it('lists exactly the granted tool capabilities for every scope subset', async () => {
     const d = await driver();
-    for (let mask = 1; mask < 16; mask++) {
+    for (let mask = 1; mask < 32; mask++) {
       const scope = all.filter((_, index) => mask & 1 << index), credential = await d.manual(scope), client = await d.connect(credential.access_token);
       await withOracleCleanup(async () => { const observed = (await client.listTools()).tools.map(tool => tool.name).sort(); atCheckpoint('MCP scope capabilities', () => expect(observed).toEqual(expectedTools(scope))); }, [() => client.close()]);
     }
@@ -207,14 +207,14 @@ describe('MCP contract oracles', () => {
     await withOracleCleanup(async () => {
       const provenance = [{ sources: [], model: 'oracle-agent' }];
       const created = content(await client.callTool({ name: 'createItem', arguments: { body: { content_md: '[TK]write a sentence[=]A generated sentence.[/TK]', provenance } } }));
-      const rest = await (await d.owner('/api/items/' + created.id)).json();
+      const rest = await (await d.owner(d.mount + '/api/items/' + created.id)).json();
       const mcp = content(await client.callTool({ name: 'getItem', arguments: { path: { id: created.id } } }));
       atCheckpoint('MCP REST item equivalence', () => expect(mcp).toEqual(rest));
       atCheckpoint('MCP generation provenance retained', () => expect(mcp.provenance).toEqual(provenance));
-      content(await client.callTool({ name: 'publishItem', arguments: { path: { id: created.id } } }));
+      content(await client.callTool({ name: 'publishItem', arguments: { path: { id: created.id }, body: { expectedRevision: created.revision } } }));
       const publicItem = await (await d.fetch(d.base + '/blyg/items/' + created.id + '.json')).json() as { generated: unknown; content_md: string };
       atCheckpoint('MCP public generation disclosure', () => { expect(publicItem.generated).toEqual(provenance); expect(publicItem.content_md).toContain('A generated sentence.'); expect(publicItem.content_md).not.toContain('[TK]'); });
-      expect((await d.owner('/api/authorizations/' + credential.authorization.id, 'DELETE')).status).toBe(200);
+      expect((await d.owner(d.mount + '/api/authorizations/' + credential.authorization.id, 'DELETE')).status).toBe(200);
       await expect(client.callTool({ name: 'getSettings', arguments: {} })).rejects.toThrow();
     }, [() => client.close()]);
   });
@@ -281,7 +281,7 @@ describe('MCP contract oracles', () => {
 
   });
   it('checks real OAuth token expiry at T-1/T and rejects the API audience at MCP', async () => {
-    for (const resource of ['https://oauth-oracle.example.test/blyg/studio/mcp', 'https://oauth-oracle.example.test/api']) {
+    for (const resource of ['https://oauth-oracle.example.test/blyg/studio/mcp', 'https://oauth-oracle.example.test/blyg/api']) {
       const f = await flow({ authorize: { resource } });
       const approved = await f.decide('browser-a', true);
       expect(approved.status).toBe(302);

@@ -49,17 +49,17 @@ describe("the setting changes rendering, and only rendering", () => {
       .bind("2026-09-02T06:00:00Z", "2026-09-02T06:00:00Z", id)
       .run();
 
-    await apiJson(cookie, "PATCH", "/api/settings", { timezone: "" });
+    await apiJson(cookie, "PATCH", "/blyg/api/settings", { timezone: "" });
     expect(await (await getPublic(`/blyg/f/${id}/`)).text()).toContain("Sep 2, 2026");
 
-    await apiJson(cookie, "PATCH", "/api/settings", { timezone: "America/Los_Angeles" });
+    await apiJson(cookie, "PATCH", "/blyg/api/settings", { timezone: "America/Los_Angeles" });
     expect(await (await getPublic(`/blyg/f/${id}/`)).text()).toContain("Sep 1, 2026");
   });
 
   it("leaves the feed's RFC-822 dates in GMT", async () => {
     const cookie = await login();
     await createAndPublish(cookie, "an item");
-    await apiJson(cookie, "PATCH", "/api/settings", { timezone: "America/Los_Angeles" });
+    await apiJson(cookie, "PATCH", "/blyg/api/settings", { timezone: "America/Los_Angeles" });
     const xml = await (await getPublic("/blyg/feed.xml")).text();
     const pub = /<pubDate>([^<]*)<\/pubDate>/.exec(xml);
     expect(pub, "no pubDate").not.toBeNull();
@@ -70,7 +70,7 @@ describe("the setting changes rendering, and only rendering", () => {
   it("leaves item documents in ISO-8601 UTC", async () => {
     const cookie = await login();
     const id = await createAndPublish(cookie, "an item");
-    await apiJson(cookie, "PATCH", "/api/settings", { timezone: "Asia/Kolkata" });
+    await apiJson(cookie, "PATCH", "/blyg/api/settings", { timezone: "Asia/Kolkata" });
     const doc = await (await getPublic(`/blyg/items/${id}.json`)).json<Record<string, string>>();
     expect(doc.created).toMatch(/Z$/);
     expect(doc.updated).toMatch(/Z$/);
@@ -78,7 +78,7 @@ describe("the setting changes rendering, and only rendering", () => {
 
   it("refuses a zone the runtime does not know", async () => {
     const cookie = await login();
-    const res = await apiJson(cookie, "PATCH", "/api/settings", { timezone: "Not/AZone" });
+    const res = await apiJson(cookie, "PATCH", "/blyg/api/settings", { timezone: "Not/AZone" });
     // Accepting it would leave a setting that looks saved and silently does
     // nothing, because formatDateIn falls back to UTC.
     expect(res.status).toBe(400);

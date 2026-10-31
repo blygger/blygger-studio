@@ -8,13 +8,13 @@
 // In-memory D1 and R2; nothing is fetched or sent (outbound requests get 503).
 import { build } from "esbuild";
 import { execFileSync } from "node:child_process";
-import { Miniflare } from "miniflare";
-import { readD1Migrations } from "@cloudflare/vitest-pool-workers";
+import { Miniflare, convertV4MiniflareOptions } from "miniflare";
+import { readD1Migrations } from "@cloudflare/vitest-plugin";
 
 const PORT = Number(process.env.PORT ?? 8790);
 execFileSync("npm", ["run", "build"], { stdio: "inherit", env: { ...process.env, BLYG_EXTENSIONS: "lineage-glyph" } });
 const output = await build({ entryPoints: ["src/index.ts"], bundle: true, platform: "neutral", conditions: ["workerd"], external: ["cloudflare:*", "node:*"], mainFields: ["module", "main"], format: "esm", target: "es2022", loader: { ".txt": "text" }, write: false });
-const mf = new Miniflare({ modules: [{ type: "ESModule", path: "worker.mjs", contents: output.outputFiles[0].text }], compatibilityDate: "2026-07-01", compatibilityFlags: ["nodejs_compat"], host: "127.0.0.1", port: PORT, bindings: { OWNER_PASSWORD: "demo", COOKIE_SECRET: "lineage-demo-cookie-secret", MOUNT: "" }, d1Databases: ["DB"], r2Buckets: ["MEDIA"], outboundService: () => new Response(null, { status: 503 }) });
+const mf = new Miniflare(convertV4MiniflareOptions({ modules: [{ type: "ESModule", path: "worker.mjs", contents: output.outputFiles[0].text }], compatibilityDate: "2026-07-01", compatibilityFlags: ["nodejs_compat"], host: "127.0.0.1", port: PORT, bindings: { OWNER_PASSWORD: "demo", COOKIE_SECRET: "lineage-demo-cookie-secret", MOUNT: "" }, d1Databases: ["DB"], r2Buckets: ["MEDIA"], outboundService: () => new Response(null, { status: 503 }) }));
 const db = await mf.getD1Database("DB");
 for (const migration of await readD1Migrations("./migrations")) await db.batch(migration.queries.map((sql) => db.prepare(sql)));
 
@@ -55,16 +55,17 @@ const login = await mf.dispatchFetch(`${base}/studio/login`, { method: "POST", h
 const cookie = login.headers.get("set-cookie")!.split(";")[0];
 const api = async (method: string, path: string, body?: unknown) => {
   const res = await mf.dispatchFetch(`${base}/api${path}`, { method, headers: { cookie, "content-type": "application/json" }, ...(body === undefined ? {} : { body: JSON.stringify(body) }) });
+  if (!res.ok) throw new Error(`${method} ${path}: ${res.status} ${await res.text()}`);
   return res.json() as Promise<any>;
 };
 await api("PATCH", "/settings", { site_title: "Demo", extensions: ["lineage-glyph"] });
 // Our own response to Mira — a real stub thread, so it shows as one of hers' descendants.
 const reply = await api("POST", "/items", { mode: "response", source: { subscription_id: "mira", remote_id: M2 } });
-await api("PATCH", `/items/${reply.id}`, { content_md: `![[${M2}]]\n\nThin, yes — but someone still has to decide what “thin” leaves out.` });
-await api("POST", `/items/${reply.id}/publish`, {});
+const editedReply = await api("PATCH", `/items/${reply.id}`, { expectedRevision: reply.revision, content_md: `![[${M2}]]\n\nThin, yes — but someone still has to decide what “thin” leaves out.` });
+await api("POST", `/items/${reply.id}/publish`, { expectedRevision: editedReply.revision });
 // An own fragment someone we don't follow has responded to (a verified mention).
 const own = await api("POST", "/items", { content_md: "# A note on protocol taste\n\nTaste is what you leave out of a spec." });
-await api("POST", `/items/${own.id}/publish`, {});
+await api("POST", `/items/${own.id}/publish`, { expectedRevision: own.revision });
 await db.prepare(`INSERT INTO mentions_in (id, source, target, target_item_id, status, relation, source_origin, source_id, source_kind, source_version, source_author_json, source_page, first_seen, last_seen, verified_at)
   VALUES ('demo-lee', ?, ?, ?, 'verified', 'stub', ?, 'lee0000000000000000000001', 'thread', 1, ?, ?, '2026-10-02T00:00:00Z', '2026-10-02T00:00:00Z', '2026-10-02T00:00:00Z')`)
   .bind(`${LEE}t/lee0000000000000000000001/`, `${base}/f/${own.id}/`, own.id, LEE, JSON.stringify({ name: "Lee Chen" }), `${LEE}t/lee0000000000000000000001/`).run();

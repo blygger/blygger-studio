@@ -1,8 +1,9 @@
+import { fixtureJson } from './api-fixture';
 import { test, expect } from "./fixture";
 import { answerSheet } from "./sheets.ts";
 import { editorMenu, expandRow, openCard } from "./editor.ts";
 
-test("owner can compose, publish and change settings through the SDK", async ({ page }) => {
+test("owner can compose, publish and change settings through the SDK", async ({ page }, testInfo) => {
   const errors: string[] = [];
   page.on("pageerror", (error) => errors.push(error.message));
   await page.goto("/studio");
@@ -18,14 +19,15 @@ test("owner can compose, publish and change settings through the SDK", async ({ 
   await page.goto("/studio/reading?sub=all");
   await expect(page.locator("body")).toContainText("Browser SDK round trip");
   await page.goto("/studio/settings");
-  await page.locator("#site_title").fill("Browser SDK site");
+  const title = `Browser SDK site ${testInfo.project.name} ${testInfo.repeatEachIndex} ${testInfo.retry}`;
+  await page.locator("#site_title").fill(title);
   const saved = page.waitForResponse((response) => response.url().endsWith("/api/settings") && response.request().method() === "PATCH");
   await page.locator('#settings-form button[type="submit"]').focus();
   await page.locator('#settings-form button[type="submit"]').press('Enter');
   expect((await saved).status()).toBe(200);
   await expect(page.getByRole("status")).toHaveText("saved");
   await page.reload();
-  await expect(page.locator("#site_title")).toHaveValue("Browser SDK site");
+  await expect(page.locator("#site_title")).toHaveValue(title);
   expect(errors).toEqual([]);
 });
 
@@ -58,6 +60,39 @@ test("editor autosave, preview, image upload and history use the SDK", async ({ 
   expect(errors).toEqual([]);
 });
 
+
+test('owner can pin and restore an empty publication', async ({ page }) => {
+  await page.goto('/studio/login');
+  await page.locator('[name="password"]').fill('test-password');
+  await page.getByRole('button', { name: 'log in', exact: true }).click();
+  await expect(page.locator('#composer-text')).toBeVisible();
+  const api = (method: string, path: string, data?: unknown) =>
+    page.evaluate(fixtureJson, { method, path, body: data }).then(result => ({ status: result.status, body: result.json }));
+  const created = await api('POST', '/api/items', { kind: 'thread', content_md: '' });
+  expect(created.status).toBe(201);
+  const { id } = created.body;
+  expect((await api('POST', `/api/items/${id}/publish`, {})).status).toBe(200);
+  await page.goto(`/studio/edit/${id}`);
+  await openCard(page, 'history');
+  await expect(page.locator('[data-action="pin"]')).toHaveCount(1);
+  await expect(page.getByRole('button', { name: 'restore → v2', exact: true })).toBeVisible();
+  await page.locator('[data-action="pin"]').click();
+  await answerSheet(page, { name: /^Pin v1\?/ });
+  await expect(page.locator('#history .badge-pencil')).toBeVisible();
+  expect((await api('PATCH', `/api/items/${id}`, { content_md: 'unsaved replacement' })).status).toBe(200);
+  await page.reload();
+  await openCard(page, 'history');
+  await page.getByRole('button', { name: 'restore → v2', exact: true }).click();
+  await answerSheet(page, { name: /^Restore v1 into/ });
+  await expect(page.locator('#md-input')).toHaveValue('');
+  const detail = (await api('GET', `/api/items/${id}`)).body;
+  expect(detail).toMatchObject({ content_md: '', dirty: false, version: 1 });
+  await page.locator('#history').getByRole('link', { name: 'fork', exact: true }).click();
+  const forked = page.waitForResponse(response => response.url().endsWith('/api/items') && response.request().method() === 'POST');
+  await page.locator('[data-action="fork"]').click();
+  expect((await forked).status()).toBe(201);
+  await expect(page.locator('#md-input')).toHaveValue('');
+});
 
 test("owner can pin and fork through resource creation", async ({ page }) => {
   const errors: string[] = [];
@@ -94,10 +129,7 @@ test("stale quotes are listed, explained, and refreshed as one republish", async
   // In-page fetch: the session cookie is Secure, which Playwright's request
   // context will not send over the fixture's plain http.
   const api = async (method: string, path: string, data?: unknown) => {
-    const res = await page.evaluate(async ([method, path, data]) => {
-      const r = await fetch(`/api${path}`, { method, headers: { "content-type": "application/json" }, body: data === undefined ? undefined : JSON.stringify(data) });
-      return { ok: r.ok, json: await r.json() };
-    }, [method, path, data] as const);
+    const res = await page.evaluate(fixtureJson, { method, path: `/api${path}`, body: data });
     expect(res.ok, `${method} ${path}`).toBe(true);
     return res.json;
   };
@@ -293,13 +325,16 @@ test("an attachment the live version lists is dropped from the next version only
   const id = await page.evaluate(async (stamp) => {
     const json = (method: string, path: string, body: unknown) =>
       fetch(path, { method, headers: { "content-type": "application/json" }, body: JSON.stringify(body) });
-    const { id } = await (await json("POST", "/api/items", { content_md: `Per-version fixture ${stamp}` })).json();
+    const { id, revision } = await (await json("POST", "/api/items", { content_md: `Per-version fixture ${stamp}` })).json();
     const form = new FormData();
     form.set("item_id", id);
+    form.set("expectedRevision", String(revision));
     form.set("alt", "the figure");
     form.set("file", new File([`PNG fixture ${stamp}`], "fig.png", { type: "image/png" }));
-    if ((await fetch("/api/media", { method: "POST", body: form })).status !== 201) throw new Error("upload failed");
-    if ((await json("POST", `/api/items/${id}/publish`, {})).status !== 200) throw new Error("publish failed");
+    const uploaded = await fetch("/api/media", { method: "POST", body: form });
+    if (uploaded.status !== 201) throw new Error("upload failed");
+    const attachment = await uploaded.json();
+    if ((await json("POST", `/api/items/${id}/publish`, { expectedRevision: attachment.revision })).status !== 200) throw new Error("publish failed");
     return id as string;
   }, `${test.info().project.name} ${Date.now()}`);
   await page.goto(`/studio/edit/${id}`);
@@ -347,7 +382,7 @@ test("auto change notes: a draft is shown for editing before a new version publi
   await page.goto("/studio/login");
   await page.locator('[name="password"]').fill("test-password");
   await page.getByRole("button", { name: "log in", exact: true }).click();
-  const api = (m: string, p: string, d?: unknown) => page.evaluate(async ([m, p, d]) => (await fetch('/api' + p, { method: m, headers: { 'content-type': 'application/json' }, body: d === undefined ? undefined : JSON.stringify(d) })).json(), [m, p, d] as const);
+  const api = (m: string, p: string, d?: unknown) => page.evaluate(fixtureJson, { method: m, path: '/api' + p, body: d }).then(result => result.json);
   await api("PATCH", "/settings", { auto_change_notes: true });
   await page.route("**/note-draft", (route) => route.fulfill({ json: { note: "Tightened the second line.", model: "test", pinned_prior: false } }));
   const publishes: unknown[] = [];
@@ -389,7 +424,7 @@ test("the composer list's publish asks for the note on a new version too", async
   await page.goto("/studio/login");
   await page.locator('[name="password"]').fill("test-password");
   await page.getByRole("button", { name: "log in", exact: true }).click();
-  const api = (m: string, p: string, d?: unknown) => page.evaluate(async ([m, p, d]) => (await fetch('/api' + p, { method: m, headers: { 'content-type': 'application/json' }, body: d === undefined ? undefined : JSON.stringify(d) })).json(), [m, p, d] as const);
+  const api = (m: string, p: string, d?: unknown) => page.evaluate(fixtureJson, { method: m, path: '/api' + p, body: d }).then(result => result.json);
   await api("PATCH", "/settings", { auto_change_notes: true });
   try {
     await page.route("**/note-draft", (route) => route.fulfill({ json: { note: "Reworded the opening.", model: "test", pinned_prior: false } }));

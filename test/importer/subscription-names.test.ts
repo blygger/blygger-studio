@@ -72,9 +72,9 @@ describe("subscription names follow their source", () => {
   it("renaming makes the name the owner's; null hands it back to the source", async () => {
     const cookie = await login();
     const sub = await createSubscription(env.DB, { kind: "rss", origin: "https://renamed.example/a.xml", feedUrl: "https://renamed.example/a.xml", title: "x" });
-    const named = await apiJson(cookie, "PATCH", `/api/subscriptions/${sub.id}`, { title: "Mine" });
+    const named = await apiJson(cookie, "PATCH", `/blyg/api/subscriptions/${sub.id}`, { title: "Mine" });
     expect(named.json).toMatchObject({ title: "Mine", title_follows_source: false });
-    const back = await apiJson(cookie, "PATCH", `/api/subscriptions/${sub.id}`, { title: null });
+    const back = await apiJson(cookie, "PATCH", `/blyg/api/subscriptions/${sub.id}`, { title: null });
     expect(back.json).toMatchObject({ title: "Mine", title_follows_source: true });
     await pollSubscription(env.DB, (await getSubscription(env.DB, sub.id))!, makeFixtureFetch({ "https://renamed.example/a.xml": { body: emptyFeed("Their Name") } }).fetch);
     expect((await getSubscription(env.DB, sub.id))!.title).toBe("Their Name");

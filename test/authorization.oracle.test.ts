@@ -70,13 +70,13 @@ async function run(instructions: Instruction[]) {
     return request(path, { method, headers: { cookie, ...(body === undefined ? {} : { 'Content-Type': 'application/json' }) }, ...(body === undefined ? {} : { body: JSON.stringify(body) }) });
   };
   async function mint(slot: number, mask: number, resource: Resource) {
-    const response = await owner('/api/authorizations', 'POST', { name: `oracle-${slot}`, scope: scopes(mask), resource });
+    const response = await owner('/blyg/api/authorizations', 'POST', { name: `oracle-${slot}`, scope: scopes(mask), resource });
     atCheckpoint('authorization issuance', () => expect(response.status).toBe(200));
     const value = await response.json() as { access_token: string; expires_in: number; authorization: { id: string; scope: string[]; resource: string } };
     atCheckpoint('authorization lifetime and consent', () => {
       expect(value.expires_in).toBe(2592000);
       expect(value.authorization.scope).toEqual(scopes(mask));
-      expect(value.authorization.resource).toBe(resource === 'api' ? base + '/api' : base + '/blyg/studio/mcp');
+      expect(value.authorization.resource).toBe(resource === 'api' ? base + '/blyg/api' : base + '/blyg/studio/mcp');
     });
     tokens.set(slot, { token: value.access_token, id: value.authorization.id });
     model.mint(slot, scopes(mask), resource, 2592000);
@@ -90,19 +90,19 @@ async function run(instructions: Instruction[]) {
       if (action.op === 'advance') { model.advance(action.seconds); continue; }
       if (action.op === 'rotate') { currentEnv = { ...currentEnv, COOKIE_SECRET: currentEnv.COOKIE_SECRET + '-rotated' }; model.revokeAll(); }
       else if (action.op === 'password-reset') { currentEnv = { ...currentEnv, OWNER_PASSWORD: currentEnv.OWNER_PASSWORD + '-reset' }; }
-      else if (action.op === 'revoke-all') { expect((await owner('/api/authorizations', 'DELETE')).status).toBe(200); model.revokeAll(); }
-      else if (action.op === 'revoke') { const token = tokens.get(action.slot); if (token) expect((await owner('/api/authorizations/' + token.id, 'DELETE')).status).toBe(200); model.revoke(action.slot); }
+      else if (action.op === 'revoke-all') { expect((await owner('/blyg/api/authorizations', 'DELETE')).status).toBe(200); model.revokeAll(); }
+      else if (action.op === 'revoke') { const token = tokens.get(action.slot); if (token) expect((await owner('/blyg/api/authorizations/' + token.id, 'DELETE')).status).toBe(200); model.revoke(action.slot); }
       if (action.op === 'wrong-resource') {
         const audience = model.credentials.get(action.slot)?.resource;
-        const target = audience === 'api' ? '/blyg/studio/mcp' : '/api/settings';
+        const target = audience === 'api' ? '/blyg/studio/mcp' : '/blyg/api/settings';
         const response = await request(target, { method: audience === 'api' ? 'POST' : 'GET', headers: { Authorization: 'Bearer ' + (tokens.get(action.slot)?.token ?? 'invalid-token') } });
         atCheckpoint('authorization wrong audience', () => expect(response.status).toBe(401));
         continue;
       }
-      const operation = action.op === 'draft' ? { path: '/api/items', method: 'POST', body: { content_md: 'oracle draft' }, scope: 'owner:draft' as Scope, success: 201 }
-        : action.op === 'publish' ? { path: '/api/items/missing/publish', method: 'POST', body: {}, scope: 'owner:publish' as Scope, success: 404 }
-        : action.op === 'manage' ? { path: '/api/settings', method: 'PATCH', body: {}, scope: 'owner:manage' as Scope, success: 200 }
-        : { path: '/api/settings', method: 'GET', body: undefined, scope: 'owner:read' as Scope, success: 200 };
+      const operation = action.op === 'draft' ? { path: '/blyg/api/items', method: 'POST', body: { content_md: 'oracle draft' }, scope: 'owner:draft' as Scope, success: 201 }
+        : action.op === 'publish' ? { path: '/blyg/api/items/missing/publish', method: 'POST', body: { expectedRevision: 1 }, scope: 'owner:publish' as Scope, success: 404 }
+        : action.op === 'manage' ? { path: '/blyg/api/settings', method: 'PATCH', body: {}, scope: 'owner:manage' as Scope, success: 200 }
+        : { path: '/blyg/api/settings', method: 'GET', body: undefined, scope: 'owner:read' as Scope, success: 200 };
       const slot = action.op === 'revoke-all' || action.op === 'rotate' ? 0 : action.slot;
       const token = tokens.get(slot)?.token ?? 'invalid-fixture-token';
       const response = await request(operation.path, { method: operation.method, headers: { Authorization: 'Bearer ' + token, ...(operation.body === undefined ? {} : { 'Content-Type': 'application/json' }) }, ...(operation.body === undefined ? {} : { body: JSON.stringify(operation.body) }) });

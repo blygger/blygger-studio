@@ -73,6 +73,10 @@ for `Cf-Cache-Status: HIT` or `UPDATING` and matching conditional requests for 3
 
 ## Upgrading
 
+For the0.49.8 revision cutover, finish pending writes, including generation,
+before upgrading. Avoid edits until deployment finishes. Old in-flight writes
+do not participate in the new revision checks.
+
 Read every changelog entry between your installed version and the target,
 including each `Migrations:` line. Verify the new archive before extracting it.
 Copy its `worker.js` and `migrations/` into your existing deployment directory;

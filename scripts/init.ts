@@ -155,11 +155,9 @@ const ACCOUNT = { CLOUDFLARE_ACCOUNT_ID: marker.accountId! };
 
 if (!marker.host) {
   console.log(`
-A blyg wants its own subdomain — blyg.yourdomain.com — for a reason worth
-knowing: /studio and /api are host-rooted whatever mount you choose, so putting
-a blyg on a path of a domain that already serves /api will collide with it. A
-path mount is fully supported by the protocol and people run them; it just
-needs routing you have to reason about, so init does not generate it.
+This setup creates a blyg on its own subdomain, such as blyg.yourdomain.com.
+Path mounts are also supported: their Studio and API live below the mount.
+They need matching forwarding routes, so init leaves that configuration to you.
 `);
   const domain = await ask("Your domain (the zone, e.g. example.com)");
   if (!domain || !domain.includes(".")) die("that does not look like a domain.");

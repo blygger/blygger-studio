@@ -57,7 +57,7 @@ test('owner mints a read-only token, copies it once, and revokes access', async 
   expect(errors).toEqual([]);
 });
 
-test('a hostile ancestor cannot frame the owner login or consent page', async ({ page }) => {
+test('a hostile ancestor cannot frame the owner login or consent page', async ({ page, request: client }) => {
   const outer = 'http://127.0.0.1:8789/notes/b/hostile-frame';
   const assertBlocked = async (target: string) => {
     const response = await page.request.get(target);
@@ -81,7 +81,7 @@ test('a hostile ancestor cannot frame the owner login or consent page', async ({
   await page.locator('[name="password"]').fill('test-password');
   await page.getByRole('button', { name: 'log in', exact: true }).click();
   await expect(page.locator('#composer-text')).toBeVisible();
-  const registration = await page.request.post('/studio/auth/oauth2/register', { data: { client_name: 'Framing probe', redirect_uris: ['https://client.example/callback'], token_endpoint_auth_method: 'none', grant_types: ['authorization_code'], response_types: ['code'] } });
+  const registration = await client.post('/studio/auth/oauth2/register', { data: { client_name: 'Framing probe', redirect_uris: ['https://client.example/callback'], token_endpoint_auth_method: 'none', grant_types: ['authorization_code'], response_types: ['code'] } });
   expect(registration.status()).toBe(201);
   const { client_id } = await registration.json();
   const target = 'http://127.0.0.1:8787/studio/auth/oauth2/authorize?' + new URLSearchParams({ client_id, redirect_uri: 'https://client.example/callback', response_type: 'code', scope: 'owner:read', resource: 'http://127.0.0.1:8787/api', code_challenge: 'a'.repeat(43), code_challenge_method: 'S256' });
@@ -96,7 +96,7 @@ test('browser completes OAuth consent without leaking a referrer to its callback
   await page.getByRole('button', { name: 'log in', exact: true }).click();
   await expect(page.locator('#composer-text')).toBeVisible();
   const redirect = 'https://client.example/callback';
-  const registration = await page.request.post('/studio/auth/oauth2/register', { data: { client_name: 'Browser consent', redirect_uris: [redirect], token_endpoint_auth_method: 'none', grant_types: ['authorization_code'], response_types: ['code'] } });
+  const registration = await client.post('/studio/auth/oauth2/register', { data: { client_name: 'Browser consent', redirect_uris: [redirect], token_endpoint_auth_method: 'none', grant_types: ['authorization_code'], response_types: ['code'] } });
   expect(registration.status()).toBe(201);
   const { client_id } = await registration.json();
   const verifier = 'browser-consent-verifier-'.padEnd(64, 'a');
@@ -156,7 +156,7 @@ test('draft-only SVG uploads render as images without borrowing owner authority'
     await page.waitForLoadState('networkidle');
     await expect(page.locator('svg')).not.toHaveAttribute('data-script-ran', 'yes');
   } finally {
-    await page.request.delete('/api/media/' + media.id, { headers: { Origin: 'http://127.0.0.1:8787' } });
+    await page.request.delete('/api/media/' + media.id, { headers: { Origin: 'http://127.0.0.1:8787' }, data: {} });
     await page.request.delete('/api/authorizations/' + authorization.id, { headers: { Origin: 'http://127.0.0.1:8787' } });
   }
 });

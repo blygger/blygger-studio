@@ -41,7 +41,7 @@ describe("drafting", () => {
   it("drafts from the published version and the working copy, and publishes nothing", async () => {
     const cookie = await login();
     const id = await createAndPublish(cookie, "First take on the idea.");
-    await apiJson(cookie, "PATCH", `/api/items/${id}`, { content_md: "First take on the idea, with an example added." });
+    await apiJson(cookie, "PATCH", `/blyg/api/items/${id}`, { content_md: "First take on the idea, with an example added." });
     const { fetch, bodies } = provider("Added an example.");
     const result = await draftChangeNote(keyed, (await getItem(env.DB, id))!, fetch);
     expect(result).toMatchObject({ ok: true, note: "Added an example.", model: "test-model", pinnedPrior: false });
@@ -53,7 +53,7 @@ describe("drafting", () => {
   it("refuses a draft that reproduces an unpinned prior version's removed wording", async () => {
     const cookie = await login();
     const id = await createAndPublish(cookie, "A sentence that will be cut from the piece entirely.");
-    await apiJson(cookie, "PATCH", `/api/items/${id}`, { content_md: "Something else now." });
+    await apiJson(cookie, "PATCH", `/blyg/api/items/${id}`, { content_md: "Something else now." });
     const { fetch } = provider("Removed 'a sentence that will be cut from the piece'.");
     expect(await draftChangeNote(keyed, (await getItem(env.DB, id))!, fetch)).toMatchObject({ ok: false, status: 422 });
   });
@@ -61,8 +61,8 @@ describe("drafting", () => {
   it("allows the same note when the prior version is pinned — nothing was withheld", async () => {
     const cookie = await login();
     const id = await createAndPublish(cookie, "A sentence that will be cut from the piece entirely.");
-    await apiJson(cookie, "PUT", `/api/items/${id}/versions/1/pin`);
-    await apiJson(cookie, "PATCH", `/api/items/${id}`, { content_md: "Something else now." });
+    await apiJson(cookie, "PUT", `/blyg/api/items/${id}/versions/1/pin`);
+    await apiJson(cookie, "PATCH", `/blyg/api/items/${id}`, { content_md: "Something else now." });
     const { fetch, bodies } = provider("Removed 'a sentence that will be cut from the piece'.");
     expect(await draftChangeNote(keyed, (await getItem(env.DB, id))!, fetch)).toMatchObject({ ok: true, pinnedPrior: true });
     expect(bodies[0].messages[0].content).not.toContain("The previous version is private");
@@ -70,10 +70,10 @@ describe("drafting", () => {
 
   it("has nothing to describe for a first version or an unchanged working copy", async () => {
     const cookie = await login();
-    const draft = (await apiJson(cookie, "POST", "/api/items", { content_md: "never published" })).json.id as string;
-    expect((await apiJson(cookie, "POST", `/api/items/${draft}/note-draft`)).status).toBe(409);
+    const draft = (await apiJson(cookie, "POST", "/blyg/api/items", { content_md: "never published" })).json.id as string;
+    expect((await apiJson(cookie, "POST", `/blyg/api/items/${draft}/note-draft`)).status).toBe(409);
     const same = await createAndPublish(cookie, "unchanged");
-    expect((await apiJson(cookie, "POST", `/api/items/${same}/note-draft`)).status).toBe(409);
+    expect((await apiJson(cookie, "POST", `/blyg/api/items/${same}/note-draft`)).status).toBe(409);
   });
 });
 
@@ -81,24 +81,24 @@ describe("emission (§16.6c)", () => {
   it("marks a drafted, unedited note generated in the changelog", async () => {
     const cookie = await login();
     const id = await createAndPublish(cookie, "v1");
-    await apiJson(cookie, "PATCH", `/api/items/${id}`, { content_md: "v2" });
-    expect((await apiJson(cookie, "POST", `/api/items/${id}/publish`, { note: "Tightened the wording.", note_generated: true })).status).toBe(200);
+    await apiJson(cookie, "PATCH", `/blyg/api/items/${id}`, { content_md: "v2" });
+    expect((await apiJson(cookie, "POST", `/blyg/api/items/${id}/publish`, { note: "Tightened the wording.", note_generated: true })).status).toBe(200);
     const doc = await (await getPublic(`/blyg/items/${id}.json`)).json<any>();
     expect(doc.changelog).toEqual([
       expect.not.objectContaining({ generated: true }),
       expect.objectContaining({ version: 2, note: "Tightened the wording.", generated: true }),
     ]);
-    const detail = (await apiJson(cookie, "GET", `/api/items/${id}`)).json;
+    const detail = (await apiJson(cookie, "GET", `/blyg/api/items/${id}`)).json;
     expect(detail.versions.map((v: { note_generated: boolean }) => v.note_generated)).toEqual([false, true]);
   });
 
   it("an author's note, or no note at all, is never marked generated", async () => {
     const cookie = await login();
     const id = await createAndPublish(cookie, "v1");
-    await apiJson(cookie, "PATCH", `/api/items/${id}`, { content_md: "v2" });
-    await apiJson(cookie, "POST", `/api/items/${id}/publish`, { note: "my words" });
-    await apiJson(cookie, "PATCH", `/api/items/${id}`, { content_md: "v3" });
-    await apiJson(cookie, "POST", `/api/items/${id}/publish`, { note_generated: true });
+    await apiJson(cookie, "PATCH", `/blyg/api/items/${id}`, { content_md: "v2" });
+    await apiJson(cookie, "POST", `/blyg/api/items/${id}/publish`, { note: "my words" });
+    await apiJson(cookie, "PATCH", `/blyg/api/items/${id}`, { content_md: "v3" });
+    await apiJson(cookie, "POST", `/blyg/api/items/${id}/publish`, { note_generated: true });
     const doc = await (await getPublic(`/blyg/items/${id}.json`)).json<any>();
     expect(doc.changelog.some((e: { generated?: boolean }) => e.generated)).toBe(false);
   });

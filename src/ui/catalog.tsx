@@ -619,13 +619,14 @@ function MentionRow({ mention }: { mention: Mention }) {
     </div>
   );
 }
-function ResponseVisibility({ id, mode, defaultShowing, disabled }: {
+function ResponseVisibility({ id, revision, mode, defaultShowing, disabled }: {
   id: string;
+  revision: number;
   mode: 'default' | 'show' | 'hide';
   defaultShowing: boolean;
   disabled: boolean;
 }) {
-  const write = useMemo(() => createDraftAction(id), [id]);
+  const write = useMemo(() => createDraftAction(id, revision), [id, revision]);
   const action = useAction();
   return (
     <>
@@ -728,7 +729,7 @@ export function MentionsPage() {
                   {total} responses · {visible} on the page
                   now
                 </p>
-                <ResponseVisibility id={id} mode={mode} defaultShowing={!!settings?.show_responses_default} disabled={!item} />
+                <ResponseVisibility id={id} revision={item?.revision ?? 0} mode={mode} defaultShowing={!!settings?.show_responses_default} disabled={!item} />
                 {rows.map((mention) => (
                   <MentionRow key={mention.id} mention={mention} />
                 ))}

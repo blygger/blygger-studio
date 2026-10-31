@@ -61,14 +61,16 @@ for (const kind of ["fragment", "thread"] as const) {
   });
   // Commit and acknowledgment are separate events. route.fetch commits through the
   // real Worker, then route.abort withholds the response. Preserve local text and
-  // allow a later successful save without assuming the first failure meant rollback.
+  // reject a later save at the unacknowledged revision. The owner must reconcile it.
   test(`${kind} retains text when a committed save loses its response`, async ({ page }) => {
     const id = await editor(page, kind);
     await acceptSheets(page);
     let calls = 0;
+    let capturedRevision: number | undefined;
     await page.route(`**/api/items/${id}`, async route => {
       if (route.request().method() !== "PATCH") return route.continue();
       calls++;
+      capturedRevision = route.request().postDataJSON().expectedRevision;
       const committed = await route.fetch();
       expect(committed.status()).toBe(200);
       await route.abort("failed");
@@ -78,11 +80,19 @@ for (const kind of ["fragment", "thread"] as const) {
     await expect(page.locator("#error-banner-slot")).toContainText(/failed|fetch|network/i);
     await expect(page.locator("#md-input")).toHaveValue("committed but unacknowledged");
     expect(calls).toBe(1);
-    expect((await page.evaluate(async id => (await fetch(`/api/items/${id}`)).json() as Promise<{ content_md: string }>, id)).content_md).toBe("committed but unacknowledged");
+    const committed = await page.evaluate(async id => (await fetch(`/api/items/${id}`)).json() as Promise<{ content_md: string; revision: number }>, id);
+    expect(committed.content_md).toBe("committed but unacknowledged");
+    expect(committed.revision).toBe(capturedRevision! + 1);
     await page.unroute(`**/api/items/${id}`);
-    const acknowledged = expect(page.locator(".save-state")).toHaveText("saved");
-    await page.locator("#save-draft-btn").click(); await acknowledged;
+    const conflict = page.waitForResponse(response => response.url().endsWith(`/api/items/${id}`) && response.request().method() === "PATCH" && response.status() === 409);
+    await page.locator("#save-draft-btn").click();
+    const rejected = await conflict;
+    expect(rejected.request().postDataJSON().expectedRevision).toBe(capturedRevision);
+    expect(await rejected.json()).toMatchObject({ code: 'revision-conflict', expectedRevision: capturedRevision });
+    await expect(page.locator("#error-banner-slot")).toContainText('item revision conflict; reload and try again');
+    await expect(page.locator(".save-state")).toHaveCount(0);
     await expect(page.locator("#md-input")).toHaveValue("committed but unacknowledged");
+    expect(await page.evaluate(async id => (await fetch(`/api/items/${id}`)).json(), id)).toEqual(committed);
   });
   // Publication is gated by save acknowledgment. Count actual publish requests,
   // not just a hidden UI button, and read version zero after the rejected PATCH.

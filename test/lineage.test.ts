@@ -27,8 +27,8 @@ const B = "0000000000000000000000000b";
 const C = "0000000000000000000000000c";
 
 async function publishThread(cookie: string, md: string): Promise<string> {
-  const id = (await apiJson(cookie, "POST", "/api/items", { content_md: md, kind: "thread" })).json.id as string;
-  expect((await apiJson(cookie, "POST", `/api/items/${id}/publish`, {})).status).toBe(200);
+  const id = (await apiJson(cookie, "POST", "/blyg/api/items", { content_md: md, kind: "thread" })).json.id as string;
+  expect((await apiJson(cookie, "POST", `/blyg/api/items/${id}/publish`, {})).status).toBe(200);
   return id;
 }
 async function seedSubscription() {
@@ -39,8 +39,8 @@ async function seedImported(id: string, html: string, refs: { stub_of?: unknown;
     VALUES ('them', ?, ?, 'current', 2, '2026-10-02T00:00:00Z', '', ?, 0, ?, ?, ?)`)
     .bind(id, refs.transclusions ? "thread" : "fragment", html, refs.stub_of ? JSON.stringify(refs.stub_of) : null, refs.forked_from ? JSON.stringify(refs.forked_from) : null, refs.transclusions ? JSON.stringify(refs.transclusions) : null).run();
 }
-const lineage = (cookie: string, q: string) => apiJson(cookie, "GET", `/api/ext/lineage-glyph/lineage?${q}`);
-const summaries = (cookie: string, keys: string[]) => apiJson(cookie, "GET", `/api/ext/lineage-glyph/summaries?keys=${encodeURIComponent(JSON.stringify(keys))}`);
+const lineage = (cookie: string, q: string) => apiJson(cookie, "GET", `/blyg/api/ext/lineage-glyph/lineage?${q}`);
+const summaries = (cookie: string, keys: string[]) => apiJson(cookie, "GET", `/blyg/api/ext/lineage-glyph/summaries?keys=${encodeURIComponent(JSON.stringify(keys))}`);
 
 describe("lineage of our own items", () => {
   it("a thread quoting a fragment is the fragment's descendant, and the fragment its ancestor", async () => {
@@ -72,7 +72,7 @@ describe("lineage of our own items", () => {
     const cookie = await login();
     const frag = await createAndPublish(cookie, "Counted fragment.");
     const thread = await publishThread(cookie, `![[${frag}]]\n\nCounting.`);
-    const page = await apiJson(cookie, "GET", "/api/reading?sub=own&limit=50");
+    const page = await apiJson(cookie, "GET", "/blyg/api/reading?sub=own&limit=50");
     // The reading page itself stays as the reference client serves it.
     expect(page.json.items.every((e: Record<string, unknown>) => !("lineage" in e))).toBe(true);
     const keys = page.json.items.map((e: { key: string }) => e.key) as string[];
@@ -82,7 +82,7 @@ describe("lineage of our own items", () => {
     expect(got.json.summaries[`own:${thread}`]).toEqual({ up: { stub: 0, transclusion: 1, fork: 0 }, down: { stub: 0, transclusion: 0, fork: 0 } });
     expect(got.json.summaries[`own:${frag}`]).toEqual({ up: { stub: 0, transclusion: 0, fork: 0 }, down: { stub: 0, transclusion: 1, fork: 0 } });
     expect(Object.keys(got.json.summaries)).toHaveLength(keys.length);
-    expect((await apiJson(cookie, "GET", "/api/ext/lineage-glyph/summaries?keys=notjson")).status).toBe(400);
+    expect((await apiJson(cookie, "GET", "/blyg/api/ext/lineage-glyph/summaries?keys=notjson")).status).toBe(400);
     expect((await summaries(cookie, Array.from({ length: 51 }, (_, i) => `own:${i}`))).status).toBe(400);
   });
 

@@ -1,3 +1,4 @@
+import { fixtureJson } from './api-fixture';
 import { test, expect, type Page } from './fixture';
 
 // The full view (/reading/{sub}/{id}): "more" on a card opens the whole
@@ -13,13 +14,7 @@ async function login(page: Page) {
   await expect(page.locator('#composer-text')).toBeVisible();
 }
 const api = (page: Page, method: string, path: string, body?: unknown) =>
-  page.evaluate(
-    async ({ method, path, body }) => {
-      const response = await fetch(`/api${path}`, { method, headers: { 'content-type': 'application/json' }, ...(body === undefined ? {} : { body: JSON.stringify(body) }) });
-      return { status: response.status, json: await response.json().catch(() => null) };
-    },
-    { method, path, body },
-  );
+  page.evaluate(fixtureJson, { method, path: `/api${path}`, body });
 const paragraphs = (tag: string) =>
   Array.from({ length: 14 }, (_, i) => `${tag} paragraph ${i + 1}, long enough that the card clamps it and needs a way in to the rest.`).join('\n\n');
 /** Publish own threads long enough to clamp; returns their ids, newest last. */

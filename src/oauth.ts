@@ -1,3 +1,4 @@
+import { deploymentUrls } from './deployment-urls.ts';
 import { betterAuth } from 'better-auth';
 import { jwt } from 'better-auth/plugins';
 import { APIError, createAuthEndpoint } from 'better-auth/api';
@@ -7,11 +8,11 @@ import { z } from 'zod';
 import type { Env } from './types.ts';
 import { OWNER_SCOPES, type OwnerAccess } from './permissions.ts';
 import { verifySession, sessionAuthenticatedAt } from './auth.ts';
-import { normalizeMount, studioPath, hex } from './util.ts';
+import { hex } from './util.ts';
 
 export function authLocations(url: string, env: Env) {
-  const origin = new URL(url).origin, base = origin + studioPath(normalizeMount(env.MOUNT));
-  return { base, issuer: base + '/auth', api: origin + '/api', mcp: base + '/mcp' };
+  const { studio: base, issuer, api, mcp } = deploymentUrls(url, env);
+  return { base, issuer, api, mcp };
 }
 export async function hashCredential(value: string) {
   return hex(new Uint8Array(await crypto.subtle.digest('SHA-256', new TextEncoder().encode(value))));
