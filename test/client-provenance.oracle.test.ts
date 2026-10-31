@@ -2,7 +2,7 @@
  * A client's generated-span claims must align with the content it changes.
  * Rejecting one field while persisting another would publish a false provenance claim.
  *
- * Contract: decision #52 and CLAUDE.md §5.9 define client-recorded TK provenance.
+ * Contract: decision #52 and AGENTS.md §5.9 define client-recorded TK provenance.
  * This is a Blygger content-integrity law, not an OAuth or MCP protocol requirement.
  * Model: two literal generated spans and two positional claims, including null.
  * History grammar: create, mismatched patch, aligned patch and publish.

@@ -250,7 +250,7 @@ storage tests remain in the Worker suite. There is no separate development SPA.
 | Contract | Tests |
 |---|---|
 | Ordered draft saves, stale acknowledgements, generation queue | `test-ui/state.test.ts`, `e2e/save-oracle.spec.ts` |
-| Polling, hidden tabs, focus, cache eviction and route preload | `test-ui/state.test.ts`, `e2e/spa-studio.spec.ts` |
+| Polling, hidden tabs, focus, cache eviction and route preload | `test-ui/polling.test.ts`, `test-ui/state.test.ts`, `e2e/spa-studio.spec.ts` |
 | Navigation, themes, editor kind/history/pins, quick edit, bracket paging | `e2e/parity.spec.ts` |
 | Frozen imported HTML, retained withdrawals, legacy actions, hoppers | `e2e/parity.spec.ts`, retained importer API tests |
 | Mentions, response policy, source guidance and update preferences | `e2e/parity.spec.ts`, retained mentions/response/update tests |

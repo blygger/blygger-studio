@@ -21,7 +21,7 @@ import { CHANGE_CATEGORIES, composeNote, noteIsGenerated, recategorize, type Cha
 import type { ListItemsResponses, Version } from '../../sdk/dist/browser.js';
 import { BlyggerApi, unwrap } from '../../sdk/dist/browser.js';
 import type { Detail } from './data.ts';
-import { client, items, itemDetail, changed, refreshItems, createDraftAction, settings as settingsCollection, hoppers } from './data.ts';
+import { client, items, itemDetail, changed, createDraftAction, settings as settingsCollection, hoppers } from './data.ts';
 import {
   ActionBar,
   Button,
@@ -30,7 +30,6 @@ import {
   Modal,
   mount,
   useChrome,
-  usePoll,
   useSettings,
   publicPath,
 } from './components.tsx';
@@ -950,7 +949,6 @@ export function Compose() {
     query: (q) =>
       q.from({ item: items }).orderBy(({ item }) => item.updated, 'desc'),
   });
-  usePoll('items', refreshItems);
   const current = useRef({ text, kind, id });
   current.current = { text, kind, id };
   const [draftKey, setDraftKey] = useState(0);
@@ -1491,7 +1489,6 @@ function ItemRow({
 export function EditorPage({ id }: { id: string }) {
   useChrome({ tabs: false, framed: false });
   const collection = useMemo(() => itemDetail(id), [id]);
-  usePoll('items', refreshItems);
   const result = useLiveQuery({
     query: (q) => q.from({ item: collection }),
   });
@@ -1816,7 +1813,7 @@ function Editor({ item }: { item: Detail }) {
               const front = settings.front_page === item.id ? '' : item.id;
               await settingsCollection.update('settings', (row) => {
                 row.front_page = front;
-              }).isPersisted.promise;
+              }).when('settled');
               toast(front ? 'This thread is now your front page' : 'Your home page shows your latest items again', { tone: 'ok' });
             }),
         },

@@ -218,7 +218,7 @@ function SettingsForm({ initial }: { initial: Settings }) {
           const links_external = parseLinks(externalLinks);
           await settings.update('settings', (row) => {
             Object.assign(row, form, { author_links, links_external });
-          }).isPersisted.promise;
+          }).when('settled');
           setSaved(true);
         } catch (failure) {
           setError(failure);

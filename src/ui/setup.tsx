@@ -115,7 +115,7 @@ function Wizard({ initial }: { initial: Settings }) {
       }
       await settings.update('settings', (row) => {
         Object.assign(row, patch);
-      }).isPersisted.promise;
+      }).when('settled');
       if (save) setFinished(true);
       else await navigate({ to: '/' });
     } catch (failure) {
@@ -333,7 +333,7 @@ export function SetupBanner() {
       .update('settings', (r) => {
         r.setup = 'done';
       })
-      .isPersisted.promise.catch(setError);
+      .when('settled').catch(setError);
   const fresh = row.setup === 'pending';
   return (
     <div className="setup-banner" id="setup-banner" role="region" aria-label="setup">

@@ -49,6 +49,7 @@ The rulings and their build consequences are in `../blygger-spec/docs/v0.3-plan.
 - **Inline page scripts live inside TS template literals, so escapes are a live hazard** —
   now only on the *public* pages (`VERSION_NAV_SCRIPT` and kin in `pages.ts`); the Studio's
   inline scripts were deleted by 0.10.0: write `\\n` (not `\n`) inside a `confirm()`/string in `actionScript`/`composerScript`/`FEED_SCRIPT`, or the emitted JS gets a real newline inside a string literal and the whole script fails to parse. Session 19 shipped a studio where every button was dead this way, **with the full suite green** — assertions about HTML pass whether or not the `<script>` in it is valid JavaScript. `test/inline-scripts.test.ts` compiles every inline script via `new Function`; keep new pages covered by it.
+- Use TanStack Router `Link` for internal navigation so hover and keyboard focus can preload the destination. Use buttons for actions, not links.
 - **Page scripts need behaviour tests, not just markup tests.** For the Studio that now means
   the Playwright suite (`npm run test:e2e`, desktop + mobile Chromium, 118 tests at 0.10.0) and
   `npm run test:ui`; the Worker suite keeps API, public-output and lifecycle tests. The same blind spot produced a second session-19 bug: the shared action handler ends in `location.reload()`, correct for every action that leaves the item in place and wrong for `discard`, which deletes it (reloading an editor URL 404s). Assert on what a handler *does* — where it navigates, what it calls — not only that the button rendered.

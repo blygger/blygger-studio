@@ -1,5 +1,5 @@
 import type { Mention } from '../../sdk/dist/browser.js';
-import type { Collection, InitialQueryBuilder, StandardSchemaAlias, UtilsRecord } from '@tanstack/react-db';
+import type { Collection, InitialQueryBuilder, StandardSchemaAlias, UtilsRecord, RefsForContext, ExtractContext } from '@tanstack/react-db';
 import { and, caseWhen, coalesce, count, eq, max, min, or, sum, toArray } from '@tanstack/react-db';
 
 type Receipt = Pick<Mention, 'id' | 'target_item_id' | 'verified_at' | 'last_seen' | 'status' | 'hidden'>;
@@ -38,22 +38,25 @@ export function mentionQuery<
       target: seenGroup.target, total: seenGroup.total, visible: seenGroup.visible, verified: seenGroup.verified, seen: seenGroup.seen,
       firstId: min(seenReceipt.id),
     }));
-  return q.from({ latestGroup: latest })
+  const grouped = q.from({ latestGroup: latest })
     .leftJoin({ item: owned }, ({ latestGroup, item }) => eq(latestGroup.target, item.id))
     .orderBy(({ latestGroup }) => latestGroup.verified, 'desc')
     .orderBy(({ latestGroup }) => latestGroup.seen, 'desc')
-    .orderBy(({ latestGroup }) => latestGroup.firstId, 'asc')
-    .select(({ latestGroup, item }) => {
-      const mode = coalesce(item.responses, 'default');
-      const showing = or(eq(mode, 'show'), and(eq(mode, 'default'), defaultShowing));
-      return {
-        target: latestGroup.target, total: latestGroup.total, item, mode, showing,
-        visible: caseWhen(showing, coalesce(latestGroup.visible, 0), 0),
-        receipts: toArray(q.from({ response: source })
-          .where(({ response }) => eq(response.target_item_id, latestGroup.target))
-          .orderBy(({ response }) => response.verified_at, { direction: 'desc', nulls: 'last' })
-          .orderBy(({ response }) => response.last_seen, 'desc')
-          .orderBy(({ response }) => response.id, 'asc')),
-      };
-    });
+    .orderBy(({ latestGroup }) => latestGroup.firstId, 'asc');
+  const select = ({ latestGroup, item }: RefsForContext<ExtractContext<typeof grouped>>) => {
+    const mode = coalesce(item.responses, 'default');
+    const showing = or(eq(mode, 'show'), and(eq(mode, 'default'), defaultShowing));
+    return {
+      target: latestGroup.target, total: latestGroup.total, item, mode, showing,
+      visible: caseWhen(showing, coalesce(latestGroup.visible, 0), 0),
+      receipts: toArray(q.from({ response: source })
+        .where(({ response }) => eq(response.target_item_id, latestGroup.target))
+        .orderBy(({ response }) => response.verified_at, { direction: 'desc', nulls: 'last' })
+        .orderBy(({ response }) => response.last_seen, 'desc')
+        .orderBy(({ response }) => response.id, 'asc')),
+    };
+  };
+  // RC1's bare-subquery guard cannot resolve generic collection refs. The
+  // child query is wrapped in toArray(); preserve the exact projection type.
+  return grouped.select<ReturnType<typeof select>>(refs => select(refs) as never);
 }

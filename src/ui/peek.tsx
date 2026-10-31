@@ -9,11 +9,11 @@ import { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from '@tanstack/react-router';
 import { BlyggerApi, unwrap } from '../../sdk/dist/browser.js';
 import type { PeekItem } from '../../sdk/dist/browser.js';
-import { client } from './data.ts';
+import { client, queryClient } from './data.ts';
 import { Button, Failure, useChrome } from './components.tsx';
 import { Sheet } from './sheets.tsx';
 import { AddFeedForm } from './catalog.tsx';
-import { ReaderBody, TrailBar, useOpenTarget } from './reader-links.tsx';
+import { ReaderBody, TrailBar, ReaderLink } from './reader-links.tsx';
 import { currentTrail, visit } from './browse.ts';
 
 /** A leading heading is the title; the rest is the body (as the reader's own split does). */
@@ -29,10 +29,17 @@ function splitHeading(html: string) {
   return { title: title || text.slice(0, 60), html: parsed.body.innerHTML, heading: title };
 }
 
+/** Hover and navigation share one short-lived read; peeks never poll. */
+export function loadPeek(origin: string, id: string) {
+  return queryClient.fetchQuery({
+    queryKey: ['owner-read', 'peek', origin, id], staleTime: 30_000,
+    queryFn: ({ signal }) => unwrap(BlyggerApi.peekItem({ client, query: { origin, id }, signal })),
+  });
+}
+
 export function PeekPage({ origin, id }: { origin: string; id: string }) {
   useChrome({ framed: false, wide: false });
   const navigate = useNavigate();
-  const open = useOpenTarget();
   const [item, setItem] = useState<PeekItem>();
   const [error, setError] = useState<unknown>();
   const [subscribing, setSubscribing] = useState(false);
@@ -40,7 +47,7 @@ export function PeekPage({ origin, id }: { origin: string; id: string }) {
     let live = true;
     setItem(undefined);
     setError(undefined);
-    unwrap(BlyggerApi.peekItem({ client, query: { origin, id } })).then(
+    loadPeek(origin, id).then(
       (got) => live && setItem(got),
       (failure) => live && setError(failure),
     );
@@ -96,9 +103,9 @@ export function PeekPage({ origin, id }: { origin: string; id: string }) {
             {stub?.id && stub.origin ? (
               <p className="stub-head">
                 responds to{' '}
-                <Button className="link-btn" data-action="open-stub-source" onClick={() => open(stub.origin!, stub.id!, 'stub')}>
+                <ReaderLink origin={stub.origin} id={stub.id} via="stub" data-action="open-stub-source">
                   {stub.id.slice(0, 8)} on {(() => { try { return new URL(stub.origin!).host; } catch { return stub.origin; } })()}
-                </Button>
+                </ReaderLink>
               </p>
             ) : stub?.url ? (
               <p className="stub-head">

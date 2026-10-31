@@ -45,7 +45,7 @@ export function MorePage() {
                   .update('settings', (row) => {
                     row.update_notice_ack = true;
                   })
-                  .isPersisted.promise.catch(setError)
+                  .when('settled').catch(setError)
               }
             >
               got it

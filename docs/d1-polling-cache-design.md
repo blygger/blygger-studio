@@ -17,13 +17,15 @@ age or withdrawal exception has been selected.
 
 The implementation uses trigger-maintained domain counters, revision-bearing
 Query responses, stable feed renders and generation-bound conditional feed
-replacement. The existing poller calls refetch; each `queryFn` checks a domain
+replacement. TanStack Query schedules refetches; each `queryFn` checks a domain
 revision and returns its cached response or fetches new data. Query Collection
 owns materialization and optimistic state. Timed reads keep their scheduling.
 
 Current source:
 
-- `src/ui/polling.ts`: mounted views refresh every 15 seconds; hidden tabs pause.
+- `src/ui/query-client.ts`: live collections explicitly opt into 15-second
+  polling. Query Client defaults contain no timer. Settings and authorizations
+  refresh on return, reconnect, or writes without periodic polling.
 - `src/ui/data.ts`: collections refetch their tracked active subsets; released
   Reading pages unload. Existing local optimistic
   edits and query collection behavior must remain intact.
@@ -99,8 +101,8 @@ matches zero state rows is invalid. Do not recreate missing state during normal
 writes with an old/default epoch. Review the dependency matrix whenever schema
 or response fields change, including migration backfills.
 
-R2 keep ordinary Query Collection configs and the existing 15-second,
-visibility-aware refetch timer. Each actual `queryFn` invocation reads the fixed
+R2 let live collections opt into TanStack Query's built-in 15-second polling
+and visibility handling. Each actual `queryFn` invocation reads the fixed
 revision row afresh. If its exact-key cached response has the same epoch and
 domain revision, return it; otherwise fetch complete data for that collection
 or on-demand subset. Timed update-state and security reads remain live.
@@ -122,8 +124,8 @@ may be joined according to normal Query behavior, but its response keeps its
 old pre-fetch token, so a later invocation will still fetch a changed revision.
 
 Reading remains on-demand. Its cached page retains counts and offset alongside
-the rows. Use the real Query Collection refetch utility to refresh tracked
-subsets. If startup fails before mount, the existing Retry control restarts the
+the rows. Query Collection observers poll each tracked subset. If startup fails
+before mount, the existing Retry control restarts the
 failed derived view. No custom adapter or new row-delta protocol is introduced.
 
 R4 cached feed is served immediately; unconditional and conditional requests

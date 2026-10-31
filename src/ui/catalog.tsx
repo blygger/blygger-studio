@@ -17,15 +17,11 @@ import {
   inbound,
   outbound,
   mentionSource,
-  mentionSources,
-  refreshItems,
-  refreshHoppers,
 } from './data.ts';
 import {
   Button,
   Failure,
   Html,
-  usePoll,
   mount,
   publicPath,
   useChrome,
@@ -149,14 +145,13 @@ export function HoppersPage() {
     useLiveQuery({
       query: (q) => q.from({ hopper: hoppers }),
     }).data ?? [];
-  usePoll('hoppers', refreshHoppers);
   const action = useAction();
   const [name, setName] = useState('');
   const create = async () => {
     const hopper = await unwrap(
       BlyggerApi.createHopper({ client, body: { name } }),
     );
-    hoppers.utils.writeUpsert(hopper);
+    await hoppers.utils.writeUpsert(hopper);
     setName('');
   };
   return (
@@ -196,7 +191,6 @@ export function HoppersPage() {
 }
 function HopperCard({ id, name }: { id: string; name: string }) {
   const collection = useMemo(() => hopperPreview(id), [id]);
-  usePoll('hoppers', refreshHoppers);
   const row = useLiveQuery({ query: (q) => q.from({ hopper: collection }) })
     .data?.[0];
   const sources =
@@ -253,7 +247,6 @@ export function HopperPage({ id }: { id: string }) {
     query: (q) => q.from({ hopper: collection }),
   });
   const row = result.data?.[0];
-  usePoll('hoppers', refreshHoppers);
   const ownRows =
     useLiveQuery({ query: (q) => q.from({ item: items }) }).data ?? [];
   const action = useAction();
@@ -531,7 +524,6 @@ function MentionRow({ mention }: { mention: Mention }) {
   const collection = useMemo(() => mentionSource(mention.id), [mention.id]);
   const source = useLiveQuery({ query: (q) => q.from({ source: collection }) })
     .data?.[0];
-  usePoll('mention-sources', mentionSources.utils.refetch);
   let author = mention.source_origin || mention.source;
   try {
     const name = JSON.parse(mention.source_author_json || '{}')?.name;
@@ -692,9 +684,6 @@ export function MentionsPage() {
   const [direction, setDirection] = useState<'inbound' | 'outbound'>(
     'inbound',
   );
-  usePoll('mentions-in', inbound.utils.refetch);
-  usePoll('mentions-out', outbound.utils.refetch);
-  usePoll('items', refreshItems);
   return (
     <>
       <h2 className="view-h">mentions</h2>
@@ -852,7 +841,7 @@ export function ForkPage({
                         },
                       }),
                     );
-                    items.utils.writeUpsert(draft);
+                    await items.utils.writeUpsert(draft);
                     await navigate({
                       to: '/edit/$id',
                       params: { id: draft.id },

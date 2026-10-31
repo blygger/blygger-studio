@@ -40,7 +40,7 @@ export type ImporterFlag =
   | "stealth-edit"
   | "unparseable"
   | "unknown-kind"
-  /** A version-immutability violation the §3.3 table doesn't name a row for (e.g. a re-fetch at an already-observed version claiming a different kind than that state implies). Per CLAUDE.md model routing: not ours to invent a new transition — ignore-and-flag is the safe fallback pending a Fable pass. */
+  /** A version-immutability violation the §3.3 table doesn't name a row for (e.g. a re-fetch at an already-observed version claiming a different kind than that state implies). Per AGENTS.md model routing: not ours to invent a new transition — ignore-and-flag is the safe fallback pending a Fable pass. */
   | "unrecognized-transition";
 
 export type TransitionEffect =

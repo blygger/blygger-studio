@@ -2,7 +2,6 @@ import { afterEach, expect, test, vi } from 'vitest';
 import { scoped } from '../src/ui/scoped.ts';
 import { Draft as LocalDraft } from '../src/ui/draft.ts';
 import { createPacedDraftAction, draftWriteSchema, type DraftWrite } from '../src/ui/paced-write.ts';
-import { Polling } from '../src/ui/polling.ts';
 function deferred() { let resolve!: () => void; const promise = new Promise<void>(done => { resolve = done; }); return { promise, resolve }; }
 afterEach(() => vi.useRealTimers());
 
@@ -162,35 +161,6 @@ test('commands cannot merge or be crossed by later saves', async () => {
   expect(events).toEqual(['first', 'before', 'draft-note', 'generate', 'generate', 'latest', 'restore', 'publish', 'delete']);
   expect(maximum).toBe(1);
 });
-
-test('polling pauses while hidden, refreshes on focus, and releases unmounted views', async () => {
-  vi.useFakeTimers(); let visible = true;
-  const refresh = vi.fn(async () => {}), report = vi.fn();
-  const poll = new Polling(() => visible, report), window = new EventTarget(), document = new EventTarget();
-  const unwatch = poll.watch('items', refresh); poll.start(window, document);
-  await vi.advanceTimersByTimeAsync(0); expect(refresh).toHaveBeenCalledTimes(1);
-  await vi.advanceTimersByTimeAsync(15_000); expect(refresh).toHaveBeenCalledTimes(2);
-  visible = false; document.dispatchEvent(new Event('visibilitychange'));
-  await vi.advanceTimersByTimeAsync(60_000); window.dispatchEvent(new Event('focus'));
-  await vi.advanceTimersByTimeAsync(0); expect(refresh).toHaveBeenCalledTimes(2);
-  visible = true; document.dispatchEvent(new Event('visibilitychange'));
-  await vi.advanceTimersByTimeAsync(0); expect(refresh).toHaveBeenCalledTimes(3);
-  window.dispatchEvent(new Event('focus')); await vi.advanceTimersByTimeAsync(0); expect(refresh).toHaveBeenCalledTimes(4);
-  unwatch(); await vi.advanceTimersByTimeAsync(15_000); expect(refresh).toHaveBeenCalledTimes(4);
-  poll.stop(); expect(report).not.toHaveBeenCalled();
-});
-
-test('overlapping focus refreshes share work, report a failure once, and allow retry', async () => {
-  const gate = deferred(), report = vi.fn(); let fail = true;
-  const refresh = vi.fn(async () => { await gate.promise; if (fail) throw new Error('offline'); });
-  const poll = new Polling(() => true, report);
-  const firstWatcher = poll.watch('items', refresh), secondWatcher = poll.watch('items', refresh);
-  const first = poll.refresh(), second = poll.refresh(); await Promise.resolve();
-  expect(refresh).toHaveBeenCalledTimes(1); gate.resolve(); await Promise.all([first, second]);
-  expect(report).toHaveBeenCalledTimes(1); firstWatcher(); fail = false; await poll.refresh();
-  expect(refresh).toHaveBeenCalledTimes(2); secondWatcher(); await poll.refresh(); expect(refresh).toHaveBeenCalledTimes(2);
-});
-
 
 test('generation and text saves share one queue without replacing later local text', async () => {
   const gate = deferred(), writes: string[] = [];

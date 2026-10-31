@@ -18,15 +18,15 @@ test('unchanged Studio polls check revisions without refetching collections, the
     await page.clock.runFor(1); // Let query-collection application finish before the next tick.
     await page.evaluate(() => Promise.resolve());
   }
-  await tick(['/api/changes', '/api/changes', '/api/settings', '/api/update-state']);
+  await tick(['/api/changes', '/api/update-state']);
   const requests: string[] = [];
   page.on('request', request => { if (request.method() === 'GET' && new URL(request.url()).pathname.startsWith('/api/')) requests.push(new URL(request.url()).pathname); });
-  await tick(['/api/changes', '/api/changes', '/api/update-state']);
-  expect(requests.sort()).toEqual(['/api/changes', '/api/changes', '/api/update-state']);
+  await tick(['/api/changes', '/api/update-state']);
+  expect(requests.sort()).toEqual(['/api/changes', '/api/update-state']);
   requests.length = 0;
   const marker = `Other client ${Date.now()}`;
   await page.evaluate(content_md => fetch('/api/items', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ content_md }) }), marker);
-  await tick(['/api/changes', '/api/changes', '/api/items', '/api/update-state']);
+  await tick(['/api/changes', '/api/items', '/api/update-state']);
   expect(requests).toContain('/api/items');
   await expect(page.getByText(marker, { exact: false }).first()).toBeVisible();
 });
@@ -106,7 +106,7 @@ test('a newly verified mention reaches the open mentions view in one poll, and a
   // Backgrounded: no reads at all, however long it stays hidden.
   await page.evaluate(() => {
     Object.defineProperty(document, 'visibilityState', { configurable: true, get: () => 'hidden' });
-    document.dispatchEvent(new Event('visibilitychange'));
+    document.dispatchEvent(new Event('visibilitychange', { bubbles: true }));
   });
   const reads: string[] = [];
   page.on('request', r => { if (r.method() === 'GET' && new URL(r.url()).pathname.startsWith('/api/')) reads.push(new URL(r.url()).pathname); });
@@ -116,7 +116,7 @@ test('a newly verified mention reaches the open mentions view in one poll, and a
   // Resumed: the check runs on the visibility change, not at the next tick.
   await page.evaluate(() => {
     Object.defineProperty(document, 'visibilityState', { configurable: true, get: () => 'visible' });
-    document.dispatchEvent(new Event('visibilitychange'));
+    document.dispatchEvent(new Event('visibilitychange', { bubbles: true }));
   });
   await expect(group.getByRole('button', { name: 'show on page', exact: true })).toBeVisible();
   expect(reads).toContain('/api/changes');

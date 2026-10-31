@@ -59,7 +59,7 @@ export function studioManifest(base: string) {
  * back to an owner-free shell (the same markup the Worker serves, which
  * carries only the mount), never to a cached response.
  *
- * It is a TS template literal emitted as JavaScript, so the CLAUDE.md escape
+ * It is a TS template literal emitted as JavaScript, so the AGENTS.md escape
  * hazard applies: no backslashes in it. test/inline-scripts.test.ts parses it.
  */
 export function studioServiceWorker(base: string, offlineShell: string) {

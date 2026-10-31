@@ -13,7 +13,7 @@ import {
   parseLoadSubsetOptions,
   queryCollectionOptions,
 } from '@tanstack/query-db-collection';
-import { QueryClient, type QueryFunctionContext } from '@tanstack/query-core';
+import type { QueryFunctionContext } from '@tanstack/query-core';
 import { z } from 'zod';
 import type {
   ListReadingResponses,
@@ -26,7 +26,8 @@ import {
   createBlyggerClient,
   unwrap,
 } from '../../sdk/dist/browser.js';
-import { Polling } from './polling.ts';
+import { queryClient, collectionPollingOptions, collectionRefreshOptions } from './query-client.ts';
+export { queryClient } from './query-client.ts';
 import { readIfChanged, type CachedResponse, type Generation } from './revision-query.ts';
 import type { ChangeDomain } from '../change-state.ts';
 import { scoped } from './scoped.ts';
@@ -36,26 +37,7 @@ import { zGetItemResponse, zGetHopperResponse } from '../../sdk/dist/schemas.js'
 import { planReadWrites, type ReadWrite, type UnreadWrite } from './read-state.ts';
 
 export const client = createBlyggerClient({ baseUrl: location.origin });
-export const queryClient = new QueryClient({
-  defaultOptions: {
-    queries: {
-      retry: false,
-      staleTime: Infinity,
-      refetchOnWindowFocus: false,
-      refetchOnReconnect: false,
-    },
-  },
-});
 queryClient.mount();
-// Poll errors are view state, not replacements for cached rows or local drafts.
-export const polling = new Polling(
-  () => document.visibilityState === 'visible',
-  (error) =>
-    window.dispatchEvent(
-      new CustomEvent('studio-read-error', { detail: error }),
-    ),
-);
-polling.start(window, document);
 function cachedQuery<S extends z.ZodType>(
   context: QueryFunctionContext,
   domain: ChangeDomain | readonly ChangeDomain[],
@@ -134,6 +116,7 @@ async function existing<T>(ids: string[], read: (id: string) => Promise<T>): Pro
 
 export const items = createCollection(
   queryCollectionOptions({
+    ...collectionPollingOptions,
     schema: sourceSchemas.items,
     id: 'items',
     syncMode: 'on-demand',
@@ -172,7 +155,7 @@ export const items = createCollection(
         );
       }),
     select: (response) => response.data,
-    onUpdate: async ({ transaction }) => {
+    onUpdate: async ({ transaction, collection }) => {
       for (const mutation of transaction.mutations) {
         const changes = mutation.changes;
         const body: UpdateItemData['body'] = {};
@@ -189,8 +172,9 @@ export const items = createCollection(
           }),
         );
       }
+      await collection.utils.refetch({ throwOnError: true });
     },
-    onDelete: async ({ transaction }) => {
+    onDelete: async ({ transaction, collection }) => {
       for (const mutation of transaction.mutations)
         await unwrap(
           BlyggerApi.deleteItem({
@@ -198,11 +182,13 @@ export const items = createCollection(
             path: { id: mutation.key as string },
           }),
         );
+      await collection.utils.refetch({ throwOnError: true });
     },
   }),
 );
 export const settings = createCollection(
   queryCollectionOptions({
+    ...collectionRefreshOptions,
     schema: sourceSchemas.settings,
     id: 'settings',
     syncMode: 'on-demand',
@@ -218,16 +204,18 @@ export const settings = createCollection(
       ],
       ),
     select: (response) => response.data,
-    onUpdate: async ({ transaction }) => {
+    onUpdate: async ({ transaction, collection }) => {
       for (const { changes } of transaction.mutations) {
         const { key: _key, ...body } = changes;
         await unwrap(BlyggerApi.updateSettings({ client, body }));
       }
+      await collection.utils.refetch({ throwOnError: true });
     },
   }),
 );
 export const subscriptions = createCollection(
   queryCollectionOptions({
+    ...collectionPollingOptions,
     schema: sourceSchemas.subscriptions,
     id: 'subscriptions',
     syncMode: 'on-demand',
@@ -247,7 +235,7 @@ export const subscriptions = createCollection(
         ),
       ),
     select: (response) => response.data,
-    onUpdate: async ({ transaction }) => {
+    onUpdate: async ({ transaction, collection }) => {
       for (const { key, changes } of transaction.mutations)
         await unwrap(
           BlyggerApi.updateSubscription({
@@ -264,8 +252,9 @@ export const subscriptions = createCollection(
             },
           }),
         );
+      await collection.utils.refetch({ throwOnError: true });
     },
-    onDelete: async ({ transaction }) => {
+    onDelete: async ({ transaction, collection }) => {
       for (const { key } of transaction.mutations)
         await unwrap(
           BlyggerApi.deleteSubscription({
@@ -273,11 +262,13 @@ export const subscriptions = createCollection(
             path: { id: key as string },
           }),
         );
+      await collection.utils.refetch({ throwOnError: true });
     },
   }),
 );
 export const hoppers = createCollection(
   queryCollectionOptions({
+    ...collectionPollingOptions,
     schema: sourceSchemas.hoppers,
     id: 'hoppers',
     syncMode: 'on-demand',
@@ -303,7 +294,7 @@ export const hoppers = createCollection(
         );
       }),
     select: (response) => response.data,
-    onUpdate: async ({ transaction }) => {
+    onUpdate: async ({ transaction, collection }) => {
       for (const { key, changes } of transaction.mutations)
         await unwrap(
           BlyggerApi.updateHopper({
@@ -317,17 +308,20 @@ export const hoppers = createCollection(
             },
           }),
         );
+      await collection.utils.refetch({ throwOnError: true });
     },
-    onDelete: async ({ transaction }) => {
+    onDelete: async ({ transaction, collection }) => {
       for (const { key } of transaction.mutations)
         await unwrap(
           BlyggerApi.deleteHopper({ client, path: { id: String(key) } }),
         );
+      await collection.utils.refetch({ throwOnError: true });
     },
   }),
 );
 export const signals = createCollection(
   queryCollectionOptions({
+    ...collectionPollingOptions,
     schema: sourceSchemas.signals,
     id: 'signals',
     syncMode: 'on-demand',
@@ -355,6 +349,7 @@ export type Detail = z.infer<typeof zGetItemResponse>;
 // only in `items`; editor details join them rather than keeping a second copy.
 export const itemHistory = createCollection(
   queryCollectionOptions({
+    ...collectionPollingOptions,
     schema: sourceSchemas.itemHistory,
     id: 'item-history',
     syncMode: 'on-demand',
@@ -409,7 +404,7 @@ export function createDraftAction(id?: string) {
       }
     }
     // Finish read-back inside the handler, before another command starts.
-    if (command.type === 'save' || command.type === 'update') items.utils.writeUpsert(sourceSchemas.items.parse({ ...result, pins: items.get(itemId!)?.pins }));
+    if (command.type === 'save' || command.type === 'update') await items.utils.writeUpsert(sourceSchemas.items.parse({ ...result, pins: items.get(itemId!)?.pins }));
     // A delete caller refreshes after leaving the editor, so its active view
     // does not report the discarded item as missing before navigation.
     if (command.type !== 'delete') await changed('item', 'items', 'reading');
@@ -450,6 +445,7 @@ function readingSubset(context: Pick<QueryFunctionContext, 'meta'>): { view: str
 // occupy different ranks in "all" and a subscription without either overwriting it.
 export const reading = createCollection(
   queryCollectionOptions({
+    ...collectionPollingOptions,
     schema: sourceSchemas.reading,
     id: 'reading',
     syncMode: 'on-demand',
@@ -503,9 +499,6 @@ const readingViews = scoped((key) => {
 });
 export const readingView = (sub: string, offset: number) =>
   readingViews(JSON.stringify([sub, offset]));
-export function refreshReading() {
-  return reading.utils.refetch({ throwOnError: true });
-}
 
 /** Store read marks: one PUT or DELETE for a single row, else batches of ≤ 500. */
 export async function saveReadState(read: ReadWrite[], unread: UnreadWrite[]) {
@@ -550,6 +543,7 @@ export const markReading = createOptimisticAction<{
 
 export const hopperStats = createCollection(
   queryCollectionOptions({
+    ...collectionPollingOptions,
     schema: sourceSchemas.hopperStats,
     id: 'hopper-stats',
     syncMode: 'on-demand',
@@ -579,6 +573,7 @@ function hopperSubset(context: QueryFunctionContext) {
   return { ids, offset, limit, preview: offset === 0 && limit !== undefined && limit <= 3 };
 }
 export const hopperEntries = createCollection(queryCollectionOptions({
+  ...collectionPollingOptions,
   schema: sourceSchemas.hopperEntries,
   id: 'hopper-entries',
   syncMode: 'on-demand',
@@ -599,6 +594,7 @@ export const hopperEntries = createCollection(queryCollectionOptions({
 // The API permits memberships whose imported body is not present yet. Keep
 // those rows too, so the owner's hopper page can still display and remove them.
 export const hopperMemberships = createCollection(queryCollectionOptions({
+  ...collectionPollingOptions,
   schema: sourceSchemas.hopperMemberships,
   id: 'hopper-memberships', syncMode: 'on-demand', queryKey: ['hopper-memberships'], queryClient,
   getKey: (row) => JSON.stringify([row.hopper_id, row.subscription_id, row.remote_id]),
@@ -646,21 +642,6 @@ function hopperView(id: string, preview: boolean) {
 }
 export const hopperDetail = scoped((id) => hopperView(id, false));
 export const hopperPreview = scoped((id) => hopperView(id, true));
-async function refreshActive(...sources: {
-  subscriberCount: number;
-  utils: { refetch(options: { throwOnError: true }): Promise<unknown> };
-}[]) {
-  // Refetching a source with no demand can start an unfiltered fallback read.
-  // ID-only sources must sync only while a derived view subscribes to them.
-  await Promise.all(sources.filter((source) => source.subscriberCount > 0)
-    .map((source) => source.utils.refetch({ throwOnError: true })));
-}
-export function refreshItems() {
-  return refreshActive(items, itemHistory);
-}
-export function refreshHoppers() {
-  return refreshActive(hoppers, hopperStats, hopperEntries, hopperMemberships);
-}
 // Cancel pending reads before invalidation, so earlier responses cannot replace
 // acknowledged writes. Query collection mutation handlers own rollback on failure.
 export async function changed(...keys: string[]) {
@@ -678,20 +659,25 @@ export async function changed(...keys: string[]) {
         return [key];
     }
   }))];
+  // Reader intent caches must not survive a local write to their sources.
+  const readKeys = sourceKeys.map(key => [key]);
+  if (sourceKeys.some(key => ['items', 'reading', 'subscriptions'].includes(key)))
+    readKeys.push(['owner-read', 'reading-article']);
   await Promise.all([
-    ...sourceKeys.map((key) => queryClient.cancelQueries({ queryKey: [key] })),
+    ...readKeys.map((queryKey) => queryClient.cancelQueries({ queryKey })),
     ...['items', 'hoppers'].filter((key) => sourceKeys.includes(key))
       .map((key) => queryClient.cancelQueries({ queryKey: ['owner-read', key] })),
   ]);
   await Promise.all(
-    sourceKeys.map((key) =>
-      queryClient.invalidateQueries({ queryKey: [key], refetchType: 'active' }),
+    readKeys.map((queryKey) =>
+      queryClient.invalidateQueries({ queryKey, refetchType: 'active' }),
     ),
   );
 }
 
 export const updates = createCollection(
   queryCollectionOptions({
+    ...collectionPollingOptions,
     schema: sourceSchemas.updates,
     id: 'updates',
     syncMode: 'on-demand',
@@ -708,6 +694,7 @@ export const updates = createCollection(
 );
 
 export const authorizations = createCollection(queryCollectionOptions({
+  ...collectionRefreshOptions,
   schema: sourceSchemas.authorizations,
   id: 'authorizations', syncMode: 'on-demand', queryKey: ['authorizations'], queryClient, getKey: row => row.id,
   queryFn: async ({ signal }) => {
@@ -725,6 +712,7 @@ async function mentions(direction: 'inbound' | 'outbound', signal: AbortSignal) 
 // counter (0032) answers from cache: before it, each tick re-read both lists
 // in full and every row's source card.
 export const inbound = createCollection(queryCollectionOptions({
+  ...collectionPollingOptions,
   schema: sourceSchemas.inbound,
   id: 'mentions-in', syncMode: 'on-demand', queryKey: ['mentions-in'], queryClient,
   getKey: (row) => row.id,
@@ -735,6 +723,7 @@ export const inbound = createCollection(queryCollectionOptions({
 }));
 inbound.createIndex(row => row.target_item_id, { indexType: BasicIndex });
 export const outbound = createCollection(queryCollectionOptions({
+  ...collectionPollingOptions,
   schema: sourceSchemas.outbound,
   id: 'mentions-out', syncMode: 'on-demand', queryKey: ['mentions-out'], queryClient,
   getKey: (row) => row.id,
@@ -747,6 +736,7 @@ export const outbound = createCollection(queryCollectionOptions({
 // the source is held (stub back) and whether its origin is subscribed. Both
 // tables advance `reading`, so the card follows mentions + reading.
 export const mentionSources = createCollection(queryCollectionOptions({
+  ...collectionPollingOptions,
   schema: sourceSchemas.mentionSources,
   id: 'mention-sources', syncMode: 'on-demand', queryKey: ['mention-sources'], queryClient,
   getKey: (row) => row.key,
@@ -771,6 +761,7 @@ export const mentionSource = scoped((id) => createLiveQueryCollection({
 export const listViews = {
   items: createLiveQueryCollection((q) => q.from({ item: items })),
   settings: createLiveQueryCollection((q) => q.from({ setting: settings })),
+  updates: createLiveQueryCollection((q) => q.from({ update: updates })),
   subscriptions: createLiveQueryCollection((q) => q.from({ subscription: subscriptions })),
   hoppers: createLiveQueryCollection((q) => q.from({ hopper: hoppers })),
   signals: createLiveQueryCollection((q) => q.from({ signal: signals })),
@@ -782,10 +773,10 @@ export const listViews = {
 /** A failed derived graph must restart after the Query cache recovers. */
 export async function preloadView(view: {
   status: string;
-  cleanup(): void | Promise<void>;
+  reload(): Promise<unknown>;
   preload(): Promise<unknown>;
 }) {
-  if (view.status === 'error') await view.cleanup();
+  if (view.status === 'error') return view.reload();
   return view.preload();
 }
 
@@ -794,4 +785,19 @@ export async function preloadDetail(view: Parameters<typeof preloadView>[0] & {
 }, resource: string) {
   await preloadView(view);
   if (!view.toArray.length) throw new Error(`${resource} not found`);
+}
+
+/** Preload the same derived previews that hopper cards render. */
+export async function preloadHopperPreviews() {
+  await preloadView(listViews.hoppers);
+  await Promise.all(listViews.hoppers.toArray.map((hopper) => preloadView(hopperPreview(hopper.id))));
+}
+
+export async function preloadMentions() {
+  await Promise.all([
+    preloadView(listViews.inbound),
+    preloadView(listViews.outbound),
+    preloadView(listViews.items),
+  ]);
+  await Promise.all(listViews.inbound.toArray.map((mention) => preloadView(mentionSource(mention.id))));
 }

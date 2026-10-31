@@ -12,8 +12,8 @@ import {
 } from '@tanstack/react-router';
 import { Layout, basepath } from './components.tsx';
 import { Compose, EditorPage } from './authoring.tsx';
-import { ReadingArticle, ReadingPage } from './reading.tsx';
-import { PeekPage } from './peek.tsx';
+import { ReadingArticle, ReadingPage, loadArticleEntry } from './reading.tsx';
+import { PeekPage, loadPeek } from './peek.tsx';
 import { AuthorizationsPage } from './authorizations.tsx';
 import { SettingsPage } from './settings.tsx';
 import {
@@ -34,6 +34,8 @@ import {
   listViews,
   preloadView,
   preloadDetail,
+  preloadHopperPreviews,
+  preloadMentions,
 } from './data.ts';
 import { Button } from './components.tsx';
 import type { CachedResponse } from './revision-query.ts';
@@ -49,7 +51,11 @@ import { applyCachedTheme } from './theme.ts';
 // repaint it once they load (see theme.ts).
 applyCachedTheme();
 const rootRoute = createRootRoute({
-  loader: () => preloadView(listViews.settings),
+  loader: () => Promise.all([
+    preloadView(listViews.settings),
+    preloadView(listViews.updates),
+    preloadView(listViews.items),
+  ]),
   pendingComponent: () => <p>Loading Studio…</p>,
   errorComponent: ({ error }) => (
     <div role="alert">
@@ -155,6 +161,9 @@ const reading = createRoute({
       preloadView(listViews.subscriptions),
       preloadView(listViews.hoppers),
       preloadView(listViews.signals),
+      ...(deps.view === 'sources' && deps.lens !== 'background' && deps.lens !== 'smart'
+        ? [preloadHopperPreviews()]
+        : []),
     ]);
     if (deps.sub === undefined || deps.lens === 'smart') return;
     const page = queryClient
@@ -185,12 +194,15 @@ const reading = createRoute({
 const article = createRoute({
   getParentRoute: () => rootRoute,
   path: '/reading/$sub/$id',
-  loader: () =>
-    Promise.all([
+  loader: async ({ params }) => {
+    await Promise.all([
       preloadView(listViews.subscriptions),
       preloadView(listViews.hoppers),
       preloadView(listViews.signals),
-    ]),
+    ]);
+    // The article keeps its inline failure and held-item fallback UI.
+    await loadArticleEntry(params.sub, params.id).catch(() => undefined);
+  },
   component: () => {
     const { sub, id } = article.useParams();
     return <ReadingArticle key={`${sub}/${id}`} sub={sub} id={id} />;
@@ -207,6 +219,11 @@ const peek = createRoute({
     origin: typeof search.origin === 'string' ? search.origin : '',
     id: typeof search.id === 'string' ? search.id : '',
   }),
+  loaderDeps: ({ search }) => search,
+  loader: ({ deps }) => Promise.all([
+    preloadView(listViews.subscriptions),
+    loadPeek(deps.origin, deps.id).catch(() => undefined),
+  ]),
   component: () => {
     const { origin, id } = peek.useSearch();
     return <PeekPage key={`${origin}/${id}`} origin={origin} id={id} />;
@@ -242,7 +259,7 @@ const subs = createRoute({
 const hoppers = createRoute({
   getParentRoute: () => rootRoute,
   path: '/hoppers',
-  loader: () => preloadView(listViews.hoppers),
+  loader: () => Promise.all([preloadHopperPreviews(), preloadView(listViews.subscriptions)]),
   component: HoppersPage,
 });
 const hopper = createRoute({
@@ -258,12 +275,7 @@ const hopper = createRoute({
 const mentions = createRoute({
   getParentRoute: () => rootRoute,
   path: '/mentions',
-  loader: () =>
-    Promise.all([
-      preloadView(listViews.inbound),
-      preloadView(listViews.outbound),
-      preloadView(listViews.items),
-    ]),
+  loader: preloadMentions,
   component: MentionsPage,
 });
 // Quotes that have fallen behind their sources, stalest first (0.23.0).

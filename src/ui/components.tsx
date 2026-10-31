@@ -13,7 +13,6 @@ import { CancelledError } from '@tanstack/query-core';
 import {
   settings as settingsCollection,
   items as itemsCollection,
-  polling,
   queryClient,
   updates,
 } from './data.ts';
@@ -30,18 +29,13 @@ export const basepath = `${mount}/studio`;
 /** An item's public permalink, mount-relative (the page a reader sees). */
 export const publicPath = (item: { id: string; kind: string }) =>
   `${mount}/${item.kind === 'thread' ? 't' : 'f'}/${item.id}/`;
-export function usePoll(key: string, refresh: () => Promise<unknown>) {
-  useEffect(() => polling.watch(key, refresh), [key, refresh]);
-}
 export function useSettings() {
-  usePoll('settings', settingsCollection.utils.refetch);
   return useLiveQuery({
     query: (q) => q.from({ settings: settingsCollection }),
   }).data?.[0];
 }
 /** The release check: `behind` when a newer release than this build exists. */
 export function useUpdateState() {
-  usePoll('updates', updates.utils.refetch);
   const row = useLiveQuery({ query: (q) => q.from({ update: updates }) })
     .data?.[0];
   return row
@@ -176,18 +170,13 @@ export function Layout({ children }: { children: ReactNode }) {
     const report = (error: unknown) => {
       if (!(error instanceof CancelledError)) setError(error);
     };
-    const failure = (event: Event) => report((event as CustomEvent).detail);
-    window.addEventListener('studio-read-error', failure);
     const unsubscribe = queryClient.getQueryCache().subscribe((event) => {
       // Source collections report shared-read failures after handling expected 404s.
       if (event.type === 'updated' && event.query.queryKey[0] !== 'owner-read' &&
           event.query.state.status === 'error')
         report(event.query.state.error);
     });
-    return () => {
-      window.removeEventListener('studio-read-error', failure);
-      unsubscribe();
-    };
+    return unsubscribe;
   }, []);
   // The studio wears the reading theme. Until settings load, the theme
   // applied at startup (the last one seen on this device) stays.
@@ -269,7 +258,7 @@ export function Layout({ children }: { children: ReactNode }) {
               className="btn btn-ghost btn-mini"
               onClick={() => {
                 setError(undefined);
-                void polling.refresh();
+                void queryClient.refetchQueries({ type: 'active' });
               }}
             >
               retry reads

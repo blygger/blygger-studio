@@ -39,8 +39,6 @@ import {
   client,
   changed,
   queryClient,
-  refreshReading,
-  refreshHoppers,
   hopperDetail,
   hopperPreview,
   markReading,
@@ -52,7 +50,6 @@ import {
   Failure,
   mount,
   useChrome,
-  usePoll,
   useSettings,
   SourceLink,
 } from './components.tsx';
@@ -201,7 +198,7 @@ type Markable = Pick<Reading, 'key' | 'imported'>;
  */
 function markEntries(entries: Markable[], read: boolean) {
   const rows = entries.filter((entry) => entry.imported);
-  return markReading({ keys: rows.map((entry) => entry.key), read, writes: readWrites(rows, read) }).isPersisted.promise;
+  return markReading({ keys: rows.map((entry) => entry.key), read, writes: readWrites(rows, read) }).when('settled');
 }
 interface ReadUi {
   /** Whether rows show read state and can be selected (timelines; not hoppers). */
@@ -834,8 +831,8 @@ function ChangeLead({ entry }: { entry: Reading }) {
 }
 
 /** An own item as a reading entry, for a full view opened by its address. */
-async function ownEntry(id: string): Promise<Reading> {
-  const item = await unwrap(BlyggerApi.getItem({ client, path: { id } }));
+async function ownEntry(id: string, signal?: AbortSignal): Promise<Reading> {
+  const item = await unwrap(BlyggerApi.getItem({ client, path: { id }, signal }));
   const withdrawn = item.status === 'withdrawn';
   const contentHtml = withdrawn ? '' : (item.published?.content_html ?? '');
   const kind = item.authored_kind;
@@ -850,6 +847,17 @@ async function ownEntry(id: string): Promise<Reading> {
     rank: 0,
     own: { id, kind, withdrawn, updated: item.updated, contentHtml },
   };
+}
+/** Route intent and the mounted article share their read, without polling. */
+export function loadArticleEntry(sub: string, id: string): Promise<Reading> {
+  const key = sub === OWN_SUB ? `own:${id}` : `imported:${JSON.stringify([sub, id])}`;
+  const held = reading.toArray.find(row => row.key === key);
+  if (held) return Promise.resolve(held);
+  return queryClient.fetchQuery({
+    queryKey: ['owner-read', 'reading-article', sub, id], staleTime: 30_000,
+    queryFn: ({ signal }) => sub === OWN_SUB ? ownEntry(id, signal) :
+      unwrap(BlyggerApi.getImportedItem({ client, path: { sub, id }, signal })).then(item => hopperEntry(item, subscriptions.get(sub), 0)),
+  });
 }
 /** The entry an address names: from what reading already holds, else fetched. */
 function useArticleEntry(sub: string, id: string) {
@@ -867,12 +875,7 @@ function useArticleEntry(sub: string, id: string) {
     let live = true;
     setEntry(undefined);
     setError(undefined);
-    (sub === OWN_SUB
-      ? ownEntry(id)
-      : unwrap(BlyggerApi.getImportedItem({ client, path: { sub, id } })).then((item) =>
-          hopperEntry(item, subscriptions.get(sub), 0),
-        )
-    ).then(
+    loadArticleEntry(sub, id).then(
       (loaded) => live && setEntry(loaded),
       (failure) => live && setError(failure),
     );
@@ -935,7 +938,6 @@ export function ReadingArticle({ sub, id }: { sub: string; id: string }) {
 function Article({ entry, actions, origin }: { entry: Reading; actions: Actions; origin: string }) {
   const votes = useLiveQuery({ query: (q) => q.from({ signal: signals }) }).data ?? [];
   const buckets = useLiveQuery({ query: (q) => q.from({ hopper: hoppers }) }).data ?? [];
-  usePoll('signals', signals.utils.refetch);
   // Opening the full view is opening the entry: mark it read once, at the
   // version held here, as expanding a card did (0.39.0).
   const marked = useRef<string | null>(null);
@@ -1037,7 +1039,7 @@ function useSubscriptionActions(actions: Actions) {
       const paused = source.status === 'paused';
       await subscriptions.update(source.id, (row) => {
         row.status = paused ? 'active' : 'paused';
-      }).isPersisted.promise;
+      }).when('settled');
       toast(paused ? 'resumed' : 'paused');
     });
   return { toggle };
@@ -1112,7 +1114,7 @@ function Inspector({
               .update(shown.id, (row) => {
                 row.in_blogroll = checked;
               })
-              .isPersisted.promise.then(
+              .when('settled').then(
                 () =>
                   toast(
                     checked ? 'added to blogroll' : 'removed from blogroll',
@@ -1183,7 +1185,7 @@ function Inspector({
                 })
               )
                 void actions.run(async () => {
-                  await subscriptions.delete(shown.id).isPersisted.promise;
+                  await subscriptions.delete(shown.id).when('settled');
                   await changed('hoppers', 'signals', 'reading');
                   toast('deleted');
                   onDeleted?.();
@@ -1371,7 +1373,6 @@ function SubscriptionRow({
 function HopperSource({ id, name }: { id: string; name: string }) {
   const lensSearch = useLensSearch();
   const collection = useMemo(() => hopperPreview(id), [id]);
-  usePoll('hoppers', refreshHoppers);
   const row = useLiveQuery({ query: (q) => q.from({ hopper: collection }) })
     .data?.[0];
   return (
@@ -1441,9 +1442,6 @@ function Sources() {
   const lens = useContext(LensContext);
   const allKey = readingKey('all', lens);
   useLiveQuery(readingView(allKey, 0));
-  usePoll('reading', refreshReading);
-  usePoll('subscriptions', subscriptions.utils.refetch);
-  usePoll('hoppers', refreshHoppers);
   const sources =
     useLiveQuery({ query: (q) => q.from({ source: subscriptions }) }).data ??
     [];
@@ -1746,10 +1744,6 @@ function Timeline({ sub, offset }: { sub: string; offset: number }) {
   const sources =
     useLiveQuery({ query: (q) => q.from({ source: subscriptions }) }).data ??
     [];
-  usePoll('reading', refreshReading);
-  usePoll('subscriptions', subscriptions.utils.refetch);
-  usePoll('hoppers', refreshHoppers);
-  usePoll('signals', signals.utils.refetch);
   const metadata = readingMeta(key, offset);
   const selected = sources.find((source) => source.id === sub);
   const title =
@@ -1882,8 +1876,6 @@ function HopperTimeline({ id, offset }: { id: string; offset: number }) {
   useChrome({ framed: false, wide: false });
   const actions = useReadingActions();
   const collection = useMemo(() => hopperDetail(id), [id]);
-  usePoll('hoppers', refreshHoppers);
-  usePoll('signals', signals.utils.refetch);
   const result = useLiveQuery({ query: (q) => q.from({ hopper: collection }) });
   const row = result.data?.[0];
   const sources =

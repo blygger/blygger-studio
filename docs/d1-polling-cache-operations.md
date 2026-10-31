@@ -37,8 +37,9 @@ Studio already polled the mentions view every 15 seconds, re-reading both lists
 in full and every row's source card on each tick. Those reads are now gated on
 the counters like every other owner read, so an unchanged tick costs one
 `/api/changes` read per collection. Polls stop while the tab or installed PWA is
-hidden and run at once on `visibilitychange` back to visible and on window
-focus (`src/ui/polling.ts`), for every domain.
+hidden. TanStack Query refreshes active queries when the page becomes visible
+or the network reconnects (`src/ui/query-client.ts`). Live collections opt
+into timers individually. Settings and authorizations have no polling timer.
 
 The feed uses the existing `MEDIA` R2 binding. Objects under `__cache/feed/` are
 internal XML artifacts, separate from attachment paths. Keys include software/
@@ -92,7 +93,9 @@ still returns an error if no stable render interval can be found.
 Interrupted work can retry on later cron ticks or feed requests. No maximum
 stale age is guaranteed. XML can remain stale after withdrawal during this window.
 
-Studio keeps its 15-second visibility-aware timer and ordinary Query Collections.
+Live Studio collections opt into TanStack Query's built-in 15-second polling.
+Query Client defaults do not enable polling for other queries.
+Hidden tabs pause polling; return and reconnect trigger a refresh.
 Each query function makes a fresh change check, then returns its cached response
 or fetches changed data. Several mounted queries can each read the revision row. Timed update-state and
 unclassified/security views retain their existing polls. Authentication and
@@ -164,12 +167,12 @@ still open. Measure transferred bytes before claiming whole-object downloads;
 the current handler does not consume the stream for those responses. Preserve
 weak/list/wildcard If-None-Match behavior when changing this path.
 
-Query Collection refetch owns all currently tracked Reading subsets. Released
+Query Collection observers poll the currently tracked Reading subsets. Released
 views unload their subsets, so historical pages do not accumulate polling work.
 Multiple active owners, including a view awaiting cleanup, can still cause more
 than one page read on a revision change. Keep the receiving test for released
 pages; preserve the shared-row ownership tests before changing refresh scope.
-Poll keys remain opaque to the timer; do not reintroduce separate kind parsers.
+TanStack Query owns scheduling; there is no separate poll registry or key parser.
 
 Software versions create new feed object keys. No cache-retention cleanup is
 implemented. If storage becomes material, define a retention window that also

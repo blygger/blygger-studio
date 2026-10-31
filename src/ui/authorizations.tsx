@@ -2,12 +2,11 @@ import { useState } from 'react';
 import { useLiveQuery } from '@tanstack/react-db';
 import { BlyggerApi, unwrap } from '../../sdk/dist/browser.js';
 import { authorizations, client } from './data.ts';
-import { Button, Failure, Modal, basepath, usePoll } from './components.tsx';
+import { Button, Failure, Modal, basepath } from './components.tsx';
 import { OWNER_SCOPES, SCOPE_DESCRIPTIONS, type OwnerScope } from '../auth-scopes.ts';
 
 export function AuthorizationsPage() {
   const rows = useLiveQuery(q => q.from({ authorization: authorizations })).data ?? [];
-  usePoll('authorizations', authorizations.utils.refetch);
   const [name, setName] = useState('');
   const [scope, setScope] = useState<OwnerScope[]>(['owner:read']);
   const [resource, setResource] = useState<'api' | 'mcp'>('api');

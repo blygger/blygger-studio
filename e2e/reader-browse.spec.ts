@@ -50,6 +50,7 @@ test('a stack of quotes opens layer by layer in the reader, back retraces it, an
   await body.locator('.layer-ref a').first().click();
   await expect(page).toHaveURL(new RegExp(`/studio/reading/~own/${middle}$`));
   await expect(page.locator('.crumbs')).toContainText(`${tag} top`);
+  await expect(page.locator('.crumbs a').first()).toHaveAttribute('href', new RegExp(`/reading/~own/${top}$`));
   await expect(page.locator('.crumbs [aria-current]')).toContainText(`${tag} middle`);
   await page.locator('.article-body .layer-ref a').first().click();
   await expect(page).toHaveURL(new RegExp(`/studio/reading/~own/${leaf}$`));
@@ -81,6 +82,7 @@ test('a stack of quotes opens layer by layer in the reader, back retraces it, an
   await page.getByRole('button', { name: 'history', exact: true }).click();
   const pane = page.getByRole('dialog', { name: 'Browsing history' });
   await expect(pane).toContainText('This walk');
+  await expect(pane.locator('[data-current] a').first()).toHaveAttribute('href', new RegExp(`/reading/~own/${top}$`));
   await expect(pane.locator(`.trail-walk[data-trail="${steps[0].trail}"] li`)).toHaveCount(6);
   await pane.getByRole('button', { name: 'close', exact: true }).click();
 
@@ -119,3 +121,44 @@ test('opening an item of an unsubscribed blyg says so and offers to subscribe', 
   await alert.getByRole('button', { name: 'subscribe?', exact: true }).click();
   await expect(page.getByRole('dialog', { name: 'Subscribe to stranger.example' })).toBeVisible();
 });
+
+for (const intent of ['hover', 'focus'] as const) {
+  for (const kind of ['quote', 'link', 'peek'] as const) {
+    test(`reader ${kind} ${intent} preloads before navigation without logging a visit`, async ({ page }) => {
+      await login(page);
+      const errors: string[] = [];
+      page.on('pageerror', error => errors.push(error.message));
+      const leaf = kind === 'peek' ? `peek-${Date.now()}` : await publish(page, 'Preloaded reader target.', 'fragment');
+      const origin = kind === 'peek' ? 'https://reader-preload.example/' : `${new URL(page.url()).origin}/`;
+      const url = `${origin}f/${leaf}/`;
+      if (kind === 'peek') {
+        await page.route('**/api/peek/links', route => route.fulfill({ json: { links: [{ url, target: { origin, id: leaf } }] } }));
+        await page.route('**/api/peek?*', route => route.fulfill({ json: {
+          origin, id: leaf, kind: 'fragment', version: 1, content_html: '<p>Preloaded reader target.</p>',
+          page: null, url, stub_of: null, forked_from: null, subscription_id: null,
+        } }));
+      }
+      const top = await publish(page, kind === 'quote' ? `![[${leaf}]]` : `[open target](${url})`, 'thread');
+      await page.goto(`/studio/reading/~own/${top}`);
+      const link = page.locator(kind === 'quote' ? '.article-body .layer-ref a' : '.article-body a[data-reader-via=link]').first();
+      await expect(link).toBeVisible();
+      await expect(link).toHaveAttribute('href', kind === 'peek' ? /\/studio\/peek\?/ : new RegExp(`/studio/reading/~own/${leaf}$`));
+      const matches = (url: string) => new URL(url).pathname === (kind === 'peek' ? '/api/peek' : `/api/items/${leaf}`);
+      const reads: string[] = [];
+      page.on('request', request => { if (matches(request.url())) reads.push(request.url()); });
+      const loaded = page.waitForResponse(response => matches(response.url()) && response.ok());
+      await link[intent]();
+      await loaded;
+      expect(page.url()).toContain(`/reading/~own/${top}`);
+      expect(reads).toHaveLength(1);
+      const visits = (await api(page, 'GET', '/browse?limit=100')).json.items as { remote_id: string }[];
+      expect(visits.some(visit => visit.remote_id === leaf)).toBe(false);
+      await link.click();
+      await expect(page).toHaveURL(kind === 'peek' ? /\/studio\/peek\?/ : new RegExp(`/studio/reading/~own/${leaf}$`));
+      await expect(page.locator('.crumbs [aria-current]')).toContainText('Preloaded reader target.');
+      await expect(page.locator('.article-body')).toContainText('Preloaded reader target.');
+      expect(reads).toHaveLength(1);
+      expect(errors).toEqual([]);
+    });
+  }
+}

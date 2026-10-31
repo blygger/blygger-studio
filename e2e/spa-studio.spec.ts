@@ -85,22 +85,62 @@ test('reading walks real API pages without gaps or repeats', async ({ page }) =>
   expect(new Set(observed).size).toBe(observed.length);
 });
 
-test('route intent preloads reading before navigation and reuses the DB cache', async ({ page }) => {
-  await login(page); await seedReading(page, 50);
-  const reads: string[] = [];
-  page.on('request', request => { if (new URL(request.url()).pathname === '/api/reading') reads.push(request.url()); });
-  const link = page.getByRole('link', { name: 'reading', exact: true });
-  const loaded = page.waitForResponse(response => new URL(response.url()).pathname === '/api/reading');
-  await link.focus(); await loaded;
-  await expect(page.locator('#composer-text')).toBeVisible();
-  const before = reads.length;
-  expect(before).toBe(1);
-  await link.click();
-  // /reading is the feed, rendered from the preloaded page.
-  await expect(page.locator('.reading-entry').first()).toBeVisible();
-  await expect(page.getByRole('heading', { name: /^all/ })).toContainText('items');
-  expect(reads).toHaveLength(before);
-});
+for (const intent of ['hover', 'focus'] as const) {
+  test(`route intent (${intent}) preloads reading before navigation and reuses the DB cache`, async ({ page }) => {
+    await login(page); await seedReading(page, 50);
+    const reads: string[] = [];
+    page.on('request', request => { if (new URL(request.url()).pathname === '/api/reading') reads.push(request.url()); });
+    const link = page.getByRole('link', { name: 'reading', exact: true });
+    const loaded = page.waitForResponse(response => new URL(response.url()).pathname === '/api/reading');
+    await link[intent](); await loaded;
+    await expect(page.locator('#composer-text')).toBeVisible();
+    const before = reads.length;
+    expect(before).toBe(1);
+    await link.click();
+    // /reading is the feed, rendered from the preloaded page.
+    await expect(page.locator('.reading-entry').first()).toBeVisible();
+    await expect(page.getByRole('heading', { name: /^all/ })).toContainText('items');
+    expect(reads).toHaveLength(before);
+  });
+}
+
+for (const destination of ['hoppers', 'sources', 'mentions'] as const) {
+  test(`${destination === 'sources' ? 'navigation' : 'hover'} preloads ${destination} card collections`, async ({ page }) => {
+    await login(page);
+    if (destination === 'sources') {
+      await page.goto('/studio/reading');
+      await expect(page.getByRole('button', { name: 'Sources', exact: true })).toBeVisible();
+    }
+    const path = destination === 'mentions'
+      ? '/api/mentions/parity-held/source'
+      : '/api/hoppers/parity-hopper';
+    const reads: string[] = [];
+    const matches = (url: string) => {
+      const parsed = new URL(url);
+      return parsed.pathname === path &&
+        (destination === 'mentions' || parsed.searchParams.get('preview') === 'true');
+    };
+    page.on('request', request => { if (matches(request.url())) reads.push(request.url()); });
+    const loaded = page.waitForResponse(response => matches(response.url()) && response.ok());
+    const link = destination === 'sources'
+      ? page.getByRole('button', { name: 'Sources', exact: true })
+      : page.getByRole('link', { name: destination, exact: true });
+    const before = page.url();
+    if (destination === 'sources') await link.click();
+    else await link.hover();
+    await loaded;
+    if (destination !== 'sources') expect(page.url()).toBe(before);
+    expect(reads).toHaveLength(1);
+    if (destination !== 'sources') await link.click();
+    if (destination === 'mentions') {
+      await expect(page.locator('.mention-group').filter({ hasText: 'Mention target fixture' }))
+        .toContainText('Source author');
+    } else {
+      await expect(page.getByRole('link', { name: /Frozen hopper/ })).toBeVisible();
+    }
+    expect(reads).toHaveLength(1);
+  });
+}
 
 test('reading search survives reload and loads only the requested page', async ({ page }) => {
   await login(page); await seedReading(page, 50);
