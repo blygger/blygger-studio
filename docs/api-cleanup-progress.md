@@ -360,3 +360,72 @@ flows: 38 passed across desktop/mobile. Typecheck, SDK generation, release
 check and diff whitespace checks passed. The final independent review found
 no further issues. Four raw review items are fixed, with no unresolved idea,
 evidence gap or design decision. Version 0.49.5, no migration.
+
+Part 3a is published as [PR 95](https://github.com/blygger/blygger-studio/pull/95),
+head `9f43bf3`, on PR 93. The plan issue includes its results. CI monitoring now
+tracks PRs 90, 91, 93, and 95.
+
+## Part 3b: shared domain execution — 2026-10-31
+
+Extracted 63 core operations and the two compiled extension reads from HTTP
+handlers into typed domain handlers. They receive verified authority, the node
+environment and URL, compiled extensions, a defer function, and validated data.
+They receive no Hono context or HTTP request and return no Response objects.
+REST and MCP call one runner. MCP no longer constructs synthetic REST requests,
+FormData, or File objects. Both upload adapters produce byte input.
+
+Existing create/fork/response, publish/refresh/withdraw, classification, warnings,
+attachment rollback, and deferred mentions remain in their operation pipeline.
+The runner catches input-schema failures separately from domain/output failures,
+so damaged output remains an internal error. Multipart metadata is validated
+before normalization, preserving rejection of invalid inline and item fields.
+
+Initial parity/security suite: 197 passed. Additional direct-runner, media,
+authority, budget, race and mention regressions: 46 passed. Typecheck passes.
+prep-pr reviews and final broad verification are in progress. Version 0.49.6,
+no migration. No plan change.
+
+PR 95 CI found three stale security mutation anchors after policy extraction.
+The controls now mutate the policy declarations and retain their original
+semantic checkpoints. Highlight, avatar and draft-scope baselines pass; all
+three broken controls fail at the required security assertion. Repair published
+as `2dfca6e`. The operation-runner branch advanced to that parent without patch
+changes. Its checkpoint remains `0e7681d` until publication.
+
+Part 3b prep-pr/evaluate-review retained 11 claims, including preliminary
+suspicions and documentation footnotes, in `/tmp/blygger-api-runner`. Four
+correctness defects reproduced: disabled-method 405 instead of404, MIME case
+normalization, missing admission on uncompiled tools, and raw infrastructure
+errors from native MCP. Seven receiving cases failed before repair; the same
+40-case suite passes afterward. A further tools/list error probe reproduced a
+raw native-32603 message and now returns a generic message with the same code.
+All54 boundary/auth cases pass. The body-limit suspicion conflicts with the
+documented REST-only setting and fixed8MiB MCP envelope policy; a direct test
+now states that distinction. No new design choice.
+
+The simplifier removed dead media context/form state and the unused extension
+HTTP adapter, shared Zod error formatting, and named body-only policy input
+ScopeInput. Domain output-schema failures remain500 rather than client400.
+Server extension callback docs and client-access dispatch docs match the new
+runner. Final independent review found no remaining actionable issue. Ledger
+loss audit: 11 raw claims, 10 fixed, one refuted defect claim with its useful
+boundary test retained. No omitted or unresolved idea.
+
+The full run found two additional existing415 expectations that exposed a
+missing REST media-type gate. Restored the installed Hono OpenAPI JSON/form
+rules in the adapter. Typed decode failures still pass through shared scope
+and admission checks. The two exact receiving tests and their47-case neighbor
+suite pass. A final independent review found no further issue.
+
+Final part3b results:155 Worker files passed,1,933 tests passed,five skipped.
+UI:112 passed. Desktop/mobile Studio, client access and extension flows:38
+passed after the media-gate repair. Typecheck, release check and generated SDK
+without tracked drift pass. Four moved security controls and three authorization
+controls reached their original semantic failure assertions, with two captured
+replays. All81 exact mutation anchors match current source. Final loss audit:
+12 raw claims,11 fixed,one refuted defect interpretation with its useful test
+retained. No open evidence gap, omitted idea or new design decision.
+
+Local validation must serialize SDK rebuilds with typecheck. One overlapping
+browser build temporarily removed sdk/dist while tsc ran. Repeating tsc after
+that build completed passed without a source change.

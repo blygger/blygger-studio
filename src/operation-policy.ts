@@ -2,7 +2,7 @@ import type { OwnerScope } from './auth-scopes.ts';
 
 export const API_CONTRACT_VERSION = '1.0.0';
 export type WorkBudget = 'read' | 'write';
-export interface OperationInput { body?: unknown }
+export interface ScopeInput { body?: unknown }
 export interface OperationEffects {
   writes: readonly ('items' | 'publication' | 'presentation' | 'media' | 'settings' | 'subscriptions' | 'imports' | 'hoppers' | 'signals' | 'mentions' | 'readingState' | 'browse' | 'cache' | 'changeClass')[];
   destructive?: boolean;
@@ -11,7 +11,7 @@ export interface OperationEffects {
 }
 export interface ScopeCondition {
   description: string;
-  resolve(input: OperationInput): OwnerScope[];
+  resolve(input: ScopeInput): OwnerScope[];
 }
 export interface OperationPolicy {
   scopes: readonly OwnerScope[];
@@ -42,7 +42,7 @@ export function readingStateOperation(effects: OperationEffects): OperationPolic
 }
 export const authenticatedOperation: OperationPolicy = { scopes: [], budget: 'read', effects: { writes: [] } };
 
-function bodyRecord(input: OperationInput): Record<string, unknown> {
+function bodyRecord(input: ScopeInput): Record<string, unknown> {
   return input.body !== null && typeof input.body === 'object' ? input.body as Record<string, unknown> : {};
 }
 export const presentationScopes: ScopeCondition = {
@@ -59,7 +59,7 @@ export const avatarScopes: ScopeCondition = {
   },
 };
 
-export function requiredScopes(policy: OperationPolicy, input?: OperationInput): OwnerScope[] {
+export function requiredScopes(policy: OperationPolicy, input?: ScopeInput): OwnerScope[] {
   return [...new Set([...policy.scopes, ...(input ? policy.conditionalScopes?.resolve(input) ?? [] : [])])];
 }
 export function operationHints(policy: OperationPolicy) {

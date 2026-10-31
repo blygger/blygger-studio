@@ -126,3 +126,43 @@ it.each([
   expect(value.result.isError).not.toBe(true);
   expect(reads).toBe(expected);
 });
+
+it('charges API admission for a declared but uncompiled MCP operation', async () => {
+  const access = authority(['owner:read']);
+  const response = await mcp(access, 'tools/call', { name: 'extLineageGlyphListSummaries', arguments: { query: { keys: '[]' } } }, []);
+  expect((await response.json() as any).result.isError).toBe(true);
+  expect(await env.DB.prepare('SELECT used FROM security_budgets WHERE key = ?').bind('api-read:grant:' + access.clientId).first()).toEqual({ used: 1 });
+});
+it.each(['admission', 'feature'])('sanitizes MCP infrastructure failures during %s', async phase => {
+  await putSettings(env.DB, { extensions: '["lineage-glyph"]' });
+  const sentinel = 'disposable-infrastructure-error-sentinel';
+  const db = new Proxy(env.DB, { get(target, key) {
+    if (key === 'prepare') return (sql: string) => {
+      if (phase === 'admission' ? sql.includes('INSERT INTO security_budgets') : sql === "SELECT value FROM settings WHERE key = 'extensions'") throw new Error(sentinel);
+      return target.prepare(sql);
+    };
+    const value = Reflect.get(target, key);
+    return typeof value === 'function' ? value.bind(target) : value;
+  } });
+  const params = phase === 'feature' ? { name: 'extLineageGlyphListSummaries', arguments: { query: { keys: '[]' } } } : { name: 'getSettings', arguments: {} };
+  const response = await mcp(authority(['owner:read']), 'tools/call', params, compiledServerExtensions, { ...env, DB: db });
+  const value = await response.json() as any;
+  expect(value.result.isError).toBe(true);
+  expect(JSON.stringify(value)).not.toContain(sentinel);
+  expect(value.result.content[0].text).toBe(JSON.stringify({ error: 'internal server error' }));
+});
+it('sanitizes MCP discovery infrastructure failures', async () => {
+  const sentinel = 'disposable-discovery-error-sentinel';
+  const db = new Proxy(env.DB, { get(target, key) {
+    if (key === 'prepare') return (sql: string) => {
+      if (sql === "SELECT value FROM settings WHERE key = 'extensions'") throw new Error(sentinel);
+      return target.prepare(sql);
+    };
+    const value = Reflect.get(target, key);
+    return typeof value === 'function' ? value.bind(target) : value;
+  } });
+  const response = await mcp(authority(['owner:read']), 'tools/list', {}, compiledServerExtensions, { ...env, DB: db });
+  const value = await response.json() as any;
+  expect(JSON.stringify(value)).not.toContain(sentinel);
+  expect(value.error.message).toBe('internal server error');
+});

@@ -18,6 +18,22 @@ not have its own repo until session 26.
 
 ---
 
+## 0.49.6 — 2026-10-31
+
+**Migrations: none.**
+
+- REST and MCP invoke shared domain operations after identity verification.
+  The shared runner applies scopes, conditional permissions, live extension
+  gates, validation, and work budgets. MCP no longer creates internal REST
+  requests or multipart forms.
+- Both upload adapters supply the same decoded media bytes and metadata.
+  Existing duplicate handling, published-item permissions, rollback, retained
+  bytes, publication warnings, and background effects remain part of the
+  shared operations.
+- Server extension read handlers receive a domain context and validated input,
+  and return typed outcomes. See `docs/extensions.md` for the callback change.
+  Private API payloads, paths, and generated SDK stay stable in this part.
+
 ## 0.49.5 — 2026-10-31
 
 **Migrations: none.**

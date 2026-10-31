@@ -34,6 +34,19 @@ stores no domain state and spends the read budget. Link classification can
 store probe results and spends the write budget while requiring `owner:read`.
 Owner grant administration stays session-only and has no delegated MCP tools.
 
+## Shared execution
+
+REST and MCP verify their own credentials, then invoke the same operation runner.
+The runner applies scopes, conditional permissions, live feature checks, work
+budgets, and input validation. Domain operations return typed outcomes. Each
+transport maps them to its own response. Resource-dependent rules stay with the
+state they govern, including upload duplication and published-item attachment
+permissions.
+
+REST multipart and MCP Base64 decoders supply the same media byte input. MCP
+creates no internal REST request. Publication, refresh, warnings, and deferred
+mention delivery run through the same operation as Studio's REST call.
+
 ## HTTP responses
 
 Private API responses use `Cache-Control: no-store`, including errors rejected

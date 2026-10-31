@@ -1,13 +1,14 @@
 import { admitMcp } from './security-budgets.ts';
 import { createMcpHandler, McpServer, requireScopes, type Tool } from '@modelcontextprotocol/server';
-import { Hono } from 'hono';
 import { z } from 'zod';
 import type { RouteConfig } from '@hono/zod-openapi';
 import type { OperationPolicy } from './operation-policy.ts';
 import type { Context } from 'hono';
 import type { Env } from './types.ts';
 import { routes } from './contract/routes.ts';
-import { createOwnerApi } from './owner-api.ts';
+import { operationDefinitions } from './operations.ts';
+import { runOperation } from './operation-runner.ts';
+import { failure, type MediaInput } from './operation-types.ts';
 import { verifyBearer, bearerChallenge, authLocations } from './oauth.ts';
 import { operationScopes, type OwnerAccess } from './permissions.ts';
 import { responseHeaders } from './http-response.ts';
@@ -17,7 +18,7 @@ import { compiledServerExtensions } from '../build/extensions.server.ts';
 import type { ServerExtension } from './extensions/server.ts';
 
 /** Decode canonical padded RFC4648 Base64 without allowing atob's whitespace tolerance. */
-function mediaForm(body: unknown) {
+function mediaInput(body: unknown): MediaInput {
   const { file, ...extra } = body as { file: { filename: string; contentType: string; dataBase64: string }; item_id?: string; alt?: string; inline?: string };
   const data = file.dataBase64, alphabet = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/';
   if (data.length % 4 !== 0 || !/^[A-Za-z0-9+/]*={0,2}$/.test(data) ||
@@ -27,10 +28,7 @@ function mediaForm(body: unknown) {
   }
   const decoded = atob(data), bytes = new Uint8Array(decoded.length);
   for (let i = 0; i < decoded.length; i++) bytes[i] = decoded.charCodeAt(i);
-  const form = new FormData();
-  form.set('file', new File([bytes], file.filename, { type: file.contentType }));
-  for (const [name, value] of Object.entries(extra)) if (value !== undefined) form.set(name, value);
-  return form;
+  return { file: { bytes, mime: /^[\x20-\x7e]*$/.test(file.contentType) ? file.contentType.toLowerCase() : '', name: file.filename }, itemId: extra.item_id, alt: extra.alt, inline: extra.inline === 'true' };
 }
 
 // Only immutable schema metadata is shared. Servers, handlers and access stay
@@ -49,8 +47,7 @@ const toolDefinitions = Object.entries(routes).map(([name, definition]) => {
   return { name, route, inputSchema, description, annotations, wireSchema: z.toJSONSchema(inputSchema, { io: 'input' }) as Tool['inputSchema'] };
 });
 
-/** MCP dispatches in-process through the REST handlers and their Zod validators.
- * Media uses a Base64-to-multipart transport adapter; REST owns media policy. */
+/** MCP supplies decoded arguments to the same operation runner as REST. */
 export async function serveMcp(request: Request, env: Env, ctx: Context['executionCtx']) {
   const origin = request.headers.get('origin');
   if (origin && origin !== new URL(request.url).origin) return Response.json({ error: 'cross-origin MCP request denied' }, { status: 403, headers: { 'Cache-Control': 'no-store' } });
@@ -62,7 +59,7 @@ export async function serveMcp(request: Request, env: Env, ctx: Context['executi
 
 /** Shared tool dispatcher. Call only after the credential has been verified. */
 export async function serveAuthorizedMcp(request: Request, env: Env, ctx: Context['executionCtx'], access: OwnerAccess, extensions: readonly ServerExtension[] = compiledServerExtensions) {
-  const api = new Hono<{ Bindings: Env }>().route('/api', createOwnerApi(access, extensions));
+  const definitions = operationDefinitions(extensions);
   const handler = createMcpHandler(() => {
     const server = new McpServer({ name: 'blygger-studio', version: API_CONTRACT_VERSION });
     for (const { name, route, inputSchema, description, annotations } of toolDefinitions) {
@@ -72,18 +69,27 @@ export async function serveAuthorizedMcp(request: Request, env: Env, ctx: Contex
         return required.length ? requireScopes(...required as [string, ...string[]])(context) : undefined;
       } }, async input => {
         const args = input as { path?: Record<string, string | number>; query?: Record<string, unknown>; body?: unknown };
-        const path = route.path.replace(/\{(\w+)\}/g, (_, key: string) => encodeURIComponent(String(args.path?.[key])));
-        const url = new URL('/api' + path, request.url);
-        for (const [key, value] of Object.entries(args.query ?? {})) if (value !== undefined) url.searchParams.set(key, String(value));
-        const requestBody = args.body === undefined ? {} : name === 'uploadMedia' ? { body: mediaForm(args.body) } : { headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(args.body) };
-        const response = await api.fetch(new Request(url, { method: route.method.toUpperCase(), ...requestBody }), env, ctx);
-        const value = await response.json();
-        return { content: [{ type: 'text' as const, text: JSON.stringify(value) }], isError: !response.ok };
+        let media: MediaInput | undefined;
+        if (name === 'uploadMedia') {
+          try { media = mediaInput(args.body); } catch (error) {
+            return { content: [{ type: 'text' as const, text: JSON.stringify({ error: (error as Error).message }) }], isError: true };
+          }
+        }
+        const definition = definitions.get(name) ?? { route, handler: async () => failure('not-found', { error: 'not found' }) };
+        const strings = (values: Record<string, unknown> | undefined) => Object.fromEntries(Object.entries(values ?? {}).map(([key, value]) => [key, String(value)]));
+        const result = await runOperation(definition, { path: strings(args.path), query: strings(args.query), body: media ? undefined : args.body, media },
+          { env, url: request.url, access, extensions, defer: task => ctx.waitUntil(task) });
+        return { content: [{ type: 'text' as const, text: JSON.stringify(result.value) }], isError: !result.ok };
       });
     }
     // All tools retain their scope gates; discovery shows only granted capabilities.
     server.server.setRequestHandler('tools/list', async () => {
-      const available = await operationAvailability(env.DB, access, extensions);
+      let available;
+      try { available = await operationAvailability(env.DB, access, extensions); }
+      catch (error) {
+        console.error('MCP discovery failed', { errorType: error instanceof Error ? error.name : typeof error });
+        throw new Error('internal server error');
+      }
       return { tools: toolDefinitions.filter(tool => available.operations.includes(tool.name)).map(({ name, description, wireSchema, annotations }) =>
         ({ name, description, inputSchema: wireSchema, annotations })) };
     });
