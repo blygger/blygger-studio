@@ -13,6 +13,7 @@ import spec from "../openapi.json";
 import { readApi } from "./read-api.ts";
 import { extensionApi, type ServerExtension } from "./extensions/server.ts";
 import { compiledServerExtensions } from "../build/extensions.server.ts";
+import { authRoutes } from './contract/auth-routes.ts';
 
 /**
  * `extensions` is the server half of the Studio extensions compiled into this
@@ -21,9 +22,18 @@ import { compiledServerExtensions } from "../build/extensions.server.ts";
  */
 export function createOwnerApi(access?: OwnerAccess, extensions: readonly ServerExtension[] = compiledServerExtensions) {
 const ownerApi = contractApp();
+const methodInventory = [...Object.values(routes), ...Object.values(authRoutes), { path: '/openapi.json', method: 'get' }].map(route => {
+  const pattern = route.path.split(/(\{\w+\})/).map(part =>
+    /^\{\w+\}$/.test(part) ? '[^/]+' : part.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join('');
+  return { pattern: new RegExp(`^${pattern}/?$`), method: route.method.toUpperCase() };
+});
+ownerApi.use('*', async (c, next) => {
+  c.header('Cache-Control', 'no-store');
+  await next();
+  c.header('Cache-Control', 'no-store');
+});
 ownerApi.use('*', (c, next) => bodyLimit({ maxSize: securityLimit(c.env.API_BODY_LIMIT, 8 * 1024 * 1024), onError: c => c.json({ error: 'request body exceeds byte limit' }, 413) })(c, next));
 ownerApi.use("*", async (c, next) => {
-  c.header("Cache-Control", "no-store");
   const origin = c.req.header('origin');
   const authorization = c.req.header('authorization');
   const bearer = authorization && /^Bearer(?:\s|$)/i.test(authorization) ? authorization : undefined;
@@ -86,7 +96,7 @@ ownerApi.get('/openapi.json', c => {
 
 ownerApi.all("*", (c) => {
   const path = c.req.path.replace(/^\/api(?=\/|$)/, "");
-  const methods = Object.values(routes).filter((route) => new RegExp(`^${route.path.replace(/\{\w+\}/g, "[^/]+")}/?$`).test(path)).map((route) => route.method.toUpperCase());
+  const methods = methodInventory.filter(route => route.pattern.test(path)).map(route => route.method);
   if (methods.length) {
     c.header("Allow", [...new Set(methods.flatMap((method) => method === "GET" ? ["GET", "HEAD"] : [method]))].join(", "));
     return c.json({ error: "method not allowed" }, 405);

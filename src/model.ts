@@ -539,7 +539,8 @@ export class RestoreVersionError extends Error {}
  * exist.
  *
  * Restoring the **current** version is "discard changes", and there the
- * working copy becomes that version whole: its stub citation comes back too
+ * working copy becomes that version whole: its attachments and stub citation
+ * come back too
  * (publish version-agrees the citation, §2.2, so the published one can be
  * ahead of the working copy's), and the copy is clean again — unless the
  * version disclosed generated text, whose provenance a restore cannot carry
@@ -554,10 +555,20 @@ export async function restoreVersion(db: D1Database, item: ItemRow, version: num
     throw new RestoreVersionError(`v${version} is a withdrawal endcap and has no content to restore`);
   }
   const discard = version === item.version;
-  await db
-    .prepare("UPDATE items SET content_md = ?, tk_provenance_json = NULL, stub_of = CASE WHEN ? THEN ? ELSE stub_of END, dirty = ? WHERE id = ?")
-    .bind(row.content_md, discard ? 1 : 0, row.stub_of, discard && !row.generated_json ? 0 : 1, item.id)
-    .run();
+  // All three statements see the same source state in one transaction. Do not
+  // detach attachments if an edit or publication invalidated the caller's read.
+  const guard = "id = ? AND version = ? AND kind = ? AND content_md = ? AND stub_of IS ? AND tk_provenance_json IS ?";
+  const expected = [item.id, item.version, item.kind, item.content_md, item.stub_of, item.tk_provenance_json];
+  const results = await db.batch([
+    db.prepare(`UPDATE media SET item_id = NULL WHERE item_id = ? AND id NOT IN (SELECT media_id FROM version_media WHERE item_id = ? AND version = ?) AND EXISTS (SELECT 1 FROM items WHERE ${guard})`)
+      .bind(item.id, item.id, version, ...expected),
+    // A prior detach retains the media row and bytes for its published versions.
+    db.prepare(`UPDATE media SET item_id = ? WHERE id IN (SELECT media_id FROM version_media WHERE item_id = ? AND version = ?) AND EXISTS (SELECT 1 FROM items WHERE ${guard})`)
+      .bind(item.id, item.id, version, ...expected),
+    db.prepare(`UPDATE items SET content_md = ?, tk_provenance_json = NULL, stub_of = CASE WHEN ? THEN ? ELSE stub_of END, dirty = ? WHERE ${guard}`)
+      .bind(row.content_md, discard ? 1 : 0, row.stub_of, discard && !row.generated_json ? 0 : 1, ...expected),
+  ]);
+  if (!results[2].meta.changes) throw new RestoreVersionError("item changed while restoring; reload and try again");
 }
 
 /** Irrevocably pin a version (§2.8). Idempotent; never unset. */

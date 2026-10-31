@@ -1,10 +1,10 @@
 import { build } from "esbuild";
-import { Miniflare } from "miniflare";
-import { readD1Migrations } from "@cloudflare/vitest-pool-workers";
+import { Miniflare, convertV4MiniflareOptions } from "miniflare";
+import { readD1Migrations } from "@cloudflare/vitest-plugin";
 import { createServer } from "node:http";
 import { importedHtmlAttacks } from "../test/fixtures/imported-html-attacks.ts";
 const output = await build({ entryPoints: ["src/index.ts"], bundle: true, platform: "neutral", conditions: ["workerd"], external: ["cloudflare:*", "node:*"], mainFields: ["module", "main"], format: "esm", target: "es2022", loader: { ".txt": "text" }, write: false });
-const mf = new Miniflare({ modules: [{ type: "ESModule", path: "worker.mjs", contents: output.outputFiles[0].text }], compatibilityDate: "2026-07-01", compatibilityFlags: ["nodejs_compat"], host: "127.0.0.1", port: 8787, bindings: { OWNER_PASSWORD: "test-password", COOKIE_SECRET: "browser-test-cookie-secret", MOUNT: "", API_READ_LIMIT: "10000", API_WRITE_LIMIT: "10000" }, d1Databases: ["DB"], r2Buckets: ["MEDIA"], outboundService: () => new Response(null, { status: 503 }) });
+const mf = new Miniflare(convertV4MiniflareOptions({ modules: [{ type: "ESModule", path: "worker.mjs", contents: output.outputFiles[0].text }], compatibilityDate: "2026-07-01", compatibilityFlags: ["nodejs_compat"], host: "127.0.0.1", port: 8787, bindings: { OWNER_PASSWORD: "test-password", COOKIE_SECRET: "browser-test-cookie-secret", MOUNT: "", API_READ_LIMIT: "10000", API_WRITE_LIMIT: "10000" }, d1Databases: ["DB"], r2Buckets: ["MEDIA"], outboundService: () => new Response(null, { status: 503 }) }));
 const db = await mf.getD1Database("DB");
 for (const migration of await readD1Migrations("./migrations")) {
   await db.batch(migration.queries.map((sql) => db.prepare(sql)));
@@ -35,7 +35,7 @@ for (const [id, origin, remoteId, hidden] of [['parity-held', 'https://source.ex
 await db.prepare("INSERT INTO mentions_out (id, item_id, version, target, status, attempts, next_attempt_at, created) VALUES ('parity-outbound', ?, 1, 'https://recipient.example/post', 'pending', 1, '2026-10-02T00:00:00Z', '2026-10-01T00:00:00Z')").bind(target.id).run();
 // Hostile raw imports belong to a separate disposable receiving database.
 // Functional UI counts and pagination fixtures must not absorb the attack corpus.
-const security = new Miniflare({ modules: [{ type: "ESModule", path: "worker.mjs", contents: output.outputFiles[0].text }], compatibilityDate: "2026-07-01", compatibilityFlags: ["nodejs_compat"], host: "127.0.0.1", port: 8791, bindings: { OWNER_PASSWORD: "test-password", COOKIE_SECRET: "security-browser-test-cookie-secret", MOUNT: "" }, d1Databases: ["DB"], r2Buckets: ["MEDIA"], outboundService: () => new Response(null, { status: 503 }) });
+const security = new Miniflare(convertV4MiniflareOptions({ modules: [{ type: "ESModule", path: "worker.mjs", contents: output.outputFiles[0].text }], compatibilityDate: "2026-07-01", compatibilityFlags: ["nodejs_compat"], host: "127.0.0.1", port: 8791, bindings: { OWNER_PASSWORD: "test-password", COOKIE_SECRET: "security-browser-test-cookie-secret", MOUNT: "" }, d1Databases: ["DB"], r2Buckets: ["MEDIA"], outboundService: () => new Response(null, { status: 503 }) }));
 const securityDb = await security.getD1Database("DB");
 for (const migration of await readD1Migrations("./migrations")) await securityDb.batch(migration.queries.map(sql => securityDb.prepare(sql)));
 await securityDb.prepare("INSERT INTO subscriptions(id,kind,origin,feed_url,title,created) VALUES ('security-html','rss','https://security-publisher.example/','https://security-publisher.example/feed','Security HTML','2020-01-01')").run();
@@ -59,7 +59,7 @@ await security.ready;
 // A separate mounted instance behind the documented forwarding ranges. The
 // proxy rejects host-root assets rather than letting a permissive fixture hide
 // a deployment dependency. Its database and cookies belong to this host only.
-const mounted = new Miniflare({ modules: [{ type: "ESModule", path: "worker.mjs", contents: output.outputFiles[0].text }], compatibilityDate: "2026-07-01", compatibilityFlags: ["nodejs_compat"], bindings: { OWNER_PASSWORD: "test-password", COOKIE_SECRET: "mounted-browser-test-cookie-secret", MOUNT: "/notes/b" }, d1Databases: ["DB"], r2Buckets: ["MEDIA"], outboundService: () => new Response(null, { status: 503 }) });
+const mounted = new Miniflare(convertV4MiniflareOptions({ modules: [{ type: "ESModule", path: "worker.mjs", contents: output.outputFiles[0].text }], compatibilityDate: "2026-07-01", compatibilityFlags: ["nodejs_compat"], bindings: { OWNER_PASSWORD: "test-password", COOKIE_SECRET: "mounted-browser-test-cookie-secret", MOUNT: "/notes/b" }, d1Databases: ["DB"], r2Buckets: ["MEDIA"], outboundService: () => new Response(null, { status: 503 }) }));
 const mountedDb = await mounted.getD1Database("DB");
 for (const migration of await readD1Migrations("./migrations")) await mountedDb.batch(migration.queries.map(sql => mountedDb.prepare(sql)));
 await mountedDb.prepare("INSERT INTO subscriptions (id, kind, origin, feed_url, title, created) VALUES ('browser-source', 'rss', 'https://source.example/', 'https://source.example/feed', 'Browser source', '2026-10-01T00:00:00Z')").run();
