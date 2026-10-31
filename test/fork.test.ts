@@ -10,7 +10,7 @@
 // network logic is tested where it can be injected.
 import { env } from "cloudflare:test";
 import { describe, expect, it } from "vitest";
-import { checkForkTarget, resolveForkSource } from "../src/fork.ts";
+import { checkForkTarget, pinnedVersionUrl, resolveForkSource } from "../src/fork.ts";
 import type { FetchLike } from "../src/importer/http.ts";
 import { createSubscription } from "../src/importer/store.ts";
 import { forkedVersion, relationTo, upsertAndVerify } from "./fork-helpers.ts";
@@ -51,6 +51,24 @@ function pinnedDoc(over: Record<string, unknown> = {}): string {
     ...over,
   });
 }
+
+it.each(['fragment', 'thread'])('can fork a remote empty pinned %s publication', async kind => {
+  const source = { origin: THEIRS, id: 'remote-item', version: 2 };
+  const url = pinnedVersionUrl(source);
+  const { fetch } = net({ [url]: { body: pinnedDoc({ kind, content_md: '', content_html: '' }) } });
+  expect(await resolveForkSource(env.DB, source, OURS, 'Mine', fetch, 'now')).toMatchObject({ ok: true, source: { kind, contentMd: '' } });
+});
+
+it.each([
+  { name: 'missing markdown', content: { content_md: undefined } },
+  { name: 'null markdown', content: { content_md: null } },
+  { name: 'numeric markdown', content: { content_md: 42 } },
+  { name: 'withdrawal endcap', content: { content_md: '', kind: 'withdrawn' } },
+])('does not fork $name while accepting empty publications', async ({ content }) => {
+  const source = { origin: THEIRS, id: 'remote-item', version: 2 };
+  const { fetch } = net({ [pinnedVersionUrl(source)]: { body: pinnedDoc(content) } });
+  expect(await resolveForkSource(env.DB, source, OURS, 'Mine', fetch, 'now')).toMatchObject({ ok: false });
+});
 
 async function itemJson(id: string): Promise<any> {
   return (await getPublic(`/blyg/items/${id}.json`)).json<any>();

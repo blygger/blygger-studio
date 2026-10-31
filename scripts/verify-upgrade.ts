@@ -88,6 +88,8 @@ const result = spawnSync(cmd, forwarded, { stdio: 'inherit' }); process.exit(res
   const rateColumns = executeLocal('PRAGMA table_info("rateLimit")');
   assert.deepEqual(rateColumns.map((column: { name: string }) => column.name), ["id", "key", "count", "lastRequest"]);
   assert.ok(rateColumns.every((column: { notnull: number }) => column.notnull === 1), "Native limiter columns must be non-null after upgrade");
+  const versionColumns = executeLocal('PRAGMA table_info("versions")');
+  assert.ok(versionColumns.some((column: { name: string; notnull: number }) => column.name === 'kind' && column.notnull === 0), "Version state must remain nullable for unresolved legacy rows and old Worker inserts");
   const state = executeLocal('SELECT epoch FROM oauth_state WHERE id=1');
   assert.deepEqual(state, [{ epoch: 0 }], "Migration initializes the revoke-all epoch");
   assert.match(output, /When you are ready:  npm run deploy/);

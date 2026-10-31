@@ -1,3 +1,4 @@
+import { authoredVersionKind } from '../version-state.ts';
 // Outbound Webmention — v0.3-plan §2.3.3/§2.3.4, decision #28. Publishing
 // enqueues; the cron drains. Delivery is fire-and-forget from the author's
 // point of view: publish never blocks on it and never fails because of it.
@@ -304,10 +305,10 @@ async function sourceUrlFor(db: D1Database, itemId: string, origin: string): Pro
   let kind = item.kind;
   if (kind === "withdrawn") {
     const prev = await db
-      .prepare("SELECT transclusions FROM versions WHERE item_id = ? AND version = ?")
+      .prepare("SELECT kind, transclusions FROM versions WHERE item_id = ? AND version = ?")
       .bind(itemId, item.version - 1)
-      .first<{ transclusions: string | null }>();
-    kind = prev?.transclusions ? "thread" : "fragment";
+      .first<Pick<VersionRow, "kind" | "transclusions">>();
+    kind = authoredVersionKind(prev, Boolean(prev?.transclusions));
   }
   return `${origin}${kind === "thread" ? "t" : "f"}/${item.id}/`;
 }
