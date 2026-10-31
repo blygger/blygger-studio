@@ -1206,7 +1206,7 @@ export function Compose({ q }: { q?: string } = {}) {
               key={key}
               data-filter={key}
               value={key}
-              count={rows.filter(FILTERS[key].test).length}
+              count={totals[key]}
               onClick={() => setFilter(key)}
             >
               {FILTERS[key].label}
