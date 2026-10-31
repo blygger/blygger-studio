@@ -69,7 +69,10 @@ The deterministic tests cover both cases with a real competing edit.
 
 Upstream `main` still resolves to `2582d73` at the start of this implementation.
 The fork's `origin/main` is 85 commits behind it, so PR comparisons target
-upstream `main`. Dependencies were installed from the merged lockfile:
+upstream `main`. GitHub reports read-only upstream access. Dependent branches
+therefore remain stacked on the fork, while upstream PRs target `main` and link
+to their parent-relative comparisons. Main diffs include unmerged parents
+until the stack advances. Dependencies were installed from the merged lockfile:
 DB/React DB `1.0.0-rc.1` and Query Collection `1.5.0`.
 
 ## Verification for PR 1a
@@ -81,7 +84,10 @@ DB/React DB `1.0.0-rc.1` and Query Collection `1.5.0`.
 - `npm run typecheck`: passed.
 - Separate read-only reviews of restore/media and provenance/guard changes:
   no actionable findings.
-- Full Worker suite and publication checks: pending.
+- Full Worker suite: 150 files passed, 1,868 tests passed, five skipped.
+- `npm run release:check`: passed for client 0.49.2.
+- `npm run sdk:generate`: passed with no tracked artifact drift.
+- PR publication: in progress.
 
 The local Worker tests need a loopback socket, so they run with a narrowly
 scoped sandbox escalation. Fixtures disable remote bindings and outbound
