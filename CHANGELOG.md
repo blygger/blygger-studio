@@ -18,6 +18,20 @@ not have its own repo until session 26.
 
 ---
 
+## 0.49.5 — 2026-10-31
+
+**Migrations: none.**
+
+- Authenticated clients can read `/api/capabilities` for canonical endpoints,
+  the contract version, available operations, and extension state. Each grant
+  can inspect its own capabilities, including a grant with only `reading:state`.
+- REST and MCP use each operation's declared scopes and conditional permission
+  rules. MCP discovery filters disabled and uncompiled extensions. Execution
+  checks current feature state again. Static OpenAPI and SDKs retain all routes.
+- MCP hints describe effects rather than HTTP verbs. Live previews spend the
+  read budget. Link classification retains read authority and spends the write
+  budget because it can fetch remote pages and store its probe cache.
+
 ## 0.49.4 — 2026-10-31
 
 **Migrations: 0034** (`versions.kind`, nullable for unresolved legacy rows).

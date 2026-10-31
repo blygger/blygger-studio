@@ -12,6 +12,28 @@ Resource projectors validate their output with these schemas.
 Contract tests validate successful responses against the same definitions.
 Hey API generates the SDK directly from the contract, without changes to generated code.
 
+## Capability discovery
+
+`GET /api/capabilities` accepts an owner session or any valid delegated grant.
+The response contains `contractVersion`, canonical `endpoints`, available
+`operations` by ID, and `extensions` with separate declared, compiled, enabled,
+and caller-granted states. This includes grants with only `reading:state`.
+The generated SDK exposes `getCapabilities`.
+
+OpenAPI describes the whole static contract. Capability discovery and MCP tool
+lists reflect the current node and caller. An operation appears when the caller
+can supply at least one permitted input. Some fields require extra scopes:
+response visibility and generated highlighting need `owner:publish` alongside
+`owner:draft`, and selecting an avatar needs it alongside `owner:manage`.
+Attaching new media to a published item also needs `owner:publish`. Returning an
+existing duplicate does not. The server checks these rules on each execution.
+A discovery result cannot authorize a later call after an extension is disabled.
+
+Operation declarations also name effects and work budgets. Rendering a preview
+stores no domain state and spends the read budget. Link classification can
+store probe results and spends the write budget while requiring `owner:read`.
+Owner grant administration stays session-only and has no delegated MCP tools.
+
 ## HTTP responses
 
 Private API responses use `Cache-Control: no-store`, including errors rejected

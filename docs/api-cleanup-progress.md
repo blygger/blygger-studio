@@ -319,3 +319,44 @@ Part 3 has 64 existing operations and roughly 1,400 lines of route handlers.
 Split its implementation into 3a (explicit policy facts and capability discovery)
 and 3b (shared domain execution). This changes review size, not the agreed API
 architecture or the hard-cutover decisions.
+
+## Part 3a: operation policies and discovery — 2026-10-31
+
+Extended the existing route declarations with scopes, conditional permissions,
+feature requirements, effects, and work budgets. REST scope checks and work
+admission use those facts. MCP descriptions and hints derive from them. Runtime
+policy functions stay out of generated OpenAPI. Static extension routes stay in
+OpenAPI and the SDK; discovery uses current compiled/enabled/granted state.
+
+Added authenticated capabilities for every valid identity, including a grant
+with only reading-state authority. The REST permission oracle covers all 32
+scope subsets. MCP's real-credential oracle now covers all 31 valid nonempty
+subsets; injected empty authority is tested separately. The larger real-client
+matrix exceeded the shared test MCP budget, so test bindings now provide high
+request limits, like the existing API fixture. Budget oracles still set small
+limits explicitly. Production quotas stay unchanged.
+
+prep-pr's parallel review found four small corrections. evaluate-review retained
+all four raw claims and evidence in `/tmp/blygger-api-policy-review`. Discovery
+work now runs only for discovery requests. REST owns live extension execution
+checks. Uncompiled extension paths return 404, including direct calls. MCP hints
+mark classification and signal replacement as destructive because they can
+replace or delete existing data. Deterministic query probes reproduced 1 extra
+preview query, 2 capability queries, and 3 extension queries before repair. They
+now expect 0, 1, and 1 respectively. The same extension probe reproduced 405
+before the unavailable-route repair and expects 404 afterward.
+
+All 14 policy-specific cases pass after those repairs. The initial wider suite
+passed 170 cases before the final review repairs. Final broad results follow.
+No new design decision or plan change.
+
+Restacked PRs 90, 91, and 93 now have all nine upstream CI jobs green at
+`0d46c5c`, `9eed3a4`, and `694664e`. Reviews and inline comments are empty.
+The heartbeat stopped after those heads completed. It resumes for new PRs.
+
+Final part 3a results: 154 Worker files passed, 1,919 tests passed, five skipped.
+UI: 14 files and 112 tests passed. Studio/client-access/extensions browser
+flows: 38 passed across desktop/mobile. Typecheck, SDK generation, release
+check and diff whitespace checks passed. The final independent review found
+no further issues. Four raw review items are fixed, with no unresolved idea,
+evidence gap or design decision. Version 0.49.5, no migration.

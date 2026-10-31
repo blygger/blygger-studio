@@ -4,9 +4,15 @@ import { HTTPException } from "hono/http-exception";
 import type { MiddlewareHandler } from "hono";
 import { OpenAPIHono } from "@hono/zod-openapi";
 import type { Env } from "../types.ts";
+import type { OwnerAccess } from '../permissions.ts';
+import type { ServerExtension } from '../extensions/server.ts';
 
 declare module 'hono' {
-  interface ContextVariableMap { draftOnlyMedia: boolean }
+  interface ContextVariableMap {
+    draftOnlyMedia: boolean;
+    apiAccess: OwnerAccess | null;
+    apiExtensions: readonly ServerExtension[];
+  }
 }
 
 export function contractApp() {

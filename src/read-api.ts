@@ -31,8 +31,17 @@ import { fetchImportedHistory, fetchPublicVersion } from "./imported-history.ts"
 import { readChanges } from './changes.ts';
 import { linkLabel } from "./link-label.ts";
 import { versionState } from './version-state.ts';
+import { operationAvailability } from './operation-availability.ts';
+import { API_CONTRACT_VERSION } from './operation-policy.ts';
+import { authLocations } from './oauth.ts';
 
 export const readApi = contractApp();
+readApi.openapi(routes.getCapabilities, async c => {
+  const { base, api, issuer, mcp } = authLocations(c.req.url, c.env);
+  const publicBase = new URL(c.req.url).origin + normalizeMount(c.env.MOUNT);
+  return c.json({ contractVersion: API_CONTRACT_VERSION, endpoints: { publicBase, studio: base, api, issuer, mcp, media: publicBase + '/media' },
+    ...await operationAvailability(c.env.DB, c.get('apiAccess'), c.get('apiExtensions')) });
+});
 readApi.openapi(routes.getChanges, async c => c.json(await readChanges(c.env.DB)));
 async function collection<T>(db: D1Database, query: Record<string, string>, sql: string, countSql: string) {
   const offset = Number(query.offset ?? 0), limit = Number(query.limit ?? 100);
