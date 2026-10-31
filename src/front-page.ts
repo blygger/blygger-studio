@@ -29,7 +29,7 @@ export const PATH_SHAPE = /^[a-z0-9][a-z0-9-]{0,39}$/;
 
 /** Why `path` cannot be the posts page's address, or null when it can. */
 export function postsPathError(path: string): string | null {
-  if (!PATH_SHAPE.test(path)) return "posts_path must be 1–40 lowercase letters, digits or hyphens, starting with a letter or digit";
+  if (!PATH_SHAPE.test(path)) return "postsPath must be 1–40 lowercase letters, digits or hyphens, starting with a letter or digit";
   if (RESERVED_PATHS.includes(path)) return `posts_path cannot be "${path}": the blyg already uses it`;
   return null;
 }

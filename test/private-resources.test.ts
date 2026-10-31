@@ -48,3 +48,25 @@ it.each(['', '/notes/blyg'])('returns a usable canonical media URL at mount %s',
   const image = await app.fetch(new Request(media.url, { headers: { cookie } }), env, createExecutionContext());
   expect(image.status).toBe(200); expect(await image.text()).toBe('DTO image');
 });
+
+it('keeps a withdrawn thread authored kind in list and detail across empty republication', async () => {
+  const cookie = await login();
+  const send = async (method: string, path: string, body?: unknown) => {
+    const response = await SELF.fetch(BASE + '/blyg/api' + path, { method, headers: { cookie, 'Content-Type': 'application/json' }, ...(body === undefined ? {} : { body: JSON.stringify(body) }) });
+    expect(response.status).toBe(method === 'POST' && path === '/items' ? 201 : 200);
+    return response.json<any>();
+  };
+  const item = await send('POST', '/items', { kind: 'thread', contentMd: '' });
+  const published = await send('POST', `/items/${item.id}/publish`, { expectedRevision: item.revision });
+  const withdrawn = await send('POST', `/items/${item.id}/withdraw`, { expectedRevision: published.revision });
+  const detail = await send('GET', `/items/${item.id}`);
+  const listing = await send('GET', '/items?limit=100');
+  expect(detail).toMatchObject({ kind: 'thread', status: 'withdrawn', version: 2 });
+  expect(listing.items.find((row: { id: string }) => row.id === item.id)).toMatchObject({ kind: 'thread', status: 'withdrawn' });
+  expect(detail.versions.map((v: { kind: string }) => v.kind)).toEqual(['thread', 'withdrawn']);
+  expect(detail).not.toHaveProperty('authored_kind');
+  await send('POST', `/items/${item.id}/publish`, { expectedRevision: withdrawn.revision });
+  const republished = await send('GET', `/items/${item.id}`);
+  expect(republished).toMatchObject({ kind: 'thread', status: 'public', version: 3 });
+  expect(republished.versions.map((v: { kind: string }) => v.kind)).toEqual(['thread', 'withdrawn', 'thread']);
+});

@@ -417,7 +417,7 @@ export type AiModels = {
         label: string;
         note?: string;
         /**
-         * A decision model (Clef, Jev): offered only for the change classifier (ai_model_classify), never for text generation.
+         * A decision model (Clef, Jev): offered only for the change classifier (aiModelClassify), never for text generation.
          */
         kind?: 'decision';
     }>;
@@ -4752,7 +4752,7 @@ export type ListReadingResponses = {
          */
         readState: true;
         /**
-         * Read state can be cleared: DELETE /reading/{sub}/{remoteId}/read, POST /reading/unread, and read_at on reads.
+         * Read state can be cleared: DELETE /reading/{sub}/{remoteId}/read, POST /reading/unread, and readAt on reads.
          */
         readStateClear: true;
     };

@@ -104,8 +104,8 @@ export function validateCustomTheme(value: unknown): { theme: CustomTheme } | { 
  */
 export const THEME_NAME_MAX = 40;
 export function themeNameError(name: string): string | null {
-  if (name.length > THEME_NAME_MAX) return `custom_theme_name: at most ${THEME_NAME_MAX} characters`;
-  if (/[\u0000-\u001f\u007f]/.test(name)) return "custom_theme_name: one line of plain text";
+  if (name.length > THEME_NAME_MAX) return `customThemeName: at most ${THEME_NAME_MAX} characters`;
+  if (/[\u0000-\u001f\u007f]/.test(name)) return "customThemeName: one line of plain text";
   return null;
 }
 

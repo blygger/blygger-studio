@@ -21,8 +21,8 @@ export function readStatus(imported: { readVersion: number | null; version: numb
 export const needsRead = (status: ReadStatus | null) => status === 'unread' || status === 'updated';
 
 /**
- * A read the studio sends. No `read_at`: the studio acts online, so its reads
- * always apply. The API's `read_at` is for offline queues (Blygger Desktop),
+ * A read the studio sends. No `readAt`: the studio acts online, so its reads
+ * always apply. The API's `readAt` is for offline queues (Blygger Desktop),
  * and a browser clock behind the server's would let a "mark unread" followed
  * by opening the post drop the read silently.
  */

@@ -43,6 +43,8 @@ export async function verifyPersistence(worker: string, temp: string) {
     const pinned = await pinnedResponse.text();
     assert.equal(JSON.parse(pinned).content_md, "Frozen citation");
     const media = await unwrap(BlyggerApi.uploadMedia({ client, body: { file: new File([new Uint8Array([0, 1, 255])], "persistent.png", { type: "image/png" }) } }));
+    assert.equal(new URL(media.url).origin, fixture.baseUrl);
+    const mediaPath = new URL(media.url).pathname;
     await fixture.stop();
     fixture = undefined;
     fixture = await start(worker, join(temp, "persistent-storage"), false);
@@ -54,8 +56,11 @@ export async function verifyPersistence(worker: string, temp: string) {
     assert.equal(await retainedPin.text(), pinned);
     // An unpublished upload is private: the owner reads its bytes, anonymous
     // readers do not, and a restart changes neither.
-    assert.equal((await fetch(media.url)).status, 404);
-    const upload = await fetch(media.url, { headers: { cookie: `blyg_session=${token}` } });
+    // This local restart gets a new ephemeral port. The deployment path and
+    // retained bytes stay the same, while the fixture's request origin changes.
+    const restartedMediaUrl = new URL(mediaPath, fixture.baseUrl);
+    assert.equal((await fetch(restartedMediaUrl)).status, 404);
+    const upload = await fetch(restartedMediaUrl, { headers: { cookie: `blyg_session=${token}` } });
     assert.equal(upload.status, 200); assert.equal(upload.headers.get("content-type"), "image/png");
     assert.deepEqual(new Uint8Array(await upload.arrayBuffer()), new Uint8Array([0, 1, 255]));
     console.log("Fresh Worker process retained D1 drafts/history/pins/citations, auth cookie, and R2 upload bytes");

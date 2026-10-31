@@ -1675,7 +1675,7 @@
                   "enum": [
                     "decision"
                   ],
-                  "description": "A decision model (Clef, Jev): offered only for the change classifier (ai_model_classify), never for text generation."
+                  "description": "A decision model (Clef, Jev): offered only for the change classifier (aiModelClassify), never for text generation."
                 }
               },
               "required": [
@@ -13035,7 +13035,7 @@
                       "enum": [
                         true
                       ],
-                      "description": "Read state can be cleared: DELETE /reading/{sub}/{remoteId}/read, POST /reading/unread, and read_at on reads."
+                      "description": "Read state can be cleared: DELETE /reading/{sub}/{remoteId}/read, POST /reading/unread, and readAt on reads."
                     }
                   },
                   "required": [

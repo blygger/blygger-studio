@@ -601,3 +601,24 @@ then reproduced an old multipart field being silently ignored, which could
 create unattached media. Strict multipart field validation now matches the
 JSON cutover. Its focused positive/negative receiving checks are in progress;
 this does not change the agreed design or the public protocol.
+
+The strict multipart witness is GREEN4/4 after RED2/4. Affected REST/SDK/MCP,
+authorization-race, media-history, and HTTP checks pass72 tests. A further37
+resource/corrupt-column checks pass, including an empty thread's authored kind
+in both detail and list after withdrawal and republication. UI remains134/134
+and both TypeScript projects pass. Remaining private descriptions/error labels
+now use the same field names as the contract.
+
+The committed candidate's SDK archive passes installed Node and Chromium
+consumers, both TypeScript resolution modes, and fresh-process D1/R2 persistence.
+The restart fixture initially reused the first process's absolute media URL
+after its ephemeral port closed. It now asserts that original canonical origin,
+then addresses the same media path at the restarted fixture origin. Its privacy
+and exact-byte checks pass. This is a local fixture correction, not a production
+URL fallback.
+
+Part8 receiving coverage follow-up C2: combine fresh and duplicate uploads,
+working and published attachment URL fields, root/nested mounts, and private/
+public fetches in one matrix when digest-bearing URLs arrive. Part6 already
+checks those component paths; preserve this combined coverage idea alongside
+the earlier private OPTIONS Cache-Control follow-up.
