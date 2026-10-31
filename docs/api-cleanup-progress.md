@@ -24,7 +24,7 @@ Update the plan when a finding changes its scope or design.
 | Part | Status | Branch and base | PR |
 | --- | --- | --- | --- |
 | 1a Attachment restore and provenance validation | Open, local checks and all CI checks passed | `codex/api-cleanup`, based on upstream `main` at `2582d73` | [90](https://github.com/blygger/blygger-studio/pull/90) |
-| 1b Explicit version state | Local and prep-pr checks passed, publishing | `codex/api-version-state`, based on `codex/api-http` | Pending |
+| 1b Explicit version state | Open, all local and prep-pr checks passed, CI in progress | `codex/api-version-state`, based on `codex/api-http` | [93](https://github.com/blygger/blygger-studio/pull/93) |
 | 2 HTTP behavior | Open, local checks passed, prep-pr in progress | `codex/api-http`, based on `codex/api-cleanup` | [91](https://github.com/blygger/blygger-studio/pull/91) |
 | 3 Shared operation core | Planned | After 1a | Pending |
 | 4 Mounted API cutover | Planned | After 3 | Pending |
@@ -276,3 +276,6 @@ PR 91's method cleanup and retrospective PR descriptions are published. The
 quiet CI heartbeat monitors the stack and checks review submissions/comments;
 its local automation ID is `api-cleanup-ci`. It stops after tracked heads are
 green and every discovered review item has a disposition.
+
+Version-state publication: [PR 93](https://github.com/blygger/blygger-studio/pull/93),
+stacked on PR 91. Final review audit: five items fixed, no unresolved evidence.
