@@ -100,7 +100,7 @@ async function run(instructions: Instruction[]) {
         continue;
       }
       const operation = action.op === 'draft' ? { path: '/blyg/api/items', method: 'POST', body: { content_md: 'oracle draft' }, scope: 'owner:draft' as Scope, success: 201 }
-        : action.op === 'publish' ? { path: '/blyg/api/items/missing/publish', method: 'POST', body: {}, scope: 'owner:publish' as Scope, success: 404 }
+        : action.op === 'publish' ? { path: '/blyg/api/items/missing/publish', method: 'POST', body: { expectedRevision: 1 }, scope: 'owner:publish' as Scope, success: 404 }
         : action.op === 'manage' ? { path: '/blyg/api/settings', method: 'PATCH', body: {}, scope: 'owner:manage' as Scope, success: 200 }
         : { path: '/blyg/api/settings', method: 'GET', body: undefined, scope: 'owner:read' as Scope, success: 200 };
       const slot = action.op === 'revoke-all' || action.op === 'rotate' ? 0 : action.slot;
