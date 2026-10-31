@@ -3,7 +3,9 @@ import { execFileSync } from "node:child_process";
 import { copyFileSync, mkdirSync, rmSync } from "node:fs";
 copyFileSync("LICENSE", "sdk/LICENSE");
 rmSync("sdk/dist", { recursive: true, force: true });
-execFileSync("./node_modules/.bin/tsc", ["-p", "sdk/tsconfig.json"], { stdio: "inherit" });
+// Run tsc through node rather than the .bin shim: on Windows the shim is a
+// .cmd and execFileSync on the extensionless path fails with ENOENT.
+execFileSync(process.execPath, ["./node_modules/typescript/bin/tsc", "-p", "sdk/tsconfig.json"], { stdio: "inherit" });
 for (const [outfile, platform] of [["sdk/dist/index.js", "neutral"], ["sdk/dist/browser.js", "browser"]] as const) {
   await build({ entryPoints: ["sdk/index.ts"], outfile, bundle: true, format: "esm", platform, target: "es2022" });
 }
