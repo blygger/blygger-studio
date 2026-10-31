@@ -36,7 +36,8 @@ import { sourceSchemas, readingResponseSchema } from './data-schemas.ts';
 import { zGetItemResponse, zGetHopperResponse } from '../../sdk/dist/schemas.js';
 import { planReadWrites, type ReadWrite, type UnreadWrite } from './read-state.ts';
 
-export const client = createBlyggerClient({ baseUrl: location.origin });
+export const apiBase = new URL(document.getElementById('studio-root')!.dataset.apiBase!, location.origin).href;
+export const client = createBlyggerClient({ baseUrl: apiBase });
 queryClient.mount();
 function cachedQuery<S extends z.ZodType>(
   context: QueryFunctionContext,

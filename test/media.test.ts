@@ -7,7 +7,7 @@ async function upload(cookie: string, file: File, extra: Record<string, string> 
   const form = new FormData();
   form.set("file", file);
   for (const [k, v] of Object.entries(extra)) form.set(k, v);
-  const res = await SELF.fetch(`${BASE}/api/media`, { method: "POST", headers: { cookie }, body: form });
+  const res = await SELF.fetch(`${BASE}/blyg/api/media`, { method: "POST", headers: { cookie }, body: form });
   return { status: res.status, json: (await res.json().catch(() => null)) as any };
 }
 
@@ -47,7 +47,7 @@ describe("media (§3.3)", () => {
       alt: "the alt text",
     });
     // An attachment joins the item with its next version (migration 0031).
-    expect((await apiJson(cookie, "POST", `/api/items/${id}/publish`, {})).status).toBe(200);
+    expect((await apiJson(cookie, "POST", `/blyg/api/items/${id}/publish`, {})).status).toBe(200);
 
     const item = await (await getPublic(`/blyg/items/${id}.json`)).json<any>();
     expect(item.media).toEqual([{ url: json.url, mime: "image/png", alt: "the alt text" }]);
@@ -70,7 +70,7 @@ describe("avatar resolution (session 19)", () => {
   it("serves an avatar URL that actually resolves, on the page and in the manifest", async () => {
     const cookie = await login();
     const { json } = await upload(cookie, new File([new Uint8Array([1, 2])], "me.png", { type: "image/png" }));
-    await apiJson(cookie, "PATCH", "/api/settings", { avatar_media_id: json.id, author_name: "A. Author" });
+    await apiJson(cookie, "PATCH", "/blyg/api/settings", { avatar_media_id: json.id, author_name: "A. Author" });
     await createAndPublish(cookie, "hello");
 
     // The route matches on the full r2_key including the extension, so
@@ -98,7 +98,7 @@ describe("duplicate uploads (studio#7, migration 0028)", () => {
     const again = await upload(cookie, png(1, 2), { item_id: id, alt: "second" });
     expect(again.status).toBe(200);
     expect(again.json).toEqual({ id: first.json.id, url: first.json.url, mime: "image/png", duplicate: true });
-    expect((await apiJson(cookie, "POST", `/api/items/${id}/publish`, {})).status).toBe(200);
+    expect((await apiJson(cookie, "POST", `/blyg/api/items/${id}/publish`, {})).status).toBe(200);
 
     const item = await (await getPublic(`/blyg/items/${id}.json`)).json<any>();
     expect(item.media).toEqual([{ url: first.json.url, mime: "image/png", alt: "first" }]);

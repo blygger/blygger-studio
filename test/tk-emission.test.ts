@@ -33,10 +33,10 @@ describe("TK generation provenance emission (§3.1)", () => {
     const cookie = await login();
     const id = await createAndPublish(cookie, "v1 text");
     await setGenerated(id, 1, [{ sources: [], model: "claude-x", at: "2026-08-10T18:00:00Z" }]);
-    await apiJson(cookie, "PUT", `/api/items/${id}/versions/${1}/pin`);
+    await apiJson(cookie, "PUT", `/blyg/api/items/${id}/versions/${1}/pin`);
 
-    await apiJson(cookie, "PATCH", `/api/items/${id}`, { content_md: "v2 text" });
-    await apiJson(cookie, "POST", `/api/items/${id}/publish`, {});
+    await apiJson(cookie, "PATCH", `/blyg/api/items/${id}`, { content_md: "v2 text" });
+    await apiJson(cookie, "POST", `/blyg/api/items/${id}/publish`, {});
     // v2 has no generated_json recorded — omitted on the live item doc.
     const live = await (await getPublic(`/blyg/items/${id}.json`)).json<any>();
     expect(live).not.toHaveProperty("generated");
@@ -49,7 +49,7 @@ describe("TK generation provenance emission (§3.1)", () => {
     const cookie = await login();
     const id = await createAndPublish(cookie, "will be withdrawn");
     await setGenerated(id, 1, [{ sources: [], model: "claude-x" }]);
-    await apiJson(cookie, "POST", `/api/items/${id}/withdraw`, {});
+    await apiJson(cookie, "POST", `/blyg/api/items/${id}/withdraw`, {});
     const item = await (await getPublic(`/blyg/items/${id}.json`)).json<any>();
     expect(item.kind).toBe("withdrawn");
     expect(item).not.toHaveProperty("generated");
@@ -58,9 +58,9 @@ describe("TK generation provenance emission (§3.1)", () => {
   it("thread item doc also carries `generated` alongside `transclusions`", async () => {
     const cookie = await login();
     const f1 = await createAndPublish(cookie, "source fragment");
-    const created = await apiJson(cookie, "POST", "/api/items", { content_md: `![[${f1}]]`, kind: "thread" });
+    const created = await apiJson(cookie, "POST", "/blyg/api/items", { content_md: `![[${f1}]]`, kind: "thread" });
     const threadId = created.json.id as string;
-    await apiJson(cookie, "POST", `/api/items/${threadId}/publish`, {});
+    await apiJson(cookie, "POST", `/blyg/api/items/${threadId}/publish`, {});
     await setGenerated(threadId, 1, [{ sources: [{ id: f1, version: 1 }], model: "claude-x" }]);
     const item = await (await getPublic(`/blyg/items/${threadId}.json`)).json<any>();
     expect(item.transclusions).toEqual([{ id: f1, version: 1 }]);

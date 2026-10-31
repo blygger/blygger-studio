@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useLiveQuery } from '@tanstack/react-db';
 import { BlyggerApi, unwrap } from '../../sdk/dist/browser.js';
-import { authorizations, client } from './data.ts';
+import { authorizations, client, apiBase } from './data.ts';
 import { Button, Failure, Modal, basepath } from './components.tsx';
 import { OWNER_SCOPES, SCOPE_DESCRIPTIONS, type OwnerScope } from '../auth-scopes.ts';
 
@@ -23,7 +23,8 @@ export function AuthorizationsPage() {
   return <div className="prose"><h1>Client access</h1><Failure error={error} />
     <p>Connect an OAuth client or an MCP app without sharing your owner password. Each authorization has its own permissions and can be revoked here.</p>
     <p>MCP URL: <code>{location.origin + basepath}/mcp</code></p>
-    <p>Owner API: <code>{location.origin}/api</code>. Access tokens from OAuth last one hour; clients can refresh them for up to 30 days.</p>
+    <p>Owner API: <code>{apiBase}</code>. Access tokens from OAuth last one hour; clients can refresh them for up to 30 days.</p>
+    <p>For a mounted node, older REST grants for the host's /api address need replacement or new consent. MCP grants keep their existing audience.</p>
     <h2>Authorizations</h2>
     {rows.length ? rows.map(row => <section key={row.id}><strong>{row.name}</strong> {row.manual ? '(manual token)' : '(OAuth)'}
       <p><code>{row.resource}</code><br />{row.scope.join(', ')}</p>

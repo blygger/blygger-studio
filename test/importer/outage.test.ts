@@ -44,14 +44,14 @@ describe("simulated outage — lossless convergence (§4.3/§6)", () => {
     // --- Outage: node A publishes; the subscriber never polls. ---
     // The two events we actually care about recovering, published first so
     // later churn pushes them out of the window entirely:
-    await apiJson(cookie, "PATCH", `/api/items/${idA}`, { content_md: "item A, v2 (missed edit)" });
-    await apiJson(cookie, "POST", `/api/items/${idA}/publish`, {});
-    await apiJson(cookie, "POST", `/api/items/${idC}/withdraw`, {});
+    await apiJson(cookie, "PATCH", `/blyg/api/items/${idA}`, { content_md: "item A, v2 (missed edit)" });
+    await apiJson(cookie, "POST", `/blyg/api/items/${idA}/publish`, {});
+    await apiJson(cookie, "POST", `/blyg/api/items/${idC}/withdraw`, {});
     // Pure churn on a third item — enough to scroll both events above
     // completely out of the FEED_WINDOW-entry feed.
     for (let i = 0; i < FEED_WINDOW + 5; i++) {
-      await apiJson(cookie, "PATCH", `/api/items/${idB}`, { content_md: `item B, churn ${i}` });
-      await apiJson(cookie, "POST", `/api/items/${idB}/publish`, {});
+      await apiJson(cookie, "PATCH", `/blyg/api/items/${idB}`, { content_md: `item B, churn ${i}` });
+      await apiJson(cookie, "POST", `/blyg/api/items/${idB}/publish`, {});
     }
 
     // Sanity check on the scenario itself: A's and C's events are indeed gone from the feed window.

@@ -18,7 +18,7 @@ const docTitle = (html: string) => /<title>([^<]*)<\/title>/.exec(html)?.[1];
 describe("a declared title is the title", () => {
   it("a leading heading becomes og:title, and the summary is what follows it", async () => {
     const cookie = await login();
-    await apiJson(cookie, "PATCH", "/api/settings", { site_title: "Field Notes" });
+    await apiJson(cookie, "PATCH", "/blyg/api/settings", { site_title: "Field Notes" });
     const id = await createAndPublish(cookie, "# On Protocols\n\nProtocols are the thin layer where coordination happens.");
     const html = await (await getPublic(`/blyg/f/${id}/`)).text();
 
@@ -30,7 +30,7 @@ describe("a declared title is the title", () => {
 
   it("og:title carries no site suffix — og:site_name is the tag that says where", async () => {
     const cookie = await login();
-    await apiJson(cookie, "PATCH", "/api/settings", { site_title: "Field Notes" });
+    await apiJson(cookie, "PATCH", "/blyg/api/settings", { site_title: "Field Notes" });
     const id = await createAndPublish(cookie, "# Short\n\nbody");
     const html = await (await getPublic(`/blyg/f/${id}/`)).text();
     expect(ogTitle(html)).not.toContain("Field Notes");
@@ -39,7 +39,7 @@ describe("a declared title is the title", () => {
 
   it("an untitled item still unfurls as its opening words", async () => {
     const cookie = await login();
-    await apiJson(cookie, "PATCH", "/api/settings", { site_title: "Field Notes" });
+    await apiJson(cookie, "PATCH", "/blyg/api/settings", { site_title: "Field Notes" });
     const id = await createAndPublish(cookie, "no heading on this one, just a sentence");
     const html = await (await getPublic(`/blyg/f/${id}/`)).text();
     expect(ogTitle(html)).toBe("no heading on this one, just a sentence");
@@ -48,10 +48,10 @@ describe("a declared title is the title", () => {
 
   it("a thread derives its title the same way a fragment does", async () => {
     const cookie = await login();
-    await apiJson(cookie, "PATCH", "/api/settings", { site_title: "Field Notes" });
-    const id = (await apiJson(cookie, "POST", "/api/items", { content_md: "# A Thread\n\nthe argument", kind: "thread" }))
+    await apiJson(cookie, "PATCH", "/blyg/api/settings", { site_title: "Field Notes" });
+    const id = (await apiJson(cookie, "POST", "/blyg/api/items", { content_md: "# A Thread\n\nthe argument", kind: "thread" }))
       .json.id as string;
-    await apiJson(cookie, "POST", `/api/items/${id}/publish`, {});
+    await apiJson(cookie, "POST", `/blyg/api/items/${id}/publish`, {});
     const html = await (await getPublic(`/blyg/t/${id}/`)).text();
     expect(ogTitle(html)).toBe("A Thread");
     expect(description(html)).toBe("the argument");
@@ -70,12 +70,12 @@ describe("a declared title is the title", () => {
 describe("the pinned page describes what froze", () => {
   it("takes its name from the pinned bytes, qualified by the version", async () => {
     const cookie = await login();
-    await apiJson(cookie, "PATCH", "/api/settings", { site_title: "Field Notes" });
+    await apiJson(cookie, "PATCH", "/blyg/api/settings", { site_title: "Field Notes" });
     const id = await createAndPublish(cookie, "# First Thoughts\n\nas written at the time");
-    await apiJson(cookie, "PUT", `/api/items/${id}/versions/${1}/pin`);
+    await apiJson(cookie, "PUT", `/blyg/api/items/${id}/versions/${1}/pin`);
     // The live item moves on; the pin must not.
-    await apiJson(cookie, "PATCH", `/api/items/${id}`, { content_md: "# Second Thoughts\n\nrevised" });
-    await apiJson(cookie, "POST", `/api/items/${id}/publish`, {});
+    await apiJson(cookie, "PATCH", `/blyg/api/items/${id}`, { content_md: "# Second Thoughts\n\nrevised" });
+    await apiJson(cookie, "POST", `/blyg/api/items/${id}/publish`, {});
 
     const pinned = await (await getPublic(`/blyg/f/${id}/v1/`)).text();
     expect(docTitle(pinned)).toBe("First Thoughts (v1) — Field Notes");
@@ -88,23 +88,23 @@ describe("the pinned page describes what froze", () => {
 
   it("carries the blyg's avatar, never the item's current attachments", async () => {
     const cookie = await login();
-    await apiJson(cookie, "PATCH", "/api/settings", { site_url: "https://example.org/blyg/" });
+    await apiJson(cookie, "PATCH", "/blyg/api/settings", { site_url: "https://example.org/blyg/" });
     const av = new FormData();
     av.set("file", new File([new Uint8Array([1, 2])], "me.png", { type: "image/png" }));
     const avatar = (await (
-      await SELF.fetch(`${BASE}/api/media`, { method: "POST", headers: { cookie }, body: av })
+      await SELF.fetch(`${BASE}/blyg/api/media`, { method: "POST", headers: { cookie }, body: av })
     ).json()) as any;
-    await apiJson(cookie, "PATCH", "/api/settings", { avatar_media_id: avatar.id });
+    await apiJson(cookie, "PATCH", "/blyg/api/settings", { avatar_media_id: avatar.id });
 
     const id = await createAndPublish(cookie, "pin me");
-    await apiJson(cookie, "PUT", `/api/items/${id}/versions/${1}/pin`);
+    await apiJson(cookie, "PUT", `/blyg/api/items/${id}/versions/${1}/pin`);
 
     // An image attached to the live item after the pin froze.
     const form = new FormData();
     form.set("file", new File([new Uint8Array([3])], "later.png", { type: "image/png" }));
     form.set("item_id", id);
     const later = (await (
-      await SELF.fetch(`${BASE}/api/media`, { method: "POST", headers: { cookie }, body: form })
+      await SELF.fetch(`${BASE}/blyg/api/media`, { method: "POST", headers: { cookie }, body: form })
     ).json()) as any;
 
     const pinned = await (await getPublic(`/blyg/f/${id}/v1/`)).text();
@@ -116,13 +116,13 @@ describe("the pinned page describes what froze", () => {
 describe("the archive unfurls as itself", () => {
   it("names the blyg and carries its avatar", async () => {
     const cookie = await login();
-    await apiJson(cookie, "PATCH", "/api/settings", { site_title: "Field Notes", site_url: "https://example.org/blyg/" });
+    await apiJson(cookie, "PATCH", "/blyg/api/settings", { site_title: "Field Notes", site_url: "https://example.org/blyg/" });
     const form = new FormData();
     form.set("file", new File([new Uint8Array([9])], "me.png", { type: "image/png" }));
     const avatar = (await (
-      await SELF.fetch(`${BASE}/api/media`, { method: "POST", headers: { cookie }, body: form })
+      await SELF.fetch(`${BASE}/blyg/api/media`, { method: "POST", headers: { cookie }, body: form })
     ).json()) as any;
-    await apiJson(cookie, "PATCH", "/api/settings", { avatar_media_id: avatar.id });
+    await apiJson(cookie, "PATCH", "/blyg/api/settings", { avatar_media_id: avatar.id });
     await createAndPublish(cookie, "something to list");
 
     const html = await (await getPublic("/blyg/archive/")).text();

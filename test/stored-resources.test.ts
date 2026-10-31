@@ -9,7 +9,7 @@ const columns = [
   ["tk_provenance_json", "provenance", []], ["stub_of", "stub_of", null],
   ["forked_from", "forked_from", null], ["fork_cite", "fork_cite", null],
 ] as const;
-const clientFor = (cookie: string) => createBlyggerClient({ baseUrl: BASE, headers: { cookie }, fetch: (request, init) => SELF.fetch(request instanceof Request ? request : new Request(request, init)) });
+const clientFor = (cookie: string) => createBlyggerClient({ baseUrl: BASE + '/blyg/api', headers: { cookie }, fetch: (request, init) => SELF.fetch(request instanceof Request ? request : new Request(request, init)) });
 describe("stored JSON isolation through SDK", () => {
   for (const [column, field, fallback] of columns) it.each(damaged)(`${column} isolates damaged value %s`, async value => {
     const cookie = await login(), client = clientFor(cookie);

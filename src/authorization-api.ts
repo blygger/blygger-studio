@@ -1,3 +1,4 @@
+import { deploymentPaths } from './util.ts';
 import { bodyLimit } from 'hono/body-limit';
 import { securityLimit, admitApi } from './security-budgets.ts';
 import { contractApp, readJson } from './contract/app.ts';
@@ -8,7 +9,8 @@ import { authorizationServer, ownerHeaders, credentialVersion, authLocations, re
 
 export const authorizationApi = contractApp();
 authorizationApi.use('*', async (c, next) => {
-  if (!/^\/api\/authorizations(?:\/|$)/.test(c.req.path)) return next();
+  const prefix = deploymentPaths(c.env.MOUNT).api + '/authorizations';
+  if (c.req.path !== prefix && !c.req.path.startsWith(prefix + '/')) return next();
   c.header('Cache-Control', 'no-store');
   if (/^Bearer(?:\s|$)/i.test(c.req.header('authorization') ?? '') || !await verifySession(c.env, c.req.header('cookie'))) return c.json({ error: 'owner session required' }, 401);
   const origin = c.req.header('origin');

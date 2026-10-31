@@ -13,14 +13,14 @@ not the npm registry.
 
 ## Browser use
 
-Sign into `/studio` first. Create a client for the same origin; the browser sends
+Sign into `{mount}/studio` first. Create a client for its full `{mount}/api` URL; the browser sends
 its HttpOnly session cookie automatically. The SDK does not create a login
-session. Cross-origin apps and OAuth are planned for a later migration.
+session. Delegated apps use resource-bound bearer tokens or OAuth.
 
 ```js
 import { BlyggerApi, createBlyggerClient, unwrap } from "@blygger/sdk";
 
-const client = createBlyggerClient({ baseUrl: window.location.origin });
+const client = createBlyggerClient({ baseUrl: new URL("/blyg/api", window.location.origin).href });
 const draft = await unwrap(BlyggerApi.createItem({
   client, body: { content_md: "Hello", kind: "fragment" },
 }));
@@ -39,7 +39,7 @@ Never embed server credentials in browser code.
 import { BlyggerApi, createBlyggerClient } from "@blygger/sdk";
 
 const client = createBlyggerClient({
-  baseUrl: "https://blyg.example.com",
+  baseUrl: "https://blyg.example.com/api",
   headers: { Cookie: ownerSessionCookie }, // received through your login/session flow
 });
 const { data, error, response } = await BlyggerApi.listReading({ client });
@@ -93,9 +93,11 @@ Create a resource-bound token in Studio's access page. For REST, select the API 
 
 ```js
 const client = createBlyggerClient({
-  baseUrl: 'https://example.com',
+  baseUrl: 'https://example.com/blyg/api',
   auth: scheme => scheme.scheme === 'bearer' ? accessToken : undefined,
 });
 ```
 
 Browser bearer requests support CORS. Tokens expire and can be revoked; load them from your credential store. See [client access](https://github.com/blygger/blygger-studio/blob/main/docs/client-access.md) for scopes, revocation and the OAuth/MCP implementation status.
+
+The base URL includes the API path. Use `/api` on root nodes and the advertised `{mount}/api` on mounted nodes. OpenAPI operation paths are relative to that base. Old host-root REST credentials on mounted nodes require replacement or new consent; refresh cannot retarget them. MCP credentials keep their audience.

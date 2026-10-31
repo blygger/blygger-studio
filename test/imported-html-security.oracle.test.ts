@@ -29,7 +29,7 @@ it.each(importedHtmlAttacks)('keeps imported URL authority inert: $id', async at
   const cookie = login.headers.get('set-cookie')!.split(';')[0];
   await env.DB.prepare("INSERT OR IGNORE INTO subscriptions(id,kind,origin,feed_url,title,created) VALUES ('security','rss','https://publisher.example/','https://publisher.example/feed','Security','2026-10-01')").run();
   await env.DB.prepare("INSERT INTO imported_items(subscription_id,remote_id,kind,state,version,observed_at,content_html,l0) VALUES ('security',?,'fragment','current',1,'2026-10-01',?,1)").bind(attack.id, attack.html).run();
-  const response = await request('/api/imports/security/' + attack.id, { headers: { cookie } });
+  const response = await request('/blyg/api/imports/security/' + attack.id, { headers: { cookie } });
   expect(response.status, 'stored imported item must reach its real API reader').toBe(200);
   const item = await response.json() as { content_html: string };
   const urls: string[] = [];

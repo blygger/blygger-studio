@@ -98,7 +98,7 @@ describe('auth deployment receiving boundaries', () => {
     const registered = await (await d.register()).json() as { client_id: string };
     const login = await d.fetch('/blyg/studio/login', { method: 'POST', body: new URLSearchParams({ password: env.OWNER_PASSWORD }) });
     const cookie = login.headers.get('set-cookie')!.split(';')[0];
-    const authorization = await d.fetch('/blyg/studio/auth/oauth2/authorize?' + new URLSearchParams({ client_id: registered.client_id, response_type: 'code', redirect_uri: 'https://client.example.test/callback', scope: 'owner:read', resource: 'https://deployment-oracle.example.test/api', code_challenge: 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa', code_challenge_method: 'S256' }), { headers: { cookie } });
+    const authorization = await d.fetch('/blyg/studio/auth/oauth2/authorize?' + new URLSearchParams({ client_id: registered.client_id, response_type: 'code', redirect_uri: 'https://client.example.test/callback', scope: 'owner:read', resource: 'https://deployment-oracle.example.test/blyg/api', code_challenge: 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa', code_challenge_method: 'S256' }), { headers: { cookie } });
     expect(authorization.status).toBe(200);
     const sessionCookie = authorization.headers.getSetCookie().find(value => value.includes('better-auth.session_token='));
     expect(sessionCookie).toBeDefined();

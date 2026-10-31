@@ -9,8 +9,8 @@
  * Model: working copy content, status, dirty flag, authored kind and immutable versions.
  * Withdrawal appends an empty withdrawn snapshot; restore copies text without
  * removing any version; restoring the current version is discard and leaves the copy clean. Pinning changes visibility of one existing snapshot.
- * History grammar: fragment/thread, plain nonempty text and at most ten generated
- * choices. Legal operations depend on model state; restore/pin target nonempty
+ * History grammar: fragment/thread, plain text including empty strings and at most ten generated
+ * choices. Legal operations depend on model state; restore/pin target normal
  * published snapshots. A fixed history forces repeated pin and restore-after-withdraw.
  * Driver: named generated SDK operations through SELF to the real Worker and D1.
  * Refinement: after creation and every awaited action, compare owner working state,
@@ -45,7 +45,7 @@ const instruction = fc.record({ choice: fc.nat(30), version: fc.nat(30), text: f
 const histories = fc.record({ kind: fc.constantFrom("fragment" as const, "thread" as const), instructions: fc.array(instruction, { minLength: 1, maxLength: 10 }) });
 
 async function run(kind: Model["kind"], actions?: Action[], instructions?: { choice: number; version: number; text: number }[]) {
-  const client = createBlyggerClient({ baseUrl: BASE, headers: { cookie: await login() }, fetch: (input, init) => SELF.fetch(input instanceof Request ? input : new Request(input, init)) });
+  const client = createBlyggerClient({ baseUrl: BASE + '/blyg/api', headers: { cookie: await login() }, fetch: (input, init) => SELF.fetch(input instanceof Request ? input : new Request(input, init)) });
   const created = await unwrap(BlyggerApi.createItem({ client, body: { kind, content_md: "initial" } }));
   const id = created.id, model: Model = { content: "initial", status: "draft", dirty: true, kind, versions: [] };
   const pinnedSnapshots = new Map<number, string>();
@@ -80,14 +80,14 @@ async function run(kind: Model["kind"], actions?: Action[], instructions?: { cho
   await compare();
   const queue = actions ?? instructions!.map(() => null);
   for (const [index, supplied] of queue.entries()) {
-    const restorable = model.versions.flatMap((v, i) => v.content ? [i + 1] : []);
+    const restorable = model.versions.flatMap((v, i) => v.kind !== "withdrawn" ? [i + 1] : []);
     // Choose operations from model state, not production eligibility helpers.
-    // Withdrawal requires a public item; restore/pin require a nonempty snapshot.
+    // Withdrawal requires a public item; restore/pin require a publication snapshot.
     // Modulo selection bounds choices without skipping failed production actions.
     // This grammar excludes restoring withdrawal tombstones and malformed versions.
     const legal: Action["op"][] = ["edit", "publish", ...(model.status === "public" ? ["withdraw" as const] : []), ...(restorable.length ? ["restore" as const, "pin" as const] : [])];
     const token = instructions?.[index];
-    const action = supplied ?? { op: legal[token!.choice % legal.length], value: `text ${token!.text}`, version: restorable[token!.version % restorable.length] };
+    const action = supplied ?? { op: legal[token!.choice % legal.length], value: token!.text % 4 === 0 ? "" : `text ${token!.text}`, version: restorable[token!.version % restorable.length] };
     if (!legal.includes(action.op)) throw new Error("Illegal lifecycle history");
     if (action.op === "edit") await unwrap(BlyggerApi.updateItem({ client, path: { id }, body: { content_md: action.value } }));
     if (action.op === "publish") await unwrap(BlyggerApi.publishItem({ client, path: { id } }));
@@ -104,6 +104,9 @@ async function run(kind: Model["kind"], actions?: Action[], instructions?: { cho
 describe("item lifecycle oracle", () => {
   it.each(["fragment", "thread"] as const)("preserves a pinned history through restore and withdrawal: %s", async kind => {
     await run(kind, [{ op: "publish" }, { op: "pin", version: 1 }, { op: "pin", version: 1 }, { op: "edit", value: "second" }, { op: "publish" }, { op: "withdraw" }, { op: "restore", version: 1 }, { op: "publish" }]);
+  });
+  it.each(["fragment", "thread"] as const)("keeps empty publications distinct from withdrawals: %s", async kind => {
+    await run(kind, [{ op: "edit", value: "" }, { op: "publish" }, { op: "pin", version: 1 }, { op: "withdraw" }, { op: "restore", version: 1 }, { op: "publish" }, { op: "pin", version: 3 }, { op: "withdraw" }]);
   });
   it("rejects a rewound version and a changed pinned snapshot in its checker", () => {
     const model: Model = { content: "one", status: "draft", dirty: true, kind: "thread", versions: [] };

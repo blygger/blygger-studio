@@ -36,7 +36,7 @@ it('old approved clients remain usable and still occupy the pool',async()=>{
   await age(f.client.client_id);
   const registration=await f.request(f.issuer+'/oauth2/register',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({redirect_uris:[f.redirect],token_endpoint_auth_method:'none'})},{...env,OAUTH_CLIENT_LIMIT:'1'});
   expect(registration.status).toBe(429);
-  expect((await f.request('/api/settings',{headers:{Authorization:'Bearer '+token}})).status,'reclamation must preserve approved authority').toBe(200);
+  expect((await f.request('/blyg/api/settings',{headers:{Authorization:'Bearer '+token}})).status,'reclamation must preserve approved authority').toBe(200);
 });
 it('a pending live consent protects an old client from reclamation',async()=>{
   const f=await flow();
@@ -49,7 +49,7 @@ it('a pending live consent protects an old client from reclamation',async()=>{
 it('owner-created manual clients do not occupy the anonymous registration pool',async()=>{
   const f=await flow();await f.decide('browser-a',false);
   await env.DB.prepare('DELETE FROM oauthClient WHERE clientId=?').bind(f.client.client_id).run();
-  const minted=await f.request('/api/authorizations',{method:'POST',headers:{cookie:f.owner,'Content-Type':'application/json'},body:JSON.stringify({name:'Owner manual client',scope:['owner:read'],resource:'api'})});
+  const minted=await f.request('/blyg/api/authorizations',{method:'POST',headers:{cookie:f.owner,'Content-Type':'application/json'},body:JSON.stringify({name:'Owner manual client',scope:['owner:read'],resource:'api'})});
   expect(minted.status).toBe(200);
   const registration=await f.request(f.issuer+'/oauth2/register',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({redirect_uris:[f.redirect],token_endpoint_auth_method:'none'})},{...env,OAUTH_CLIENT_LIMIT:'1'});
   expect(registration.status,'manual client must not consume an anonymous slot').toBe(201);

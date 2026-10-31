@@ -63,7 +63,7 @@ describe("auth (§3.2)", () => {
   });
 
   it("guards /api with 401 JSON", async () => {
-    const res = await SELF.fetch(`${BASE}/api/items`, { method: "POST", body: "{}" });
+    const res = await SELF.fetch(`${BASE}/blyg/api/items`, { method: "POST", body: "{}" });
     expect(res.status).toBe(401);
   });
 

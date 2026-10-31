@@ -1,3 +1,4 @@
+import { versionState } from './version-state.ts';
 // Generated changelog notes — decision #40, spec §5.2 + §5.2.
 //
 // The studio drafts a note from the local diff between the published version
@@ -72,7 +73,7 @@ export async function draftChangeNote(
 ): Promise<DraftNoteResult> {
   if (item.version === 0) return { ok: false, status: 409, error: "a first version has no previous version to describe" };
   const prior = await getVersion(env.DB, item.id, item.version);
-  if (!prior || !prior.content_md) return { ok: false, status: 409, error: "the published version is a withdrawal; there is no previous text to compare" };
+  if (!prior || versionState(prior) === "withdrawn") return { ok: false, status: 409, error: "the published version is a withdrawal; there is no previous text to compare" };
   const next = publishableText(item.content_md);
   if (next === null) return { ok: false, status: 400, error: "the working copy has TK scopes that are not publish-ready" };
   if (next === prior.content_md) return { ok: false, status: 409, error: "the working copy is the same as the published version" };

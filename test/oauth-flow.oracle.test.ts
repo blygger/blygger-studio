@@ -47,13 +47,35 @@ describe('OAuth protocol oracles', () => {
     const approved = await f.decide('browser-a', true);
     const code = new URL(approved.headers.get('location')!).searchParams.get('code')!;
     f.model.codes.set(code, { verifier: f.verifier, client: f.client.client_id, redirect: f.redirect, resource: 'api', used: false, expires: 600 });
-    const wrong = field === 'resource' ? f.base + '/blyg/studio/mcp' : field === 'redirect_uri' ? 'https://wrong.example.test/callback' : 'wrong-input';
+    // Use a registered foreign client to reach code binding rather than fail
+    // earlier at the provider's client authentication check.
+    let wrong = 'wrong-input';
+    if (field === 'client_id') {
+      wrong = (await flow()).client.client_id;
+    } else if (field === 'resource') {
+      wrong = f.base + '/blyg/studio/mcp';
+    } else if (field === 'redirect_uri') {
+      wrong = 'https://wrong.example.test/callback';
+    }
     const expected = f.model.exchange(code, field === 'code_verifier' ? wrong : f.verifier, field === 'client_id' ? wrong : f.client.client_id, field === 'redirect_uri' ? wrong : f.redirect, field === 'resource' ? 'mcp' : 'api');
     expect(expected).toBe('rejected');
     const res = await f.token(code, { [field]: wrong });
     const error = await res.clone().json();
     atCheckpoint('OAuth code binding', () => expect(res.status, JSON.stringify(error)).toBe(400));
     expect((await res.json() as { access_token?: string }).access_token).toBeUndefined();
+  });
+  it('rejects an unknown client before exchanging a code', async () => {
+    const f = await flow();
+    const approved = await f.decide('browser-a', true);
+    const code = new URL(approved.headers.get('location')!).searchParams.get('code')!;
+    const response = await f.token(code, { client_id: 'unknown-client' });
+    const body = await response.json() as { error: string; access_token?: string; refresh_token?: string };
+    atCheckpoint('OAuth unknown client authentication', () => {
+      expect(response.status).toBe(401);
+      expect(body.error).toBe('invalid_client');
+      expect(body.access_token).toBeUndefined();
+      expect(body.refresh_token).toBeUndefined();
+    });
   });
   it('exchanges a code once, rotates refresh credentials, and keeps the selected audience', async () => {
     const f = await flow();
@@ -66,7 +88,7 @@ describe('OAuth protocol oracles', () => {
     const original = await response.json() as { access_token: string; refresh_token: string; expires_in: number };
     expect(original.expires_in).toBe(3600);
     expect(f.model.exchange(code, f.verifier, f.client.client_id, f.redirect, 'api')).toBe('rejected');
-    const refresh = (token: string, scope = 'owner:read owner:draft') => f.request(f.issuer + '/oauth2/token', { method: 'POST', headers: { 'Content-Type': 'application/x-www-form-urlencoded' }, body: new URLSearchParams({ grant_type: 'refresh_token', client_id: f.client.client_id, refresh_token: token, resource: f.base + '/api', scope }) });
+    const refresh = (token: string, scope = 'owner:read owner:draft') => f.request(f.issuer + '/oauth2/token', { method: 'POST', headers: { 'Content-Type': 'application/x-www-form-urlencoded' }, body: new URLSearchParams({ grant_type: 'refresh_token', client_id: f.client.client_id, refresh_token: token, resource: f.base + '/blyg/api', scope }) });
     const refreshed = await refresh(original.refresh_token);
     expect(refreshed.status).toBe(200);
     const next = await refreshed.json() as { access_token: string; refresh_token: string; scope: string };
@@ -75,16 +97,16 @@ describe('OAuth protocol oracles', () => {
     // as compromise of the whole grant, including its signed access tokens.
     const rotation = await refresh(next.refresh_token);
     expect(rotation.status).toBe(200);
-    expect((await f.request('/api/settings', { headers: { Authorization: 'Bearer ' + next.access_token } })).status).toBe(200);
+    expect((await f.request('/blyg/api/settings', { headers: { Authorization: 'Bearer ' + next.access_token } })).status).toBe(200);
     expect((await refresh(original.refresh_token)).status).toBe(400);
     atCheckpoint('OAuth refresh cannot escalate scope', () => expect(next.scope.split(' ').sort()).toEqual(['owner:draft', 'owner:read']));
     const latest = await rotation.json() as { refresh_token: string };
     expect((await refresh(latest.refresh_token, 'owner:publish')).status).toBe(400);
-    expect((await f.request('/api/settings', { headers: { Authorization: 'Bearer ' + next.access_token } })).status).toBe(401);
+    expect((await f.request('/blyg/api/settings', { headers: { Authorization: 'Bearer ' + next.access_token } })).status).toBe(401);
     expect((await f.request('/blyg/studio/mcp', { method: 'POST', headers: { Authorization: 'Bearer ' + next.access_token } })).status).toBe(401);
     const replay = await f.token(code);
     atCheckpoint('OAuth code single use', () => expect(replay.status).toBe(400));
-    const revoked = await f.request('/api/settings', { headers: { Authorization: 'Bearer ' + next.access_token } });
+    const revoked = await f.request('/blyg/api/settings', { headers: { Authorization: 'Bearer ' + next.access_token } });
     atCheckpoint('OAuth code replay revokes the grant', () => expect(revoked.status).toBe(401));
   });
   it('rejects a consent handle at its exact expiry boundary', async () => {

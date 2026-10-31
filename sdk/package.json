@@ -1,6 +1,6 @@
 {
   "name": "@blygger/sdk",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "description": "Generated JavaScript and TypeScript client for the Blygger Studio API",
   "type": "module",
   "license": "MIT",
@@ -25,7 +25,7 @@
     }
   },
   "dependencies": {
-    "zod": "^4.6.5"
+    "zod": "^4.6.7"
   },
   "engines": {
     "node": ">=22"

@@ -162,6 +162,16 @@ npx playwright install chromium
 npm run test:e2e
 ```
 
+### Dependency updates
+
+[Renovate](.github/renovate.json) groups related auth, MCP, TanStack DB, and
+Cloudflare packages and refreshes lockfiles weekly. It follows prereleases for
+TanStack DB and Miniflare. Update pull requests require manual review and merge.
+
+To activate it, merge the config into the default branch and grant the
+[Renovate GitHub app](https://github.com/apps/renovate) access to this repository.
+For a fork, select the repository explicitly when installing the app.
+
 ## Public page caching
 
 Public HTML pages use a shared Cloudflare cache for 60 seconds. After expiry,
@@ -310,25 +320,25 @@ Download assets from the same release so the SDK and contract match the Worker.
 Install the SDK archive, then use it from an app on the same origin as Studio:
 
 ```sh
-npm install ./blygger-sdk-0.1.1.tgz
+npm install ./blygger-sdk-SDK_VERSION.tgz
 ```
 
 ```js
 import { BlyggerApi, createBlyggerClient, unwrap } from "@blygger/sdk";
 
-const client = createBlyggerClient({ baseUrl: window.location.origin });
+const client = createBlyggerClient({ baseUrl: new URL("/blyg/api", window.location.origin).href });
 const reading = await unwrap(BlyggerApi.listReading({ client, query: { offset: 0, limit: 25 } }));
 ```
 
-Sign into `/studio` first: API calls use its owner session cookie. The SDK does
+Sign into `{mount}/studio` first: API calls use its owner session cookie. The SDK does
 not create a login session. Node clients must supply a session cookie in
 `headers` or a custom transport. See [SDK usage](sdk/README.md). Never embed an
 owner cookie in browser source. Cross-origin clients can use resource-bound bearer tokens from Studio’s access page. See [client access](docs/client-access.md) for scopes, revocation, and the mounted OAuth/MCP discovery profile. Install the downloads locally. The SDK is not published to the npm registry.
 
-The downloaded OpenAPI file describes `/api` paths. Its default server is
-`http://localhost:8787`. Select your deployed origin in the API tool or generator.
+The downloaded OpenAPI file describes paths relative to the API base. Its default server is
+`http://localhost:8787/api`. Select your full `{mount}/api` URL in the API tool or generator.
 The deployed contract is also available to a signed-in owner at
-`/api/openapi.json`. Downloading the spec does not grant access to the API.
+`{mount}/api/openapi.json`. Downloading the spec does not grant access to the API.
 See [the owner API guide](docs/api.md) for resource routes, partial edits, creation, and pagination.
 
 Interface experiments that should not become the reference design ship as
@@ -404,7 +414,7 @@ For an already published checkout, use only the build and verification commands.
 ## Layout
 
 ```
-src/index.ts        routes — studio and /api registered before the public sub-app
+src/index.ts        routes — mounted Studio and API registered before the public sub-app
 src/protocol.ts     the wire: manifest, feed, item documents
 src/model.ts        publish/withdraw/pin/restore, the state machine
 src/importer/       subscribe side — resolve, feed parse, poll, hoppers, L0
@@ -469,7 +479,7 @@ See [the owner API guide](docs/api.md) for the replacement routes.
 
 The private Studio API now has a checked-in [OpenAPI contract](openapi.json) and a
 [generated JavaScript/TypeScript SDK](sdk/README.md). The owner can download the same
-contract at `/api/openapi.json`. It uses the existing session cookie. This API does
+contract at `{mount}/api/openapi.json`. It uses the existing session cookie. This API does
 not define a public publishing protocol.
 
 `npm run openapi` updates the contract. `npm run sdk:generate` rebuilds the SDK
@@ -482,8 +492,7 @@ Studio 0.10.0 uses React, TanStack Router, TanStack DB, and Base UI. Route loade
 preload collections through the SDK. Active views poll the D1-backed API every
 15 seconds, pause while the tab is hidden, and refresh on focus. Polling keeps
 unsaved editor text. The Worker embeds the browser assets. Deployment needs no
-extra asset binding. For a mounted installation, forward `{mount}/*` and
-`/api/*`, including `{mount}/studio/app.js` and `{mount}/studio/app.css`.
+extra asset binding. For a mounted installation, forward `{mount}/*`, including `{mount}/studio/app.js` and `{mount}/studio/app.css`.
 
 See [the migration plan](docs/migration.md) for the completed SPA cutover and the
 OAuth and MCP client access.

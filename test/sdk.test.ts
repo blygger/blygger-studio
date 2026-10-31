@@ -8,7 +8,7 @@ import { login, BASE, apiJson } from "./helpers.ts";
 import { createSubscription, upsertL0Item } from "../src/importer/store.ts";
 import { ReadingEntrySchema } from "../src/contract/routes.ts";
 
-const clientFor = (cookie = "") => createBlyggerClient({ baseUrl: BASE, headers: { cookie }, fetch: (input, init) => SELF.fetch(input instanceof Request ? input : new Request(input, init)) });
+const clientFor = (cookie = "") => createBlyggerClient({ baseUrl: BASE + '/blyg/api', headers: { cookie }, fetch: (input, init) => SELF.fetch(input instanceof Request ? input : new Request(input, init)) });
 
 describe("generated SDK against the real Worker", () => {
   it("creates, reads, edits, publishes, pins, restores and withdraws through named methods", async () => {
@@ -29,7 +29,7 @@ describe("generated SDK against the real Worker", () => {
   it("preserves structured validation and authorization failures", async () => {
     await expect(unwrap(BlyggerApi.getSettings({ client: clientFor() }))).rejects.toMatchObject({ statusCode: 401, body: { error: "unauthorized" } });
     await expect(unwrap(BlyggerApi.generateItem({ client: clientFor(await login()), path: { id: "unknown" }, body: { scope: -1 } }))).rejects.toBeInstanceOf(BlyggerApiError);
-    const response = await SELF.fetch(`${BASE}/api/items`, { method: "POST", headers: { cookie: await login(), "content-type": "application/json" }, body: '{"content_md":42}' });
+    const response = await SELF.fetch(`${BASE}/blyg/api/items`, { method: "POST", headers: { cookie: await login(), "content-type": "application/json" }, body: '{"content_md":42}' });
     expect(response.status).toBe(400);
     expect((await response.json<{ error: string }>()).error).toContain("content_md");
   });
@@ -49,7 +49,7 @@ describe("generated SDK against the real Worker", () => {
   });
   it("never retries a write after a lost or failed response", async () => {
     let calls = 0;
-    const client = createBlyggerClient({ baseUrl: BASE, fetch: async () => { calls++; return Response.json({ error: "unavailable" }, { status: 502 }); } });
+    const client = createBlyggerClient({ baseUrl: BASE + '/blyg/api', fetch: async () => { calls++; return Response.json({ error: "unavailable" }, { status: 502 }); } });
     await expect(unwrap(BlyggerApi.createItem({ client: client }))).rejects.toMatchObject({ statusCode: 502 });
     expect(calls).toBe(1);
   });
@@ -57,7 +57,7 @@ describe("generated SDK against the real Worker", () => {
     const cookie = await login(), ordinary = clientFor(cookie);
     const before = await unwrap(BlyggerApi.listItems({ client: ordinary }));
     let calls = 0, committedId = "";
-    const lost = createBlyggerClient({ baseUrl: BASE, headers: { cookie }, fetch: async (input, init) => {
+    const lost = createBlyggerClient({ baseUrl: BASE + '/blyg/api', headers: { cookie }, fetch: async (input, init) => {
       calls++;
       const response = await SELF.fetch(input instanceof Request ? input : new Request(input, init));
       expect(response.status).toBe(201);
@@ -76,12 +76,12 @@ describe("generated SDK against the real Worker", () => {
     const client = clientFor(cookie), draft = await unwrap(BlyggerApi.createItem({ client: client }));
     const hopper = await unwrap(BlyggerApi.createHopper({ client: client, body: { name: "SDK contract" } }));
     const cases: [keyof typeof routes, string, string, unknown?][] = [
-      ["listItems", "GET", "/api/items"], ["getItem", "GET", `/api/items/${draft.id}`],
-      ["getSettings", "GET", "/api/settings"], ["listSubscriptions", "GET", "/api/subscriptions"],
-      ["listHoppers", "GET", "/api/hoppers"], ["getHopper", "GET", `/api/hoppers/${hopper.id}`],
-      ["listSignals", "GET", "/api/signals"], ["listMentions", "GET", "/api/mentions"],
-      ["listReading", "GET", "/api/reading"], ["preview", "POST", "/api/preview", { content_md: "contract" }],
-      ["search", "GET", "/api/search"], ["publishItem", "POST", `/api/items/${draft.id}/publish`, {}],
+      ["listItems", "GET", "/blyg/api/items"], ["getItem", "GET", `/blyg/api/items/${draft.id}`],
+      ["getSettings", "GET", "/blyg/api/settings"], ["listSubscriptions", "GET", "/blyg/api/subscriptions"],
+      ["listHoppers", "GET", "/blyg/api/hoppers"], ["getHopper", "GET", `/blyg/api/hoppers/${hopper.id}`],
+      ["listSignals", "GET", "/blyg/api/signals"], ["listMentions", "GET", "/blyg/api/mentions"],
+      ["listReading", "GET", "/blyg/api/reading"], ["preview", "POST", "/blyg/api/preview", { content_md: "contract" }],
+      ["search", "GET", "/blyg/api/search"], ["publishItem", "POST", `/blyg/api/items/${draft.id}/publish`, {}],
     ];
     for (const [operation, method, path, body] of cases) {
       const response = await apiJson(cookie, method, path, body);
@@ -114,7 +114,7 @@ describe("generated SDK against the real Worker", () => {
   it("returns JSON errors for malformed JSON and unsupported media types", async () => {
     const cookie = await login();
     for (const [type, body, status] of [["application/json", "{", 400], ["text/plain", "hello", 415]] as const) {
-      const res = await SELF.fetch(`${BASE}/api/items`, { method: "POST", headers: { cookie, "content-type": type }, body });
+      const res = await SELF.fetch(`${BASE}/blyg/api/items`, { method: "POST", headers: { cookie, "content-type": type }, body });
       expect(res.status).toBe(status);
       expect(res.headers.get("content-type")).toContain("application/json");
       expect(await res.json()).toMatchObject({ error: expect.any(String) });
@@ -123,22 +123,22 @@ describe("generated SDK against the real Worker", () => {
   it("keeps empty command bodies compatible with default JSON headers", async () => {
     const cookie = await login();
     const command = (path: string, body?: string) => SELF.fetch(`${BASE}${path}`, { method: "POST", headers: { cookie, "content-type": "application/json" }, body });
-    const created = await command("/api/items", "");
+    const created = await command("/blyg/api/items", "");
     expect(created.status).toBe(201);
     const { id } = await created.json<{ id: string }>();
     await unwrap(BlyggerApi.updateItem({ client: clientFor(cookie), path: { id }, body: { content_md: "empty-body commands" } }));
-    expect((await command(`/api/items/${id}/publish`)).status).toBe(200);
-    expect((await command(`/api/items/${id}/withdraw`, "")).status).toBe(200);
-    expect((await command("/api/items", "{")).status).toBe(400);
+    expect((await command(`/blyg/api/items/${id}/publish`)).status).toBe(200);
+    expect((await command(`/blyg/api/items/${id}/withdraw`, "")).status).toBe(200);
+    expect((await command("/blyg/api/items", "{")).status).toBe(400);
   });
   it("documents the upload file as required and rejects missing or non-file values", async () => {
     const cookie = await login();
-    const spec = await (await SELF.fetch(`${BASE}/api/openapi.json`, { headers: { cookie } })).json<any>();
-    expect(spec.paths["/api/media"].post.requestBody.content["multipart/form-data"].schema.required).toContain("file");
+    const spec = await (await SELF.fetch(`${BASE}/blyg/api/openapi.json`, { headers: { cookie } })).json<any>();
+    expect(spec.paths["/media"].post.requestBody.content["multipart/form-data"].schema.required).toContain("file");
     for (const field of [null, "not a file"]) {
       const body = new FormData();
       if (field) body.set("file", field);
-      const res = await SELF.fetch(`${BASE}/api/media`, { method: "POST", headers: { cookie }, body });
+      const res = await SELF.fetch(`${BASE}/blyg/api/media`, { method: "POST", headers: { cookie }, body });
       expect(res.status).toBe(400);
       expect(await res.json()).toMatchObject({ error: expect.any(String) });
     }

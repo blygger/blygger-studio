@@ -12,20 +12,20 @@ import { apiJson, BASE, login, STUDIO } from "../helpers.ts";
 describe("subscription API (§4.2)", () => {
   it("400s without a url", async () => {
     const cookie = await login();
-    const { status, json } = await apiJson(cookie, "POST", "/api/subscriptions", {});
+    const { status, json } = await apiJson(cookie, "POST", "/blyg/api/subscriptions", {});
     expect(status).toBe(400);
     expect(json.error).toMatch(/url/);
   });
 
   it("422s with the probe trail for an unresolvable URL", async () => {
     const cookie = await login();
-    const { status, json } = await apiJson(cookie, "POST", "/api/subscriptions", { url: "not a url" });
+    const { status, json } = await apiJson(cookie, "POST", "/blyg/api/subscriptions", { url: "not a url" });
     expect(status).toBe(422);
     expect(json.tried).toEqual([]);
   });
 
   it("requires auth", async () => {
-    const res = await SELF.fetch(`${BASE}/api/subscriptions`, {
+    const res = await SELF.fetch(`${BASE}/blyg/api/subscriptions`, {
       method: "POST",
       headers: { "content-type": "application/json" },
       body: JSON.stringify({ url: "https://a.example/" }),
@@ -36,7 +36,7 @@ describe("subscription API (§4.2)", () => {
   it("PUT toggles the blogroll flag and title override on an existing subscription", async () => {
     const cookie = await login();
     const sub = await createSubscription(env.DB, { kind: "blyg", origin: "https://a.example/", feedUrl: "https://a.example/feed.xml", title: "A" });
-    const put = await apiJson(cookie, "PATCH", `/api/subscriptions/${sub.id}`, { in_blogroll: true, title: "Renamed" });
+    const put = await apiJson(cookie, "PATCH", `/blyg/api/subscriptions/${sub.id}`, { in_blogroll: true, title: "Renamed" });
     expect(put.status).toBe(200);
     const after = await getSubscription(env.DB, sub.id);
     expect(after).toMatchObject({ in_blogroll: 1, title: "Renamed" });
@@ -46,27 +46,27 @@ describe("subscription API (§4.2)", () => {
     const cookie = await login();
     const sub = await createSubscription(env.DB, { kind: "blyg", origin: "https://b.example/", feedUrl: "https://b.example/feed.xml", title: "B" });
 
-    const pause = await apiJson(cookie, "PATCH", `/api/subscriptions/${sub.id}`, { paused: true });
+    const pause = await apiJson(cookie, "PATCH", `/blyg/api/subscriptions/${sub.id}`, { paused: true });
     expect(pause.status).toBe(200);
     expect((await getSubscription(env.DB, sub.id))?.status).toBe("paused");
 
-    const resume = await apiJson(cookie, "PATCH", `/api/subscriptions/${sub.id}`, { paused: false });
+    const resume = await apiJson(cookie, "PATCH", `/blyg/api/subscriptions/${sub.id}`, { paused: false });
     expect(resume.status).toBe(200);
     expect((await getSubscription(env.DB, sub.id))?.status).toBe("active");
 
-    const del = await apiJson(cookie, "DELETE", `/api/subscriptions/${sub.id}`);
+    const del = await apiJson(cookie, "DELETE", `/blyg/api/subscriptions/${sub.id}`);
     expect(del.status).toBe(200);
     expect(await getSubscription(env.DB, sub.id)).toBeNull();
-    const delAgain = await apiJson(cookie, "DELETE", `/api/subscriptions/${sub.id}`);
+    const delAgain = await apiJson(cookie, "DELETE", `/blyg/api/subscriptions/${sub.id}`);
     expect(delAgain.status).toBe(404);
   });
 
   it("404s pause/resume/resync/put/delete for an unknown id", async () => {
     const cookie = await login();
     for (const [method, path] of [
-      ["PATCH", "/api/subscriptions/nope"],
-      ["POST", "/api/subscriptions/nope/resync"],
-      ["DELETE", "/api/subscriptions/nope"],
+      ["PATCH", "/blyg/api/subscriptions/nope"],
+      ["POST", "/blyg/api/subscriptions/nope/resync"],
+      ["DELETE", "/blyg/api/subscriptions/nope"],
     ] as const) {
       const { status } = await apiJson(cookie, method, path, method === "PATCH" ? {} : undefined);
       expect(status).toBe(404);
@@ -87,38 +87,38 @@ describe("hopper + signal API routes", () => {
     const cookie = await login();
     const sub = await createSubscription(env.DB, { kind: "blyg", origin: "https://d.example/", feedUrl: "https://d.example/feed.xml", title: "D" });
 
-    const created = await apiJson(cookie, "POST", "/api/hoppers", { name: "My Hopper" });
+    const created = await apiJson(cookie, "POST", "/blyg/api/hoppers", { name: "My Hopper" });
     expect(created.status).toBe(201);
     expect(created.json.slug).toBe("my-hopper");
     const hopperId = created.json.id;
 
-    const add = await apiJson(cookie, "PUT", `/api/hoppers/${hopperId}/items/${sub.id}/remote-1`);
+    const add = await apiJson(cookie, "PUT", `/blyg/api/hoppers/${hopperId}/items/${sub.id}/remote-1`);
     expect(add.status).toBe(200);
 
-    const togglePublic = await apiJson(cookie, "PATCH", `/api/hoppers/${hopperId}`, { public: true });
+    const togglePublic = await apiJson(cookie, "PATCH", `/blyg/api/hoppers/${hopperId}`, { public: true });
     expect(togglePublic.status).toBe(200);
 
-    const remove = await apiJson(cookie, "DELETE", `/api/hoppers/${hopperId}/items/${sub.id}/remote-1`);
+    const remove = await apiJson(cookie, "DELETE", `/blyg/api/hoppers/${hopperId}/items/${sub.id}/remote-1`);
     expect(remove.status).toBe(200);
 
-    const del = await apiJson(cookie, "DELETE", `/api/hoppers/${hopperId}`);
+    const del = await apiJson(cookie, "DELETE", `/blyg/api/hoppers/${hopperId}`);
     expect(del.status).toBe(200);
   });
 
   it("slugs collide-safely on duplicate names", async () => {
     const cookie = await login();
-    const first = await apiJson(cookie, "POST", "/api/hoppers", { name: "Dup" });
-    const second = await apiJson(cookie, "POST", "/api/hoppers", { name: "Dup" });
+    const first = await apiJson(cookie, "POST", "/blyg/api/hoppers", { name: "Dup" });
+    const second = await apiJson(cookie, "POST", "/blyg/api/hoppers", { name: "Dup" });
     expect(first.json.slug).toBe("dup");
     expect(second.json.slug).toBe("dup-2");
   });
 
   it("renaming a never-public hopper re-derives its slug", async () => {
     const cookie = await login();
-    const created = await apiJson(cookie, "POST", "/api/hoppers", { name: "Draft ideas" });
+    const created = await apiJson(cookie, "POST", "/blyg/api/hoppers", { name: "Draft ideas" });
     expect(created.json.slug).toBe("draft-ideas");
 
-    const renamed = await apiJson(cookie, "PATCH", `/api/hoppers/${created.json.id}`, { name: "Protocol reading" });
+    const renamed = await apiJson(cookie, "PATCH", `/blyg/api/hoppers/${created.json.id}`, { name: "Protocol reading" });
     expect(renamed.status).toBe(200);
     expect(renamed.json.slug).toBe("protocol-reading");
     expect((await getHopper(env.DB, created.json.id))!.name).toBe("Protocol reading");
@@ -129,27 +129,27 @@ describe("hopper + signal API routes", () => {
     // A public hopper's /h/{slug}/ URL is its only address — nothing lists
     // hoppers, so every visitor came from a link. Renaming moves the name only.
     const cookie = await login();
-    const created = await apiJson(cookie, "POST", "/api/hoppers", { name: "Good stuff" });
-    await apiJson(cookie, "PATCH", `/api/hoppers/${created.json.id}`, { public: true });
+    const created = await apiJson(cookie, "POST", "/blyg/api/hoppers", { name: "Good stuff" });
+    await apiJson(cookie, "PATCH", `/blyg/api/hoppers/${created.json.id}`, { public: true });
 
-    const renamed = await apiJson(cookie, "PATCH", `/api/hoppers/${created.json.id}`, { name: "Even better stuff" });
+    const renamed = await apiJson(cookie, "PATCH", `/blyg/api/hoppers/${created.json.id}`, { name: "Even better stuff" });
     expect(renamed.json.slug).toBe("good-stuff");
     const row = (await getHopper(env.DB, created.json.id))!;
     expect(row.name).toBe("Even better stuff");
     expect(row.slug).toBe("good-stuff");
 
     // Taking it private again does not release the address.
-    await apiJson(cookie, "PATCH", `/api/hoppers/${created.json.id}`, { public: false });
+    await apiJson(cookie, "PATCH", `/blyg/api/hoppers/${created.json.id}`, { public: false });
     const afterPrivate = (await getHopper(env.DB, created.json.id))!;
     expect(afterPrivate.slug_frozen).toBe(1);
-    await apiJson(cookie, "PATCH", `/api/hoppers/${created.json.id}`, { name: "Third name" });
+    await apiJson(cookie, "PATCH", `/blyg/api/hoppers/${created.json.id}`, { name: "Third name" });
     expect((await getHopper(env.DB, created.json.id))!.slug).toBe("good-stuff");
   });
 
   it("a rename that publishes in the same request freezes the NEW slug", async () => {
     const cookie = await login();
-    const created = await apiJson(cookie, "POST", "/api/hoppers", { name: "Untitled" });
-    const res = await apiJson(cookie, "PATCH", `/api/hoppers/${created.json.id}`, { name: "Reading list", public: true });
+    const created = await apiJson(cookie, "POST", "/blyg/api/hoppers", { name: "Untitled" });
+    const res = await apiJson(cookie, "PATCH", `/blyg/api/hoppers/${created.json.id}`, { name: "Reading list", public: true });
     expect(res.json.slug).toBe("reading-list");
     const row = (await getHopper(env.DB, created.json.id))!;
     expect(row.slug).toBe("reading-list");
@@ -158,24 +158,24 @@ describe("hopper + signal API routes", () => {
 
   it("a rename keeps its own slug instead of colliding with itself", async () => {
     const cookie = await login();
-    const created = await apiJson(cookie, "POST", "/api/hoppers", { name: "Same" });
-    const renamed = await apiJson(cookie, "PATCH", `/api/hoppers/${created.json.id}`, { name: "Same" });
+    const created = await apiJson(cookie, "POST", "/blyg/api/hoppers", { name: "Same" });
+    const renamed = await apiJson(cookie, "PATCH", `/blyg/api/hoppers/${created.json.id}`, { name: "Same" });
     expect(renamed.json.slug).toBe("same"); // not "same-2"
   });
 
   it("rejects an empty rename and 404s an unknown hopper", async () => {
     const cookie = await login();
-    const created = await apiJson(cookie, "POST", "/api/hoppers", { name: "Real" });
-    expect((await apiJson(cookie, "PATCH", `/api/hoppers/${created.json.id}`, { name: "   " })).status).toBe(400);
-    expect((await apiJson(cookie, "PATCH", "/api/hoppers/nope", { name: "x" })).status).toBe(404);
+    const created = await apiJson(cookie, "POST", "/blyg/api/hoppers", { name: "Real" });
+    expect((await apiJson(cookie, "PATCH", `/blyg/api/hoppers/${created.json.id}`, { name: "   " })).status).toBe(400);
+    expect((await apiJson(cookie, "PATCH", "/blyg/api/hoppers/nope", { name: "x" })).status).toBe(404);
   });
 
   it("PUT /api/signals sets a thumb; rejects an invalid value", async () => {
     const cookie = await login();
     const sub = await createSubscription(env.DB, { kind: "blyg", origin: "https://e.example/", feedUrl: "https://e.example/feed.xml", title: "E" });
-    const ok = await apiJson(cookie, "PUT", `/api/signals/${sub.id}/remote-1`, { thumb: 1 });
+    const ok = await apiJson(cookie, "PUT", `/blyg/api/signals/${sub.id}/remote-1`, { thumb: 1 });
     expect(ok.status).toBe(200);
-    const bad = await apiJson(cookie, "PUT", `/api/signals/${sub.id}/remote-1`, { thumb: 0 });
+    const bad = await apiJson(cookie, "PUT", `/blyg/api/signals/${sub.id}/remote-1`, { thumb: 0 });
     expect(bad.status).toBe(400);
   });
 });
@@ -191,9 +191,9 @@ describe("the stub action (§3.1, decision #27 — absorbs `respond`)", () => {
       contentHash: "hash-l0",
     });
 
-    const created = await apiJson(cookie, "POST", "/api/items", { mode: "response", source: { subscription_id: sub.id, remote_id: "l0-xyz" } });
+    const created = await apiJson(cookie, "POST", "/blyg/api/items", { mode: "response", source: { subscription_id: sub.id, remote_id: "l0-xyz" } });
     expect(created.status).toBe(201);
-    const detail = await apiJson(cookie, "GET", `/api/items/${created.json.id}`);
+    const detail = await apiJson(cookie, "GET", `/blyg/api/items/${created.json.id}`);
     expect(detail.status).toBe(200);
     expect(detail.json.content_md).toBe("[Our Eukaryotic Moment](https://blog.example/p/euk)\n\n");
     expect(detail.json.content_md).not.toContain("secret body prose");
@@ -209,21 +209,21 @@ describe("the stub action (§3.1, decision #27 — absorbs `respond`)", () => {
     });
     await env.DB.prepare("UPDATE imported_items SET l0 = 0 WHERE subscription_id = ? AND remote_id = ?").bind(sub.id, "abc123").run();
 
-    const created = await apiJson(cookie, "POST", "/api/items", { mode: "response", source: { subscription_id: sub.id, remote_id: "abc123" } });
+    const created = await apiJson(cookie, "POST", "/blyg/api/items", { mode: "response", source: { subscription_id: sub.id, remote_id: "abc123" } });
     expect(created.status).toBe(201);
     const row = await env.DB.prepare("SELECT kind, content_md, stub_of FROM items WHERE id = ?").bind(created.json.id).first<any>();
     expect(row.kind).toBe("thread");
     expect(row.content_md).toBe("![[abc123]]\n\n");
     expect(JSON.parse(row.stub_of)).toEqual({ origin: "https://friend.example/blyg/", id: "abc123", version: 3 });
 
-    const detail = await apiJson(cookie, "GET", `/api/items/${created.json.id}`);
+    const detail = await apiJson(cookie, "GET", `/blyg/api/items/${created.json.id}`);
     expect(detail.status).toBe(200);
     expect(detail.json.stub_of).toMatchObject({ origin: "https://friend.example/blyg/", id: "abc123", version: 3 });
   });
 
   it("404s for an unknown subscription or item, and 400s with no target", async () => {
     const cookie = await login();
-    expect((await apiJson(cookie, "POST", "/api/items", { mode: "response", source: {} })).status).toBe(400);
-    expect((await apiJson(cookie, "POST", "/api/items", { mode: "response", source: { subscription_id: "nope", remote_id: "x" } })).status).toBe(404);
+    expect((await apiJson(cookie, "POST", "/blyg/api/items", { mode: "response", source: {} })).status).toBe(400);
+    expect((await apiJson(cookie, "POST", "/blyg/api/items", { mode: "response", source: { subscription_id: "nope", remote_id: "x" } })).status).toBe(404);
   });
 });

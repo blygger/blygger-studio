@@ -12,7 +12,7 @@
  * complete projection, not the stale projection read before that writer ran.
  * History grammar: subsets of text/kind/response/stub-clear fields, plus one invalid
  * response enum, malformed citation, immutable field or fragment-stub combination.
- * Fixed races change kind, stub or withdrawal after validation but before the write.
+ * Fixed races change kind, stub, withdrawal or provenance-validation text before the write.
  * Driver: generated SDK through SELF for ordinary patches. Race probes call ownerApi
  * with a D1 proxy that runs a real competing update at the guarded SQL boundary.
  * Refinement: exact status and subsequent owner GET; the race seam must run once.
@@ -35,7 +35,7 @@ import { atCheckpoint, campaign } from "./oracle-campaign.ts";
 // A fragment-stub case exercises domain rejection beyond JSON shape validation.
 // Sampling does not exhaust all eighty boolean/rejection cells.
 const input = fc.record({ text: fc.boolean(), kind: fc.boolean(), responses: fc.boolean(), clear: fc.boolean(), invalid: fc.constantFrom("none", "responses", "stub", "immutable", "domain") });
-const clientFor = (cookie: string) => createBlyggerClient({ baseUrl: BASE, headers: { cookie }, fetch: (request, init) => SELF.fetch(request instanceof Request ? request : new Request(request, init)) });
+const clientFor = (cookie: string) => createBlyggerClient({ baseUrl: BASE + '/blyg/api', headers: { cookie }, fetch: (request, init) => SELF.fetch(request instanceof Request ? request : new Request(request, init)) });
 async function patch(input: { text: boolean; kind: boolean; responses: boolean; clear: boolean; invalid: string }) {
   const client = clientFor(await login());
   const draft = await unwrap(BlyggerApi.createItem({ client, body: { kind: input.invalid === "domain" ? "fragment" : "thread", content_md: "before" } }));
@@ -59,6 +59,41 @@ async function patch(input: { text: boolean; kind: boolean; responses: boolean; 
   else atCheckpoint("PATCH changes only requested fields", () => expect(input.text || input.kind || input.clear ? { ...after, updated: before.updated } : after).toEqual({ ...before, ...(input.text ? { content_md: "after" } : {}), ...(input.kind ? { kind: "fragment", authored_kind: "fragment" } : {}), ...(input.responses ? { responses: "hide" } : {}) }));
 }
 describe("PATCH atomicity oracle", () => {
+  it.each([false, true])("guards stored text only when provenance validation used it (replacement text: %s)", async replacement => {
+    const cookie = await login();
+    const draft = await unwrap(BlyggerApi.createItem({ client: clientFor(cookie), body: { content_md: "[TK]instruction[=]output[/TK]" } }));
+    let reached = 0;
+    let concurrent: unknown;
+    const db = new Proxy(env.DB, { get(target, key) {
+      if (key === "prepare") return (sql: string) => {
+        const statement = target.prepare(sql);
+        if (!sql.startsWith("UPDATE items SET")) return statement;
+        return { bind: (...values: Parameters<D1PreparedStatement["bind"]>) => {
+          const bound = statement.bind(...values);
+          return { first: async () => {
+            reached++;
+            await unwrap(BlyggerApi.updateItem({ client: clientFor(cookie), path: { id: draft.id }, body: { content_md: "no scopes remain" } }));
+            concurrent = await unwrap(BlyggerApi.getItem({ client: clientFor(cookie), path: { id: draft.id } }));
+            return bound.first();
+          } };
+        } } as D1PreparedStatement;
+      };
+      const value = Reflect.get(target, key);
+      return typeof value === "function" ? value.bind(target) : value;
+    } });
+    const context = createExecutionContext();
+    const body = { provenance: [{ sources: [], model: "client-model" }], ...(replacement ? { content_md: "[TK]replacement[=]new output[/TK]" } : {}) };
+    const response = await ownerApi.fetch(new Request(`${BASE}/items/${draft.id}`, {
+      method: "PATCH", headers: { cookie, "content-type": "application/json" }, body: JSON.stringify(body),
+    }), { ...env, DB: db } as Env, context);
+    await waitOnExecutionContext(context);
+
+    expect(reached).toBe(1);
+    expect(response.status).toBe(replacement ? 200 : 409);
+    const after = await unwrap(BlyggerApi.getItem({ client: clientFor(cookie), path: { id: draft.id } }));
+    if (replacement) expect(after).toMatchObject(body);
+    else expect(after).toEqual(concurrent);
+  });
   it("exercises every field and each rejection branch", async () => {
     for (const invalid of ["none", "responses", "stub", "immutable", "domain"]) await patch({ text: true, kind: true, responses: true, clear: true, invalid });
   });

@@ -72,7 +72,7 @@ describe('OAuth implementation source boundaries', () => {
   });
   it('permits at most one concurrent rotation and revokes the active descendant on detected old-token reuse', async () => {
     const f = await approved(), issued = await (await f.token(f.code)).json() as { refresh_token: string; access_token: string };
-    const refresh = (token: string) => f.request(f.issuer + '/oauth2/token', { method: 'POST', body: new URLSearchParams({ grant_type: 'refresh_token', client_id: f.client.client_id, refresh_token: token, resource: f.base + '/api' }) });
+    const refresh = (token: string) => f.request(f.issuer + '/oauth2/token', { method: 'POST', body: new URLSearchParams({ grant_type: 'refresh_token', client_id: f.client.client_id, refresh_token: token, resource: f.base + '/blyg/api' }) });
     const responses = await Promise.all([refresh(issued.refresh_token), refresh(issued.refresh_token)]);
     const winners = responses.filter(response => response.status === 200);
     expect(winners.length).toBeLessThanOrEqual(1);
@@ -85,7 +85,7 @@ describe('OAuth implementation source boundaries', () => {
     if (winner) expect((await refresh(winner.refresh_token)).status).toBe(400);
     // Replay may settle before the concurrent winner returns. It is safe to
     // reject both, but not to leave either access credential usable afterward.
-    const access = await f.request('/api/settings', { headers: { Authorization: 'Bearer ' + issued.access_token } });
+    const access = await f.request('/blyg/api/settings', { headers: { Authorization: 'Bearer ' + issued.access_token } });
     expect(access.status).toBe(401);
   });
   it('uses registration metadata error for an unknown requested scope', async () => {

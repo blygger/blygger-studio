@@ -217,6 +217,8 @@ export interface ScopeProvenance {
 }
 
 export interface VersionRow {
+  /** NULL only for legacy versions whose intent was not established (0034). */
+  kind: 'fragment' | 'thread' | 'withdrawn' | null;
   item_id: string;
   version: number;
   content_md: string;
@@ -558,7 +560,7 @@ export const BRAND = {
 /** Reference-client default mount when Env.MOUNT is unset. Deployment lexicon, not wire vocabulary — deliberately ≠ BRAND.slug. */
 export const DEFAULT_MOUNT = "/blyg";
 
-/** Origin-relative path of the reference client's Webmention endpoint (v0.3-plan §2.3.1) — inside the origin surface, because it is a protocol surface, unlike host-rooted /studio and /api. */
+/** Origin-relative path of the reference client's Webmention endpoint (v0.3-plan §2.3.1) — inside the origin surface, because it is a protocol surface. */
 export const WEBMENTION_PATH = "webmention";
 
 /**

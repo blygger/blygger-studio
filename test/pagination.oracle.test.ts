@@ -36,7 +36,7 @@ async function walk(times: number[], width: number) {
   await env.DB.prepare("DELETE FROM signals").run();
   const rows = times.map((time, i) => ({ subscription_id: `s${i % 3}`, remote_id: `r${String(i).padStart(3, "0")}`, thumb: i % 2 ? 1 : -1, at: `2026-10-01T00:00:0${time}Z` }));
   if (rows.length) await env.DB.batch(rows.map(r => env.DB.prepare("INSERT INTO signals (subscription_id, remote_id, thumb, at) VALUES (?, ?, ?, ?)").bind(r.subscription_id, r.remote_id, r.thumb, r.at)));
-  const client = createBlyggerClient({ baseUrl: BASE, headers: { cookie: await login() }, fetch: (input, init) => SELF.fetch(input instanceof Request ? input : new Request(input, init)) });
+  const client = createBlyggerClient({ baseUrl: BASE + '/blyg/api', headers: { cookie: await login() }, fetch: (input, init) => SELF.fetch(input instanceof Request ? input : new Request(input, init)) });
   const reference = expectedRows(rows), observed: Row[] = [];
   // Walk past the end as well as through full pages. Exact per-page envelopes catch
   // wrong totals and offsets; the ordered concatenation catches duplicates or loss

@@ -8,7 +8,7 @@ import { apiJson, createAndPublish, login } from "./helpers.ts";
 
 let cookie = "";
 let mine = "";
-const search = async (query: string) => (await apiJson(cookie, "GET", `/api/search?${query}`)).json as { items: { id: string; source: string; kind: string; source_title: string | null; subscription_id: string | null; excerpt: string }[]; total: number };
+const search = async (query: string) => (await apiJson(cookie, "GET", `/blyg/api/search?${query}`)).json as { items: { id: string; source: string; kind: string; source_title: string | null; subscription_id: string | null; excerpt: string }[]; total: number };
 
 beforeAll(async () => {
   cookie = await login();

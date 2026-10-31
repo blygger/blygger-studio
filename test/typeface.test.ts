@@ -6,12 +6,12 @@ import { apiJson, getPublic, login } from "./helpers.ts";
 import { DEFAULT_FONT, FONTS, fontCss } from "../src/fonts.ts";
 
 const css = async () => (await getPublic("/blyg/style.css")).text();
-const settings = (cookie: string, body: unknown) => apiJson(cookie, "PATCH", "/api/settings", body);
+const settings = (cookie: string, body: unknown) => apiJson(cookie, "PATCH", "/blyg/api/settings", body);
 
 describe("reading typeface", () => {
   it("defaults to the stylesheet's own stack and writes nothing", async () => {
     const cookie = await login();
-    const { json } = await apiJson(cookie, "GET", "/api/settings");
+    const { json } = await apiJson(cookie, "GET", "/blyg/api/settings");
     expect(json.font).toBe(DEFAULT_FONT);
     expect(await css()).not.toContain("/* typeface:");
   });
@@ -42,7 +42,7 @@ describe("reading typeface", () => {
     for (const bad of ["comic-sans", "Georgia", "x; } body { display:none", "constructor"]) {
       expect((await settings(cookie, { font: bad })).status).toBe(400);
     }
-    expect((await apiJson(cookie, "GET", "/api/settings")).json.font).toBe(DEFAULT_FONT);
+    expect((await apiJson(cookie, "GET", "/blyg/api/settings")).json.font).toBe(DEFAULT_FONT);
   });
 
   it("no stack downloads anything", () => {

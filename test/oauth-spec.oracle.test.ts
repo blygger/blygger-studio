@@ -69,7 +69,7 @@ describe('OAuth source-boundary oracles', () => {
   it('revokes the live refresh descendant when an older ancestor is reused', async () => {
     const f = await flow(), accepted = await f.decide('browser-a', true);
     const initial = await (await f.token(new URL(accepted.headers.get('location')!).searchParams.get('code')!)).json() as { refresh_token: string };
-    const refresh = (token: string) => f.request(f.issuer + '/oauth2/token', { method: 'POST', body: new URLSearchParams({ grant_type: 'refresh_token', client_id: f.client.client_id, refresh_token: token, resource: f.base + '/api' }) });
+    const refresh = (token: string) => f.request(f.issuer + '/oauth2/token', { method: 'POST', body: new URLSearchParams({ grant_type: 'refresh_token', client_id: f.client.client_id, refresh_token: token, resource: f.base + '/blyg/api' }) });
     const second = await (await refresh(initial.refresh_token)).json() as { refresh_token: string };
     const third = await (await refresh(second.refresh_token)).json() as { refresh_token: string };
     expect((await refresh(initial.refresh_token)).status).toBe(400);
