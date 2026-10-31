@@ -18,6 +18,32 @@ not have its own repo until session 26.
 
 ---
 
+## 0.49.1 — 2026-10-30
+
+**Migrations: none.**
+
+Two contributed Studio changes (Kyle Mathews' #85 and #86) and two end-to-end test fixes. No API, contract or data changes.
+
+- **The studio title links to the reading page** (#86). The site name and
+  "blygger studio" in the top bar are now a link, with a visible keyboard focus
+  outline.
+- **Preloads and polling use TanStack Query's own machinery** (#85). Hovering or
+  focusing a Studio link now completes the preload: route loaders warm hopper
+  previews, mention source details and reader targets before the page renders.
+  The custom polling scheduler and its per-component hooks are gone; live
+  collections opt into Query's 15-second polling with visibility handling, and
+  Settings and Authorizations refresh on return, reconnect or write without a
+  timer. Reader links (quoted layers, body links, breadcrumbs, history, peek
+  sources) are router links, so they open in new tabs and preload on intent.
+  Hover and focus do not change the browsing trail or log a visit. DB and
+  React DB move to 1.0.0-rc.1, Query Collection to 1.5.0 and Query Core to
+  5.105.0; DB is now an explicit dependency.
+- **`AGENTS.md` is the project instructions file** (#85), with `CLAUDE.md`
+  kept as a symlink to it.
+- Tests: `reader-browse` waits for the feed to end the walk before re-entering
+  an item, and `generated-highlight` runs under the per-test edge identity and
+  resets its setting in `afterEach`.
+
 ## 0.49.0 — 2026-10-29
 
 **Migrations: 0033** (`browse_log`, `link_probe`; both studio-private). Apply it to every D1 before deploying.
