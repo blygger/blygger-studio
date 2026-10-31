@@ -3,14 +3,55 @@
 The owner API lives at `/api`, including installations with a mounted Studio.
 The public Blygger protocol remains separate.
 Sign into Studio before calling the API from a browser on the same origin.
-Server clients must send the owner session cookie.
-OAuth and cross-origin clients belong to the next compatibility phase.
+Delegated clients use scoped bearer tokens. See [Client access](client-access.md)
+for OAuth, manual tokens, and browser access.
 
 Shared Zod definitions validate JSON bodies, path parameters, and query parameters.
 They also define resource responses and generate the OpenAPI 3.1 contract.
 Resource projectors validate their output with these schemas.
 Contract tests validate successful responses against the same definitions.
 Hey API generates the SDK directly from the contract, without changes to generated code.
+
+## Capability discovery
+
+`GET /api/capabilities` accepts an owner session or any valid delegated grant.
+The response contains `contractVersion`, canonical `endpoints`, available
+`operations` by ID, and `extensions` with separate declared, compiled, enabled,
+and caller-granted states. This includes grants with only `reading:state`.
+The generated SDK exposes `getCapabilities`.
+
+OpenAPI describes the whole static contract. Capability discovery and MCP tool
+lists reflect the current node and caller. An operation appears when the caller
+can supply at least one permitted input. Some fields require extra scopes:
+response visibility and generated highlighting need `owner:publish` alongside
+`owner:draft`, and selecting an avatar needs it alongside `owner:manage`.
+Attaching new media to a published item also needs `owner:publish`. Returning an
+existing duplicate does not. The server checks these rules on each execution.
+A discovery result cannot authorize a later call after an extension is disabled.
+
+Operation declarations also name effects and work budgets. Rendering a preview
+stores no domain state and spends the read budget. Link classification can
+store probe results and spends the write budget while requiring `owner:read`.
+Owner grant administration stays session-only and has no delegated MCP tools.
+
+## HTTP responses
+
+Private API responses use `Cache-Control: no-store`, including errors rejected
+before dispatch. Browser bearer requests can read `ETag`, `Retry-After`, `Allow`,
+`Location`, and `WWW-Authenticate` when those headers apply. Wrong-method
+responses identify supported methods in `Allow`.
+
+Public JSON, RSS, OPML, CSS, and stable asset URLs support ETags and conditional
+GET/HEAD. Save the returned ETag and send it as `If-None-Match` on a later read.
+A matching current representation returns 304 without a body. Resource and
+access checks precede validation, so a validator does not bypass private media
+access or make an absent resource available.
+
+Validators cover complete response bytes. A pinned document can get a new ETag
+when live author or origin metadata changes, even when its markdown hash stays
+the same. Legacy media URLs contain random IDs and revalidate. They do not
+promise immutable caching. OAuth discovery keeps its native public cache policy,
+and signing keys revalidate. Token responses use `no-store`.
 
 ## Resources and operations
 
@@ -37,7 +78,8 @@ Consult `openapi.json` for every field and response.
 Publication, withdrawal, restoration, and generation remain explicit operations:
 
 - `POST /items/{id}/publish` and `POST /items/{id}/withdraw` accept an optional publication note.
-- `POST /items/{id}/restore` copies a stored version into the working copy. It does not publish.
+- Empty publications, including media-only versions, retain their authored kind and support pinning, restoration, and forking. Withdrawal endcaps reject pinning and restoration. Ambiguous historical empty versions keep their legacy interpretation after upgrade.
+- `POST /items/{id}/restore` copies a stored version's text and attachment membership into the working copy. It does not publish. Restoring the current version discards attachment additions and restores detached attachments; historical version memberships and retained bytes stay intact.
 - `POST /items/{id}/generate` generates one TK scope.
 - `POST /subscriptions/{id}/resync` refreshes a Blyg subscription.
 - `POST /items/{id}/note-draft` drafts a changelog note from the change between the published version and the working copy. It never publishes. When the published version is unpinned, the note must not reproduce wording that only that version had; a draft that does returns 422. Send `note_generated: true` with `POST /items/{id}/publish` only when the note is that draft, unedited: it becomes `changelog[].generated` on the wire.
@@ -195,7 +237,10 @@ const item = await unwrap(BlyggerApi.updateItem({
 Item edits accept `content_md`, `kind`, `stub_of`, and `responses`.
 The response policy is `default`, `show`, or `hide`.
 Kind becomes fixed after the first publication.
-Fork lineage and generation provenance cannot change through PATCH.
+Fork lineage cannot change through PATCH. Client-recorded generation provenance
+can change when it matches the resulting TK scopes. A provenance-only patch
+guards the stored text used by that validation. A competing text change returns
+409 rather than applying provenance to different scopes.
 
 All requested changes must pass schema and domain validation before a write.
 Item and hopper writes guard the state that their domain rules used.

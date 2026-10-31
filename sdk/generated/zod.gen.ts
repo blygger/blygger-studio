@@ -28,6 +28,26 @@ export const zApiError = z.object({
     })).optional()
 }).catchall(z.unknown());
 
+export const zCapabilities = z.object({
+    contractVersion: z.string(),
+    endpoints: z.object({
+        publicBase: z.string(),
+        studio: z.string(),
+        api: z.string(),
+        issuer: z.string(),
+        mcp: z.string(),
+        media: z.string()
+    }),
+    operations: z.array(z.string()),
+    extensions: z.array(z.object({
+        name: z.string(),
+        declared: z.boolean(),
+        compiled: z.boolean(),
+        enabled: z.boolean(),
+        granted: z.boolean()
+    }))
+});
+
 export const zChangeState = z.object({
     epoch: z.string().min(1),
     domains: z.object({
@@ -655,6 +675,11 @@ export const zRevokeAuthorizationPath = z.object({
 export const zRevokeAuthorizationResponse = z.object({
     ok: z.boolean()
 });
+
+/**
+ * Success
+ */
+export const zGetCapabilitiesResponse = zCapabilities;
 
 /**
  * Success

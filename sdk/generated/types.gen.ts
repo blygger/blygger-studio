@@ -32,6 +32,26 @@ export type ApiError = {
     [key: string]: unknown;
 };
 
+export type Capabilities = {
+    contractVersion: string;
+    endpoints: {
+        publicBase: string;
+        studio: string;
+        api: string;
+        issuer: string;
+        mcp: string;
+        media: string;
+    };
+    operations: Array<string>;
+    extensions: Array<{
+        name: string;
+        declared: boolean;
+        compiled: boolean;
+        enabled: boolean;
+        granted: boolean;
+    }>;
+};
+
 export type ChangeState = {
     epoch: string;
     domains: {
@@ -848,6 +868,75 @@ export type RevokeAuthorizationResponses = {
 };
 
 export type RevokeAuthorizationResponse = RevokeAuthorizationResponses[keyof RevokeAuthorizationResponses];
+
+export type GetCapabilitiesData = {
+    body?: never;
+    path?: never;
+    query?: never;
+    url: '/api/capabilities';
+};
+
+export type GetCapabilitiesErrors = {
+    /**
+     * Request failed
+     */
+    400: ApiError;
+    /**
+     * Request failed
+     */
+    401: ApiError;
+    /**
+     * Request failed
+     */
+    403: ApiError;
+    /**
+     * Request failed
+     */
+    404: ApiError;
+    /**
+     * Request failed
+     */
+    405: ApiError;
+    /**
+     * Request failed
+     */
+    409: ApiError;
+    /**
+     * Request failed
+     */
+    413: ApiError;
+    /**
+     * Request failed
+     */
+    415: ApiError;
+    /**
+     * Request failed
+     */
+    422: ApiError;
+    /**
+     * Request failed
+     */
+    429: ApiError;
+    /**
+     * Request failed
+     */
+    500: ApiError;
+    /**
+     * Request failed
+     */
+    502: ApiError;
+};
+
+export type GetCapabilitiesError = GetCapabilitiesErrors[keyof GetCapabilitiesErrors];
+
+export type GetCapabilitiesResponses = {
+    /**
+     * Success
+     */
+    200: Capabilities;
+};
+
+export type GetCapabilitiesResponse = GetCapabilitiesResponses[keyof GetCapabilitiesResponses];
 
 export type GetChangesData = {
     body?: never;

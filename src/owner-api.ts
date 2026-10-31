@@ -13,6 +13,7 @@ import spec from "../openapi.json";
 import { readApi } from "./read-api.ts";
 import { extensionApi, type ServerExtension } from "./extensions/server.ts";
 import { compiledServerExtensions } from "../build/extensions.server.ts";
+import { authRoutes } from './contract/auth-routes.ts';
 
 /**
  * `extensions` is the server half of the Studio extensions compiled into this
@@ -21,13 +22,26 @@ import { compiledServerExtensions } from "../build/extensions.server.ts";
  */
 export function createOwnerApi(access?: OwnerAccess, extensions: readonly ServerExtension[] = compiledServerExtensions) {
 const ownerApi = contractApp();
+const compiledRoutes = Object.values(routes).filter(route => !route.policy.extension || extensions.some(extension => extension.name === route.policy.extension));
+const methodInventory = [...compiledRoutes, ...Object.values(authRoutes), { path: '/openapi.json', method: 'get' }].map(route => {
+  const pattern = route.path.split(/(\{\w+\})/).map(part =>
+    /^\{\w+\}$/.test(part) ? '[^/]+' : part.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join('');
+  return { pattern: new RegExp(`^${pattern}/?$`), method: route.method.toUpperCase() };
+});
+ownerApi.use('*', async (c, next) => {
+  c.header('Cache-Control', 'no-store');
+  await next();
+  c.header('Cache-Control', 'no-store');
+});
 ownerApi.use('*', (c, next) => bodyLimit({ maxSize: securityLimit(c.env.API_BODY_LIMIT, 8 * 1024 * 1024), onError: c => c.json({ error: 'request body exceeds byte limit' }, 413) })(c, next));
 ownerApi.use("*", async (c, next) => {
-  c.header("Cache-Control", "no-store");
   const origin = c.req.header('origin');
   const authorization = c.req.header('authorization');
   const bearer = authorization && /^Bearer(?:\s|$)/i.test(authorization) ? authorization : undefined;
   const delegated = access ?? (bearer ? await verifyBearer(c.req.raw, c.env, 'api') : null);
+  const operation = matchOperation(c.req.method, matchedRoutes(c).map(route => route.path));
+  c.set('apiAccess', delegated);
+  c.set('apiExtensions', extensions);
   if (!delegated) {
     if (bearer || !await verifySession(c.env, c.req.header('cookie'))) {
       c.header('WWW-Authenticate', bearerChallenge(c.req.url, c.env, 'api'));
@@ -36,33 +50,20 @@ ownerApi.use("*", async (c, next) => {
     if (origin && origin !== new URL(c.req.url).origin || c.req.header('sec-fetch-site') === 'cross-site') return c.json({ error: 'cross-origin owner request denied' }, 403);
   } else {
     c.set('draftOnlyMedia', !delegated.scope.includes('owner:publish'));
-    const operation = matchOperation(c.req.method, matchedRoutes(c).map(route => route.path));
     if (!operation && !['GET', 'HEAD'].includes(c.req.method)) {
       c.header('WWW-Authenticate', bearerChallenge(c.req.url, c.env, 'api', '', true));
       return c.json({ error: 'unclassified write denied' }, 403);
     }
-    const required = operation ? operationScopes(operation[0]) : ['owner:read'];
-    // Changing response display edits the public page immediately, without publish.
-    // Changing response display or generated highlighting does the same.
-    if (operation?.[0] === 'updateItem') {
-      const body = await c.req.raw.clone().json().catch(() => ({})) as { responses?: unknown; highlight?: unknown };
-      if (body.responses !== undefined || body.highlight !== undefined) required.push('owner:publish');
-    }
-    // The avatar shows on every public page: choosing it publishes its bytes.
-    if (operation?.[0] === 'updateSettings') {
-      const body = await c.req.raw.clone().json().catch(() => ({})) as { avatar_media_id?: unknown };
-      if (body.avatar_media_id !== undefined) required.push('owner:publish');
-    }
+    const input = operation?.[1].policy.conditionalScopes
+      ? { body: await c.req.raw.clone().json().catch(() => undefined) } : undefined;
+    const required = operation ? operationScopes(operation[0], input) : ['owner:read'];
     if (required.some(scope => !delegated.scope.includes(scope))) {
       c.header('WWW-Authenticate', bearerChallenge(c.req.url, c.env, 'api', required.join(' '), true));
       return c.json({ error: 'insufficient scope' }, 403);
     }
   }
   c.env = withWorkPrincipal(c.env, delegated ?? undefined);
-  // POST /api/preview renders a draft and stores nothing; the editor sends
-  // one on every pause in typing. Counting it as a write throttled ordinary
-  // editing at 120 a minute (session 36), so it spends the read budget.
-  const reads = ['GET', 'HEAD'].includes(c.req.method) || (c.req.method === 'POST' && c.req.path === '/api/preview');
+  const reads = operation ? operation[1].policy.budget === 'read' : ['GET', 'HEAD'].includes(c.req.method);
   if (!await admitApi(c.env, reads)) {
     c.header('Retry-After', '60');
     return c.json({ error: 'API work budget exceeded' }, 429);
@@ -86,7 +87,7 @@ ownerApi.get('/openapi.json', c => {
 
 ownerApi.all("*", (c) => {
   const path = c.req.path.replace(/^\/api(?=\/|$)/, "");
-  const methods = Object.values(routes).filter((route) => new RegExp(`^${route.path.replace(/\{\w+\}/g, "[^/]+")}/?$`).test(path)).map((route) => route.method.toUpperCase());
+  const methods = methodInventory.filter(route => route.pattern.test(path)).map(route => route.method);
   if (methods.length) {
     c.header("Allow", [...new Set(methods.flatMap((method) => method === "GET" ? ["GET", "HEAD"] : [method]))].join(", "));
     return c.json({ error: "method not allowed" }, 405);

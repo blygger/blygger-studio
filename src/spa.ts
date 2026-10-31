@@ -17,6 +17,7 @@ import {
   STUDIO_ICON_SVG,
 } from './studio-icon.ts';
 import type { Env } from './types.ts';
+import { validatedResponse } from './http-response.ts';
 
 /** The pencil accent of the default (auto, light) palette — the shell's
  *  theme-color until settings load and the studio repaints it. */
@@ -107,6 +108,12 @@ self.addEventListener('fetch', (event) => {
 export function studioSpa(mount: string) {
   const app = new Hono<{ Bindings: Env }>({ strict: false });
   const base = `${mount}/studio`;
+  app.use('*', async (c, next) => {
+    await next();
+    if (c.res.status === 200 && !/\b(?:private|no-store)\b/i.test(c.res.headers.get('Cache-Control') ?? '')) {
+      c.res = await validatedResponse(c.req.raw, c.res);
+    }
+  });
   const returnTo = (value: unknown) => typeof value === 'string' && value.startsWith(base + '/auth/oauth2/authorize?') && !value.includes('\\') ? value : base;
   const b = escapeHtml(base);
   const head = (title: string) =>

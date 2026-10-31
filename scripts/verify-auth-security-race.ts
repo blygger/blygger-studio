@@ -19,8 +19,8 @@
  */
 import assert from 'node:assert/strict';
 import { build } from 'esbuild';
-import { Miniflare } from 'miniflare';
-import { readD1Migrations } from '@cloudflare/vitest-pool-workers';
+import { Miniflare, convertV4MiniflareOptions } from 'miniflare';
+import { readD1Migrations } from '@cloudflare/vitest-plugin';
 import { URLSearchParams } from 'node:url';
 
 // Two real workerd isolates share D1. A test-only service binding controls the
@@ -32,7 +32,7 @@ const claimed = new Promise<void>(resolve => { reached = resolve; });
 const resume = new Promise<void>(resolve => { release = resolve; });
 const output = await build({ entryPoints: ['test/security-race-worker.ts'], bundle: true, platform: 'neutral', conditions: ['workerd'], external: ['cloudflare:*', 'node:*'], mainFields: ['module', 'main'], format: 'esm', target: 'es2022', loader: { '.txt': 'text' }, write: false });
 const workers = ['auth-a', 'auth-b'].map(name => ({ name, routes: ['race-oracle.example.test/*'], modules: [{ type: 'ESModule' as const, path: 'worker.mjs', contents: output.outputFiles[0].text }], compatibilityDate: '2026-07-01', compatibilityFlags: ['nodejs_compat'], bindings: { MOUNT: '/blyg', OWNER_PASSWORD: 'security-race-fixture-password', COOKIE_SECRET: 'security-race-fixture-secret-32-characters' }, d1Databases: { DB: 'shared-security-race' }, r2Buckets: { MEDIA: 'shared-media' }, outboundService: () => new Response(null, { status: 503 }), serviceBindings: { ORACLE_GATE: async () => { reached(); await resume; return new Response('released'); } } }));
-const mf = new Miniflare({ workers });
+const mf = new Miniflare(convertV4MiniflareOptions({ workers }));
 let pending: ReturnType<Awaited<ReturnType<typeof mf.getWorker>>['fetch']> | undefined;
 try {
   const db = await mf.getD1Database('DB', 'auth-a');

@@ -143,6 +143,87 @@
         ],
         "additionalProperties": {}
       },
+      "Capabilities": {
+        "type": "object",
+        "properties": {
+          "contractVersion": {
+            "type": "string"
+          },
+          "endpoints": {
+            "type": "object",
+            "properties": {
+              "publicBase": {
+                "type": "string"
+              },
+              "studio": {
+                "type": "string"
+              },
+              "api": {
+                "type": "string"
+              },
+              "issuer": {
+                "type": "string"
+              },
+              "mcp": {
+                "type": "string"
+              },
+              "media": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "publicBase",
+              "studio",
+              "api",
+              "issuer",
+              "mcp",
+              "media"
+            ]
+          },
+          "operations": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "extensions": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "name": {
+                  "type": "string"
+                },
+                "declared": {
+                  "type": "boolean"
+                },
+                "compiled": {
+                  "type": "boolean"
+                },
+                "enabled": {
+                  "type": "boolean"
+                },
+                "granted": {
+                  "type": "boolean"
+                }
+              },
+              "required": [
+                "name",
+                "declared",
+                "compiled",
+                "enabled",
+                "granted"
+              ]
+            }
+          }
+        },
+        "required": [
+          "contractVersion",
+          "endpoints",
+          "operations",
+          "extensions"
+        ]
+      },
       "ChangeState": {
         "type": "object",
         "properties": {
@@ -3032,6 +3113,154 @@
         }
       }
     },
+    "/api/capabilities": {
+      "get": {
+        "operationId": "getCapabilities",
+        "tags": [
+          "studio"
+        ],
+        "security": [
+          {
+            "ownerSession": []
+          },
+          {
+            "ownerOAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Capabilities"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Request failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Request failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Request failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Request failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "405": {
+            "description": "Request failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Request failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "413": {
+            "description": "Request failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "415": {
+            "description": "Request failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Request failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Request failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Request failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "502": {
+            "description": "Request failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/changes": {
       "get": {
         "operationId": "getChanges",
@@ -3703,6 +3932,7 @@
             ]
           }
         ],
+        "description": "Changing responses or highlight also requires owner:publish because it changes public presentation immediately.",
         "parameters": [
           {
             "schema": {
@@ -5803,6 +6033,7 @@
             ]
           }
         ],
+        "description": "Attaching new media to a published item also requires owner:publish. Returning an existing duplicate does not.",
         "requestBody": {
           "required": true,
           "content": {
@@ -6211,6 +6442,7 @@
             ]
           }
         ],
+        "description": "Choosing avatar_media_id also requires owner:publish because the avatar publishes those bytes.",
         "requestBody": {
           "required": true,
           "content": {

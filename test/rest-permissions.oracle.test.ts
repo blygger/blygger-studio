@@ -10,7 +10,7 @@
  * not call operationScopes or derive expectations from route methods. The route
  * inventory supplies only receiving URLs. An inventory equality check requires
  * a deliberate oracle decision whenever an operation is added or removed.
- * Grammar: all 16 scope subsets × every REST operation, plus all subsets for
+ * Grammar: all 32 scope subsets × every REST operation, plus all subsets for
  * changing public response visibility. The driver uses real Hono routing and
  * real handlers; injected access starts after token validation, which is tested
  * separately by native OAuth and SDK boundary oracles.
@@ -26,13 +26,14 @@ import { createOwnerApi } from '../src/owner-api.ts';
 import { routes } from '../src/contract/routes.ts';
 
 const model = {
+  authenticated: ['getCapabilities'],
   'owner:read': ['getChanges','listItems','getItem','getSettings','listSubscriptions','getSubscription','listHoppers','getHopper','listSignals','listMentions','search','getVersion','listReading','listImportedReading','getImportedItem','getImportedHistory','getImportedVersion','getUpdateState','getMentionSource','listStaleThreads','getItemFreshness','getForkOptions','listInteractions','listThumbs','getAiModels','peekItem','classifyLinks','listBrowse','extLineageGlyphGetLineage','extLineageGlyphListSummaries'],
   'owner:draft': ['createItem','updateItem','deleteItem','restoreItem','uploadMedia','generateItem','draftNote','classifyChange','preview'],
   'owner:publish': ['publishItem','withdrawItem','pinItem','refreshItem','deleteMedia'],
   'owner:manage': ['updateSettings','createSubscription','updateSubscription','resyncSubscription','pollAllSubscriptions','deleteSubscription','createHopper','updateHopper','deleteHopper','addHopperItem','removeHopperItem','setSignal','deleteSignal','updateMention'],
   'reading:state': ['markRead','markReadBatch','markUnread','markUnreadBatch','logBrowse','clearBrowse'],
 };
-const capabilities = Object.keys(model);
+const capabilities = Object.keys(model).filter(scope => scope !== 'authenticated');
 const subsets = Array.from({ length: 1 << capabilities.length }, (_, mask) => capabilities.filter((_, bit) => mask & 1 << bit));
 async function receive(app: Hono<any>, method: string, path: string, body?: unknown) {
   const ctx = createExecutionContext();
@@ -54,7 +55,7 @@ it.each(subsets.map(scope => [scope.join(' ') || '(none)', scope] as const))('ch
       const path = route.path.replace(/\{(\w+)\}/g, (_, name) => ['v', 'version'].includes(name) ? '1' : 'missing-oracle-resource');
       const response = await receive(app, route.method.toUpperCase(), path, ['get','delete'].includes(route.method) ? undefined : {});
       const witness = `${operation}: ${scope.join(' ') || '(none)'} requires ${required}`;
-      if (!scope.includes(required)) {
+      if (required !== 'authenticated' && !scope.includes(required)) {
         expect(response.status, witness).toBe(403);
         expect(response.headers.get('www-authenticate'), witness).toContain('insufficient_scope');
       } else {

@@ -30,7 +30,7 @@ import { atCheckpoint } from './oracle-campaign.ts';
 import { flow } from './oauth-flow-driver.ts';
 import { withOracleCleanup } from './oracle-cleanup.ts';
 
-const reads = ['getChanges','listItems','getItem','getSettings','listSubscriptions','getSubscription','listHoppers','getHopper','listSignals','listMentions','search','getVersion','listReading','listImportedReading','getImportedItem','getImportedHistory','getImportedVersion','getUpdateState','getMentionSource','listStaleThreads','getItemFreshness','getForkOptions','listInteractions','listThumbs','getAiModels','peekItem','classifyLinks','listBrowse','extLineageGlyphGetLineage','extLineageGlyphListSummaries'];
+const reads = ['getChanges','listItems','getItem','getSettings','listSubscriptions','getSubscription','listHoppers','getHopper','listSignals','listMentions','search','getVersion','listReading','listImportedReading','getImportedItem','getImportedHistory','getImportedVersion','getUpdateState','getMentionSource','listStaleThreads','getItemFreshness','getForkOptions','listInteractions','listThumbs','getAiModels','peekItem','classifyLinks','listBrowse'];
 const drafting = ['createItem','updateItem','deleteItem','restoreItem','uploadMedia','generateItem','draftNote','classifyChange','preview'];
 const publishing = ['publishItem','withdrawItem','pinItem','refreshItem','deleteMedia'];
 const management = ['updateSettings','createSubscription','updateSubscription','resyncSubscription','pollAllSubscriptions','deleteSubscription','createHopper','updateHopper','deleteHopper','addHopperItem','removeHopperItem','setSignal','deleteSignal','updateMention'];
@@ -40,7 +40,7 @@ const all = ['owner:read', 'owner:draft', 'owner:publish', 'owner:manage', 'read
 // never infer read access from draft/publish/manage. This finite reference owns
 // the capability law, independently of the production tool registry.
 function expectedTools(scope: string[]) {
-  return [...(scope.includes('owner:read') ? reads : []), ...(scope.includes('owner:draft') ? drafting : []), ...(scope.includes('owner:publish') ? publishing : []), ...(scope.includes('owner:manage') ? management : []), ...(scope.includes('reading:state') ? readState : [])].sort();
+  return ['getCapabilities', ...(scope.includes('owner:read') ? reads : []), ...(scope.includes('owner:draft') ? drafting : []), ...(scope.includes('owner:publish') ? publishing : []), ...(scope.includes('owner:manage') ? management : []), ...(scope.includes('reading:state') ? readState : [])].sort();
 }
 async function driver(mount = '/blyg') {
   const base = 'https://mcp-oracle.example.test', app = makeApp(mount), currentEnv = { ...env, MOUNT: mount };
@@ -197,7 +197,7 @@ describe('MCP contract oracles', () => {
   });
   it('lists exactly the granted tool capabilities for every scope subset', async () => {
     const d = await driver();
-    for (let mask = 1; mask < 16; mask++) {
+    for (let mask = 1; mask < 32; mask++) {
       const scope = all.filter((_, index) => mask & 1 << index), credential = await d.manual(scope), client = await d.connect(credential.access_token);
       await withOracleCleanup(async () => { const observed = (await client.listTools()).tools.map(tool => tool.name).sort(); atCheckpoint('MCP scope capabilities', () => expect(observed).toEqual(expectedTools(scope))); }, [() => client.close()]);
     }

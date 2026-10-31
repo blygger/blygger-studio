@@ -18,6 +18,68 @@ not have its own repo until session 26.
 
 ---
 
+## 0.49.5 — 2026-10-31
+
+**Migrations: none.**
+
+- Authenticated clients can read `/api/capabilities` for canonical endpoints,
+  the contract version, available operations, and extension state. Each grant
+  can inspect its own capabilities, including a grant with only `reading:state`.
+- REST and MCP use each operation's declared scopes and conditional permission
+  rules. MCP discovery filters disabled and uncompiled extensions. Execution
+  checks current feature state again. Static OpenAPI and SDKs retain all routes.
+- MCP hints describe effects rather than HTTP verbs. Live previews spend the
+  read budget. Link classification retains read authority and spends the write
+  budget because it can fetch remote pages and store its probe cache.
+
+## 0.49.4 — 2026-10-31
+
+**Migrations: 0034** (`versions.kind`, nullable for unresolved legacy rows).
+
+- Normal empty and media-only publications retain their authored kind. They can
+  be pinned, restored, forked, and compared without being mistaken for withdrawal
+  endcaps. Studio history offers the same pin and restore actions.
+- New publications and withdrawals store explicit version state. The migration
+  backfills facts supported by retained data and leaves ambiguous old rows
+  unclassified. Those rows keep each reader's existing legacy interpretation.
+  Frozen publication fields remain unchanged. Old Workers can still insert rows
+  during the migration/deploy window.
+- Authored-kind reads use stored version state across private reading, public
+  pages, feeds, provenance, forks, and mentions. Publishing-history ordering
+  includes explicit empty publications and excludes withdrawals.
+
+## 0.49.3 — 2026-10-31
+
+**Migrations: none.**
+
+- Public JSON, OPML, CSS, Studio assets, and legacy media URLs provide ETags
+  and conditional GET/HEAD responses. JSON validators cover all emitted data,
+  including changelog pin flags and mutable author/origin metadata on pins.
+  Legacy random-ID media URLs revalidate rather than promise immutable caching.
+- CORS and cache policy apply to actual OAuth responses, public wire errors,
+  explicit conditional preflight, and bearer-authenticated private media reads.
+  Browser clients can inspect validators, retry delays, supported methods,
+  returned locations, and authentication challenges where CORS permits reads.
+- Authorization endpoints exclude CORS on canonical and trailing-slash routes,
+  including preflight. Early private size-limit errors and MCP origin denials
+  have an explicit no-store policy. Native OAuth discovery retains its public
+  cache lifetime, and signing-key metadata has an explicit revalidation policy.
+- Wrong-method responses include owner grant administration, schema delivery,
+  and MCP in their Allow headers. Enabled Webmention reports POST as its method;
+  disabled Webmention remains absent.
+
+## 0.49.2 — 2026-10-31
+
+**Migrations: none.**
+
+- Restoring an item version restores its attachment membership with its text.
+  Discard restores detached published attachments and excludes unpublished
+  additions. Earlier versions retain their media and bytes. A stale restore
+  returns 409 without changing text or membership.
+- A provenance-only PATCH guards the stored text used to validate its TK scopes.
+  A concurrent text change returns 409. A PATCH supplying replacement text and
+  matching provenance keeps its existing behavior.
+
 ## 0.49.1 — 2026-10-30
 
 **Migrations: none.**

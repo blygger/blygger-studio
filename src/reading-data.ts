@@ -1,3 +1,4 @@
+import { authoredItemKindSql, authoredVersionKind } from './version-state.ts';
 import { listSubscriptions } from "./importer/store.ts";
 import { buildReadingFeed, clampDisplayAt, type OwnEntryInput, type ImportedEntryInput } from "./importer/reading.ts";
 import { sourceTitleAndUrl } from "./importer/util.ts";
@@ -16,8 +17,7 @@ import type { ImportedItemRow } from "./types.ts";
  */
 export async function readingData(db: D1Database, requestedOffset: number, limit: number, source: string | undefined, kind?: "thread" | "fragment", background = false) {
   const [ownAll, importedAll, subs] = await Promise.all([
-    db.prepare(`SELECT i.id, i.updated, CASE WHEN i.kind = 'withdrawn' THEN
-        CASE WHEN COALESCE(p.transclusions, '') != '' THEN 'thread' ELSE 'fragment' END ELSE i.kind END AS kind, i.kind = 'withdrawn' AS withdrawn
+    db.prepare(`SELECT i.id, i.updated, ${authoredItemKindSql('p')} AS kind, i.kind = 'withdrawn' AS withdrawn
       FROM items i LEFT JOIN versions p ON i.kind = 'withdrawn' AND p.item_id = i.id AND p.version = i.version - 1
       WHERE i.status IN ('public','withdrawn') ORDER BY i.updated DESC, i.rowid DESC`).all<{ id: string; updated: string; kind: string; withdrawn: number }>(),
     db.prepare("SELECT subscription_id, remote_id, updated, observed_at, kind, state FROM imported_items ORDER BY observed_at DESC").all<{ subscription_id: string; remote_id: string; updated: string | null; observed_at: string; kind: string; state: string }>(),
@@ -39,10 +39,10 @@ export async function readingData(db: D1Database, requestedOffset: number, limit
   const importedIds = selectedRows.filter((r) => r.source === "imported");
   // At most 50 ids (100 bindings for imported pairs), within D1's 100-bind limit.
   const [ownBodies, importedBodies] = await Promise.all([
-    ownIds.length ? db.prepare(`SELECT i.id, i.kind, i.updated, v.content_html, previous.transclusions AS previous_transclusions
+    ownIds.length ? db.prepare(`SELECT i.id, i.kind, i.updated, v.content_html, previous.transclusions AS previous_transclusions, previous.kind AS previous_kind
       FROM items i LEFT JOIN versions v ON v.item_id = i.id AND v.version = i.version
       LEFT JOIN versions previous ON previous.item_id = i.id AND previous.version = i.version - 1
-      WHERE i.id IN (${ownIds.map(() => "?").join(",")})`).bind(...ownIds).all<{ id: string; kind: string; updated: string; content_html: string | null; previous_transclusions: string | null }>() : { results: [] },
+      WHERE i.id IN (${ownIds.map(() => "?").join(",")})`).bind(...ownIds).all<{ id: string; kind: string; updated: string; content_html: string | null; previous_transclusions: string | null; previous_kind: 'fragment' | 'thread' | 'withdrawn' | null }>() : { results: [] },
     // read_state is the owner's own (migration 0026); null means unread.
     importedIds.length ? db.prepare(`SELECT i.*, rs.read_version FROM imported_items i
       LEFT JOIN read_state rs ON rs.subscription_id = i.subscription_id AND rs.remote_id = i.remote_id
@@ -56,7 +56,7 @@ export async function readingData(db: D1Database, requestedOffset: number, limit
       const item = ownById.get(identity.id);
       if (!item) return null;
       const withdrawn = item.kind === "withdrawn";
-      const kind = item.kind === "thread" || (withdrawn && item.previous_transclusions) ? "thread" : "fragment";
+      const kind = withdrawn ? authoredVersionKind({ kind: item.previous_kind, transclusions: item.previous_transclusions }, Boolean(item.previous_transclusions)) : item.kind === 'thread' ? 'thread' : 'fragment';
       const input: OwnEntryInput = { id: item.id, kind, withdrawn, updated: item.updated, contentHtml: withdrawn ? "" : await sanitizeHtml(item.content_html ?? "") };
       return { ...buildReadingFeed([input], [])[0], key: `own:${item.id}` };
     }

@@ -30,8 +30,18 @@ import { classifyLinks, peekItem } from "./peek.ts";
 import { fetchImportedHistory, fetchPublicVersion } from "./imported-history.ts";
 import { readChanges } from './changes.ts';
 import { linkLabel } from "./link-label.ts";
+import { versionState } from './version-state.ts';
+import { operationAvailability } from './operation-availability.ts';
+import { API_CONTRACT_VERSION } from './operation-policy.ts';
+import { authLocations } from './oauth.ts';
 
 export const readApi = contractApp();
+readApi.openapi(routes.getCapabilities, async c => {
+  const { base, api, issuer, mcp } = authLocations(c.req.url, c.env);
+  const publicBase = new URL(c.req.url).origin + normalizeMount(c.env.MOUNT);
+  return c.json({ contractVersion: API_CONTRACT_VERSION, endpoints: { publicBase, studio: base, api, issuer, mcp, media: publicBase + '/media' },
+    ...await operationAvailability(c.env.DB, c.get('apiAccess'), c.get('apiExtensions')) });
+});
 readApi.openapi(routes.getChanges, async c => c.json(await readChanges(c.env.DB)));
 async function collection<T>(db: D1Database, query: Record<string, string>, sql: string, countSql: string) {
   const offset = Number(query.offset ?? 0), limit = Number(query.limit ?? 100);
@@ -49,7 +59,7 @@ readApi.openapi(routes.listItems, async (c) => {
     c.env.DB.prepare("SELECT COUNT(*) AS total FROM items").first<{ total: number }>(),
   ]);
   // Return frozen version links without loading history bodies into the index.
-  const pins = rows.results.length ? (await c.env.DB.prepare(`SELECT item_id, version, CASE WHEN transclusions IS NULL THEN 'fragment' ELSE 'thread' END AS kind FROM versions WHERE pinned = 1 AND item_id IN (${rows.results.map(() => '?').join(',')}) ORDER BY version`).bind(...rows.results.map(row => row.id)).all<{ item_id: string; version: number; kind: 'fragment' | 'thread' }>()).results : [];
+  const pins = rows.results.length ? (await c.env.DB.prepare(`SELECT item_id, version, CASE WHEN kind IN ('fragment','thread') THEN kind WHEN transclusions IS NULL THEN 'fragment' ELSE 'thread' END AS kind FROM versions WHERE pinned = 1 AND item_id IN (${rows.results.map(() => '?').join(',')}) ORDER BY version`).bind(...rows.results.map(row => row.id)).all<{ item_id: string; version: number; kind: 'fragment' | 'thread' }>()).results : [];
   return c.json({ items: rows.results.map(row => ({ ...itemResource(row), pins: pins.filter(pin => pin.item_id === row.id).map(({ version, kind }) => ({ version, kind })) })), total: count?.total ?? 0, offset, limit });
 });
 // Owner DTOs feed HTML previews. Sanitize copies, not immutable version rows or
@@ -344,7 +354,7 @@ async function forkablePins(
     const rows = await listVersions(db, id);
     return {
       versions: rows
-        .filter((v) => v.pinned === 1 && v.content_md)
+        .filter((v) => v.pinned === 1 && versionState(v) !== 'withdrawn')
         .map((v) => ({ version: v.version, at: v.published_at, note: v.note })),
     };
   }

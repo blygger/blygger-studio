@@ -1,3 +1,4 @@
+import { authoredVersionKind } from './version-state.ts';
 // Protocol surface builders: item JSON, manifest, archive index, feed.xml
 // — v0.1-plan §2.3–2.6. These shapes are protocol; do not change casually.
 
@@ -121,7 +122,7 @@ export async function buildItemJson(db: D1Database, settings: Settings, item: It
 
 /** §2.8 pinned version file — permanent, survives edits and withdrawal. */
 export function buildPinnedVersionJson(settings: Settings, item: ItemRow, row: VersionRow, origin: string) {
-  const isThread = row.transclusions !== null;
+  const isThread = authoredVersionKind(row) === "thread";
   return {
     blyg: PROTOCOL_VERSION,
     id: item.id,
@@ -234,7 +235,7 @@ export async function buildFeedXml(db: D1Database, settings: Settings, origin: s
     db.prepare(`SELECT vm.item_id, m.r2_key, m.alt, m.inline FROM json_each(?) s JOIN version_media vm
       ON vm.item_id = json_extract(s.value, '$.id') AND vm.version = json_extract(s.value, '$.version')
       JOIN media m ON m.id = vm.media_id ORDER BY m.created ASC, m.rowid ASC`).bind(livePairs),
-    db.prepare(`SELECT v.item_id, v.transclusions FROM json_each(?) s JOIN versions v
+    db.prepare(`SELECT v.item_id, v.kind, v.transclusions FROM json_each(?) s JOIN versions v
       ON v.item_id = json_extract(s.value, '$.id') AND v.version = json_extract(s.value, '$.version') - 1`).bind(withdrawnIds),
   ]);
   const latestById = new Map<string, { content_md: string; content_html: string; transclusions: string | null; stub_of: string | null; stub_cite: string | null }>();
@@ -248,8 +249,8 @@ export async function buildFeedXml(db: D1Database, settings: Settings, origin: s
     mediaById.set(m.item_id, list);
   }
   const withdrawnKind = new Map<string, boolean>();
-  for (const r of prevRes.results as unknown as Array<{ item_id: string; transclusions: string | null }>) {
-    withdrawnKind.set(r.item_id, Boolean(r.transclusions));
+  for (const r of prevRes.results as unknown as Array<{ item_id: string; kind: VersionRow["kind"]; transclusions: string | null }>) {
+    withdrawnKind.set(r.item_id, authoredVersionKind(r, Boolean(r.transclusions)) === "thread");
   }
   // Same loader as the public pages: the feed and the HTML page can never
   // disagree about whose quote this is.

@@ -1,3 +1,4 @@
+import { authoredVersionKind, versionState } from './version-state.ts';
 import { DEFAULT_FONT, isFont } from "./fonts.ts";
 import { DEFAULT_FEED_ORDER } from "./feeds/index.ts";
 import { DEFAULT_POSTS_PATH } from "./front-page.ts";
@@ -234,16 +235,16 @@ export async function createFork(
 /**
  * The item's authored kind — 'fragment' or 'thread' — independent of the
  * transient 'withdrawn' state a live item.kind carries after withdrawal.
- * For a withdrawn item, derived from the last real (non-endcap) version's
- * transclusions column, per §3.1 republish rules.
+ * For a withdrawn item, use the previous publication's stored kind, with its
+ * legacy transclusions fallback, per §3.1 republish rules.
  */
 export async function authoredKind(db: D1Database, item: ItemRow): Promise<"fragment" | "thread"> {
   if (item.kind === "fragment" || item.kind === "thread") return item.kind;
   const prev = await db
-    .prepare("SELECT transclusions FROM versions WHERE item_id = ? AND version = ?")
+    .prepare("SELECT kind, transclusions FROM versions WHERE item_id = ? AND version = ?")
     .bind(item.id, item.version - 1)
-    .first<{ transclusions: string | null }>();
-  return prev?.transclusions ? "thread" : "fragment";
+    .first<Pick<VersionRow, "kind" | "transclusions">>();
+  return authoredVersionKind(prev, Boolean(prev?.transclusions));
 }
 
 /**
@@ -466,8 +467,8 @@ export async function publish(db: D1Database, item: ItemRow, note: string | null
   const shown = JSON.stringify(visibleMedia(await listMediaForItem(db, item.id), contentHtml).map((m) => m.id));
   await db.batch([
     db.prepare(
-      "INSERT INTO versions (item_id, version, content_md, content_html, content_hash, published_at, note, transclusions, generated_json, stub_of, stub_cite, note_generated) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
-    ).bind(item.id, version, strippedMd, contentHtml, hash, now, note, transclusionsJson, generatedJson, stubJson, citeJson, note && noteGenerated ? 1 : 0),
+      "INSERT INTO versions (item_id, version, content_md, content_html, content_hash, published_at, note, transclusions, generated_json, stub_of, stub_cite, note_generated, kind) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+    ).bind(item.id, version, strippedMd, contentHtml, hash, now, note, transclusionsJson, generatedJson, stubJson, citeJson, note && noteGenerated ? 1 : 0, kind),
     // Rows still attached at the write, so a removal racing the publish wins.
     db.prepare("INSERT INTO version_media (item_id, version, media_id) SELECT ?, ?, m.id FROM json_each(?) s JOIN media m ON m.id = s.value WHERE m.item_id = ?")
       .bind(item.id, version, shown, item.id),
@@ -501,7 +502,7 @@ export async function withdraw(db: D1Database, item: ItemRow, note: string | nul
   const version = item.version + 1;
   const hash = await contentHash("");
   await db.batch([
-    db.prepare("INSERT INTO versions (item_id, version, content_md, content_hash, published_at, note) VALUES (?, ?, '', ?, ?, ?)")
+    db.prepare("INSERT INTO versions (item_id, version, content_md, content_hash, published_at, note, kind) VALUES (?, ?, '', ?, ?, ?, 'withdrawn')")
       .bind(item.id, version, hash, now, note),
     db.prepare("UPDATE items SET status = 'withdrawn', kind = 'withdrawn', version = ?, dirty = 1, updated = ? WHERE id = ?")
       .bind(version, now, item.id),
@@ -539,7 +540,8 @@ export class RestoreVersionError extends Error {}
  * exist.
  *
  * Restoring the **current** version is "discard changes", and there the
- * working copy becomes that version whole: its stub citation comes back too
+ * working copy becomes that version whole: its attachments and stub citation
+ * come back too
  * (publish version-agrees the citation, §2.2, so the published one can be
  * ahead of the working copy's), and the copy is clean again — unless the
  * version disclosed generated text, whose provenance a restore cannot carry
@@ -550,14 +552,24 @@ export class RestoreVersionError extends Error {}
 export async function restoreVersion(db: D1Database, item: ItemRow, version: number): Promise<void> {
   const row = await getVersion(db, item.id, version);
   if (!row) throw new RestoreVersionError(`item has no version ${version}`);
-  if (!row.content_md) {
+  if (versionState(row) === "withdrawn") {
     throw new RestoreVersionError(`v${version} is a withdrawal endcap and has no content to restore`);
   }
   const discard = version === item.version;
-  await db
-    .prepare("UPDATE items SET content_md = ?, tk_provenance_json = NULL, stub_of = CASE WHEN ? THEN ? ELSE stub_of END, dirty = ? WHERE id = ?")
-    .bind(row.content_md, discard ? 1 : 0, row.stub_of, discard && !row.generated_json ? 0 : 1, item.id)
-    .run();
+  // All three statements see the same source state in one transaction. Do not
+  // detach attachments if an edit or publication invalidated the caller's read.
+  const guard = "id = ? AND version = ? AND kind = ? AND content_md = ? AND stub_of IS ? AND tk_provenance_json IS ?";
+  const expected = [item.id, item.version, item.kind, item.content_md, item.stub_of, item.tk_provenance_json];
+  const results = await db.batch([
+    db.prepare(`UPDATE media SET item_id = NULL WHERE item_id = ? AND id NOT IN (SELECT media_id FROM version_media WHERE item_id = ? AND version = ?) AND EXISTS (SELECT 1 FROM items WHERE ${guard})`)
+      .bind(item.id, item.id, version, ...expected),
+    // A prior detach retains the media row and bytes for its published versions.
+    db.prepare(`UPDATE media SET item_id = ? WHERE id IN (SELECT media_id FROM version_media WHERE item_id = ? AND version = ?) AND EXISTS (SELECT 1 FROM items WHERE ${guard})`)
+      .bind(item.id, item.id, version, ...expected),
+    db.prepare(`UPDATE items SET content_md = ?, tk_provenance_json = NULL, stub_of = CASE WHEN ? THEN ? ELSE stub_of END, dirty = ? WHERE ${guard}`)
+      .bind(row.content_md, discard ? 1 : 0, row.stub_of, discard && !row.generated_json ? 0 : 1, ...expected),
+  ]);
+  if (!results[2].meta.changes) throw new RestoreVersionError("item changed while restoring; reload and try again");
 }
 
 /** Irrevocably pin a version (§2.8). Idempotent; never unset. */

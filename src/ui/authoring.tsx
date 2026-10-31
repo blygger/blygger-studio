@@ -2292,7 +2292,7 @@ function Editor({ item }: { item: Detail }) {
                           fork
                         </Link>
                       </>
-                    ) : v.content_md ? (
+                    ) : v.kind !== 'withdrawn' ? (
                       <Button
                         data-action="pin"
                         className="btn btn-ghost btn-mini"
@@ -2302,7 +2302,7 @@ function Editor({ item }: { item: Detail }) {
                         pin
                       </Button>
                     ) : null}
-                    {v.content_md ? (
+                    {v.kind !== 'withdrawn' ? (
                       <Button
                         className="btn btn-ghost btn-mini"
                         disabled={action.busy || upload.action.busy}
