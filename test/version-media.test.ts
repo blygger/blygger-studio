@@ -5,6 +5,7 @@ import { env, SELF } from "cloudflare:test";
 import { describe, expect, it } from "vitest";
 import migration0031 from "../migrations/0031_version_media.sql?raw";
 import { apiJson, BASE, createAndPublish, getPublic, login } from "./helpers.ts";
+import { getItem, restoreVersion } from "../src/model.ts";
 
 async function upload(cookie: string, item: string, bytes: number[], extra: Record<string, string> = {}) {
   const form = new FormData();
@@ -79,6 +80,65 @@ describe("attachments per version (studio#7)", () => {
     expect((await apiJson(cookie, "PATCH", `/api/items/${id}`, { content_md: "no picture now" })).status).toBe(200);
     await publish(cookie, id);
     expect(await urls(id)).toEqual([]);
+  });
+
+  it("discard restores removed attachments and excludes unpublished additions", async () => {
+    const cookie = await login();
+    const id = await createAndPublish(cookie, "published words");
+    const original = await upload(cookie, id, [8]);
+    await publish(cookie, id); // v2 owns the original attachment
+    expect(await remove(cookie, original.id)).toBe("detached");
+    const added = await upload(cookie, id, [9]);
+
+    expect((await apiJson(cookie, "POST", `/api/items/${id}/restore`, { version: 2 })).status).toBe(200);
+    const detail = (await apiJson(cookie, "GET", `/api/items/${id}`)).json;
+    expect(detail).toMatchObject({ dirty: false, version: 2 });
+    expect(detail.media.map((m: { id: string }) => m.id)).toEqual([original.id]);
+    expect(detail.published_media.map((m: { id: string }) => m.id)).toEqual([original.id]);
+    expect(await env.MEDIA.get(added.url), "discard does not destroy uploaded bytes").not.toBeNull();
+    expect(await env.DB.prepare("SELECT item_id FROM media WHERE id = ?").bind(added.id).first()).toEqual({ item_id: null });
+
+    await publish(cookie, id);
+    expect(await urls(id)).toEqual([original.url]);
+    expect((await getPublic(`/blyg/${original.url}`)).status).toBe(200);
+  });
+
+  it("restoring an older version restores its attachments without changing the live version", async () => {
+    const cookie = await login();
+    const id = await createAndPublish(cookie, "published words");
+    const old = await upload(cookie, id, [10]);
+    await publish(cookie, id); // v2
+    await remove(cookie, old.id);
+    const current = await upload(cookie, id, [11]);
+    await publish(cookie, id); // v3
+
+    expect((await apiJson(cookie, "POST", `/api/items/${id}/restore`, { version: 2 })).status).toBe(200);
+    const detail = (await apiJson(cookie, "GET", `/api/items/${id}`)).json;
+    expect(detail).toMatchObject({ dirty: true, version: 3 });
+    expect(detail.media.map((m: { id: string }) => m.id)).toEqual([old.id]);
+    expect(detail.published_media.map((m: { id: string }) => m.id)).toEqual([current.id]);
+    expect(await urls(id)).toEqual([current.url]);
+
+    await publish(cookie, id);
+    expect(await urls(id)).toEqual([old.url]);
+    expect((await getPublic(`/blyg/${current.url}`)).status, "v3 retains its bytes").toBe(200);
+  });
+
+  it("rejects a stale restore without changing text or attachment membership", async () => {
+    const cookie = await login();
+    const id = await createAndPublish(cookie, "published words");
+    const original = await upload(cookie, id, [12]);
+    await publish(cookie, id);
+    await remove(cookie, original.id);
+    const added = await upload(cookie, id, [13]);
+    const stale = (await getItem(env.DB, id))!;
+    await apiJson(cookie, "PATCH", `/api/items/${id}`, { content_md: "concurrent edit" });
+    const before = (await apiJson(cookie, "GET", `/api/items/${id}`)).json;
+
+    await expect(restoreVersion(env.DB, stale, 2)).rejects.toThrow("item changed while restoring");
+    expect((await apiJson(cookie, "GET", `/api/items/${id}`)).json).toEqual(before);
+    expect(before.media.map((m: { id: string }) => m.id)).toEqual([added.id]);
+    expect(await env.DB.prepare("SELECT item_id FROM media WHERE id = ?").bind(original.id).first()).toEqual({ item_id: null });
   });
 });
 

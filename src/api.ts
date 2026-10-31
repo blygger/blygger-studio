@@ -168,8 +168,11 @@ api.openapi(routes.updateItem, async (c) => {
   if (!assignments.length) return c.json(itemResource(item));
   // Write only requested fields. Guard the state used for validation, so a
   // concurrent publication or citation edit cannot invalidate that check.
-  const fresh = await c.env.DB.prepare(`UPDATE items SET ${assignments.join(", ")} WHERE id = ? AND version = ? AND kind = ? AND stub_of IS ? AND tk_provenance_json IS ? RETURNING *`)
-    .bind(...values, item.id, item.version, item.kind, item.stub_of, item.tk_provenance_json).first<ItemRow>();
+  // A provenance-only patch also validated the stored text. When text is
+  // supplied, the provenance check used that replacement instead.
+  const checkedStoredText = body.provenance !== undefined && body.content_md === undefined;
+  const fresh = await c.env.DB.prepare(`UPDATE items SET ${assignments.join(", ")} WHERE id = ? AND version = ? AND kind = ? AND stub_of IS ? AND tk_provenance_json IS ?${checkedStoredText ? " AND content_md = ?" : ""} RETURNING *`)
+    .bind(...values, item.id, item.version, item.kind, item.stub_of, item.tk_provenance_json, ...(checkedStoredText ? [item.content_md] : [])).first<ItemRow>();
   if (!fresh) return c.json({ error: "item changed while applying the patch; reload and try again" }, 409);
   return c.json(itemResource(fresh));
 });
