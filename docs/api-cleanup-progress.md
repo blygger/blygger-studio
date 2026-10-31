@@ -23,10 +23,11 @@ Update the plan when a finding changes its scope or design.
 
 | Part | Status | Branch and base | PR |
 | --- | --- | --- | --- |
-| 1a Attachment restore and provenance validation | Open, local checks and all CI checks passed | `codex/api-cleanup`, based on upstream `main` at `2582d73` | [90](https://github.com/blygger/blygger-studio/pull/90) |
+| 1a Attachment restore and provenance validation | Open, restacked; prior CI green, new CI pending | `codex/api-cleanup`, based on upstream `main` at `2582d73` | [90](https://github.com/blygger/blygger-studio/pull/90) |
 | 1b Explicit version state | Open, all local and prep-pr checks passed, CI in progress | `codex/api-version-state`, based on `codex/api-http` | [93](https://github.com/blygger/blygger-studio/pull/93) |
-| 2 HTTP behavior | Open, local checks passed, prep-pr in progress | `codex/api-http`, based on `codex/api-cleanup` | [91](https://github.com/blygger/blygger-studio/pull/91) |
-| 3 Shared operation core | Planned | After 1a | Pending |
+| 2 HTTP behavior | Open, reviewed and restacked, new CI pending | `codex/api-http`, based on `codex/api-cleanup` | [91](https://github.com/blygger/blygger-studio/pull/91) |
+| 3a Operation policies and discovery | In progress; checkpoint retained during restack | `codex/api-operation-policy`, after 93 | Pending |
+| 3b Shared operation execution | Planned | After 3a | Pending |
 | 4 Mounted API cutover | Planned | After 3 | Pending |
 | 5 Conditional mutations | Planned | After 3 | Pending |
 | 6 Private resources | Planned | After 5, with 4 integrated | Pending |
@@ -279,3 +280,42 @@ green and every discovered review item has a disposition.
 
 Version-state publication: [PR 93](https://github.com/blygger/blygger-studio/pull/93),
 stacked on PR 91. Final review audit: five items fixed, no unresolved evidence.
+
+## Restack on PR 94 — 2026-10-31
+
+The user requested the whole stack on [PR 94](https://github.com/blygger/blygger-studio/pull/94),
+head `cb2fa974fe2914577bcd12510a580a8d9ed2c612`. All six API commits replayed
+without patch changes. The branch order is dependency updates, PR 90, PR 91,
+PR 93, then the unpublished operation-policy branch. The source analysis still
+refers to its original upstream baseline.
+
+The package baseline now has Better Auth/provider 1.7.14, MCP client/server
+2.4.0, Cloudflare vitest-plugin 1.4.11, Miniflare 5.20261023.3-beta, Zod 4.6.7,
+and Hono 4.13.14. TanStack DB/React DB remain pinned to 1.0.0-rc.1 and Query
+Collection remains 1.5.0. Installed with the updated lockfile: zero audit findings.
+
+Fresh combined-stack results on this dependency baseline:
+
+- Full Worker suite: 153 files, 1,905 passed, five skipped.
+- UI suite: 14 files, 112 passed.
+- Studio and client-access browser suites: 34 passed across desktop/mobile.
+- Typecheck, SDK generation without tracked drift, and local old-version upgrade
+  fixture: passed. No deployment.
+
+The browser run exposed a shared test fixture collision. Desktop and mobile
+saved the same site title, so the second no-op emitted no PATCH. The test now
+uses project/repeat/retry-specific titles while retaining the real PATCH/200,
+saved-status, reload, and persistence assertions. A source-driven cardinality
+probe proved retry values differ. A controlled browser probe deliberately
+failed after its first successful save, then passed on retry. Scratch probes
+stay outside the PR. The fixture repair is on PR 90 so every child inherits it.
+
+The operation-policy checkpoint is retained at `2016bb93ecc8deefcde5105df61ed4fb25c0504f`.
+Restack inputs, original remote heads for explicit push leases, range comparisons,
+and logs are in `/tmp/blygger-api-restack-pr94`. CI monitoring paused during the
+restack and resumes against the new published heads.
+
+Part 3 has 64 existing operations and roughly 1,400 lines of route handlers.
+Split its implementation into 3a (explicit policy facts and capability discovery)
+and 3b (shared domain execution). This changes review size, not the agreed API
+architecture or the hard-cutover decisions.

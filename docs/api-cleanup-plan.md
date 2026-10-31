@@ -6,7 +6,8 @@ Use shared domain operations for state changes, a thin operation catalog for
 the client contract, and explicit policies for each HTTP response class. Each
 contract-changing PR updates REST, the generated SDK, Studio, and MCP together.
 
-This plan starts from upstream `2582d73`. It covers the private API cleanup and
+Source analysis used upstream `2582d73`. The implementation stack now builds
+on [PR 94](https://github.com/blygger/blygger-studio/pull/94) at `cb2fa97`. It covers the private API cleanup and
 the HTTP defects found alongside it. The public Blygger protocol keeps its
 content, citation, lineage, disclosure, and retained-media semantics.
 
@@ -279,15 +280,16 @@ protocol fixtures and existing revision-cache behavior green throughout.
 | 1a Correct existing resource transitions | Restore attachment membership on discard and guard text used for provenance validation. | Fix observed defects using the current private contract. Reproduce each failure and verify retained media, restoration, and generated disclosure. No migration or general expected-revision contract. |
 | 1b Explicit version state | Distinguish empty publication from withdrawal. Include the snapshot-state migration and historical-data policy. | Separate from 1a because stored historical rows can be indistinguishable. Preserve public artifact bytes and verify pin/restore behavior and upgrade policy explicitly. |
 | 2 HTTP responses and validators | Final response-class policies, complete-representation ETags, conditional GET/HEAD, no-store on early exits, CORS, preflight, exposed headers, and complete method responses. | Keep URLs and resource shapes stable. Cover public errors, mutable pin metadata, native OAuth forwarding, trailing-slash authorization, private media, and MCP method errors. Hash-addressed media is PR 8. |
-| 3 Shared operation core | Extend existing operation definitions with scope/effect/feature/budget facts; extract shared domain calls; have REST and MCP use the same runner. Add capabilities and consistent enabled-tool discovery. | Preserve existing payload shapes and URLs. Keep typed domain failures internal until the error-contract cutover. Verify conditional permissions, owner-only exclusions, budget principals, audience separation, and all 32 scope subsets. |
+| 3a Operation policies and discovery | Extend current declarations with explicit scope/effect/feature/budget facts. Add capabilities and consistent enabled-tool discovery. | Preserve current execution, payloads, and URLs. Verify conditional permissions, owner-only exclusions, live availability, budget classes, and all 32 scope subsets. |
+| 3b Shared operation execution | Extract domain calls and make REST and MCP use one runner. Remove synthetic REST requests from MCP. | Preserve payloads, statuses, warnings, background effects, work principals, and audience separation. Keep typed domain failures internal until the error-contract cutover. |
 | 4 API mount cutover | Canonical deployment URLs; `{mount}/api` routing and audiences; OpenAPI servers, challenges, Location, discovery, SDK base URLs, and Studio boot data. | One address break, with payloads unchanged. Root and nested deployments work; mounted root aliases and old mounted REST audiences are rejected; unchanged MCP audiences remain isolated. Update client migration notes and interop fixtures. |
 | 5 Conditional item mutations | Add the private item revision, expected-revision inputs, atomic whole-state transitions, and safe installation of long-running results. Update every participating writer and client. | One concurrency-contract change, without a general resource rename. Test competing edits, attachment/publication races, generation completion after another edit, stale conflicts, retry behavior, and database upgrade. |
 | 6 Explicit private resources | Replace row-derived schemas with intentional camelCase DTOs, structured stored metadata, canonical media URLs, and stable public-facing private API error codes. Update SDK and Studio together. | One representation break, with existing pagination behavior retained. Preserve remote protocol objects and unknown members; keep private presentation sanitization separate from raw public snapshots. Verify generated artifacts and actual SDK consumers. |
 | 7 Cursor pages and TanStack loading | Common cursor page envelope, bounded history/membership reads, server sequence validation, on-demand loaders using createCursorPager, and native live-query window controls where appropriate. | One loading-contract change. Verify ties, filters/sorts, growing windows, exhaustion, cancellation, generation invalidation, and restart after an expired cursor. Remove all-pages loading and custom UI continuation bookkeeping where replaced. |
 | 8 Hash-addressed media | Digest-bearing URLs for new uploads and eligible fingerprinted assets; immutable caching only where bytes and retention permit it. | A storage/URL change separate from general HTTP repair. Old published media URLs survive with revalidation; invalid digest paths fail; unpublished uploads remain private; retained references continue resolving after detach/withdraw. |
 
-The main dependency path is PR 1a, then PR 3, then PR 5 and PR 6, followed by
-PR 7. PR 4 follows PR 3 and can proceed separately from PR 5. PR 2 can proceed
+The main dependency path is PR 1a, then PR 3a and PR 3b, then PR 5 and PR 6, followed by
+PR 7. PR 4 follows PR 3b and can proceed separately from PR 5. PR 2 can proceed
 independently; PR 8 builds on its validator policy and can proceed separately
 from the operation refactor. Merge PR 4 before the final consumer checks for
 PR 6 and PR 7 so the final examples use canonical mounted URLs.
