@@ -37,7 +37,7 @@ Consult `openapi.json` for every field and response.
 Publication, withdrawal, restoration, and generation remain explicit operations:
 
 - `POST /items/{id}/publish` and `POST /items/{id}/withdraw` accept an optional publication note.
-- `POST /items/{id}/restore` copies a stored version into the working copy. It does not publish.
+- `POST /items/{id}/restore` copies a stored version's text and attachment membership into the working copy. It does not publish. Restoring the current version discards attachment additions and restores detached attachments; historical version memberships and retained bytes stay intact.
 - `POST /items/{id}/generate` generates one TK scope.
 - `POST /subscriptions/{id}/resync` refreshes a Blyg subscription.
 - `POST /items/{id}/note-draft` drafts a changelog note from the change between the published version and the working copy. It never publishes. When the published version is unpinned, the note must not reproduce wording that only that version had; a draft that does returns 422. Send `note_generated: true` with `POST /items/{id}/publish` only when the note is that draft, unedited: it becomes `changelog[].generated` on the wire.
@@ -195,7 +195,10 @@ const item = await unwrap(BlyggerApi.updateItem({
 Item edits accept `content_md`, `kind`, `stub_of`, and `responses`.
 The response policy is `default`, `show`, or `hide`.
 Kind becomes fixed after the first publication.
-Fork lineage and generation provenance cannot change through PATCH.
+Fork lineage cannot change through PATCH. Client-recorded generation provenance
+can change when it matches the resulting TK scopes. A provenance-only patch
+guards the stored text used by that validation. A competing text change returns
+409 rather than applying provenance to different scopes.
 
 All requested changes must pass schema and domain validation before a write.
 Item and hopper writes guard the state that their domain rules used.

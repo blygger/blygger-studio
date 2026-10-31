@@ -18,6 +18,18 @@ not have its own repo until session 26.
 
 ---
 
+## 0.49.2 — 2026-10-31
+
+**Migrations: none.**
+
+- Restoring an item version restores its attachment membership with its text.
+  Discard restores detached published attachments and excludes unpublished
+  additions. Earlier versions retain their media and bytes. A stale restore
+  returns 409 without changing text or membership.
+- A provenance-only PATCH guards the stored text used to validate its TK scopes.
+  A concurrent text change returns 409. A PATCH supplying replacement text and
+  matching provenance keeps its existing behavior.
+
 ## 0.49.1 — 2026-10-30
 
 **Migrations: none.**
