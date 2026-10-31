@@ -50,6 +50,20 @@ function ComponentName({ children }: { children: ReactNode }) {
   return <h4 className="component-name">{children}</h4>;
 }
 
+function ColorToken({ name, description }: { name: string; description: string }) {
+  return (
+    <div className="foundation-color-token">
+      <span
+        className="foundation-color-swatch"
+        style={{ backgroundColor: `var(--color-${name})` }}
+        aria-hidden="true"
+      />
+      <code>{`--color-${name}`}</code>
+      <span>{description}</span>
+    </div>
+  );
+}
+
 /** A live, compact reference for the V1 Studio component vocabulary. */
 export function ComponentLibraryPage() {
   useChrome({ framed: false, wide: true });
@@ -73,6 +87,20 @@ export function ComponentLibraryPage() {
       </header>
 
       <div className="component-board">
+        <Specimen eyebrow="Foundations · Color">
+          <h3 className="foundation-heading">Semantic roles</h3>
+          <p className="component-caption">Themes supply primitive values; components use the roles below.</p>
+          <div className="foundation-color-grid">
+            <ColorToken name="background" description="page" />
+            <ColorToken name="layer" description="cards and sheets" />
+            <ColorToken name="field" description="recessed controls" />
+            <ColorToken name="accent" description="links and primary actions" />
+            <ColorToken name="support-success" description="success" />
+            <ColorToken name="support-warning" description="warning" />
+            <ColorToken name="support-error" description="error" />
+          </div>
+        </Specimen>
+
         <Specimen eyebrow="Actions">
           <ComponentName>Button &gt; Size: Standard; Variant: Default (Secondary), Primary, Plain</ComponentName>
           <div className="component-button-row">
@@ -208,7 +236,7 @@ export function ComponentLibraryPage() {
       </div>
 
       <footer className="component-library-footer">
-        <span>Foundations—colour, type, spacing, radii, shadows, and icons—come next.</span>
+        <span>Colour foundations are documented. Next: type, spacing, radii, shadows, and icons.</span>
         <Link to="/more">back to Studio</Link>
       </footer>
     </div>

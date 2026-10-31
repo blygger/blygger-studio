@@ -19,26 +19,41 @@ import {
 export { luminance };
 
 export const THEME_VARS = [
-  'page',
-  'card',
-  'sunk',
-  'ink',
-  'ink-soft',
-  'page-ink',
-  'page-ink-soft',
-  'rule',
-  'rule-strong',
-  'pencil',
-  'on-pencil',
-  'alert',
-  'ok',
-  'warn',
+  'primitive-page',
+  'primitive-layer',
+  'primitive-field',
+  'primitive-text-primary',
+  'primitive-text-secondary',
+  'primitive-text-primary-on-background',
+  'primitive-text-secondary-on-background',
+  'primitive-border-subtle',
+  'primitive-border-strong',
+  'primitive-accent',
+  'primitive-text-on-accent',
+  'primitive-support-error',
+  'primitive-support-success',
+  'primitive-support-warning',
   'shadow',
 ] as const;
 export type ThemeVars = Record<(typeof THEME_VARS)[number], string>;
 
-const STATE_LIGHT = { alert: '#b3261e', ok: '#1c7a52', warn: '#a35a00' };
-const STATE_DARK = { alert: '#f0a19a', ok: '#74c79c', warn: '#e0a75c' };
+// Removes properties written by versions of Studio before semantic colour
+// tokens, so an already-open page cannot retain a stale inline value.
+const LEGACY_THEME_VARS = [
+  'page', 'card', 'sunk', 'ink', 'ink-soft', 'page-ink', 'page-ink-soft',
+  'rule', 'rule-strong', 'pencil', 'on-pencil', 'alert', 'ok', 'warn',
+] as const;
+
+const STATE_LIGHT = {
+  'primitive-support-error': '#b3261e',
+  'primitive-support-success': '#1c7a52',
+  'primitive-support-warning': '#a35a00',
+};
+const STATE_DARK = {
+  'primitive-support-error': '#f0a19a',
+  'primitive-support-success': '#74c79c',
+  'primitive-support-warning': '#e0a75c',
+};
 const SHADOW_LIGHT =
   '0 1px 2px rgba(20,30,35,.06), 0 6px 20px rgba(20,30,35,.06)';
 const SHADOW_DARK = '0 1px 2px rgba(0,0,0,.3), 0 6px 20px rgba(0,0,0,.25)';
@@ -62,17 +77,17 @@ export function themeVars(
   // (headings, hints) must read against the page, not the sheet.
   const pageDark = luminance(t.page) < 0.2;
   return {
-    page: t.page,
-    card: t.paper,
-    ink: t.ink,
-    'ink-soft': t.inkSoft,
-    rule: t.rule,
-    pencil: t.pencil,
-    sunk: `color-mix(in srgb, ${t.ink} 6%, ${t.paper})`,
-    'rule-strong': `color-mix(in srgb, ${t.ink} 24%, ${t.paper})`,
-    'on-pencil': t.dark ? t.page : t.paper,
-    'page-ink': pageDark && !t.dark ? t.paper : t.ink,
-    'page-ink-soft':
+    'primitive-page': t.page,
+    'primitive-layer': t.paper,
+    'primitive-text-primary': t.ink,
+    'primitive-text-secondary': t.inkSoft,
+    'primitive-border-subtle': t.rule,
+    'primitive-accent': t.pencil,
+    'primitive-field': `color-mix(in srgb, ${t.ink} 6%, ${t.paper})`,
+    'primitive-border-strong': `color-mix(in srgb, ${t.ink} 24%, ${t.paper})`,
+    'primitive-text-on-accent': t.dark ? t.page : t.paper,
+    'primitive-text-primary-on-background': pageDark && !t.dark ? t.paper : t.ink,
+    'primitive-text-secondary-on-background':
       pageDark && !t.dark
         ? `color-mix(in srgb, ${t.paper} 70%, ${t.page})`
         : t.inkSoft,
@@ -122,6 +137,7 @@ export function applyTheme(
 ) {
   const root = document.documentElement;
   for (const v of THEME_VARS) root.style.removeProperty(`--${v}`);
+  for (const v of LEGACY_THEME_VARS) root.style.removeProperty(`--${v}`);
   const vars = themeVars(name, custom, customDark, prefersDark());
   root.dataset.theme = vars ? 'fixed' : 'auto';
   if (vars)
