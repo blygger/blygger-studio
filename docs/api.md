@@ -56,6 +56,7 @@ Consult `openapi.json` for every field and response.
 Publication, withdrawal, restoration, and generation remain explicit operations:
 
 - `POST /items/{id}/publish` and `POST /items/{id}/withdraw` accept an optional publication note.
+- Empty publications, including media-only versions, retain their authored kind and support pinning, restoration, and forking. Withdrawal endcaps reject pinning and restoration. Ambiguous historical empty versions keep their legacy interpretation after upgrade.
 - `POST /items/{id}/restore` copies a stored version's text and attachment membership into the working copy. It does not publish. Restoring the current version discards attachment additions and restores detached attachments; historical version memberships and retained bytes stay intact.
 - `POST /items/{id}/generate` generates one TK scope.
 - `POST /subscriptions/{id}/resync` refreshes a Blyg subscription.

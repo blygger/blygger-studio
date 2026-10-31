@@ -1,3 +1,4 @@
+import { authoredVersionKind, versionState } from './version-state.ts';
 import { DEFAULT_FONT, isFont } from "./fonts.ts";
 import { DEFAULT_FEED_ORDER } from "./feeds/index.ts";
 import { DEFAULT_POSTS_PATH } from "./front-page.ts";
@@ -234,16 +235,16 @@ export async function createFork(
 /**
  * The item's authored kind — 'fragment' or 'thread' — independent of the
  * transient 'withdrawn' state a live item.kind carries after withdrawal.
- * For a withdrawn item, derived from the last real (non-endcap) version's
- * transclusions column, per §3.1 republish rules.
+ * For a withdrawn item, use the previous publication's stored kind, with its
+ * legacy transclusions fallback, per §3.1 republish rules.
  */
 export async function authoredKind(db: D1Database, item: ItemRow): Promise<"fragment" | "thread"> {
   if (item.kind === "fragment" || item.kind === "thread") return item.kind;
   const prev = await db
-    .prepare("SELECT transclusions FROM versions WHERE item_id = ? AND version = ?")
+    .prepare("SELECT kind, transclusions FROM versions WHERE item_id = ? AND version = ?")
     .bind(item.id, item.version - 1)
-    .first<{ transclusions: string | null }>();
-  return prev?.transclusions ? "thread" : "fragment";
+    .first<Pick<VersionRow, "kind" | "transclusions">>();
+  return authoredVersionKind(prev, Boolean(prev?.transclusions));
 }
 
 /**
@@ -466,8 +467,8 @@ export async function publish(db: D1Database, item: ItemRow, note: string | null
   const shown = JSON.stringify(visibleMedia(await listMediaForItem(db, item.id), contentHtml).map((m) => m.id));
   await db.batch([
     db.prepare(
-      "INSERT INTO versions (item_id, version, content_md, content_html, content_hash, published_at, note, transclusions, generated_json, stub_of, stub_cite, note_generated) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
-    ).bind(item.id, version, strippedMd, contentHtml, hash, now, note, transclusionsJson, generatedJson, stubJson, citeJson, note && noteGenerated ? 1 : 0),
+      "INSERT INTO versions (item_id, version, content_md, content_html, content_hash, published_at, note, transclusions, generated_json, stub_of, stub_cite, note_generated, kind) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+    ).bind(item.id, version, strippedMd, contentHtml, hash, now, note, transclusionsJson, generatedJson, stubJson, citeJson, note && noteGenerated ? 1 : 0, kind),
     // Rows still attached at the write, so a removal racing the publish wins.
     db.prepare("INSERT INTO version_media (item_id, version, media_id) SELECT ?, ?, m.id FROM json_each(?) s JOIN media m ON m.id = s.value WHERE m.item_id = ?")
       .bind(item.id, version, shown, item.id),
@@ -501,7 +502,7 @@ export async function withdraw(db: D1Database, item: ItemRow, note: string | nul
   const version = item.version + 1;
   const hash = await contentHash("");
   await db.batch([
-    db.prepare("INSERT INTO versions (item_id, version, content_md, content_hash, published_at, note) VALUES (?, ?, '', ?, ?, ?)")
+    db.prepare("INSERT INTO versions (item_id, version, content_md, content_hash, published_at, note, kind) VALUES (?, ?, '', ?, ?, ?, 'withdrawn')")
       .bind(item.id, version, hash, now, note),
     db.prepare("UPDATE items SET status = 'withdrawn', kind = 'withdrawn', version = ?, dirty = 1, updated = ? WHERE id = ?")
       .bind(version, now, item.id),
@@ -551,7 +552,7 @@ export class RestoreVersionError extends Error {}
 export async function restoreVersion(db: D1Database, item: ItemRow, version: number): Promise<void> {
   const row = await getVersion(db, item.id, version);
   if (!row) throw new RestoreVersionError(`item has no version ${version}`);
-  if (!row.content_md) {
+  if (versionState(row) === "withdrawn") {
     throw new RestoreVersionError(`v${version} is a withdrawal endcap and has no content to restore`);
   }
   const discard = version === item.version;

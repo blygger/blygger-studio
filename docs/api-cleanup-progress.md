@@ -1,6 +1,7 @@
 # API cleanup progress
 
-The implementation follows [the cleanup plan](api-cleanup-plan.md). Record
+The implementation follows [the cleanup plan](api-cleanup-plan.md) and
+[issue 92](https://github.com/blygger/blygger-studio/issues/92). Record
 source findings, decisions, checks, and PR dependencies here as work proceeds.
 Update the plan when a finding changes its scope or design.
 
@@ -23,8 +24,8 @@ Update the plan when a finding changes its scope or design.
 | Part | Status | Branch and base | PR |
 | --- | --- | --- | --- |
 | 1a Attachment restore and provenance validation | Open, local checks and all CI checks passed | `codex/api-cleanup`, based on upstream `main` at `2582d73` | [90](https://github.com/blygger/blygger-studio/pull/90) |
-| 1b Explicit version state | Legacy-data policy settled, planned | Not created | Pending |
-| 2 HTTP behavior | Open, local checks passed, prep-pr review complete | `codex/api-http`, based on `codex/api-cleanup` | [91](https://github.com/blygger/blygger-studio/pull/91) |
+| 1b Explicit version state | Local and prep-pr checks passed, publishing | `codex/api-version-state`, based on `codex/api-http` | Pending |
+| 2 HTTP behavior | Open, local checks passed, prep-pr in progress | `codex/api-http`, based on `codex/api-cleanup` | [91](https://github.com/blygger/blygger-studio/pull/91) |
 | 3 Shared operation core | Planned | After 1a | Pending |
 | 4 Mounted API cutover | Planned | After 3 | Pending |
 | 5 Conditional mutations | Planned | After 3 | Pending |
@@ -142,7 +143,80 @@ challenge to cookie-only routes.
 - Read-only cache/resource, transport/header, and final-fix reviews completed.
   The transport review found the literal route matcher defect, now fixed and
   covered by the negative-path receiving test. Final review found no issues.
-- PR publication: pending.
+- PR publication: [PR 91](https://github.com/blygger/blygger-studio/pull/91).
+
+## Findings for explicit version state
+
+Owner history and eligibility used empty markdown as a withdrawal marker.
+Public pinned pages and forks instead used transclusion-column presence.
+Some live-item kind recovery used truthiness. A single legacy fallback would
+change existing behavior, so unresolved old rows retain the rule at each read
+boundary. New rows use explicit stored kind everywhere.
+
+Migration 0034 leaves the field nullable because migration runs before Worker
+deployment. The prior Worker can still insert its old column list during that
+window. Backfill recognizes nonempty fragments, valid thread arrays, and known
+current item state. It does not infer intent from note text or version parity.
+Only the new field changes. Trigger guards include it so all relevant revision
+domains change with it.
+
+The audit also found Studio pin/restore controls gated on truthy markdown.
+They now use the version resource's kind. The lifecycle oracle chooses legal
+pin/restore actions from its own snapshot-kind model and generates empty edits.
+Background reading, publishing history, quote links, RSS, fork citations, and
+mention route checks use explicit authored kind while retaining legacy rules.
+
+## prep-pr receipts
+
+The user requested prep-pr for every PR after PRs 90 and 91 opened. Retrospective
+parallel simplification and comprehensive code-review passes covered each frozen
+branch diff. Both reviews found no actionable bugs or instruction violations.
+PR 90 had no simplification suggestions. PR 91 had one optional P3 suggestion:
+compile method matchers at API construction instead of each fallback request.
+The user authorized evaluation and automatic repair of routine findings.
+The matcher cleanup is evaluated, verified, and pushed on PR 91.
+
+This repository does not use Changesets. The changeset skill stops without
+creating a directory. Release notes and version fields follow the repository's
+existing scheme. Evaluate review findings and apply routine repairs. Present only novel design
+decisions to the user, as instructed on 2026-10-31. Then run its
+CI-loop step against the published head.
+
+## Verification for PR 1b
+
+- Initial state/lifecycle/trigger/migration-shape suite: 174 passed, with two
+  test-fixture selector failures corrected to use the reading entry's own ID.
+- State, lifecycle oracle, and populated migration fixture: 14 passed.
+- Parent-production control: all five new state receiving tests failed, then
+  the candidate source was restored in a finally block.
+- Browser regression: desktop and mobile both passed. The fixture uses browser
+  fetch so the Secure owner cookie reaches the local HTTP fixture, and matches
+  the actual restore sheet title.
+- The real v0.8.3 upgrade entry point passed against a synthetic local release:
+  offline install/build, migration acquisition including nullable version state,
+  typecheck, SDK/Worker smoke, and explicitly declined deployment.
+- Typecheck passed. SDK generation passed with no tracked generated drift after
+  omitting the stored kind before extending the explicit Version resource kind.
+- prep-pr found two missed fork paths: local pin-choice filtering and remote
+  empty-content rejection. Four new receiving cases fail on the current
+  candidate, confirming both findings. Both fixes are now applied after RED evidence confirmed the failures.
+- Simplifier proposals: share the repeated authored-kind SQL expression while
+  retaining the distinct pin fallback, and replace the backfill's proven
+  fragment lookup with the literal fragment value. Both simplifications are applied after source evaluation.
+
+- Full Worker suite before review fixes: 151 files passed, two files failed.
+  1,896 tests passed, five skipped, and exactly the four new fork regressions
+  failed. No additional failures. Final typecheck and release check passed.
+- Tracking issue published and verified: [92](https://github.com/blygger/blygger-studio/issues/92),
+  containing the full plan and unchecked delivery checklist. PRs are not marked
+  complete until merged. GitHub connector creation returned integration 403, so
+  the authorized CLI fallback created the issue successfully.
+
+The earlier add/skip gates were superseded by the user's instruction to use
+evaluate-review and present only novel design decisions. The five pending
+items require no novel design choice. The scratch ledger preserves all original
+claims, footnotes, technical verdicts, actions, test evidence, and destinations.
+No scratch review ledger is committed to this branch.
 
 ## prep-pr review for PR 2
 
@@ -162,3 +236,43 @@ readiness gates for this series. The repo uses its existing version/changelog
 scheme because it has no Changesets configuration.
 
 The full series is tracked in [issue 92](https://github.com/blygger/blygger-studio/issues/92).
+
+## Evaluation of prep-pr findings
+
+PR 91 now compiles method matchers at API construction. PR 1b now includes
+explicit empty publications in local fork choices and accepts empty strings
+from remote pinned publications. Missing/null/numeric markdown and withdrawal
+endcaps still fail remote fork creation. Legacy unknown empty rows keep their
+old exclusion from local fork choices.
+
+The three batched authored-kind readers share one SQL expression, with
+code-owned aliases and their existing truthy fallback. The separate pinned
+version nullness fallback remains. Migration 0034 uses the literal fragment
+value after its predicate establishes that fact. The guarded JSON expression
+and nullable old-Worker insertion window remain intact.
+
+The child branch advanced from 437634d to PR 91's 51df219. Earlier evidence is
+recorded against its original head. Relevant checks will run again against
+the final child candidate before publication. The stash checkpoint remains
+available at 6c4aacb until this work is complete.
+
+## Final local results for PR 1b
+
+All five evaluated review items are fixed. There are no open evidence gaps or
+novel design decisions. The review ledger and raw claims remain in
+`/tmp/blygger-api-review-evaluation`, outside the PR. Final loss audit: five raw
+items, five fixed, none omitted, deferred, refuted, or awaiting a decision.
+The correctness reviewer found both fork defects with precise consumer paths.
+The simplifier found three valid small cleanups. Both passes were useful.
+
+- Full Worker suite: 153 files passed, 1,904 tests passed, five skipped.
+- Desktop/mobile empty-publication pin, restore, and history-to-fork: two passed.
+- Focused state, lifecycle, fork, feed, and populated migration suite: 61 passed.
+- Final typecheck, release check, and SDK generation passed. No generated drift.
+- Actual old-version upgrade fixture rerun after migration cleanup: passed.
+- Separate final review of the evaluated fixes: no actionable findings.
+
+PR 91's method cleanup and retrospective PR descriptions are published. The
+quiet CI heartbeat monitors the stack and checks review submissions/comments;
+its local automation ID is `api-cleanup-ci`. It stops after tracked heads are
+green and every discovered review item has a disposition.

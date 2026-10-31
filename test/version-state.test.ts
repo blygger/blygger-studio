@@ -1,0 +1,82 @@
+import { env, SELF } from 'cloudflare:test';
+import { describe, expect, it } from 'vitest';
+import { apiJson, BASE, getPublic, login } from './helpers.ts';
+import { authoredKind, getItem, getVersion, putSettings } from '../src/model.ts';
+import { loadFeedHistory } from '../src/feeds/history.ts';
+import { readingData } from '../src/reading-data.ts';
+import { loadProvenance } from '../src/public-feed.ts';
+import { targetItemId } from '../src/mentions/receive.ts';
+import { classifyChange } from '../src/change-class.ts';
+import { draftChangeNote } from '../src/change-note.ts';
+
+describe('explicit publication state', () => {
+  it.each(['fragment', 'thread'] as const)('pins, restores, and republishes an empty %s', async kind => {
+    const cookie = await login();
+    const created = await apiJson(cookie, 'POST', '/api/items', { kind, content_md: '' });
+    expect(created.status).toBe(201);
+    const id = created.json.id, segment = kind === 'thread' ? 't' : 'f';
+    expect((await apiJson(cookie, 'POST', `/api/items/${id}/publish`, {})).json.version).toBe(1);
+    expect((await getVersion(env.DB, id, 1))?.kind).toBe(kind);
+    const detail = await apiJson(cookie, 'GET', `/api/items/${id}`);
+    expect(detail.json.versions[0]).toMatchObject({ kind, content_md: '' });
+    expect((await apiJson(cookie, 'PUT', `/api/items/${id}/versions/1/pin`)).status).toBe(200);
+    const choices = await apiJson(cookie, 'GET', `/api/fork-options?id=${id}`);
+    expect(choices.json.versions.map((row: { version: number }) => row.version)).toEqual([1]);
+    const pinPath = `/blyg/items/${id}/v1.json`;
+    const before = await (await getPublic(pinPath)).text();
+    expect(JSON.parse(before)).toMatchObject({ kind, content_md: '' });
+    expect((await getPublic(`/blyg/${segment}/${id}/v1/`)).status).toBe(200);
+    expect((await apiJson(cookie, 'POST', `/api/items/${id}/withdraw`, {})).json.version).toBe(2);
+    expect((await getVersion(env.DB, id, 2))?.kind).toBe('withdrawn');
+    expect((await apiJson(cookie, 'PUT', `/api/items/${id}/versions/2/pin`)).status).toBe(409);
+    expect((await apiJson(cookie, 'POST', `/api/items/${id}/restore`, { version: 2 })).status).toBe(409);
+    const item = (await getItem(env.DB, id))!;
+    expect(await authoredKind(env.DB, item)).toBe(kind);
+    expect((await apiJson(cookie, 'GET', `/api/items/${id}`)).json.authored_kind).toBe(kind);
+    expect((await getPublic(`/blyg/${segment}/${id}/`)).status).toBe(200);
+    const origin = `${BASE}/blyg/`;
+    expect(await targetItemId(env.DB, new URL(`${origin}${segment}/${id}/`), origin)).toBe(id);
+    expect(await targetItemId(env.DB, new URL(`${origin}${segment}/${id}/v1/`), origin)).toBe(id);
+    expect((await readingData(env.DB, 0, 25, 'own', kind, true)).items.find(row => row.own?.id === id)?.kind).toBe(kind);
+    expect((await loadProvenance(env.DB, [[{ id, version: 1 }]])).localKinds.get(id)).toBe(kind);
+    expect((await loadFeedHistory(env.DB)).items.find(row => row.id === id)).toMatchObject({ kind, withdrawn: true, versions: [{ version: 1 }] });
+    expect((await apiJson(cookie, 'POST', `/api/items/${id}/restore`, { version: 1 })).status).toBe(200);
+    expect((await apiJson(cookie, 'POST', `/api/items/${id}/publish`, {})).json.version).toBe(3);
+    expect((await getVersion(env.DB, id, 3))?.kind).toBe(kind);
+    expect((await apiJson(cookie, 'POST', `/api/items/${id}/withdraw`, {})).json.version).toBe(4);
+    expect(await authoredKind(env.DB, (await getItem(env.DB, id))!)).toBe(kind);
+    expect(await (await getPublic(pinPath)).text()).toBe(before);
+    const fork = await apiJson(cookie, 'POST', '/api/items', { mode: 'fork', source: { origin, id, version: 1 } });
+    expect(fork.status).toBe(201);
+    expect(fork.json).toMatchObject({ kind, content_md: '' });
+  });
+
+  it.each(['fragment', 'thread'] as const)('restores the attachments of a media-only %s', async kind => {
+    const cookie = await login();
+    const id = (await apiJson(cookie, 'POST', '/api/items', { kind, content_md: '' })).json.id;
+    const form = new FormData();
+    form.set('file', new File(['media-only bytes'], 'only.png', { type: 'image/png' }));
+    form.set('item_id', id);
+    const uploaded = await SELF.fetch(`${BASE}/api/media`, { method: 'POST', headers: { cookie }, body: form });
+    expect(uploaded.status).toBe(201);
+    const media = await uploaded.json<{ id: string; url: string }>();
+    expect((await apiJson(cookie, 'POST', `/api/items/${id}/publish`, {})).status).toBe(200);
+    expect((await apiJson(cookie, 'PUT', `/api/items/${id}/versions/1/pin`)).status).toBe(200);
+    expect((await apiJson(cookie, 'DELETE', `/api/media/${media.id}`)).status).toBe(200);
+    expect((await apiJson(cookie, 'POST', `/api/items/${id}/restore`, { version: 1 })).status).toBe(200);
+    const detail = (await apiJson(cookie, 'GET', `/api/items/${id}`)).json;
+    expect(detail).toMatchObject({ dirty: false, content_md: '' });
+    expect(detail.media.map((row: { id: string }) => row.id)).toEqual([media.id]);
+    expect(await (await getPublic(`/blyg/${media.url}`)).text()).toBe('media-only bytes');
+  });
+
+  it('compares a normal empty prior publication without a false withdrawal error', async () => {
+    const cookie = await login();
+    const id = (await apiJson(cookie, 'POST', '/api/items', { content_md: '' })).json.id;
+    await apiJson(cookie, 'POST', `/api/items/${id}/publish`, {});
+    await putSettings(env.DB, { ai_model_classify: '@cf/cloudflare/clef-flash' });
+    const item = (await getItem(env.DB, id))!;
+    expect(await classifyChange(env, item)).toMatchObject({ ok: true, category: 'refresh' });
+    expect(await draftChangeNote(env, item)).toMatchObject({ ok: false, status: 409, error: 'the working copy is the same as the published version' });
+  });
+});

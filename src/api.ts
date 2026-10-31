@@ -1,3 +1,4 @@
+import { versionState } from './version-state.ts';
 import { isFont } from "./fonts.ts";
 import { availableFeedAlgorithms } from "./feeds/available.ts";
 import { settingsResource } from "./settings-resource.ts";
@@ -106,8 +107,8 @@ api.openapi(routes.createItem, async (c) => {
 /** A quoted item's page for a flattened quote's attribution line: ours, an import's own `page`, else its item document. */
 async function quotedLink(db: D1Database, quoteOrigin: string, id: string, ourOrigin: string): Promise<string> {
   if (quoteOrigin === ourOrigin) {
-    const own = await db.prepare("SELECT kind FROM items WHERE id = ?").bind(id).first<{ kind: string }>();
-    if (own) return blygItemUrl(ourOrigin, own.kind === "thread" ? "thread" : "fragment", id, null);
+    const own = await getItem(db, id);
+    if (own) return blygItemUrl(ourOrigin, await authoredKind(db, own), id, null);
   }
   const row = await db
     .prepare("SELECT ii.kind AS kind, ii.page AS page FROM imported_items ii JOIN subscriptions s ON s.id = ii.subscription_id WHERE ii.remote_id = ? AND s.origin = ?")
@@ -393,7 +394,7 @@ api.openapi(routes.pinItem, async (c) => {
   const row = await getVersion(c.env.DB, item.id, version);
   if (!row) return c.json({ error: "version not found" }, 404);
   // Endcap (withdrawal) versions have no content to cite (§2.8).
-  if (!row.content_md) return c.json({ error: "cannot pin an endcap version" }, 409);
+  if (versionState(row) === "withdrawn") return c.json({ error: "cannot pin an endcap version" }, 409);
   const already = row.pinned === 1;
   if (!already) await pinVersion(c.env.DB, item.id, version);
   return c.json({ ok: true, version: version, already });

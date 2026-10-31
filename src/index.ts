@@ -1,3 +1,4 @@
+import { authoredVersionKind } from './version-state.ts';
 import { WorkerEntrypoint } from 'cloudflare:workers';
 import { conditionalHtmlResponse, htmlCacheResponse, publicHtmlKey, publicHtmlRequest, publicHtmlRevision } from './html-cache.ts';
 import { readChanges } from './changes.ts';
@@ -294,7 +295,7 @@ export function makeApp(mount: string) {
   // 404 unless that exact version is pinned; 200 forever once it is,
   // surviving withdrawal. The authored kind of the *pinned version* decides
   // which route serves it (a withdrawn item's kind is 'withdrawn', but its
-  // pinned v1 was authored as fragment or thread — transclusions tells us).
+  // pinned v1 retains its authored kind, with a legacy transclusions fallback).
   const pinnedPage = (wantThread: boolean) => async (c: Context<{ Bindings: Env }>) => {
     const m = /^v(\d+)$/.exec(c.req.param("vseg") ?? "");
     if (!m) return c.notFound();
@@ -302,7 +303,7 @@ export function makeApp(mount: string) {
     if (!item || item.status === "draft") return c.notFound();
     const row = await getVersion(c.env.DB, item.id, Number(m[1]));
     if (!row || row.pinned !== 1) return c.notFound();
-    const isThread = row.transclusions !== null;
+    const isThread = authoredVersionKind(row) === "thread";
     if (isThread !== wantThread) return c.notFound();
     const settings = await getSettings(c.env.DB);
     return c.html(await pinnedVersionPage(c.env.DB, settings, item, row, isThread, mount, siteOrigin(settings, c.req.url, mount)));

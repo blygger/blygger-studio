@@ -18,6 +18,22 @@ not have its own repo until session 26.
 
 ---
 
+## 0.49.4 — 2026-10-31
+
+**Migrations: 0034** (`versions.kind`, nullable for unresolved legacy rows).
+
+- Normal empty and media-only publications retain their authored kind. They can
+  be pinned, restored, forked, and compared without being mistaken for withdrawal
+  endcaps. Studio history offers the same pin and restore actions.
+- New publications and withdrawals store explicit version state. The migration
+  backfills facts supported by retained data and leaves ambiguous old rows
+  unclassified. Those rows keep each reader's existing legacy interpretation.
+  Frozen publication fields remain unchanged. Old Workers can still insert rows
+  during the migration/deploy window.
+- Authored-kind reads use stored version state across private reading, public
+  pages, feeds, provenance, forks, and mentions. Publishing-history ordering
+  includes explicit empty publications and excludes withdrawals.
+
 ## 0.49.3 — 2026-10-31
 
 **Migrations: none.**

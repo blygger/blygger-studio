@@ -60,6 +60,41 @@ test("editor autosave, preview, image upload and history use the SDK", async ({ 
 });
 
 
+test('owner can pin and restore an empty publication', async ({ page }) => {
+  await page.goto('/studio/login');
+  await page.locator('[name="password"]').fill('test-password');
+  await page.getByRole('button', { name: 'log in', exact: true }).click();
+  await expect(page.locator('#composer-text')).toBeVisible();
+  const api = (method: string, path: string, data?: unknown) => page.evaluate(async ([method, path, data]) => {
+    const response = await fetch(path, { method, headers: { 'Content-Type': 'application/json' }, body: data === undefined ? undefined : JSON.stringify(data) });
+    return { status: response.status, body: await response.json() };
+  }, [method, path, data] as const);
+  const created = await api('POST', '/api/items', { kind: 'thread', content_md: '' });
+  expect(created.status).toBe(201);
+  const { id } = created.body;
+  expect((await api('POST', `/api/items/${id}/publish`, {})).status).toBe(200);
+  await page.goto(`/studio/edit/${id}`);
+  await openCard(page, 'history');
+  await expect(page.locator('[data-action="pin"]')).toHaveCount(1);
+  await expect(page.getByRole('button', { name: 'restore → v2', exact: true })).toBeVisible();
+  await page.locator('[data-action="pin"]').click();
+  await answerSheet(page, { name: /^Pin v1\?/ });
+  await expect(page.locator('#history .badge-pencil')).toBeVisible();
+  expect((await api('PATCH', `/api/items/${id}`, { content_md: 'unsaved replacement' })).status).toBe(200);
+  await page.reload();
+  await openCard(page, 'history');
+  await page.getByRole('button', { name: 'restore → v2', exact: true }).click();
+  await answerSheet(page, { name: /^Restore v1 into/ });
+  await expect(page.locator('#md-input')).toHaveValue('');
+  const detail = (await api('GET', `/api/items/${id}`)).body;
+  expect(detail).toMatchObject({ content_md: '', dirty: false, version: 1 });
+  await page.locator('#history').getByRole('link', { name: 'fork', exact: true }).click();
+  const forked = page.waitForResponse(response => response.url().endsWith('/api/items') && response.request().method() === 'POST');
+  await page.locator('[data-action="fork"]').click();
+  expect((await forked).status()).toBe(201);
+  await expect(page.locator('#md-input')).toHaveValue('');
+});
+
 test("owner can pin and fork through resource creation", async ({ page }) => {
   const errors: string[] = [];
   page.on("pageerror", (error) => errors.push(error.message));

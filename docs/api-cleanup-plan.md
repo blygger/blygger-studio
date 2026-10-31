@@ -1,5 +1,7 @@
 # Breaking API cleanup plan
 
+GitHub tracker: [issue 92](https://github.com/blygger/blygger-studio/issues/92).
+
 Use shared domain operations for state changes, a thin operation catalog for
 the client contract, and explicit policies for each HTTP response class. Each
 contract-changing PR updates REST, the generated SDK, Studio, and MCP together.
