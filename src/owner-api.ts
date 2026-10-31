@@ -22,6 +22,11 @@ import { authRoutes } from './contract/auth-routes.ts';
  */
 export function createOwnerApi(access?: OwnerAccess, extensions: readonly ServerExtension[] = compiledServerExtensions) {
 const ownerApi = contractApp();
+const methodInventory = [...Object.values(routes), ...Object.values(authRoutes), { path: '/openapi.json', method: 'get' }].map(route => {
+  const pattern = route.path.split(/(\{\w+\})/).map(part =>
+    /^\{\w+\}$/.test(part) ? '[^/]+' : part.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join('');
+  return { pattern: new RegExp(`^${pattern}/?$`), method: route.method.toUpperCase() };
+});
 ownerApi.use('*', async (c, next) => {
   c.header('Cache-Control', 'no-store');
   await next();
@@ -91,12 +96,7 @@ ownerApi.get('/openapi.json', c => {
 
 ownerApi.all("*", (c) => {
   const path = c.req.path.replace(/^\/api(?=\/|$)/, "");
-  const inventory = [...Object.values(routes), ...Object.values(authRoutes), { path: '/openapi.json', method: 'get' }];
-  const methods = inventory.filter((route) => {
-    const pattern = route.path.split(/(\{\w+\})/).map(part =>
-      /^\{\w+\}$/.test(part) ? '[^/]+' : part.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join('');
-    return new RegExp(`^${pattern}/?$`).test(path);
-  }).map((route) => route.method.toUpperCase());
+  const methods = methodInventory.filter(route => route.pattern.test(path)).map(route => route.method);
   if (methods.length) {
     c.header("Allow", [...new Set(methods.flatMap((method) => method === "GET" ? ["GET", "HEAD"] : [method]))].join(", "));
     return c.json({ error: "method not allowed" }, 405);

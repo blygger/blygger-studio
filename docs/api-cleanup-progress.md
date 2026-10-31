@@ -24,7 +24,7 @@ Update the plan when a finding changes its scope or design.
 | --- | --- | --- | --- |
 | 1a Attachment restore and provenance validation | Open, local checks and all CI checks passed | `codex/api-cleanup`, based on upstream `main` at `2582d73` | [90](https://github.com/blygger/blygger-studio/pull/90) |
 | 1b Explicit version state | Legacy-data policy settled, planned | Not created | Pending |
-| 2 HTTP behavior | Local checks passed, publishing | `codex/api-http`, based on `codex/api-cleanup` | Pending |
+| 2 HTTP behavior | Open, local checks passed, prep-pr review complete | `codex/api-http`, based on `codex/api-cleanup` | [91](https://github.com/blygger/blygger-studio/pull/91) |
 | 3 Shared operation core | Planned | After 1a | Pending |
 | 4 Mounted API cutover | Planned | After 3 | Pending |
 | 5 Conditional mutations | Planned | After 3 | Pending |
@@ -143,3 +143,22 @@ challenge to cookie-only routes.
   The transport review found the literal route matcher defect, now fixed and
   covered by the negative-path receiving test. Final review found no issues.
 - PR publication: pending.
+
+## prep-pr review for PR 2
+
+The retrospective code review found no new bugs. The simplifier suggested
+compiling fallback method patterns once at API construction. Evaluation confirmed
+that this preserves the static route inventory and its order. A temporary
+executable counter measured 138 constructions across two fallback requests
+before the change and zero during those requests afterward. Existing receiving
+tests still distinguish literal paths, 404/405 statuses, and Allow headers.
+The probe and its logs remain in task-local scratch, outside the PR.
+
+The final focused suite passed 38 cases across the probe, HTTP response
+contract, and MCP oracle. Typecheck passed. The user requested automatic
+evaluation and repair of straightforward items, with only novel design decisions
+presented for approval. This replaces the earlier add/skip and documentation
+readiness gates for this series. The repo uses its existing version/changelog
+scheme because it has no Changesets configuration.
+
+The full series is tracked in [issue 92](https://github.com/blygger/blygger-studio/issues/92).
