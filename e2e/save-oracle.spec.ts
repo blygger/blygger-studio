@@ -29,7 +29,7 @@ async function editor(page: Page, kind: "fragment" | "thread") {
   await page.locator('[name="password"]').fill("test-password");
   await page.getByRole("button", { name: "log in", exact: true }).click();
   await expect(page.locator("#composer-text")).toBeVisible();
-  const created = await page.evaluate(async kind => { const response = await fetch("/api/items", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ kind, content_md: "persisted" }) }); return { status: response.status, body: await response.json() as { id: string } }; }, kind);
+  const created = await page.evaluate(async kind => { const response = await fetch("/api/items", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ kind, contentMd: "persisted" }) }); return { status: response.status, body: await response.json() as { id: string } }; }, kind);
   expect(created.status).toBe(201);
   const { id } = created.body;
   await page.goto(`/studio/edit/${id}`);
@@ -42,7 +42,7 @@ for (const kind of ["fragment", "thread"] as const) {
   for (const status of [400, 401, 500, 503]) test(`${kind} keeps text after save ${status} and can recover`, async ({ page }) => {
     const id = await editor(page, kind);
     await acceptSheets(page);
-    await page.route(`**/api/items/${id}`, route => route.request().method() === "PATCH" ? route.fulfill({ status, json: { error: "save rejected" } }) : route.continue());
+    await page.route(`**/api/items/${id}`, route => route.request().method() === "PATCH" ? route.fulfill({ status, json: { code: status === 400 ? "invalid-input" : status === 401 ? "unauthorized" : "internal", message: "save rejected" } }) : route.continue());
     await page.locator("#md-input").fill("unsaved text");
     const failed = page.waitForResponse(response => response.url().endsWith(`/api/items/${id}`) && response.status() === status);
     await page.locator("#save-draft-btn").click();
@@ -50,25 +50,27 @@ for (const kind of ["fragment", "thread"] as const) {
     // Flush browser event handlers without advancing the autosave debounce.
     await page.clock.runFor(17);
     await expect(page.locator("#md-input")).toHaveValue("unsaved text");
-    expect((await page.evaluate(async id => (await fetch(`/api/items/${id}`)).json() as Promise<{ content_md: string; version: number }>, id)).content_md).toBe("persisted");
+    expect((await page.evaluate(async id => (await fetch(`/api/items/${id}`)).json() as Promise<{ contentMd: string; version: number }>, id)).contentMd).toBe("persisted");
     await page.unroute(`**/api/items/${id}`);
     const saved = page.waitForResponse(response => response.url().endsWith(`/api/items/${id}`) && response.request().method() === "PATCH" && response.status() === 200);
     const acknowledged = expect(page.locator(".save-state")).toHaveText("saved");
     await page.locator("#save-draft-btn").click();
     await saved; await acknowledged;
     await expect(page.locator("#md-input")).toHaveValue("unsaved text");
-    expect((await page.evaluate(async id => (await fetch(`/api/items/${id}`)).json() as Promise<{ content_md: string; version: number }>, id)).content_md).toBe("unsaved text");
+    expect((await page.evaluate(async id => (await fetch(`/api/items/${id}`)).json() as Promise<{ contentMd: string; version: number }>, id)).contentMd).toBe("unsaved text");
   });
   // Commit and acknowledgment are separate events. route.fetch commits through the
   // real Worker, then route.abort withholds the response. Preserve local text and
-  // allow a later successful save without assuming the first failure meant rollback.
+  // reject a later save at the unacknowledged revision. The owner must reconcile it.
   test(`${kind} retains text when a committed save loses its response`, async ({ page }) => {
     const id = await editor(page, kind);
     await acceptSheets(page);
     let calls = 0;
+    let capturedRevision: number | undefined;
     await page.route(`**/api/items/${id}`, async route => {
       if (route.request().method() !== "PATCH") return route.continue();
       calls++;
+      capturedRevision = route.request().postDataJSON().expectedRevision;
       const committed = await route.fetch();
       expect(committed.status()).toBe(200);
       await route.abort("failed");
@@ -78,11 +80,19 @@ for (const kind of ["fragment", "thread"] as const) {
     await expect(page.locator("#error-banner-slot")).toContainText(/failed|fetch|network/i);
     await expect(page.locator("#md-input")).toHaveValue("committed but unacknowledged");
     expect(calls).toBe(1);
-    expect((await page.evaluate(async id => (await fetch(`/api/items/${id}`)).json() as Promise<{ content_md: string }>, id)).content_md).toBe("committed but unacknowledged");
+    const committed = await page.evaluate(async id => (await fetch(`/api/items/${id}`)).json() as Promise<{ contentMd: string; revision: number }>, id);
+    expect(committed.contentMd).toBe("committed but unacknowledged");
+    expect(committed.revision).toBe(capturedRevision! + 1);
     await page.unroute(`**/api/items/${id}`);
-    const acknowledged = expect(page.locator(".save-state")).toHaveText("saved");
-    await page.locator("#save-draft-btn").click(); await acknowledged;
+    const conflict = page.waitForResponse(response => response.url().endsWith(`/api/items/${id}`) && response.request().method() === "PATCH" && response.status() === 409);
+    await page.locator("#save-draft-btn").click();
+    const rejected = await conflict;
+    expect(rejected.request().postDataJSON().expectedRevision).toBe(capturedRevision);
+    expect(await rejected.json()).toMatchObject({ code: 'revision-conflict', details: { expectedRevision: capturedRevision } });
+    await expect(page.locator("#error-banner-slot")).toContainText('item revision conflict; reload and try again');
+    await expect(page.locator(".save-state")).toHaveCount(0);
     await expect(page.locator("#md-input")).toHaveValue("committed but unacknowledged");
+    expect(await page.evaluate(async id => (await fetch(`/api/items/${id}`)).json(), id)).toEqual(committed);
   });
   // Publication is gated by save acknowledgment. Count actual publish requests,
   // not just a hidden UI button, and read version zero after the rejected PATCH.
@@ -91,40 +101,40 @@ for (const kind of ["fragment", "thread"] as const) {
     await acceptSheets(page);
     let published = 0;
     await page.route(`**/api/items/${id}/publish`, async route => { published++; await route.continue(); });
-    await page.route(`**/api/items/${id}`, route => route.request().method() === "PATCH" ? route.fulfill({ status: 503, json: { error: "save rejected" } }) : route.continue());
+    await page.route(`**/api/items/${id}`, route => route.request().method() === "PATCH" ? route.fulfill({ status: 503, json: { code: 'internal', message: "save rejected" } }) : route.continue());
     await page.locator("#md-input").fill("must not lose this");
     const failed = page.waitForResponse(response => response.url().endsWith(`/api/items/${id}`) && response.status() === 503);
     await page.locator("#publish-btn").click(); await failed;
     await page.clock.runFor(17);
     expect(published).toBe(0);
     await expect(page.locator("#md-input")).toHaveValue("must not lose this");
-    expect((await page.evaluate(async id => (await fetch(`/api/items/${id}`)).json() as Promise<{ content_md: string; version: number }>, id)).version).toBe(0);
+    expect((await page.evaluate(async id => (await fetch(`/api/items/${id}`)).json() as Promise<{ contentMd: string; version: number }>, id)).version).toBe(0);
   });
   test(`${kind} retains a failed autosave and recovers on the next save`, async ({ page }) => {
     const id = await editor(page, kind);
     await acceptSheets(page);
-    await page.route(`**/api/items/${id}`, route => route.request().method() === "PATCH" ? route.fulfill({ status: 503, json: { error: "autosave rejected" } }) : route.continue());
+    await page.route(`**/api/items/${id}`, route => route.request().method() === "PATCH" ? route.fulfill({ status: 503, json: { code: 'internal', message: "autosave rejected" } }) : route.continue());
     await page.locator("#md-input").fill("failed autosave");
     const failed = page.waitForResponse(response => response.url().endsWith(`/api/items/${id}`) && response.status() === 503);
     await page.clock.runFor(401); await failed;
     await expect(page.locator("#md-input")).toHaveValue("failed autosave");
-    expect((await page.evaluate(async id => (await fetch(`/api/items/${id}`)).json() as Promise<{ content_md: string }>, id)).content_md).toBe("persisted");
+    expect((await page.evaluate(async id => (await fetch(`/api/items/${id}`)).json() as Promise<{ contentMd: string }>, id)).contentMd).toBe("persisted");
     await page.unroute(`**/api/items/${id}`);
     const saved = page.waitForResponse(response => response.url().endsWith(`/api/items/${id}`) && response.status() === 200);
     const acknowledged = expect(page.locator(".save-state")).toHaveText("saved");
     await page.locator("#save-draft-btn").click(); await saved; await acknowledged;
-    expect((await page.evaluate(async id => (await fetch(`/api/items/${id}`)).json() as Promise<{ content_md: string }>, id)).content_md).toBe("failed autosave");
+    expect((await page.evaluate(async id => (await fetch(`/api/items/${id}`)).json() as Promise<{ contentMd: string }>, id)).contentMd).toBe("failed autosave");
   });
   test(`${kind} keeps the editor after publication fails following a successful save`, async ({ page }) => {
     const id = await editor(page, kind);
-    await page.route(`**/api/items/${id}/publish`, route => route.fulfill({ status: 503, json: { error: "publication rejected" } }));
+    await page.route(`**/api/items/${id}/publish`, route => route.fulfill({ status: 503, json: { code: 'internal', message: "publication rejected" } }));
     await page.locator("#md-input").fill("saved but unpublished");
     const failed = page.waitForResponse(response => response.url().endsWith(`/api/items/${id}/publish`) && response.status() === 503);
     await page.locator("#publish-btn").click(); await failed;
     await expect(page.locator("#error-banner-slot")).toContainText("publication rejected");
     await expect(page.locator("#md-input")).toHaveValue("saved but unpublished");
-    const item = await page.evaluate(async id => (await fetch(`/api/items/${id}`)).json() as Promise<{ content_md: string; version: number }>, id);
-    expect(item).toMatchObject({ content_md: "saved but unpublished", version: 0 });
+    const item = await page.evaluate(async id => (await fetch(`/api/items/${id}`)).json() as Promise<{ contentMd: string; version: number }>, id);
+    expect(item).toMatchObject({ contentMd: "saved but unpublished", version: 0 });
     await page.unroute(`**/api/items/${id}/publish`);
     await page.locator("#publish-btn").click();
     await expect(page.locator('[data-action="view-version"]')).toHaveCount(1);
@@ -139,19 +149,19 @@ for (const kind of ["fragment", "thread"] as const) {
     const first = new Promise<void>(resolve => { started = resolve; });
     await page.route(`**/api/items/${id}`, async route => {
       if (route.request().method() !== "PATCH") return route.continue();
-      if (route.request().postDataJSON().content_md === "older") { started(); await held; }
+      if (route.request().postDataJSON().contentMd === "older") { started(); await held; }
       await route.continue();
     });
     try {
       await page.locator("#md-input").fill("older");
       await page.locator("#save-draft-btn").click(); await first;
       await page.locator("#md-input").fill("newer");
-      const saved = page.waitForResponse(response => response.url().endsWith(`/api/items/${id}`) && response.request().postDataJSON()?.content_md === "older");
+      const saved = page.waitForResponse(response => response.url().endsWith(`/api/items/${id}`) && response.request().postDataJSON()?.contentMd === "older");
       release(); await saved; await page.clock.runFor(17);
       await expect(page.locator("#md-input")).toHaveValue("newer");
-      const next = page.waitForResponse(response => response.url().endsWith(`/api/items/${id}`) && response.request().postDataJSON()?.content_md === "newer");
+      const next = page.waitForResponse(response => response.url().endsWith(`/api/items/${id}`) && response.request().postDataJSON()?.contentMd === "newer");
       await page.clock.runFor(401); await next;
-      expect((await page.evaluate(async id => (await fetch(`/api/items/${id}`)).json() as Promise<{ content_md: string }>, id)).content_md).toBe("newer");
+      expect((await page.evaluate(async id => (await fetch(`/api/items/${id}`)).json() as Promise<{ contentMd: string }>, id)).contentMd).toBe("newer");
     } finally { release(); }
   });
   // Serialization is a work law as well as a final-value law. While the first PATCH
@@ -165,7 +175,7 @@ for (const kind of ["fragment", "thread"] as const) {
     const first = new Promise<void>(resolve => { started = resolve; });
     await page.route(`**/api/items/${id}`, async route => {
       if (route.request().method() !== "PATCH") return route.continue();
-      bodies.push(route.request().postDataJSON().content_md);
+      bodies.push(route.request().postDataJSON().contentMd);
       if (bodies.length === 1) { started(); await held; }
       await route.continue();
     });
@@ -179,10 +189,10 @@ for (const kind of ["fragment", "thread"] as const) {
       await page.locator("#md-input").fill("older"); await page.clock.runFor(401); await first;
       await page.locator("#md-input").fill("newer"); await page.clock.runFor(401);
       expect(await page.evaluate(() => (globalThis as unknown as { patchCalls: number }).patchCalls)).toBe(1);
-      const saved = page.waitForResponse(response => response.url().endsWith(`/api/items/${id}`) && response.request().postDataJSON()?.content_md === "newer");
+      const saved = page.waitForResponse(response => response.url().endsWith(`/api/items/${id}`) && response.request().postDataJSON()?.contentMd === "newer");
       release(); await saved;
       expect(bodies).toEqual(["older", "newer"]);
-      expect((await page.evaluate(async id => (await fetch(`/api/items/${id}`)).json() as Promise<{ content_md: string; version: number }>, id)).content_md).toBe("newer");
+      expect((await page.evaluate(async id => (await fetch(`/api/items/${id}`)).json() as Promise<{ contentMd: string; version: number }>, id)).contentMd).toBe("newer");
     } finally { release(); }
   });
 }
@@ -213,6 +223,6 @@ for (const kind of ["fragment", "thread"] as const) test(`${kind} autosave in fl
   await page.locator("#publish-btn").click();
   release();
   await published;
-  const item = await page.evaluate(async id => (await fetch(`/api/items/${id}`)).json() as Promise<{ content_md: string; version: number }>, id);
-  expect(item).toMatchObject({ content_md: "typed while saving", version: 1 });
+  const item = await page.evaluate(async id => (await fetch(`/api/items/${id}`)).json() as Promise<{ contentMd: string; version: number }>, id);
+  expect(item).toMatchObject({ contentMd: "typed while saving", version: 1 });
 });

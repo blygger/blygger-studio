@@ -9,8 +9,8 @@
  * Model: working copy content, status, dirty flag, authored kind and immutable versions.
  * Withdrawal appends an empty withdrawn snapshot; restore copies text without
  * removing any version; restoring the current version is discard and leaves the copy clean. Pinning changes visibility of one existing snapshot.
- * History grammar: fragment/thread, plain nonempty text and at most ten generated
- * choices. Legal operations depend on model state; restore/pin target nonempty
+ * History grammar: fragment/thread, plain text including empty strings and at most ten generated
+ * choices. Legal operations depend on model state; restore/pin target normal
  * published snapshots. A fixed history forces repeated pin and restore-after-withdraw.
  * Driver: named generated SDK operations through SELF to the real Worker and D1.
  * Refinement: after creation and every awaited action, compare owner working state,
@@ -27,7 +27,7 @@ import { BASE, login } from "./helpers.ts";
 import { atCheckpoint, campaign } from "./oracle-campaign.ts";
 
 type Snapshot = { content: string; pinned: boolean; kind: "fragment" | "thread" | "withdrawn" };
-type Model = { content: string; status: "draft" | "public" | "withdrawn"; dirty: boolean; kind: "fragment" | "thread"; versions: Snapshot[] };
+type Model = { revision: number; content: string; status: "draft" | "public" | "withdrawn"; dirty: boolean; kind: "fragment" | "thread"; versions: Snapshot[] };
 type Action = { op: "edit" | "publish" | "withdraw" | "restore" | "pin"; value?: string; version?: number };
 // History is append-only. Publication and withdrawal add snapshots; restore never
 // rewinds the counter. Working copy content and public status remain separate because an
@@ -35,6 +35,7 @@ type Action = { op: "edit" | "publish" | "withdraw" | "restore" | "pin"; value?:
 // Pinned flags affect visibility, not snapshot content. Retaining both facts lets
 // later public reads distinguish a restored draft from rewritten history.
 function step(model: Model, action: Action) {
+  if (action.op !== "pin" || !model.versions[action.version! - 1].pinned) model.revision++;
   if (action.op === "edit") { model.content = action.value!; model.dirty = true; }
   if (action.op === "publish") { model.versions.push({ content: model.content, pinned: false, kind: model.kind }); model.status = "public"; model.dirty = false; }
   if (action.op === "withdraw") { model.versions.push({ content: "", pinned: false, kind: "withdrawn" }); model.status = "withdrawn"; model.dirty = true; }
@@ -45,9 +46,9 @@ const instruction = fc.record({ choice: fc.nat(30), version: fc.nat(30), text: f
 const histories = fc.record({ kind: fc.constantFrom("fragment" as const, "thread" as const), instructions: fc.array(instruction, { minLength: 1, maxLength: 10 }) });
 
 async function run(kind: Model["kind"], actions?: Action[], instructions?: { choice: number; version: number; text: number }[]) {
-  const client = createBlyggerClient({ baseUrl: BASE, headers: { cookie: await login() }, fetch: (input, init) => SELF.fetch(input instanceof Request ? input : new Request(input, init)) });
-  const created = await unwrap(BlyggerApi.createItem({ client, body: { kind, content_md: "initial" } }));
-  const id = created.id, model: Model = { content: "initial", status: "draft", dirty: true, kind, versions: [] };
+  const client = createBlyggerClient({ baseUrl: BASE + '/blyg/api', headers: { cookie: await login() }, fetch: (input, init) => SELF.fetch(input instanceof Request ? input : new Request(input, init)) });
+  const created = await unwrap(BlyggerApi.createItem({ client, body: { kind, contentMd: "initial" } }));
+  const id = created.id, model: Model = { revision: 1, content: "initial", status: "draft", dirty: true, kind, versions: [] };
   const pinnedSnapshots = new Map<number, string>();
   // Observe all promised views at the same settled-action boundary. Checking only
   // owner text would miss a wrong public projection; checking only the latest public
@@ -55,8 +56,9 @@ async function run(kind: Model["kind"], actions?: Action[], instructions?: { cho
   // baseline while the model independently checks its content, kind and visibility.
   async function compare() {
     const owner = await unwrap(BlyggerApi.getItem({ client, path: { id } }));
-    atCheckpoint("lifecycle owner working copy", () => expect({ content: owner.content_md, status: owner.status, dirty: owner.dirty, version: owner.version, kind: owner.authored_kind }).toEqual({ content: model.content, status: model.status, dirty: model.dirty, version: model.versions.length, kind }));
-    atCheckpoint("lifecycle immutable history", () => expect(owner.versions.map(v => ({ content: v.content_md, pinned: v.pinned, kind: v.kind }))).toEqual(model.versions));
+    atCheckpoint("lifecycle private revision", () => expect(owner.revision).toBe(model.revision));
+    atCheckpoint("lifecycle owner working copy", () => expect({ content: owner.contentMd, status: owner.status, dirty: owner.dirty, version: owner.version, kind: owner.kind }).toEqual({ content: model.content, status: model.status, dirty: model.dirty, version: model.versions.length, kind }));
+    atCheckpoint("lifecycle immutable history", () => expect(owner.versions.map(v => ({ content: v.contentMd, pinned: v.pinned, kind: v.kind }))).toEqual(model.versions));
     const current = await SELF.fetch(`${BASE}/blyg/items/${id}.json`);
     atCheckpoint("lifecycle public visibility", () => expect(current.status).toBe(model.versions.length ? 200 : 404));
     if (model.versions.length) {
@@ -80,21 +82,21 @@ async function run(kind: Model["kind"], actions?: Action[], instructions?: { cho
   await compare();
   const queue = actions ?? instructions!.map(() => null);
   for (const [index, supplied] of queue.entries()) {
-    const restorable = model.versions.flatMap((v, i) => v.content ? [i + 1] : []);
+    const restorable = model.versions.flatMap((v, i) => v.kind !== "withdrawn" ? [i + 1] : []);
     // Choose operations from model state, not production eligibility helpers.
-    // Withdrawal requires a public item; restore/pin require a nonempty snapshot.
+    // Withdrawal requires a public item; restore/pin require a publication snapshot.
     // Modulo selection bounds choices without skipping failed production actions.
     // This grammar excludes restoring withdrawal tombstones and malformed versions.
     const legal: Action["op"][] = ["edit", "publish", ...(model.status === "public" ? ["withdraw" as const] : []), ...(restorable.length ? ["restore" as const, "pin" as const] : [])];
     const token = instructions?.[index];
-    const action = supplied ?? { op: legal[token!.choice % legal.length], value: `text ${token!.text}`, version: restorable[token!.version % restorable.length] };
+    const action = supplied ?? { op: legal[token!.choice % legal.length], value: token!.text % 4 === 0 ? "" : `text ${token!.text}`, version: restorable[token!.version % restorable.length] };
     if (!legal.includes(action.op)) throw new Error("Illegal lifecycle history");
-    if (action.op === "edit") await unwrap(BlyggerApi.updateItem({ client, path: { id }, body: { content_md: action.value } }));
-    if (action.op === "publish") await unwrap(BlyggerApi.publishItem({ client, path: { id } }));
-    if (action.op === "withdraw") await unwrap(BlyggerApi.withdrawItem({ client, path: { id } }));
-    if (action.op === "restore") await unwrap(BlyggerApi.restoreItem({ client, path: { id }, body: { version: action.version! } }));
+    if (action.op === "edit") await unwrap(BlyggerApi.updateItem({ client, path: { id }, body: { ...({ contentMd: action.value }), expectedRevision: model.revision } }));
+    if (action.op === "publish") await unwrap(BlyggerApi.publishItem({ client, path: { id } , body: { expectedRevision: model.revision } }));
+    if (action.op === "withdraw") await unwrap(BlyggerApi.withdrawItem({ client, path: { id } , body: { expectedRevision: model.revision } }));
+    if (action.op === "restore") await unwrap(BlyggerApi.restoreItem({ client, path: { id }, body: { ...({ version: action.version! }), expectedRevision: model.revision } }));
     if (action.op === "pin") {
-      const result = await unwrap(BlyggerApi.pinItem({ client, path: { id, version: action.version! } }));
+      const result = await unwrap(BlyggerApi.pinItem({ client, path: { id, version: action.version! } , body: { expectedRevision: model.revision } }));
       expect(result.already).toBe(model.versions[action.version! - 1].pinned);
     }
     step(model, action);
@@ -105,8 +107,11 @@ describe("item lifecycle oracle", () => {
   it.each(["fragment", "thread"] as const)("preserves a pinned history through restore and withdrawal: %s", async kind => {
     await run(kind, [{ op: "publish" }, { op: "pin", version: 1 }, { op: "pin", version: 1 }, { op: "edit", value: "second" }, { op: "publish" }, { op: "withdraw" }, { op: "restore", version: 1 }, { op: "publish" }]);
   });
+  it.each(["fragment", "thread"] as const)("keeps empty publications distinct from withdrawals: %s", async kind => {
+    await run(kind, [{ op: "edit", value: "" }, { op: "publish" }, { op: "pin", version: 1 }, { op: "withdraw" }, { op: "restore", version: 1 }, { op: "publish" }, { op: "pin", version: 3 }, { op: "withdraw" }]);
+  });
   it("rejects a rewound version and a changed pinned snapshot in its checker", () => {
-    const model: Model = { content: "one", status: "draft", dirty: true, kind: "thread", versions: [] };
+    const model: Model = { revision: 1, content: "one", status: "draft", dirty: true, kind: "thread", versions: [] };
     step(model, { op: "publish" }); step(model, { op: "pin", version: 1 }); step(model, { op: "withdraw" }); step(model, { op: "restore", version: 1 }); step(model, { op: "publish" });
     expect(() => expect(model.versions).toEqual([{ content: "one", pinned: true, kind: "thread" }])).toThrow();
     expect(() => expect([{ ...model.versions[0], content: "changed" }, ...model.versions.slice(1)]).toEqual(model.versions)).toThrow();

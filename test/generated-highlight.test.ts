@@ -11,9 +11,9 @@ import { apiJson, createAndPublish, getPublic, login } from "./helpers.ts";
 import { THEMES } from "../src/themes.ts";
 
 const setDefault = (cookie: string, on: boolean) =>
-  apiJson(cookie, "PATCH", "/api/settings", { highlight_generated_default: on });
+  apiJson(cookie, "PATCH", "/blyg/api/settings", { highlightGeneratedDefault: on });
 const setItem = (cookie: string, id: string, mode: string) =>
-  apiJson(cookie, "PATCH", `/api/items/${id}`, { highlight: mode });
+  apiJson(cookie, "PATCH", `/blyg/api/items/${id}`, { highlight: mode });
 const article = async (id: string) => /<article class="([^"]*)"/.exec(await (await getPublic(`/blyg/f/${id}/`)).text())![1];
 const css = async () => (await getPublic("/blyg/style.css")).text();
 const GENERATED = "Some words [TK]impyrt=pasted from elsewhere[/TK] and mine.";

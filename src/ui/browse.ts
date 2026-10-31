@@ -119,7 +119,7 @@ export function visit(step: Omit<Step, 'stepId'>) {
   void unwrap(
     BlyggerApi.logBrowse({
       client,
-      body: { trail: trail!, parent_id: parentId, origin: step.origin, remote_id: step.id, version: step.version, via, title: step.title || null },
+      body: { trail: trail!, parentId: parentId, origin: step.origin, remoteId: step.id, version: step.version, via, title: step.title || null },
     }),
   ).then(
     ({ id }) => {

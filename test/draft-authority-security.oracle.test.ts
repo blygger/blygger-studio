@@ -1,3 +1,5 @@
+import { testRevisionBody } from './helpers.ts';
+import { testItemRevision } from './helpers.ts';
 /**
  * Decision #52 makes drafting and publication separate capabilities. A draft-only
  * action must not remove or alter a published projection, even if publication
@@ -29,23 +31,23 @@ async function fixture() {
   const login = await receive(app, '/blyg/studio/login', { method: 'POST', headers: { 'CF-Connecting-IP': 'fd00:' + crypto.randomUUID().replaceAll('-', '').match(/.{4}/g)!.slice(0,7).join(':') }, body: new URLSearchParams({ password: env.OWNER_PASSWORD }) });
   expect(login.status).toBe(302);
   const cookie = login.headers.get('set-cookie')!.split(';')[0];
-  const owner = (path: string, method = 'GET', body?: unknown) => receive(app, path, { method, headers: { cookie, 'Content-Type': 'application/json' }, ...(body === undefined ? {} : { body: JSON.stringify(body) }) });
-  const created = await owner('/api/items', 'POST', { kind: 'thread', content_md: 'Public authority fixture' });
+  const owner = async (path: string, method = 'GET', body?: unknown) => { body = await testRevisionBody(method, path, body); return receive(app, path, { method, headers: { cookie, 'Content-Type': 'application/json' }, ...(body === undefined ? {} : { body: JSON.stringify(body) }) }); };
+  const created = await owner('/blyg/api/items', 'POST', { kind: 'thread', contentMd: 'Public authority fixture' });
   expect(created.status).toBe(201); const { id } = await created.json() as { id: string };
   return { app, owner, id, cookie };
 }
 it('draft edits and restoration leave every named public projection unchanged', async () => {
   const f = await fixture();
-  expect((await f.owner(`/api/items/${f.id}/publish`, 'POST')).status).toBe(200);
+  expect((await f.owner(`/blyg/api/items/${f.id}/publish`, 'POST')).status).toBe(200);
   const publicPath = `/blyg/items/${f.id}.json`;
   const before = await (await receive(f.app, publicPath)).text();
   const draft = new Hono().route('/api', createOwnerApi({ scope: ['owner:draft'], clientId: 'draft-fixture', userId: 'owner' }));
   for (const [method, path, body, status] of [
-    ['PATCH', `/api/items/${f.id}`, { content_md: 'Unpublished text', stub_of: { url: 'https://citation.example/post' } }, 200],
+    ['PATCH', `/api/items/${f.id}`, { contentMd: 'Unpublished text', stubOf: { url: 'https://citation.example/post' } }, 200],
     ['POST', `/api/items/${f.id}/restore`, { version: 1 }, 200],
     ['DELETE', `/api/items/${f.id}`, undefined, 409],
   ] as const) {
-    const result = await receive(draft, path, { method, headers: { 'Content-Type': 'application/json' }, ...(body === undefined ? {} : { body: JSON.stringify(body) }) });
+    const result = await receive(draft, path, { method, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(await testRevisionBody(method, path, body)) });
     expect(result.status).toBe(status);
     const after = await receive(f.app, publicPath); expect(after.status).toBe(200);
     expect(await after.text(), 'draft authority cannot change published item bytes').toBe(before);
@@ -53,9 +55,9 @@ it('draft edits and restoration leave every named public projection unchanged', 
 });
 it('a draft-only deletion cannot remove an item published during its stale-state window', async () => {
   const f = await fixture();
-  const form = new FormData(); form.set('item_id', f.id);
+  const form = new FormData(); (form.set('item_id', f.id), form.set('expectedRevision', String(await testItemRevision(f.id))));
   form.set('file', new File(['disposable fixture'], 'fixture.png', { type: 'image/png' }));
-  const upload = await receive(f.app, '/api/media', { method: 'POST', headers: { cookie: f.cookie }, body: form });
+  const upload = await receive(f.app, '/blyg/api/media', { method: 'POST', headers: { cookie: f.cookie }, body: form });
   expect(upload.status).toBe(201); const media = await upload.json() as { id: string };
   let reached!: () => void, release!: () => void;
   const claimed = new Promise<void>(resolve => { reached = resolve; });
@@ -76,10 +78,10 @@ it('a draft-only deletion cannot remove an item published during its stale-state
     const value = Reflect.get(target, key); return typeof value === 'function' ? value.bind(target) : value;
   } });
   const draft = new Hono().route('/api', createOwnerApi({ scope: ['owner:draft'], clientId: 'draft-race', userId: 'owner' }));
-  const deletion = receive(draft, `/api/items/${f.id}`, { method: 'DELETE' }, { ...env, DB: database });
+  const deletion = receive(draft, `/api/items/${f.id}`, { method: 'DELETE', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ expectedRevision: await testItemRevision(f.id) }) }, { ...env, DB: database });
   try {
     await Promise.race([claimed, deletion.then(() => { throw new Error('Deletion did not reach the batch checkpoint'); })]);
-    const published = await f.owner(`/api/items/${f.id}/publish`, 'POST'); expect(published.status).toBe(200);
+    const published = await f.owner(`/blyg/api/items/${f.id}/publish`, 'POST'); expect(published.status).toBe(200);
     const path = `/blyg/items/${f.id}.json`, baseline = await receive(f.app, path); expect(baseline.status).toBe(200);
     const bytes = await baseline.text();
     release(); expect((await deletion).status, 'draft deletion must reject stale published authority').toBe(409);

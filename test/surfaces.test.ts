@@ -7,11 +7,11 @@ import { CLIENT, GENERATOR } from "../src/types.ts";
 describe("manifest (§2.4)", () => {
   it("has the exact manifest shape", async () => {
     const cookie = await login();
-    await apiJson(cookie, "PATCH", "/api/settings", {
-      site_title: "A Test Blyg",
-      author_name: "A Test Author",
-      author_bio: "test bio",
-      author_links: [{ label: "Home", url: "https://author.example/" }],
+    await apiJson(cookie, "PATCH", "/blyg/api/settings", {
+      siteTitle: "A Test Blyg",
+      authorName: "A Test Author",
+      authorBio: "test bio",
+      authorLinks: [{ label: "Home", url: "https://author.example/" }],
     });
     const res = await getPublic("/blyg/blyg.json");
     expect(res.status).toBe(200);
@@ -47,7 +47,7 @@ describe("archive index (§2.5)", () => {
     const a = await createAndPublish(cookie, "first");
     const b = await createAndPublish(cookie, "second");
     const c = await createAndPublish(cookie, "third, then withdrawn");
-    await apiJson(cookie, "POST", `/api/items/${c}/withdraw`, {});
+    await apiJson(cookie, "POST", `/blyg/api/items/${c}/withdraw`, {});
 
     const index = await (await getPublic("/blyg/items/index.json")).json<any>();
     expect(index.updated).toMatch(/Z$/);
@@ -89,6 +89,7 @@ describe("CORS + timestamps", () => {
 
   it("public routes carry cache headers", async () => {
     const res = await getPublic("/blyg/blyg.json");
-    expect(res.headers.get("cache-control")).toBe("public, max-age=60");
+    expect(res.headers.get("cache-control")).toBe("no-cache");
+    expect(res.headers.get("etag")).toBeTruthy();
   });
 });

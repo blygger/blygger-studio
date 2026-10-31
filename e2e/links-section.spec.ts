@@ -1,12 +1,10 @@
+import { fixtureJson } from './api-fixture';
 import { test, expect, type Page } from './fixture.ts';
 
 // The links section (session 47): chosen in Settings, shown on every public
 // page. The form sends every field back, so it must save with the section set.
 const api = (page: Page, method: string, path: string, body?: unknown) =>
-  page.evaluate(async ([method, path, body]) => {
-    const res = await fetch(path as string, { method: method as string, headers: { 'content-type': 'application/json' }, body: body === undefined ? undefined : JSON.stringify(body) });
-    return { status: res.status, json: await res.json().catch(() => null) };
-  }, [method, path, body] as const);
+  page.evaluate(fixtureJson, { method, path, body });
 
 test('threads and links chosen in Settings show on the public page', async ({ page, browser }) => {
   const errors: string[] = [];
@@ -16,9 +14,9 @@ test('threads and links chosen in Settings show on the public page', async ({ pa
   await page.getByRole('button', { name: 'log in', exact: true }).click();
   await expect(page.locator('#composer-text')).toBeVisible();
   // Both projects share one database.
-  await api(page, 'PATCH', '/api/settings', { links_threads: [], links_external: [], links_position: 'bottom', front_page: '' });
+  await api(page, 'PATCH', '/api/settings', { linksThreads: [], linksExternal: [], linksPosition: 'bottom', frontPage: '' });
   const label = `Colophon ${test.info().project.name}`;
-  const created = await api(page, 'POST', '/api/items', { content_md: `# ${label}\n\nHow this blyg is made.`, kind: 'thread' });
+  const created = await api(page, 'POST', '/api/items', { contentMd: `# ${label}\n\nHow this blyg is made.`, kind: 'thread' });
   const id = created.json.id as string;
   expect((await api(page, 'POST', `/api/items/${id}/publish`, {})).status).toBe(200);
 
@@ -28,9 +26,9 @@ test('threads and links chosen in Settings show on the public page', async ({ pa
   await card.getByRole('searchbox', { name: 'find a thread to add' }).fill(label);
   await card.getByRole('list', { name: 'matching threads: find a thread to add' }).getByRole('button', { name: label }).click();
   await expect(card.locator('.linked-threads')).toContainText(label);
-  await card.locator('#links_external').fill('Résumé | https://example.org/resume.pdf');
+  await card.locator('#linksExternal').fill('Résumé | https://example.org/resume.pdf');
   await page.getByRole('button', { name: 'save settings' }).click();
-  await expect.poll(async () => (await api(page, 'GET', '/api/settings')).json.links_threads).toEqual([id]);
+  await expect.poll(async () => (await api(page, 'GET', '/api/settings')).json.linksThreads).toEqual([id]);
 
   // A desktop reader: in the mobile project a bare context would be narrow, with the menu folded.
   const reader = await browser.newContext({ viewport: { width: 1280, height: 900 }, isMobile: false, hasTouch: false });
@@ -55,6 +53,6 @@ test('threads and links chosen in Settings show on the public page', async ({ pa
   await expect(small.locator('nav.blyg-links').getByRole('link', { name: label })).toBeVisible();
   await phone.close();
 
-  await api(page, 'PATCH', '/api/settings', { links_threads: [], links_external: [], links_position: 'bottom' });
+  await api(page, 'PATCH', '/api/settings', { linksThreads: [], linksExternal: [], linksPosition: 'bottom' });
   expect(errors).toEqual([]);
 });

@@ -4,11 +4,15 @@ import { CHANGE_CATEGORIES } from '../change-category.ts';
 import type {
   GetItemResponses, UpdateItemResponses, GenerateItemResponses, PublishItemResponses,
   DeleteItemResponses, WithdrawItemResponses, PinItemResponses, DraftNoteResponses, ClassifyChangeResponses,
+  UploadMediaResponses, DeleteMediaResponses, RefreshItemResponses,
 } from '../../sdk/dist/browser.js';
 
 const kind = z.enum(['fragment', 'thread']);
 export const draftWriteSchema = z.discriminatedUnion('type', [
   z.object({ type: z.literal('save'), text: z.string(), kind: kind.optional() }),
+  z.object({ type: z.literal('upload'), file: z.instanceof(File), inline: z.boolean().optional() }),
+  z.object({ type: z.literal('delete-media'), mediaId: z.string() }),
+  z.object({ type: z.literal('refresh'), note: z.string() }),
   z.object({ type: z.literal('generate'), scope: z.number().int().nonnegative() }),
   z.object({ type: z.literal('restore'), version: z.number().int().positive() }),
   // category: the change category the author confirmed (studio-private); omitted when the classifier did not run.
@@ -22,7 +26,7 @@ export const draftWriteSchema = z.discriminatedUnion('type', [
     kind: kind.optional(),
     highlight: z.enum(['default', 'show', 'hide']).optional(),
     responses: z.enum(['default', 'show', 'hide']).optional(),
-    stub_of: z.null().optional(),
+    stubOf: z.null().optional(),
   }) }),
 ]);
 export type DraftWrite = z.infer<typeof draftWriteSchema>;
@@ -31,7 +35,8 @@ type Results = {
   restore: GetItemResponses[200]; publish: PublishItemResponses[200];
   delete: DeleteItemResponses[200]; withdraw: WithdrawItemResponses[200];
   pin: PinItemResponses[200]; 'draft-note': DraftNoteResponses[200]; classify: ClassifyChangeResponses[200];
-  update: UpdateItemResponses[200];
+  update: UpdateItemResponses[200]; upload: UploadMediaResponses[201] | UploadMediaResponses[200];
+  'delete-media': DeleteMediaResponses[200]; refresh: RefreshItemResponses[200];
 };
 const requestSchema = z.object({ key: z.string(), revision: z.number().int(), command: draftWriteSchema });
 type Request = z.infer<typeof requestSchema>;

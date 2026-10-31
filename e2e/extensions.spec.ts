@@ -102,7 +102,7 @@ test('the extensions releases carry: reading time in the byline, inspect in the 
     await rows.getByRole('button').last().click();
     const sheet = page.getByRole('dialog', { name: 'inspect' });
     await expect(sheet.locator('[data-extension-sheet=inspect] dl')).toContainText('version');
-    await expect(sheet.locator('.inspect-json')).toContainText('"subscription_id"');
+    await expect(sheet.locator('.inspect-json')).toContainText('"subscriptionId"');
     await expect(sheet.locator('.inspect-json')).toContainText('characters, not shown');
     await page.keyboard.press('Escape');
     await expect(sheet).toHaveCount(0);

@@ -1,5 +1,6 @@
 import type { Transclusion } from "../types.ts";
 import type { FeedHistory, FeedHistoryItem } from "./types.ts";
+import { authoredItemKindSql } from '../version-state.ts';
 
 /**
  * A blyg's own publishing history, in the shape a subscriber would assemble
@@ -8,9 +9,11 @@ import type { FeedHistory, FeedHistoryItem } from "./types.ts";
  */
 export async function loadFeedHistory(db: D1Database): Promise<FeedHistory> {
   const [items, versions] = await db.batch([
-    db.prepare("SELECT id, kind, status FROM items WHERE status IN ('public','withdrawn') ORDER BY rowid"),
+    db.prepare(`SELECT i.id, ${authoredItemKindSql('p')} AS kind, i.status FROM items i
+      LEFT JOIN versions p ON p.item_id = i.id AND p.version = i.version - 1
+      WHERE i.status IN ('public','withdrawn') ORDER BY i.rowid`),
     db.prepare(`SELECT v.item_id, v.version, v.published_at, v.note, v.pinned, v.transclusions FROM versions v
-      JOIN items i ON i.id = v.item_id WHERE i.status IN ('public','withdrawn') AND v.content_md != '' ORDER BY v.item_id, v.version`),
+      JOIN items i ON i.id = v.item_id WHERE i.status IN ('public','withdrawn') AND (v.kind IN ('fragment','thread') OR (v.kind IS NULL AND v.content_md != '')) ORDER BY v.item_id, v.version`),
   ]);
   const byId = new Map<string, FeedHistoryItem>();
   for (const row of items.results as { id: string; kind: string; status: string }[]) {

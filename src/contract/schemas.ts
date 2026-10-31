@@ -1,7 +1,10 @@
 import { z } from "@hono/zod-openapi";
 
+export const ItemRevisionSchema = z.number().int().positive().max(Number.MAX_SAFE_INTEGER);
+
 export const ItemRowSchema = z.object({
   id: z.string(),
+  revision: ItemRevisionSchema,
   kind: z.enum(["fragment", "thread", "withdrawn"]),
   status: z.enum(["draft", "public", "withdrawn"]),
   created: z.string(),
@@ -19,6 +22,7 @@ export const ItemRowSchema = z.object({
 }).openapi("ItemRow");
 
 export const VersionRowSchema = z.object({
+  kind: z.enum(["fragment", "thread", "withdrawn"]).nullable(),
   item_id: z.string(),
   version: z.number(),
   content_md: z.string(),
@@ -45,107 +49,6 @@ export const MediaRowSchema = z.object({
   inline: z.number(),
 }).openapi("MediaRow");
 
-export const SubscriptionRowSchema = z.object({
-  id: z.string(),
-  kind: z.enum(["blyg", "rss"]),
-  origin: z.string(),
-  feed_url: z.string(),
-  title: z.string(),
-  status: z.enum(["active", "paused", "degraded"]),
-  etag: z.string().nullable(),
-  last_modified: z.string().nullable(),
-  last_poll_at: z.string().nullable(),
-  newest_guid: z.string().nullable(),
-  fail_count: z.number(),
-  last_index_sync_at: z.string().nullable(),
-  in_blogroll: z.number(),
-  flags: z.string(),
-  created: z.string(),
-  title_auto: z.number(),
-}).openapi("SubscriptionRow");
-
-export const ImportedItemRowSchema = z.object({
-  subscription_id: z.string(),
-  remote_id: z.string(),
-  kind: z.enum(["fragment", "thread"]),
-  state: z.enum(["current", "tombstone"]),
-  version: z.number(),
-  created: z.string().nullable(),
-  updated: z.string().nullable(),
-  observed_at: z.string(),
-  content_md: z.string(),
-  content_html: z.string(),
-  content_hash: z.string().nullable(),
-  author_json: z.string().nullable(),
-  media_json: z.string().nullable(),
-  transclusions_json: z.string().nullable(),
-  l0: z.number(),
-  pinned_version_retained: z.number().nullable(),
-  page: z.string().nullable(),
-  stub_of_json: z.string().nullable(),
-  forked_from_json: z.string().nullable(),
-  generated_json: z.string().nullable().describe("The origin's `generated` array as published (0.4 adds remote sources); null when it discloses none."),
-}).openapi("ImportedItemRow");
-
-export const HopperRowSchema = z.object({
-  id: z.string(),
-  name: z.string(),
-  slug: z.string().nullable(),
-  public: z.number(),
-  created: z.string(),
-  slug_frozen: z.number(),
-  description: z.string().nullable(),
-}).openapi("HopperRow");
-
-export const HopperItemRowSchema = z.object({
-  hopper_id: z.string(),
-  subscription_id: z.string(),
-  remote_id: z.string(),
-  added_at: z.string(),
-}).openapi("HopperItemRow");
-
-export const SignalRowSchema = z.object({
-  subscription_id: z.string(),
-  remote_id: z.string(),
-  thumb: z.union([z.literal(1), z.literal(-1)]),
-  at: z.string(),
-}).openapi("SignalRow");
-
-export const MentionInRowSchema = z.object({
-  id: z.string(),
-  source: z.string(),
-  target: z.string(),
-  target_item_id: z.string(),
-  status: z.enum(["pending", "verified", "failed", "gone"]),
-  relation: z.enum(["stub", "transclusion", "fork", "source"]).nullable(),
-  source_origin: z.string().nullable(),
-  source_id: z.string().nullable(),
-  source_kind: z.string().nullable(),
-  source_version: z.number().nullable(),
-  source_author_json: z.string().nullable(),
-  source_page: z.string().nullable(),
-  first_seen: z.string(),
-  last_seen: z.string(),
-  verified_at: z.string().nullable(),
-  attempts: z.number(),
-  error: z.string().nullable(),
-  hidden: z.number(),
-}).openapi("MentionInRow");
-
-export const MentionOutRowSchema = z.object({
-  id: z.string(),
-  item_id: z.string(),
-  version: z.number(),
-  target_version: z.number().nullable(),
-  target: z.string(),
-  endpoint: z.string().nullable(),
-  status: z.enum(["pending", "sent", "failed", "no_endpoint"]),
-  attempts: z.number(),
-  next_attempt_at: z.string().nullable(),
-  last_error: z.string().nullable(),
-  created: z.string(),
-}).openapi("MentionOutRow");
-
 const hexColor = z.string().regex(/^#[0-9a-fA-F]{6}$/, "a #rrggbb colour");
 /** An author-defined palette: the same nine values as a preset theme. Colours only. */
 export const CustomThemeSchema = z.object({
@@ -159,49 +62,3 @@ export const CustomThemeSchema = z.object({
   genBg: hexColor,
   genRule: hexColor,
 }).strict().openapi("CustomTheme");
-
-export const SettingsSchema = z.object({
-  site_title: z.string(),
-  theme: z.string(),
-  custom_theme: CustomThemeSchema.nullable(),
-  custom_theme_dark: CustomThemeSchema.nullable(),
-  custom_theme_name: z.string(),
-  font: z.string(),
-  author_name: z.string(),
-  author_url: z.string(),
-  author_bio: z.string(),
-  author_links: z.array(z.object({ label: z.string(), url: z.string() })),
-  site_url: z.string(),
-  timezone: z.string(),
-  avatar_media_id: z.string(),
-  ai_model: z.string(),
-  ai_model_tk: z.string(),
-  ai_model_changelog: z.string(),
-  ai_model_feed: z.string(),
-  ai_model_classify: z.string().describe("The change classifier's decision model (Clef, Jev); empty, the default, is off. Studio-private: a category reaches readers only as words in a changelog note the author confirms."),
-  change_category_in_note: z.boolean().describe("Lead the changelog note with the classifier's category, in the publish dialog where the author sees it. Matters only while ai_model_classify is set."),
-  feed_prompt: z.string(),
-  ai_style_prompt: z.string(),
-  accept_mentions: z.boolean(),
-  update_check: z.boolean(),
-  show_responses_default: z.boolean(),
-  highlight_generated_default: z.boolean(),
-  auto_change_notes: z.boolean(),
-  picker_typing: z.enum(["auto", "editor", "panel"]),
-  feed_order: z.string().describe("The public home page order: an id from feed_orders. pace-layered (the default) and reverse-chronological are core; extensions add orders named <extension>/<id>."),
-  front_page: z.string().describe("A published thread's id shown at the mount root instead of the latest items; empty for the latest items. A front page later withdrawn or deleted falls back to the latest items."),
-  posts_path: z.string().describe("Where the latest items live: {mount}/{posts_path}/, served whether or not a front page is set. Lowercase letters, digits and hyphens; names the blyg already uses are refused."),
-  links_position: z.enum(["bottom", "left", "right"]).describe("Where the links section (main menu) sits on public pages: left (the default) or right is a sidebar on wide screens and a Menu button under the masthead on narrow ones; bottom puts it below the content at every width."),
-  links_threads: z.array(z.string()).describe("Published threads listed first in the links section, in order. A thread later withdrawn is left out."),
-  links_external: z.array(z.object({ label: z.string(), url: z.string() })).describe("The owner's own links in the links section."),
-  links_collections: z.boolean().describe("List public collections in the links section."),
-  links_opml: z.boolean().describe("Link the blogroll's OPML file in the links section, when the blogroll is not empty."),
-  links_blygger_org: z.boolean().describe("Link blygger.org in the links section."),
-  links_blygger_com: z.boolean().describe("Link blygger.com, the directory of blygs, in the links section."),
-  setup: z.enum(["pending", "notice", "done"]).describe("The setup wizard: pending on a fresh install, notice on a node that published before it existed, done once finished or dismissed."),
-  defaults: z.record(z.string(), z.unknown()).optional().describe("Read-only: what each setting reads as with nothing stored, for \"reset to default\". site_title's default is the title derived from the address; store \"\" to keep it derived."),
-  feed_orders: z.array(z.object({ id: z.string(), title: z.string(), description: z.string() })).optional().describe("Read-only: the home page orders this node can use now (core, plus enabled extensions')."),
-  update_feed_url: z.string(),
-  update_notice_ack: z.boolean(),
-  extensions: z.array(z.string()).describe("Studio extensions enabled on this node (docs/extensions.md). Only names compiled into this build are accepted; every extension starts disabled."),
-}).openapi("Settings");

@@ -7,7 +7,7 @@ import {
   issueSessionCookie,
   verifySession,
 } from './auth.ts';
-import { escapeHtml } from './util.ts';
+import { deploymentPaths, escapeHtml } from './util.ts';
 import { authorizationServer, ownerLoginRateLimit } from './oauth.ts';
 import { verifyOAuthQueryParams } from '@better-auth/oauth-provider';
 import { CLIENT } from './client.ts';
@@ -17,6 +17,7 @@ import {
   STUDIO_ICON_SVG,
 } from './studio-icon.ts';
 import type { Env } from './types.ts';
+import { validatedResponse } from './http-response.ts';
 
 /** The pencil accent of the default (auto, light) palette — the shell's
  *  theme-color until settings load and the studio repaints it. */
@@ -57,7 +58,7 @@ export function studioManifest(base: string) {
  * network answers and the installed app still launches offline. It never
  * touches /api or any server-rendered page: navigations it can't reach fall
  * back to an owner-free shell (the same markup the Worker serves, which
- * carries only the mount), never to a cached response.
+ * carries only deployment paths), never to a cached response.
  *
  * It is a TS template literal emitted as JavaScript, so the AGENTS.md escape
  * hazard applies: no backslashes in it. test/inline-scripts.test.ts parses it.
@@ -107,6 +108,12 @@ self.addEventListener('fetch', (event) => {
 export function studioSpa(mount: string) {
   const app = new Hono<{ Bindings: Env }>({ strict: false });
   const base = `${mount}/studio`;
+  app.use('*', async (c, next) => {
+    await next();
+    if (c.res.status === 200 && !/\b(?:private|no-store)\b/i.test(c.res.headers.get('Cache-Control') ?? '')) {
+      c.res = await validatedResponse(c.req.raw, c.res);
+    }
+  });
   const returnTo = (value: unknown) => typeof value === 'string' && value.startsWith(base + '/auth/oauth2/authorize?') && !value.includes('\\') ? value : base;
   const b = escapeHtml(base);
   const head = (title: string) =>
@@ -126,7 +133,7 @@ export function studioSpa(mount: string) {
   const shell = (body: string, spa = false) =>
     `<!doctype html><html lang="en" class="js" data-theme="auto"><head>${head(`blyg studio${spa ? '' : ' — login'}`)}</head><body>${body}${spa ? `<script defer src="${b}/app.js"></script>` : ''}</body></html>`;
   const spaShell = shell(
-    `<div id="studio-root" data-mount="${escapeHtml(mount)}"></div>`,
+    `<div id="studio-root" data-mount="${escapeHtml(mount)}" data-api-base="${escapeHtml(deploymentPaths(mount).api)}"></div>`,
     true,
   );
   const login = (error = '', next = base, oauthQuery?: string) =>

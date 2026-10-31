@@ -27,7 +27,7 @@ import {
 type Phase = 'pick' | 'preview' | 'running' | 'done';
 
 function errorText(error: unknown, status: number): string {
-  if (error && typeof error === 'object' && 'error' in error) return String((error as { error: unknown }).error);
+  if (error && typeof error === 'object' && 'message' in error && typeof error.message === 'string') return error.message;
   return `request failed (${status})`;
 }
 /** One answer from the server, read for the import: created, duplicate, throttled or failed. */
@@ -123,7 +123,7 @@ export function OpmlImportSheet({ open, onClose }: { open: boolean; onClose: () 
       subscribe: (feed) =>
         attempt(BlyggerApi.createSubscription({ client, body: { url: feed.xmlUrl, confirm: true, backfill: false } })),
       afterAdd: blogroll
-        ? (id) => attempt(BlyggerApi.updateSubscription({ client, path: { id }, body: { in_blogroll: true } }))
+        ? (id) => attempt(BlyggerApi.updateSubscription({ client, path: { id }, body: { inBlogroll: true } }))
         : undefined,
       onRow: (i, status) => setRows((prev) => ({ ...prev, [indices[i]]: status })),
       shouldStop: () => stop.current,

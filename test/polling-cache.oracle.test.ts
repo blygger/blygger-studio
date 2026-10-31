@@ -52,7 +52,7 @@ async function request(bindings: Env = env, headers: HeadersInit = {}, method = 
 }
 async function changes(cookie: string): Promise<OracleToken> {
   const ctx = createExecutionContext();
-  const response = await app.fetch(new Request(`${BASE}/api/changes`, { headers: { cookie } }), env, ctx);
+  const response = await app.fetch(new Request(`${BASE}/blyg/api/changes`, { headers: { cookie } }), env, ctx);
   await waitOnExecutionContext(ctx);
   expect(response.status).toBe(200);
   return response.json();
@@ -155,7 +155,7 @@ describe('trigger revision oracle', () => {
       const ctx = createExecutionContext(); const response = await app.fetch(new Request(BASE + path, { headers: { cookie } }), env, ctx);
       expect(response.status).toBe(200); const data = await response.json(); await waitOnExecutionContext(ctx); return data;
     }
-    const paths = ['/api/reading', '/api/hoppers/dependency-hopper'];
+    const paths = ['/blyg/api/reading', '/blyg/api/hoppers/dependency-hopper'];
     const before = await Promise.all(paths.map(read)), counters = await changes(cookie);
     await env.DB.prepare("UPDATE imported_items SET content_html='<p>After</p>' WHERE subscription_id='dependency-source'").run();
     const after = await Promise.all(paths.map(read)), changed = await changes(cookie);
@@ -176,23 +176,23 @@ describe('trigger revision oracle', () => {
       const response = await app.fetch(new Request(BASE + path, { method, headers: { cookie, ...(body ? { 'content-type': 'application/json', origin: BASE } : {}) }, body: body ? JSON.stringify(body) : undefined }), env, ctx);
       expect(response.status).toBe(200); const data = await response.json(); await waitOnExecutionContext(ctx); return data;
     }
-    const before = await call('GET', '/api/reading'), counters = await changes(cookie);
-    await call('PUT', '/api/reading/read-source/r/read', { version: 2 });
-    const after = await call('GET', '/api/reading'), changed = await changes(cookie);
+    const before = await call('GET', '/blyg/api/reading'), counters = await changes(cookie);
+    await call('PUT', '/blyg/api/reading/read-source/r/read', { version: 2 });
+    const after = await call('GET', '/blyg/api/reading'), changed = await changes(cookie);
     // Observed through the fresh response, not the production classifier.
     expect(after).not.toEqual(before);
     atCheckpoint('trigger exact domain effects', () => expect(changedDomains(counters, changed)).toEqual(['reading']));
-    await call('PUT', '/api/reading/read-source/r/read', { version: 1 });
-    expect(await call('GET', '/api/reading')).toEqual(after);
+    await call('PUT', '/blyg/api/reading/read-source/r/read', { version: 1 });
+    expect(await call('GET', '/blyg/api/reading')).toEqual(after);
     expect(await changes(cookie)).toEqual(changed);
     // Clearing (0026) changes the DTO and its domain; a read from before the
     // clear is refused by the tombstone and changes neither.
-    await call('DELETE', '/api/reading/read-source/r/read');
-    const cleared = await call('GET', '/api/reading'), clearedChanges = await changes(cookie);
+    await call('DELETE', '/blyg/api/reading/read-source/r/read');
+    const cleared = await call('GET', '/blyg/api/reading'), clearedChanges = await changes(cookie);
     expect(cleared).not.toEqual(after);
     atCheckpoint('trigger exact domain effects', () => expect(changedDomains(changed, clearedChanges)).toEqual(['reading']));
-    await call('PUT', '/api/reading/read-source/r/read', { version: 2, read_at: '2000-01-01T00:00:00Z' });
-    expect(await call('GET', '/api/reading')).toEqual(cleared);
+    await call('PUT', '/blyg/api/reading/read-source/r/read', { version: 2, readAt: '2000-01-01T00:00:00Z' });
+    expect(await call('GET', '/blyg/api/reading')).toEqual(cleared);
     expect(await changes(cookie)).toEqual(clearedChanges);
   });
   it('mention status transitions move exactly the domains whose responses they change', async () => {
@@ -203,7 +203,7 @@ describe('trigger revision oracle', () => {
       expect(response.status).toBe(200); const body = await response.text(); await waitOnExecutionContext(ctx); return body;
     }
     // The Studio's inbound list, and the public page's responses section as a reader receives it.
-    const studio = () => read('/api/mentions?direction=inbound');
+    const studio = () => read('/blyg/api/mentions?direction=inbound');
     const page = async () => (await read('/blyg/f/cache-item/', {})).match(/<section[^>]*responses[\s\S]*?<\/section>/)?.[0] ?? '';
     const verify = "status='verified',relation='stub',source_origin='https://responder.example/',source_id='r',source_kind='thread',source_version=1,source_page='t/r/',source_author_json='{\"name\":\"Witness\"}',verified_at='2026-10-18T00:00:00Z'";
     // Receiver writes, in the order a claim's life takes them. Expected domains
@@ -246,7 +246,7 @@ describe('trigger revision oracle', () => {
     ]);
     const baseline = await changes(cookie);
     async function readUpdate() {
-      const ctx = createExecutionContext(); const response = await app.fetch(new Request(`${BASE}/api/update-state`, { headers: { cookie } }), env, ctx);
+      const ctx = createExecutionContext(); const response = await app.fetch(new Request(`${BASE}/blyg/api/update-state`, { headers: { cookie } }), env, ctx);
       expect(response.status).toBe(200); await response.text(); await waitOnExecutionContext(ctx);
     }
     vi.setSystemTime(start + 24 * 60 * 60 * 1000 - 1); await readUpdate(); expect(await changes(cookie)).toEqual(baseline);
@@ -310,7 +310,7 @@ describe('trigger revision oracle', () => {
   });
   it('denies unauthenticated change reads', async () => {
     const ctx = createExecutionContext();
-    const response = await app.fetch(new Request(`${BASE}/api/changes`), env, ctx);
+    const response = await app.fetch(new Request(`${BASE}/blyg/api/changes`), env, ctx);
     expect(response.status).toBe(401);
     expect(response.headers.get('cache-control')).toBe('no-store');
     await waitOnExecutionContext(ctx);

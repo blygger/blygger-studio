@@ -56,7 +56,7 @@ test('with no changelog entry for that version it says so', async ({ page }) => 
 test('an unreachable origin says the same, and a first version gets no line', async ({ page }) => {
   await login(page);
   await feedAtVersion(page, 4);
-  await page.route(`**/api/imports/parity-native/${NATIVE}/history`, (route) => route.fulfill({ status: 502, json: { error: 'could not reach the origin' } }));
+  await page.route(`**/api/imports/parity-native/${NATIVE}/history`, (route) => route.fulfill({ status: 502, json: { code: 'bad-gateway', message: 'could not reach the origin' } }));
   await page.goto('/studio/reading?sub=parity-native');
   await expect(card(page).locator('[data-change-lead]')).toHaveText('V4: No changelog entry available');
   await page.unroute('**/api/reading?*');

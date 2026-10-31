@@ -16,10 +16,10 @@ async function imported(origin: string, content = "their post"): Promise<{ sub: 
   return { sub: sub.id, id };
 }
 
-async function log(cookie: string, id: string): Promise<{ kind: string; origin: string; hopper_name: string | null; own_item_id: string | null; version: number | null; label: string | null }[]> {
-  const res = await apiJson(cookie, "GET", "/api/interactions?limit=100");
+async function log(cookie: string, id: string): Promise<{ kind: string; origin: string; hopperName: string | null; ownItemId: string | null; version: number | null; label: string | null }[]> {
+  const res = await apiJson(cookie, "GET", "/blyg/api/interactions?limit=100");
   expect(res.status).toBe(200);
-  return (res.json.items as any[]).filter((r) => r.remote_id === id).reverse();
+  return (res.json.items as any[]).filter((r) => r.remoteId === id).reverse();
 }
 
 describe("interaction log", () => {
@@ -27,7 +27,7 @@ describe("interaction log", () => {
     const cookie = await login();
     const origin = "https://thumbs.example/blyg/";
     const t = await imported(origin, "a post about **stigmergy**");
-    const path = `/api/signals/${t.sub}/${t.id}`;
+    const path = `/blyg/api/signals/${t.sub}/${t.id}`;
     await apiJson(cookie, "PUT", path, { thumb: 1 });
     await apiJson(cookie, "PUT", path, { thumb: 1 }); // no change, no entry
     await apiJson(cookie, "PUT", path, { thumb: -1 });
@@ -37,47 +37,47 @@ describe("interaction log", () => {
     expect((await log(cookie, t.id))[0]).toMatchObject({ origin, label: expect.stringContaining("stigmergy") });
 
     await apiJson(cookie, "PUT", path, { thumb: 1 });
-    const thumbs = (await apiJson(cookie, "GET", "/api/thumbs")).json.items as any[];
-    expect(thumbs.find((r) => r.remote_id === t.id)).toMatchObject({ thumb: 1, origin, subscription_id: t.sub });
+    const thumbs = (await apiJson(cookie, "GET", "/blyg/api/thumbs")).json.items as any[];
+    expect(thumbs.find((r) => r.remoteId === t.id)).toMatchObject({ thumb: 1, origin, subscriptionId: t.sub });
   });
 
   it("logs hopper membership with the hopper's name, including removals when a hopper is deleted", async () => {
     const cookie = await login();
     const t = await imported("https://hoppered.example/blyg/");
-    const hopper = (await apiJson(cookie, "POST", "/api/hoppers", { name: "Traces" })).json.id as string;
-    const path = `/api/hoppers/${hopper}/items/${t.sub}/${t.id}`;
+    const hopper = (await apiJson(cookie, "POST", "/blyg/api/hoppers", { name: "Traces" })).json.id as string;
+    const path = `/blyg/api/hoppers/${hopper}/items/${t.sub}/${t.id}`;
     await apiJson(cookie, "PUT", path);
     await apiJson(cookie, "PUT", path); // already a member
     await apiJson(cookie, "DELETE", path);
     await apiJson(cookie, "PUT", path);
-    await apiJson(cookie, "DELETE", `/api/hoppers/${hopper}`);
+    await apiJson(cookie, "DELETE", `/blyg/api/hoppers/${hopper}`);
     const rows = await log(cookie, t.id);
     expect(rows.map((r) => r.kind)).toEqual(["hopper_add", "hopper_remove", "hopper_add", "hopper_remove"]);
-    expect(rows.every((r) => r.hopper_name === "Traces")).toBe(true);
+    expect(rows.every((r) => r.hopperName === "Traces")).toBe(true);
   });
 
   it("logs a remote quote and a stub when first published, and not again on republish", async () => {
     const cookie = await login();
     const origin = "https://quoted.example/blyg/";
     const t = await imported(origin);
-    const created = await apiJson(cookie, "POST", "/api/items", { content_md: `![[${t.id}]]\n\nMy take.`, kind: "thread", stub_of: { origin, id: t.id, version: 2 } });
+    const created = await apiJson(cookie, "POST", "/blyg/api/items", { contentMd: `![[${t.id}]]\n\nMy take.`, kind: "thread", stubOf: { origin, id: t.id, version: 2 } });
     const thread = created.json.id as string;
-    await apiJson(cookie, "POST", `/api/items/${thread}/publish`, {});
-    await apiJson(cookie, "PATCH", `/api/items/${thread}`, { content_md: `![[${t.id}]]\n\nMy longer take.` });
-    await apiJson(cookie, "POST", `/api/items/${thread}/publish`, {});
+    await apiJson(cookie, "POST", `/blyg/api/items/${thread}/publish`, {});
+    await apiJson(cookie, "PATCH", `/blyg/api/items/${thread}`, { contentMd: `![[${t.id}]]\n\nMy longer take.` });
+    await apiJson(cookie, "POST", `/blyg/api/items/${thread}/publish`, {});
     const rows = await log(cookie, t.id);
     expect(rows.map((r) => r.kind).sort()).toEqual(["quote", "stub"]);
-    expect(rows.every((r) => r.own_item_id === thread && r.version === 2)).toBe(true);
+    expect(rows.every((r) => r.ownItemId === thread && r.version === 2)).toBe(true);
   });
 
   it("filters by kind and never logs our own items", async () => {
     const cookie = await login();
-    const own = (await apiJson(cookie, "POST", "/api/items", { content_md: "mine" })).json.id as string;
-    await apiJson(cookie, "POST", `/api/items/${own}/publish`, {});
-    const thread = (await apiJson(cookie, "POST", "/api/items", { content_md: `![[${own}]]\n\nSelf-quote.`, kind: "thread" })).json.id as string;
-    await apiJson(cookie, "POST", `/api/items/${thread}/publish`, {});
+    const own = (await apiJson(cookie, "POST", "/blyg/api/items", { contentMd: "mine" })).json.id as string;
+    await apiJson(cookie, "POST", `/blyg/api/items/${own}/publish`, {});
+    const thread = (await apiJson(cookie, "POST", "/blyg/api/items", { contentMd: `![[${own}]]\n\nSelf-quote.`, kind: "thread" })).json.id as string;
+    await apiJson(cookie, "POST", `/blyg/api/items/${thread}/publish`, {});
     expect(await log(cookie, own)).toEqual([]);
-    const quotes = (await apiJson(cookie, "GET", "/api/interactions?kind=quote&limit=100")).json.items as any[];
+    const quotes = (await apiJson(cookie, "GET", "/blyg/api/interactions?kind=quote&limit=100")).json.items as any[];
     expect(quotes.every((r) => r.kind === "quote")).toBe(true);
   });
 });
@@ -85,13 +85,13 @@ describe("interaction log", () => {
 describe("reading lens (kind filter on /api/reading)", () => {
   it("narrows every source and its counts to one kind", async () => {
     const cookie = await login();
-    const frag = (await apiJson(cookie, "POST", "/api/items", { content_md: "lens fragment" })).json.id as string;
-    await apiJson(cookie, "POST", `/api/items/${frag}/publish`, {});
-    const thread = (await apiJson(cookie, "POST", "/api/items", { content_md: `![[${frag}]]\n\nlens thread`, kind: "thread" })).json.id as string;
-    await apiJson(cookie, "POST", `/api/items/${thread}/publish`, {});
-    const all = (await apiJson(cookie, "GET", "/api/reading?sub=own&limit=50")).json;
-    const threads = (await apiJson(cookie, "GET", "/api/reading?sub=own&kind=thread&limit=50")).json;
-    const fragments = (await apiJson(cookie, "GET", "/api/reading?sub=own&kind=fragment&limit=50")).json;
+    const frag = (await apiJson(cookie, "POST", "/blyg/api/items", { contentMd: "lens fragment" })).json.id as string;
+    await apiJson(cookie, "POST", `/blyg/api/items/${frag}/publish`, {});
+    const thread = (await apiJson(cookie, "POST", "/blyg/api/items", { contentMd: `![[${frag}]]\n\nlens thread`, kind: "thread" })).json.id as string;
+    await apiJson(cookie, "POST", `/blyg/api/items/${thread}/publish`, {});
+    const all = (await apiJson(cookie, "GET", "/blyg/api/reading?sub=own&limit=50")).json;
+    const threads = (await apiJson(cookie, "GET", "/blyg/api/reading?sub=own&kind=thread&limit=50")).json;
+    const fragments = (await apiJson(cookie, "GET", "/blyg/api/reading?sub=own&kind=fragment&limit=50")).json;
     expect(threads.items.every((e: any) => e.kind === "thread")).toBe(true);
     expect(fragments.items.every((e: any) => e.kind === "fragment")).toBe(true);
     expect(threads.items.map((e: any) => e.key)).toContain(`own:${thread}`);

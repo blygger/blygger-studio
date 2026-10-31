@@ -27,15 +27,15 @@ describe("the page field (§2.3.2)", () => {
   it("item documents declare their own permalink, by kind", async () => {
     const cookie = await login();
     const f = await createAndPublish(cookie, "a fragment");
-    const t = (await apiJson(cookie, "POST", "/api/items", { content_md: "a thread", kind: "thread" })).json.id;
-    await apiJson(cookie, "POST", `/api/items/${t}/publish`, {});
+    const t = (await apiJson(cookie, "POST", "/blyg/api/items", { contentMd: "a thread", kind: "thread" })).json.id;
+    await apiJson(cookie, "POST", `/blyg/api/items/${t}/publish`, {});
 
     expect((await (await getPublic(`/blyg/items/${f}.json`)).json<any>()).page).toBe(`f/${f}/`);
     expect((await (await getPublic(`/blyg/items/${t}.json`)).json<any>()).page).toBe(`t/${t}/`);
 
     // A withdrawal endcap is 200 forever and still has a page — and it names
     // the authored kind, not "withdrawn".
-    await apiJson(cookie, "POST", `/api/items/${t}/withdraw`, {});
+    await apiJson(cookie, "POST", `/blyg/api/items/${t}/withdraw`, {});
     const endcap = await (await getPublic(`/blyg/items/${t}.json`)).json<any>();
     expect(endcap.kind).toBe("withdrawn");
     expect(endcap.page).toBe(`t/${t}/`);
@@ -47,13 +47,13 @@ describe("the page field (§2.3.2)", () => {
     const fragmentPage = await (await getPublic(`/blyg/f/${f}/`)).text();
     expect(fragmentPage).toContain(`<link rel="alternate" type="application/json" href="https://example.com/blyg/items/${f}.json">`);
 
-    const t = (await apiJson(cookie, "POST", "/api/items", { content_md: "a thread", kind: "thread" })).json.id;
-    await apiJson(cookie, "POST", `/api/items/${t}/publish`, {});
+    const t = (await apiJson(cookie, "POST", "/blyg/api/items", { contentMd: "a thread", kind: "thread" })).json.id;
+    await apiJson(cookie, "POST", `/blyg/api/items/${t}/publish`, {});
     const threadPage = await (await getPublic(`/blyg/t/${t}/`)).text();
     expect(threadPage).toContain(`href="https://example.com/blyg/items/${t}.json"`);
 
     // Withdrawn too: §2.3.6 keeps accepting mentions that target a withdrawal.
-    await apiJson(cookie, "POST", `/api/items/${t}/withdraw`, {});
+    await apiJson(cookie, "POST", `/blyg/api/items/${t}/withdraw`, {});
     expect(await (await getPublic(`/blyg/t/${t}/`)).text()).toContain(`href="https://example.com/blyg/items/${t}.json"`);
   });
 
@@ -80,11 +80,11 @@ describe("page stability (decision #56)", () => {
     const id = await createAndPublish(cookie, "first words");
     const page1 = (await (await getPublic(`/blyg/items/${id}.json`)).json<any>()).page;
     expect(page1).toBe(`f/${id}/`);
-    expect((await apiJson(cookie, "PUT", `/api/items/${id}/versions/1/pin`)).status).toBe(200);
-    expect((await apiJson(cookie, "PATCH", `/api/items/${id}`, { content_md: "second words" })).status).toBe(200);
-    expect((await apiJson(cookie, "POST", `/api/items/${id}/publish`, {})).status).toBe(200);
+    expect((await apiJson(cookie, "PUT", `/blyg/api/items/${id}/versions/1/pin`)).status).toBe(200);
+    expect((await apiJson(cookie, "PATCH", `/blyg/api/items/${id}`, { contentMd: "second words" })).status).toBe(200);
+    expect((await apiJson(cookie, "POST", `/blyg/api/items/${id}/publish`, {})).status).toBe(200);
     expect((await (await getPublic(`/blyg/items/${id}.json`)).json<any>()).page).toBe(page1);
-    expect((await apiJson(cookie, "POST", `/api/items/${id}/withdraw`, {})).status).toBe(200);
+    expect((await apiJson(cookie, "POST", `/blyg/api/items/${id}/withdraw`, {})).status).toBe(200);
     const endcap = await (await getPublic(`/blyg/items/${id}.json`)).json<any>();
     expect(endcap.kind).toBe("withdrawn");
     expect(endcap.page).toBe(page1);
@@ -96,8 +96,8 @@ describe("provenance lines (§2.1 presentation)", () => {
     const cookie = await login();
     const remoteId = newId();
     await importItem({ id: remoteId, page: `posts/${remoteId}`, content_md: "their words" });
-    const threadId = (await apiJson(cookie, "POST", "/api/items", { content_md: `![[${remoteId}]]`, kind: "thread" })).json.id;
-    await apiJson(cookie, "POST", `/api/items/${threadId}/publish`, {});
+    const threadId = (await apiJson(cookie, "POST", "/blyg/api/items", { contentMd: `![[${remoteId}]]`, kind: "thread" })).json.id;
+    await apiJson(cookie, "POST", `/blyg/api/items/${threadId}/publish`, {});
 
     const html = await (await getPublic(`/blyg/t/${threadId}/`)).text();
     expect(html).toContain(`href="${THEIRS}posts/${remoteId}"`);
@@ -109,18 +109,18 @@ describe("provenance lines (§2.1 presentation)", () => {
     const cookie = await login();
     const remoteId = newId();
     await importItem({ id: remoteId, kind: "thread", content_md: "their thread" }, "https://other.example/");
-    const threadId = (await apiJson(cookie, "POST", "/api/items", { content_md: `![[${remoteId}]]`, kind: "thread" })).json.id;
-    await apiJson(cookie, "POST", `/api/items/${threadId}/publish`, {});
+    const threadId = (await apiJson(cookie, "POST", "/blyg/api/items", { contentMd: `![[${remoteId}]]`, kind: "thread" })).json.id;
+    await apiJson(cookie, "POST", `/blyg/api/items/${threadId}/publish`, {});
 
     expect(await (await getPublic(`/blyg/t/${threadId}/`)).text()).toContain(`href="https://other.example/t/${remoteId}/"`);
   });
 
   it("links a local thread target as a thread, not as a 404 under f/", async () => {
     const cookie = await login();
-    const inner = (await apiJson(cookie, "POST", "/api/items", { content_md: "inner", kind: "thread" })).json.id;
-    await apiJson(cookie, "POST", `/api/items/${inner}/publish`, {});
-    const outer = (await apiJson(cookie, "POST", "/api/items", { content_md: `![[${inner}]]`, kind: "thread" })).json.id;
-    await apiJson(cookie, "POST", `/api/items/${outer}/publish`, {});
+    const inner = (await apiJson(cookie, "POST", "/blyg/api/items", { contentMd: "inner", kind: "thread" })).json.id;
+    await apiJson(cookie, "POST", `/blyg/api/items/${inner}/publish`, {});
+    const outer = (await apiJson(cookie, "POST", "/blyg/api/items", { contentMd: `![[${inner}]]`, kind: "thread" })).json.id;
+    await apiJson(cookie, "POST", `/blyg/api/items/${outer}/publish`, {});
 
     const html = await (await getPublic(`/blyg/t/${outer}/`)).text();
     expect(html).toContain(`href="/blyg/t/${inner}/">thread ↗`);
@@ -130,12 +130,12 @@ describe("provenance lines (§2.1 presentation)", () => {
   it("injects one provenance line per direct quote, even when the quote nests", async () => {
     const cookie = await login();
     const f1 = await createAndPublish(cookie, "innermost");
-    const inner = (await apiJson(cookie, "POST", "/api/items", { content_md: `![[${f1}]]`, kind: "thread" })).json.id;
-    await apiJson(cookie, "POST", `/api/items/${inner}/publish`, {});
+    const inner = (await apiJson(cookie, "POST", "/blyg/api/items", { contentMd: `![[${f1}]]`, kind: "thread" })).json.id;
+    await apiJson(cookie, "POST", `/blyg/api/items/${inner}/publish`, {});
     const f2 = await createAndPublish(cookie, "a second fragment");
-    const outer = (await apiJson(cookie, "POST", "/api/items", { content_md: `![[${inner}]]\n\nthen\n\n![[${f2}]]`, kind: "thread" }))
+    const outer = (await apiJson(cookie, "POST", "/blyg/api/items", { contentMd: `![[${inner}]]\n\nthen\n\n![[${f2}]]`, kind: "thread" }))
       .json.id;
-    await apiJson(cookie, "POST", `/api/items/${outer}/publish`, {});
+    await apiJson(cookie, "POST", `/blyg/api/items/${outer}/publish`, {});
 
     const html = await (await getPublic(`/blyg/t/${outer}/`)).text();
     // Two direct quotes → two provenance lines; the nested one gets none.

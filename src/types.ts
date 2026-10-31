@@ -53,6 +53,8 @@ export interface Env {
 
 export interface ItemRow {
   id: string;
+  /** Private concurrency identity, independent of the public version. */
+  revision: number;
   kind: "fragment" | "thread" | "withdrawn";
   status: "draft" | "public" | "withdrawn";
   created: string;
@@ -64,7 +66,7 @@ export interface ItemRow {
    * Working-copy-side cache of per-scope TK generation provenance (migration
    * 0005) — JSON array of `ScopeProvenance | null`, positionally aligned to
    * the scope order in `content_md` as of the last /generate call. Not a
-   * wire artifact; see model.ts getTkProvenance/setTkProvenance.
+   * wire artifact; see model.ts getTkProvenance and item-revision.ts installWorkingCopy.
    */
   tk_provenance_json: string | null;
   /**
@@ -217,6 +219,8 @@ export interface ScopeProvenance {
 }
 
 export interface VersionRow {
+  /** NULL only for legacy versions whose intent was not established (0034). */
+  kind: 'fragment' | 'thread' | 'withdrawn' | null;
   item_id: string;
   version: number;
   content_md: string;
@@ -558,7 +562,7 @@ export const BRAND = {
 /** Reference-client default mount when Env.MOUNT is unset. Deployment lexicon, not wire vocabulary — deliberately ≠ BRAND.slug. */
 export const DEFAULT_MOUNT = "/blyg";
 
-/** Origin-relative path of the reference client's Webmention endpoint (v0.3-plan §2.3.1) — inside the origin surface, because it is a protocol surface, unlike host-rooted /studio and /api. */
+/** Origin-relative path of the reference client's Webmention endpoint (v0.3-plan §2.3.1) — inside the origin surface, because it is a protocol surface. */
 export const WEBMENTION_PATH = "webmention";
 
 /**

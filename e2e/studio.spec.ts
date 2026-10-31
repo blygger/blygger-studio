@@ -1,8 +1,9 @@
+import { fixtureJson } from './api-fixture';
 import { test, expect } from "./fixture";
 import { answerSheet } from "./sheets.ts";
 import { editorMenu, expandRow, openCard } from "./editor.ts";
 
-test("owner can compose, publish and change settings through the SDK", async ({ page }) => {
+test("owner can compose, publish and change settings through the SDK", async ({ page }, testInfo) => {
   const errors: string[] = [];
   page.on("pageerror", (error) => errors.push(error.message));
   await page.goto("/studio");
@@ -18,14 +19,15 @@ test("owner can compose, publish and change settings through the SDK", async ({ 
   await page.goto("/studio/reading?sub=all");
   await expect(page.locator("body")).toContainText("Browser SDK round trip");
   await page.goto("/studio/settings");
-  await page.locator("#site_title").fill("Browser SDK site");
+  const title = `Browser SDK site ${testInfo.project.name} ${testInfo.repeatEachIndex} ${testInfo.retry}`;
+  await page.locator("#siteTitle").fill(title);
   const saved = page.waitForResponse((response) => response.url().endsWith("/api/settings") && response.request().method() === "PATCH");
   await page.locator('#settings-form button[type="submit"]').focus();
   await page.locator('#settings-form button[type="submit"]').press('Enter');
   expect((await saved).status()).toBe(200);
   await expect(page.getByRole("status")).toHaveText("saved");
   await page.reload();
-  await expect(page.locator("#site_title")).toHaveValue("Browser SDK site");
+  await expect(page.locator("#siteTitle")).toHaveValue(title);
   expect(errors).toEqual([]);
 });
 
@@ -58,6 +60,39 @@ test("editor autosave, preview, image upload and history use the SDK", async ({ 
   expect(errors).toEqual([]);
 });
 
+
+test('owner can pin and restore an empty publication', async ({ page }) => {
+  await page.goto('/studio/login');
+  await page.locator('[name="password"]').fill('test-password');
+  await page.getByRole('button', { name: 'log in', exact: true }).click();
+  await expect(page.locator('#composer-text')).toBeVisible();
+  const api = (method: string, path: string, data?: unknown) =>
+    page.evaluate(fixtureJson, { method, path, body: data }).then(result => ({ status: result.status, body: result.json }));
+  const created = await api('POST', '/api/items', { kind: 'thread', contentMd: '' });
+  expect(created.status).toBe(201);
+  const { id } = created.body;
+  expect((await api('POST', `/api/items/${id}/publish`, {})).status).toBe(200);
+  await page.goto(`/studio/edit/${id}`);
+  await openCard(page, 'history');
+  await expect(page.locator('[data-action="pin"]')).toHaveCount(1);
+  await expect(page.getByRole('button', { name: 'restore → v2', exact: true })).toBeVisible();
+  await page.locator('[data-action="pin"]').click();
+  await answerSheet(page, { name: /^Pin v1\?/ });
+  await expect(page.locator('#history .badge-pencil')).toBeVisible();
+  expect((await api('PATCH', `/api/items/${id}`, { contentMd: 'unsaved replacement' })).status).toBe(200);
+  await page.reload();
+  await openCard(page, 'history');
+  await page.getByRole('button', { name: 'restore → v2', exact: true }).click();
+  await answerSheet(page, { name: /^Restore v1 into/ });
+  await expect(page.locator('#md-input')).toHaveValue('');
+  const detail = (await api('GET', `/api/items/${id}`)).body;
+  expect(detail).toMatchObject({ contentMd: '', dirty: false, version: 1 });
+  await page.locator('#history').getByRole('link', { name: 'fork', exact: true }).click();
+  const forked = page.waitForResponse(response => response.url().endsWith('/api/items') && response.request().method() === 'POST');
+  await page.locator('[data-action="fork"]').click();
+  expect((await forked).status()).toBe(201);
+  await expect(page.locator('#md-input')).toHaveValue('');
+});
 
 test("owner can pin and fork through resource creation", async ({ page }) => {
   const errors: string[] = [];
@@ -94,20 +129,17 @@ test("stale quotes are listed, explained, and refreshed as one republish", async
   // In-page fetch: the session cookie is Secure, which Playwright's request
   // context will not send over the fixture's plain http.
   const api = async (method: string, path: string, data?: unknown) => {
-    const res = await page.evaluate(async ([method, path, data]) => {
-      const r = await fetch(`/api${path}`, { method, headers: { "content-type": "application/json" }, body: data === undefined ? undefined : JSON.stringify(data) });
-      return { ok: r.ok, json: await r.json() };
-    }, [method, path, data] as const);
+    const res = await page.evaluate(fixtureJson, { method, path: `/api${path}`, body: data });
     expect(res.ok, `${method} ${path}`).toBe(true);
     return res.json;
   };
   const marker = `Quoted source ${Date.now()}`;
   const title = `Stale quote fixture ${Date.now()}`;
-  const source = (await api("POST", "/items", { content_md: `${marker}, first version.` })).id;
+  const source = (await api("POST", "/items", { contentMd: `${marker}, first version.` })).id;
   await api("POST", `/items/${source}/publish`, {});
-  const thread = (await api("POST", "/items", { content_md: `# ${title}\n\n![[${source}]]\n\nMy commentary.`, kind: "thread" })).id;
+  const thread = (await api("POST", "/items", { contentMd: `# ${title}\n\n![[${source}]]\n\nMy commentary.`, kind: "thread" })).id;
   await api("POST", `/items/${thread}/publish`, {});
-  await api("PATCH", `/items/${source}`, { content_md: `${marker}, second version.` });
+  await api("PATCH", `/items/${source}`, { contentMd: `${marker}, second version.` });
   await api("POST", `/items/${source}/publish`, {});
 
   // Compose no longer nags; the updates tab lists the thread, stalest first,
@@ -186,7 +218,7 @@ test("a drafted note is editable, flagged only while unedited, and cleared after
   await page.locator("#publish-btn").click();
   await expect(page.locator('[data-action="view-version"]')).toHaveCount(1);
   // The fixture has no model; the route's behaviour is covered by the Worker suite.
-  await page.route("**/note-draft", (route) => route.fulfill({ json: { note: "Added a second sentence.", model: "test", pinned_prior: false } }));
+  await page.route("**/note-draft", (route) => route.fulfill({ json: { note: "Added a second sentence.", model: "test", pinnedPrior: false } }));
   const publishes: unknown[] = [];
   page.on("request", (r) => { if (r.url().endsWith("/publish")) publishes.push(r.postDataJSON()); });
 
@@ -200,7 +232,7 @@ test("a drafted note is editable, flagged only while unedited, and cleared after
   await expect(page.locator("#note-confirm-generated")).toBeVisible();
   await page.locator("#note-confirm-ok").click();
   await expect(page.locator('[data-action="view-version"]')).toHaveCount(2);
-  expect(publishes.at(-1)).toMatchObject({ note: "Added a second sentence.", note_generated: true });
+  expect(publishes.at(-1)).toMatchObject({ note: "Added a second sentence.", noteGenerated: true });
   await expect(page.locator("#history .badge", { hasText: "generated" })).toHaveCount(1);
   await expect(page.locator("#note-input")).toHaveValue("");
 
@@ -215,7 +247,7 @@ test("a drafted note is editable, flagged only while unedited, and cleared after
   await expect(page.locator("#note-confirm-generated")).toHaveCount(0);
   await page.locator("#note-confirm-ok").click();
   await expect(page.locator('[data-action="view-version"]')).toHaveCount(3);
-  expect(publishes.at(-1)).toMatchObject({ note_generated: false });
+  expect(publishes.at(-1)).toMatchObject({ noteGenerated: false });
   expect(errors).toEqual([]);
 });
 
@@ -231,7 +263,7 @@ test("an imported item's history shows notes, and diffs only public versions", a
   ] } }));
   await page.route(`**/api/imports/parity-native/${ID}/versions/*`, (route) => {
     const v = Number(route.request().url().split("/").pop());
-    route.fulfill({ json: { version: v, content_md: v === 1 ? "The claim was broad." : "The claim is narrow.", note: null, pinned: v === 1 } });
+    route.fulfill({ json: { version: v, contentMd: v === 1 ? "The claim was broad." : "The claim is narrow.", note: null, pinned: v === 1 } });
   });
   await page.goto("/studio/login");
   await page.locator('[name="password"]').fill("test-password");
@@ -267,7 +299,7 @@ test("an uploaded image leaves with its line, and an unused attachment can be re
   const chooser = page.waitForEvent("filechooser");
   await page.locator("#attach-btn").click();
   await (await chooser).setFiles({ name: "fig.png", mimeType: "image/png", buffer: Buffer.from("89504e470d0a1a0a", "hex") });
-  await expect(input).toHaveValue(/!\[\]\(\/media\/\w+\.png\)/);
+  await expect(input).toHaveValue(/!\[\]\(http:\/\/127\.0\.0\.1:8787\/media\/\w+\.png\)/);
   const row = page.locator(".attachment");
   await expect(row).toContainText("in the text");
   await expect(row.locator('[data-action="remove-media"]')).toHaveCount(0);
@@ -293,13 +325,16 @@ test("an attachment the live version lists is dropped from the next version only
   const id = await page.evaluate(async (stamp) => {
     const json = (method: string, path: string, body: unknown) =>
       fetch(path, { method, headers: { "content-type": "application/json" }, body: JSON.stringify(body) });
-    const { id } = await (await json("POST", "/api/items", { content_md: `Per-version fixture ${stamp}` })).json();
+    const { id, revision } = await (await json("POST", "/api/items", { contentMd: `Per-version fixture ${stamp}` })).json();
     const form = new FormData();
-    form.set("item_id", id);
+    form.set("itemId", id);
+    form.set("expectedRevision", String(revision));
     form.set("alt", "the figure");
     form.set("file", new File([`PNG fixture ${stamp}`], "fig.png", { type: "image/png" }));
-    if ((await fetch("/api/media", { method: "POST", body: form })).status !== 201) throw new Error("upload failed");
-    if ((await json("POST", `/api/items/${id}/publish`, {})).status !== 200) throw new Error("publish failed");
+    const uploaded = await fetch("/api/media", { method: "POST", body: form });
+    if (uploaded.status !== 201) throw new Error("upload failed");
+    const attachment = await uploaded.json();
+    if ((await json("POST", `/api/items/${id}/publish`, { expectedRevision: attachment.revision })).status !== 200) throw new Error("publish failed");
     return id as string;
   }, `${test.info().project.name} ${Date.now()}`);
   await page.goto(`/studio/edit/${id}`);
@@ -347,12 +382,12 @@ test("auto change notes: a draft is shown for editing before a new version publi
   await page.goto("/studio/login");
   await page.locator('[name="password"]').fill("test-password");
   await page.getByRole("button", { name: "log in", exact: true }).click();
-  const api = (m: string, p: string, d?: unknown) => page.evaluate(async ([m, p, d]) => (await fetch('/api' + p, { method: m, headers: { 'content-type': 'application/json' }, body: d === undefined ? undefined : JSON.stringify(d) })).json(), [m, p, d] as const);
-  await api("PATCH", "/settings", { auto_change_notes: true });
-  await page.route("**/note-draft", (route) => route.fulfill({ json: { note: "Tightened the second line.", model: "test", pinned_prior: false } }));
+  const api = (m: string, p: string, d?: unknown) => page.evaluate(fixtureJson, { method: m, path: '/api' + p, body: d }).then(result => result.json);
+  await api("PATCH", "/settings", { autoChangeNotes: true });
+  await page.route("**/note-draft", (route) => route.fulfill({ json: { note: "Tightened the second line.", model: "test", pinnedPrior: false } }));
   const publishes: unknown[] = [];
   page.on("request", (r) => { if (r.url().endsWith("/publish")) publishes.push(r.postDataJSON()); });
-  const id = (await api("POST", "/items", { content_md: `Auto note fixture ${Date.now()}` })).id;
+  const id = (await api("POST", "/items", { contentMd: `Auto note fixture ${Date.now()}` })).id;
   await api("POST", `/items/${id}/publish`, {});
   await page.goto(`/studio/edit/${id}`);
   const input = page.locator("#md-input");
@@ -363,7 +398,7 @@ test("auto change notes: a draft is shown for editing before a new version publi
   await expect(page.locator("#note-confirm-text")).toHaveValue("Tightened the second line.");
   await page.locator("#note-confirm-cancel").click();
   await expect(page.locator("#note-confirm")).toHaveCount(0);
-  expect(publishes.filter((b: any) => b && "note_generated" in b)).toHaveLength(0);
+  expect(publishes.filter((b: any) => b && "noteGenerated" in b)).toHaveLength(0);
   await expect(page.locator('[data-action="view-version"]')).toHaveCount(1);
 
   // Edit the draft and confirm: published with the author's words, not marked generated.
@@ -373,10 +408,10 @@ test("auto change notes: a draft is shown for editing before a new version publi
   await expect(page.locator("#note-confirm-generated")).toHaveCount(0);
   await page.locator("#note-confirm-ok").click();
   await expect(page.locator('[data-action="view-version"]')).toHaveCount(2);
-  expect(publishes.at(-1)).toMatchObject({ note: "Tightened the second line, by hand.", note_generated: false });
+  expect(publishes.at(-1)).toMatchObject({ note: "Tightened the second line, by hand.", noteGenerated: false });
 
   // With the setting off and no note, a new version publishes without asking.
-  await api("PATCH", "/settings", { auto_change_notes: false });
+  await api("PATCH", "/settings", { autoChangeNotes: false });
   await page.reload();
   await input.fill(`${await input.inputValue()} Third.`);
   await page.locator("#publish-btn").click();
@@ -389,14 +424,14 @@ test("the composer list's publish asks for the note on a new version too", async
   await page.goto("/studio/login");
   await page.locator('[name="password"]').fill("test-password");
   await page.getByRole("button", { name: "log in", exact: true }).click();
-  const api = (m: string, p: string, d?: unknown) => page.evaluate(async ([m, p, d]) => (await fetch('/api' + p, { method: m, headers: { 'content-type': 'application/json' }, body: d === undefined ? undefined : JSON.stringify(d) })).json(), [m, p, d] as const);
-  await api("PATCH", "/settings", { auto_change_notes: true });
+  const api = (m: string, p: string, d?: unknown) => page.evaluate(fixtureJson, { method: m, path: '/api' + p, body: d }).then(result => result.json);
+  await api("PATCH", "/settings", { autoChangeNotes: true });
   try {
-    await page.route("**/note-draft", (route) => route.fulfill({ json: { note: "Reworded the opening.", model: "test", pinned_prior: false } }));
+    await page.route("**/note-draft", (route) => route.fulfill({ json: { note: "Reworded the opening.", model: "test", pinnedPrior: false } }));
     const marker = `Row publish fixture ${Date.now()}`;
-    const id = (await api("POST", "/items", { content_md: marker })).id;
+    const id = (await api("POST", "/items", { contentMd: marker })).id;
     await api("POST", `/items/${id}/publish`, {});
-    await api("PATCH", `/items/${id}`, { content_md: `${marker}, reworded` });
+    await api("PATCH", `/items/${id}`, { contentMd: `${marker}, reworded` });
     await page.reload();
     const row = page.locator(`.item-row[data-id="${id}"]`);
     const published = page.waitForRequest((r) => r.url().endsWith(`/items/${id}/publish`));
@@ -405,8 +440,8 @@ test("the composer list's publish asks for the note on a new version too", async
     await expect(page.locator("#note-confirm-text")).toHaveValue("Reworded the opening.");
     await expect(page.locator(".dialog-popup")).toContainText("Version 2");
     await page.locator("#note-confirm-ok").click();
-    expect((await published).postDataJSON()).toMatchObject({ note: "Reworded the opening.", note_generated: true });
+    expect((await published).postDataJSON()).toMatchObject({ note: "Reworded the opening.", noteGenerated: true });
   } finally {
-    await api("PATCH", "/settings", { auto_change_notes: false });
+    await api("PATCH", "/settings", { autoChangeNotes: false });
   }
 });

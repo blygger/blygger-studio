@@ -141,10 +141,10 @@ export function feedKey(url: string): string {
   }
 }
 /** The keys of what the owner already follows: each subscription's feed and origin. */
-export function subscribedKeys(subs: readonly { origin: string; feed_url: string }[]): Set<string> {
+export function subscribedKeys(subs: readonly { origin: string; feedUrl: string }[]): Set<string> {
   const keys = new Set<string>();
   for (const sub of subs) {
-    keys.add(feedKey(sub.feed_url));
+    keys.add(feedKey(sub.feedUrl));
     keys.add(feedKey(sub.origin));
   }
   return keys;

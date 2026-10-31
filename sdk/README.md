@@ -13,18 +13,18 @@ not the npm registry.
 
 ## Browser use
 
-Sign into `/studio` first. Create a client for the same origin; the browser sends
+Sign into `{mount}/studio` first. Create a client for its full `{mount}/api` URL; the browser sends
 its HttpOnly session cookie automatically. The SDK does not create a login
-session. Cross-origin apps and OAuth are planned for a later migration.
+session. Delegated apps use resource-bound bearer tokens or OAuth.
 
 ```js
 import { BlyggerApi, createBlyggerClient, unwrap } from "@blygger/sdk";
 
-const client = createBlyggerClient({ baseUrl: window.location.origin });
+const client = createBlyggerClient({ baseUrl: new URL("/blyg/api", window.location.origin).href });
 const draft = await unwrap(BlyggerApi.createItem({
-  client, body: { content_md: "Hello", kind: "fragment" },
+  client, body: { contentMd: "Hello", kind: "fragment" },
 }));
-await unwrap(BlyggerApi.publishItem({ client, path: { id: draft.id } }));
+await unwrap(BlyggerApi.publishItem({ client, path: { id: draft.id }, body: { expectedRevision: draft.revision } }));
 const reading = await unwrap(BlyggerApi.listReading({ client, query: { offset: 0, limit: 25 } }));
 ```
 
@@ -39,7 +39,7 @@ Never embed server credentials in browser code.
 import { BlyggerApi, createBlyggerClient } from "@blygger/sdk";
 
 const client = createBlyggerClient({
-  baseUrl: "https://blyg.example.com",
+  baseUrl: "https://blyg.example.com/api",
   headers: { Cookie: ownerSessionCookie }, // received through your login/session flow
 });
 const { data, error, response } = await BlyggerApi.listReading({ client });
@@ -50,6 +50,19 @@ Upload with `body: { file: new File([...], "image.png", { type: "image/png" }) }
 Node callers can use a Blob from `node:fs`'s `openAsBlob()` with native FormData
 handling. Filesystem streams are not accepted. Requests take a standard `signal`
 for cancellation. Ordinary API calls do not retry automatically.
+
+## Conditional item writes
+
+Creation returns the first private `revision`. Every item command carries
+`body.expectedRevision` from the snapshot it changes. Successful commands return
+the resulting revision. Attached media uploads and deletes use the owning item’s
+revision too. Unattached media operations have no item revision.
+
+A stale command returns HTTP409 with `code: "revision-conflict"`. Reload and let
+the owner reconcile their changes. Do not fetch a new revision to retry old text
+silently. A publication version, content hash, and HTTP validator are separate
+values and cannot replace the item revision. A lost mutation response does not
+make a blind retry safe.
 
 ## Results and errors
 
@@ -93,9 +106,11 @@ Create a resource-bound token in Studio's access page. For REST, select the API 
 
 ```js
 const client = createBlyggerClient({
-  baseUrl: 'https://example.com',
+  baseUrl: 'https://example.com/blyg/api',
   auth: scheme => scheme.scheme === 'bearer' ? accessToken : undefined,
 });
 ```
 
 Browser bearer requests support CORS. Tokens expire and can be revoked; load them from your credential store. See [client access](https://github.com/blygger/blygger-studio/blob/main/docs/client-access.md) for scopes, revocation and the OAuth/MCP implementation status.
+
+The base URL includes the API path. Use `/api` on root nodes and the advertised `{mount}/api` on mounted nodes. OpenAPI operation paths are relative to that base. Old host-root REST credentials on mounted nodes require replacement or new consent; refresh cannot retarget them. MCP credentials keep their audience.

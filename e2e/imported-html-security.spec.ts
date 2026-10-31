@@ -63,10 +63,10 @@ for (const surface of ['public collection', 'published thread'] as const) test('
   page.on('request', request => { if (request.method() === 'POST' && new URL(request.url()).pathname === '/api/authorizations') attemptedGrants.push(request.url()); });
   let path = '/h/security-native/';
   if (surface === 'published thread') path = await page.evaluate(async () => {
-    const created = await fetch('/api/items',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({kind:'thread',content_md:'![[00000000000000000000000001]]'})});
+    const created = await fetch('/api/items',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({kind:'thread',contentMd:'![[00000000000000000000000001]]'})});
     if (created.status!==201) throw new Error('Thread fixture create failed');
-    const {id}=await created.json();
-    if (!(await fetch('/api/items/'+id+'/publish',{method:'POST'})).ok) throw new Error('Thread fixture publish failed');
+    const {id,revision}=await created.json();
+    if (!(await fetch('/api/items/'+id+'/publish',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({expectedRevision:revision})})).ok) throw new Error('Thread fixture publish failed');
     return '/t/'+id+'/';
   });
   await page.goto(path);

@@ -83,7 +83,7 @@ describe('Better Auth mounted OIDC receiving oracle', () => {
       expect(names).toContain('getSettings'); expect(names).not.toContain('createItem'); expect(names).not.toContain('publishItem');
       const result = await mcp.callTool({ name: 'getSettings', arguments: {} });
       expect(result.isError).not.toBe(true);
-      expect(JSON.parse((result.content as { text: string }[])[0].text).site_title).toBeDefined();
+      expect(JSON.parse((result.content as { text: string }[])[0].text).siteTitle).toBeDefined();
     }, [() => mcp.close()]);
     const post = (endpoint: string, fields: Record<string, string>) => d.fetch(issuer + endpoint, { method: 'POST', body: new URLSearchParams(fields) });
     const refresh = await post('/oauth2/token', { grant_type: 'refresh_token', client_id: client!.client_id, refresh_token: tokens!.refresh_token!, resource: d.resource });

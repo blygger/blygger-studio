@@ -12,8 +12,8 @@ async function publish(page: Page, texts: string[]) {
   return page.evaluate(async (texts) => {
     const ids: string[] = [];
     for (const content_md of texts) {
-      const item = await (await fetch('/api/items', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ content_md }) })).json();
-      await fetch(`/api/items/${item.id}/publish`, { method: 'POST' });
+      const item = await (await fetch('/api/items', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ contentMd: content_md }) })).json();
+      await fetch(`/api/items/${item.id}/publish`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ expectedRevision: item.revision }) });
       ids.push(item.id);
       // Distinct publish times, so newest/oldest has an order to show.
       await new Promise((r) => setTimeout(r, 1100));
@@ -23,7 +23,7 @@ async function publish(page: Page, texts: string[]) {
 }
 const options = (page: Page) => page.getByRole('listbox', { name: 'items' }).getByRole('option');
 const typing = (page: Page, picker_typing: 'auto' | 'editor' | 'panel') =>
-  page.evaluate(async (v) => (await fetch('/api/settings', { method: 'PATCH', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ picker_typing: v }) })).status, picker_typing);
+  page.evaluate(async (v) => (await fetch('/api/settings', { method: 'PATCH', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ pickerTyping: v }) })).status, picker_typing);
 
 test('typing [[ opens the panel; source, sort, Escape and Enter work from the editor', async ({ page }, info) => {
   await login(page);
@@ -130,7 +130,7 @@ test('Settings → writing sets where the picker search is typed', async ({ page
     await expect(group.getByRole('radio', { name: /Automatic/ })).toBeChecked();
     await group.getByRole('radio', { name: /The picker/ }).check();
     await page.getByRole('button', { name: 'save settings', exact: true }).click();
-    await expect.poll(async () => (await page.evaluate(async () => (await fetch('/api/settings')).json())).picker_typing).toBe('panel');
+    await expect.poll(async () => (await page.evaluate(async () => (await fetch('/api/settings')).json())).pickerTyping).toBe('panel');
     expect(await typing(page, 'sideways' as 'auto')).toBe(400);
   } finally {
     await typing(page, 'auto');

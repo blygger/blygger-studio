@@ -34,8 +34,8 @@ describe("the feed stays well-formed XML", () => {
 
   it("a pasted control character and a stray sentinel never reach feed.xml or the item", async () => {
     const cookie = await login();
-    const id = (await apiJson(cookie, "POST", "/api/items", { content_md: "Pasted\u0001 text\u000B with junk in it" })).json.id as string;
-    expect((await apiJson(cookie, "POST", `/api/items/${id}/publish`, {})).status).toBe(200);
+    const id = (await apiJson(cookie, "POST", "/blyg/api/items", { contentMd: "Pasted\u0001 text\u000B with junk in it" })).json.id as string;
+    expect((await apiJson(cookie, "POST", `/blyg/api/items/${id}/publish`, {})).status).toBe(200);
     const feed = await (await getPublic("/blyg/feed.xml")).text();
     expect(XML_BAD.test(feed)).toBe(false);
     const doc = await (await getPublic(`/blyg/items/${id}.json`)).json<any>();

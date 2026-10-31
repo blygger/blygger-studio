@@ -13,9 +13,9 @@ async function seedReading(page: Page, minimum: number) {
   await page.evaluate(async minimum => {
     const total = (await (await fetch('/api/reading')).json()).total as number;
     for (let i = total; i < minimum; i++) {
-      const response = await fetch('/api/items', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ content_md: `Preload fixture ${i}` }) });
-      const item = await response.json() as { id: string };
-      const published = await fetch(`/api/items/${item.id}/publish`, { method: 'POST' });
+      const response = await fetch('/api/items', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ contentMd: `Preload fixture ${i}` }) });
+      const item = await response.json() as { id: string; revision: number };
+      const published = await fetch(`/api/items/${item.id}/publish`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ expectedRevision: item.revision }) });
       if (!response.ok || !published.ok) throw new Error('Cannot seed reading fixture');
     }
   }, minimum);
@@ -28,7 +28,7 @@ test('SPA creates, edits, previews and publishes without document navigation', a
   await expect(page.locator('#preview-body strong')).toHaveText('round trip');
   await page.locator('#publish-btn').click();
   await expect(page.locator('[data-action=view-version]')).toHaveCount(1);
-  expect(await page.evaluate(async id => (await fetch(`/api/items/${id}`)).json(), id)).toMatchObject({ version: 1, content_md: 'React **round trip**' });
+  expect(await page.evaluate(async id => (await fetch(`/api/items/${id}`)).json(), id)).toMatchObject({ version: 1, contentMd: 'React **round trip**' });
   // The editor has no tab bar (PWA phase 2A): back to compose, then reading.
   await page.getByRole('link', { name: '← compose', exact: true }).click();
   await page.getByRole('link', { name: 'reading', exact: true }).click();
@@ -40,21 +40,25 @@ test('SPA creates, edits, previews and publishes without document navigation', a
 });
 test('failed DB mutation rolls back cached state and retains the local draft', async ({ page }) => {
   const id = await edit(page); await page.clock.install(); await page.clock.pauseAt(new Date(Date.now() + 10_000));
-  await page.route(`**/api/items/${id}`, route => route.request().method() === 'PATCH' ? route.fulfill({ status: 503, json: { error: 'save unavailable' } }) : route.continue());
+  await page.route(`**/api/items/${id}`, route => route.request().method() === 'PATCH' ? route.fulfill({ status: 503, json: { code: 'internal', message: 'save unavailable' } }) : route.continue());
   await page.locator('#md-input').fill('Unacknowledged text'); await page.locator('#save-draft-btn').click();
   await expect(page.getByRole('alert')).toContainText('save unavailable');
   await expect(page.locator('#md-input')).toHaveValue('Unacknowledged text');
-  expect(await page.evaluate(async id => (await fetch(`/api/items/${id}`)).json(), id)).toMatchObject({ content_md: 'Original draft', version: 0 });
+  expect(await page.evaluate(async id => (await fetch(`/api/items/${id}`)).json(), id)).toMatchObject({ contentMd: 'Original draft', version: 0 });
   await page.unroute(`**/api/items/${id}`); await page.locator('#save-draft-btn').click();
   await expect(page.locator('.save-state')).toHaveText('saved');
-  expect(await page.evaluate(async id => (await fetch(`/api/items/${id}`)).json(), id)).toMatchObject({ content_md: 'Unacknowledged text' });
+  expect(await page.evaluate(async id => (await fetch(`/api/items/${id}`)).json(), id)).toMatchObject({ contentMd: 'Unacknowledged text' });
 });
 test('polling updates cached reads without replacing editor text', async ({ page }) => {
   const id = await edit(page); await page.clock.install(); await page.clock.pauseAt(new Date(Date.now() + 10_000));
   await page.locator('#md-input').fill('Local draft');
   const published = page.waitForResponse(response => response.url().endsWith(`/api/items/${id}`) && response.request().method() === 'PATCH');
   await page.clock.runFor(401); await published;
-  await page.evaluate(async id => { await fetch(`/api/items/${id}`, { method: 'PATCH', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ content_md: 'Changed in another client' }) }); }, id);
+  await page.evaluate(async id => {
+    const observed = await (await fetch(`/api/items/${id}`)).json();
+    const response = await fetch(`/api/items/${id}`, { method: 'PATCH', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ contentMd: 'Changed in another client', expectedRevision: observed.revision }) });
+    if (!response.ok) throw new Error('Foreign fixture edit failed');
+  }, id);
   const polled = page.waitForResponse(response => response.url().endsWith(`/api/items/${id}`) && response.request().method() === 'GET');
   await page.clock.runFor(15_000); await polled;
   await expect(page.locator('#md-input')).toHaveValue('Local draft');
@@ -64,8 +68,8 @@ test('reading walks real API pages without gaps or repeats', async ({ page }) =>
   const ids = await page.evaluate(async () => {
     const ids: string[] = [];
     for (let i = 0; i < 52; i++) {
-      const item = await (await fetch('/api/items', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ content_md: `Page fixture ${i}` }) })).json() as { id: string };
-      await fetch(`/api/items/${item.id}/publish`, { method: 'POST' }); ids.push(item.id);
+      const item = await (await fetch('/api/items', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ contentMd: `Page fixture ${i}` }) })).json() as { id: string; revision: number };
+      await fetch(`/api/items/${item.id}/publish`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ expectedRevision: item.revision }) }); ids.push(item.id);
     } return ids;
   });
   await page.goto('/studio/reading?sub=all');
@@ -159,16 +163,16 @@ test('reading search survives reload and loads only the requested page', async (
 
 test('settings persist through the DB adapter and a fresh route load', async ({ page }) => {
   await login(page); await page.goto('/studio/settings');
-  await page.locator('#site_title').fill('React settings fixture');
+  await page.locator('#siteTitle').fill('React settings fixture');
   await page.getByRole('button', { name: 'save settings', exact: true }).click();
   await expect(page.getByRole('status')).toHaveText('saved');
-  await page.reload(); await expect(page.locator('#site_title')).toHaveValue('React settings fixture');
-  expect(await page.evaluate(async () => (await (await fetch('/api/settings')).json()).site_title)).toBe('React settings fixture');
+  await page.reload(); await expect(page.locator('#siteTitle')).toHaveValue('React settings fixture');
+  expect(await page.evaluate(async () => (await (await fetch('/api/settings')).json()).siteTitle)).toBe('React settings fixture');
 });
 
 test('route errors expose a retry that can recover an unavailable item read', async ({ page }) => {
   const id = await edit(page);
-  await page.route(`**/api/items/${id}`, route => route.request().method() === 'GET' ? route.fulfill({ status: 503, json: { error: 'item unavailable' } }) : route.continue());
+  await page.route(`**/api/items/${id}`, route => route.request().method() === 'GET' ? route.fulfill({ status: 503, json: { code: 'internal', message: 'item unavailable' } }) : route.continue());
   await page.reload(); await expect(page.getByRole('alert')).toContainText('item unavailable');
   await page.unroute(`**/api/items/${id}`);
   await page.getByRole('button', { name: 'retry', exact: true }).click();
@@ -194,9 +198,9 @@ test('navigation flushes the editor debounce and blocks failed saves', async ({ 
   await page.locator('#md-input').fill('saved before leaving');
   await page.getByRole('link', { name: '← compose', exact: true }).click();
   await expect(page.locator('#composer-text')).toBeVisible();
-  expect(await page.evaluate(async id => (await (await fetch(`/api/items/${id}`)).json()).content_md, id)).toBe('saved before leaving');
+  expect(await page.evaluate(async id => (await (await fetch(`/api/items/${id}`)).json()).contentMd, id)).toBe('saved before leaving');
   await page.goto(`/studio/edit/${id}`);
-  await page.route(`**/api/items/${id}`, route => route.request().method() === 'PATCH' ? route.fulfill({ status: 503, json: { error: 'cannot leave safely' } }) : route.continue());
+  await page.route(`**/api/items/${id}`, route => route.request().method() === 'PATCH' ? route.fulfill({ status: 503, json: { code: 'internal', message: 'cannot leave safely' } }) : route.continue());
   await page.locator('#md-input').fill('keep this local text');
   await page.getByRole('link', { name: '← compose', exact: true }).click();
   await expect(page.getByRole('alert')).toContainText('cannot leave safely');

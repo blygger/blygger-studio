@@ -19,10 +19,11 @@ import type {
   ListReadingResponses,
   UpdateItemData,
   Mention,
-  MentionOutRow,
+  OutboundMention,
 } from '../../sdk/dist/browser.js';
 import {
   BlyggerApi,
+  BlyggerApiError,
   createBlyggerClient,
   unwrap,
 } from '../../sdk/dist/browser.js';
@@ -36,7 +37,8 @@ import { sourceSchemas, readingResponseSchema } from './data-schemas.ts';
 import { zGetItemResponse, zGetHopperResponse } from '../../sdk/dist/schemas.js';
 import { planReadWrites, type ReadWrite, type UnreadWrite } from './read-state.ts';
 
-export const client = createBlyggerClient({ baseUrl: location.origin });
+export const apiBase = new URL(document.getElementById('studio-root')!.dataset.apiBase!, location.origin).href;
+export const client = createBlyggerClient({ baseUrl: apiBase });
 queryClient.mount();
 function cachedQuery<S extends z.ZodType>(
   context: QueryFunctionContext,
@@ -133,7 +135,7 @@ export const items = createCollection(
         const ids = subsetIds(context);
         if (ids) {
           return existing(ids, async (id) => {
-            const { authored_kind: _kind, media: _media, versions, published: _published, ...item } =
+            const { media: _media, versions, published: _published, ...item } =
               await readItem(id, generation);
             const pins = versions
               .filter((version) => version.pinned)
@@ -158,8 +160,8 @@ export const items = createCollection(
     onUpdate: async ({ transaction, collection }) => {
       for (const mutation of transaction.mutations) {
         const changes = mutation.changes;
-        const body: UpdateItemData['body'] = {};
-        for (const field of ['content_md', 'responses', 'highlight', 'stub_of'] as const)
+        const body: UpdateItemData['body'] = { expectedRevision: mutation.original.revision };
+        for (const field of ["contentMd", 'responses', 'highlight', "stubOf"] as const)
           if (field in changes)
             Object.assign(body, { [field]: changes[field] });
         if (changes.kind === 'fragment' || changes.kind === 'thread')
@@ -180,6 +182,7 @@ export const items = createCollection(
           BlyggerApi.deleteItem({
             client,
             path: { id: mutation.key as string },
+            body: { expectedRevision: mutation.original.revision },
           }),
         );
       await collection.utils.refetch({ throwOnError: true });
@@ -243,8 +246,8 @@ export const subscriptions = createCollection(
             path: { id: key as string },
             body: {
               ...(changes.title !== undefined ? { title: changes.title } : {}),
-              ...(changes.in_blogroll !== undefined
-                ? { in_blogroll: changes.in_blogroll }
+              ...(changes.inBlogroll !== undefined
+                ? { inBlogroll: changes.inBlogroll }
                 : {}),
               ...(changes.status !== undefined
                 ? { paused: changes.status === 'paused' }
@@ -327,7 +330,7 @@ export const signals = createCollection(
     syncMode: 'on-demand',
     queryKey: ['signals'],
     queryClient,
-    getKey: (row) => JSON.stringify([row.subscription_id, row.remote_id]),
+    getKey: (row) => JSON.stringify([row.subscriptionId, row.remoteId]),
     queryFn: (context) =>
       cachedQuery(context, 'signals', sourceSchemas.signals.array(), ({ signal }) =>
         pages((offset) =>
@@ -361,9 +364,9 @@ export const itemHistory = createCollection(
         const ids = subsetIds(context);
         if (!ids) throw new Error('Item history requires an id predicate');
         return existing(ids, async (id) => {
-          const { authored_kind, media, published_media, versions, published } =
+          const { media, publishedMedia, versions, published } =
             await readItem(id, generation);
-          return { id, authored_kind, media, published_media, versions, published };
+          return { id, media, publishedMedia, versions, published };
         });
       }),
     select: (response) => response.data,
@@ -376,33 +379,42 @@ export const itemDetail = scoped((id) => createLiveQueryCollection({
     .where(({ item, history }) => and(eq(item.id, id), eq(history.id, id)))
     .fn.select(({ item, history }): Detail => ({ ...item, ...history })),
 }));
-export function createDraftAction(id?: string) {
-  let itemId = id;
+export function createDraftAction(id?: string, observedRevision?: number) {
+  let itemId = id, revision = observedRevision;
   return createPacedDraftAction(async command => {
     let result;
     if (command.type === 'save' && !itemId) {
       result = await unwrap(BlyggerApi.createItem({ client, body: {
-        content_md: command.text, kind: command.kind,
+        contentMd: command.text, kind: command.kind,
       } }));
       itemId = result.id;
     } else {
       if (!itemId) throw new Error('Save the draft before running this command');
-      const path = { id: itemId };
+      if (revision === undefined) throw new Error('Load the item revision before changing it');
+      const path = { id: itemId }, condition = { expectedRevision: revision };
       switch (command.type) {
-        case 'save': result = await unwrap(BlyggerApi.updateItem({ client, path, body: { content_md: command.text, kind: command.kind } })); break;
-        case 'generate': result = await unwrap(BlyggerApi.generateItem({ client, path, body: { scope: command.scope } })); break;
-        case 'restore':
-          await unwrap(BlyggerApi.restoreItem({ client, path, body: { version: command.version } }));
-          result = await unwrap(BlyggerApi.getItem({ client, path })); break;
-        case 'publish': result = await unwrap(BlyggerApi.publishItem({ client, path, body: { note: command.note, note_generated: command.generated, ...(command.category !== undefined ? { change_category: command.category } : {}) } })); break;
-        case 'delete': result = await unwrap(BlyggerApi.deleteItem({ client, path })); break;
-        case 'withdraw': result = await unwrap(BlyggerApi.withdrawItem({ client, path })); break;
-        case 'pin': result = await unwrap(BlyggerApi.pinItem({ client, path: { ...path, version: command.version } })); break;
-        case 'draft-note': result = await unwrap(BlyggerApi.draftNote({ client, path })); break;
-        case 'classify': result = await unwrap(BlyggerApi.classifyChange({ client, path })); break;
-        case 'update': result = await unwrap(BlyggerApi.updateItem({ client, path, body: command.changes })); break;
+        case 'upload': result = await unwrap(BlyggerApi.uploadMedia({ client, body: { file: command.file, inline: command.inline ? 'true' : 'false', itemId: itemId, ...condition } })); break;
+        case 'delete-media': result = await unwrap(BlyggerApi.deleteMedia({ client, path: { id: command.mediaId }, body: condition })); break;
+        case 'refresh': result = await unwrap(BlyggerApi.refreshItem({ client, path, body: { ...condition, note: command.note } })); break;
+        case 'save': result = await unwrap(BlyggerApi.updateItem({ client, path, body: { ...condition, contentMd: command.text, kind: command.kind } })); break;
+        case 'generate': result = await unwrap(BlyggerApi.generateItem({ client, path, body: { ...condition, scope: command.scope } })); break;
+        case 'restore': {
+          const restored = await unwrap(BlyggerApi.restoreItem({ client, path, body: { ...condition, version: command.version } }));
+          revision = restored.revision;
+          result = await unwrap(BlyggerApi.getItem({ client, path }));
+          if (result.revision !== revision) throw new BlyggerApiError(409, { message: 'item changed after restore; reload and try again', code: 'revision-conflict', details: { itemId, expectedRevision: revision } });
+          break;
+        }
+        case 'publish': result = await unwrap(BlyggerApi.publishItem({ client, path, body: { ...condition, note: command.note, noteGenerated: command.generated, ...(command.category !== undefined ? { changeCategory: command.category } : {}) } })); break;
+        case 'delete': result = await unwrap(BlyggerApi.deleteItem({ client, path, body: condition })); break;
+        case 'withdraw': result = await unwrap(BlyggerApi.withdrawItem({ client, path, body: condition })); break;
+        case 'pin': result = await unwrap(BlyggerApi.pinItem({ client, path: { ...path, version: command.version }, body: condition })); break;
+        case 'draft-note': result = await unwrap(BlyggerApi.draftNote({ client, path, body: condition })); break;
+        case 'classify': result = await unwrap(BlyggerApi.classifyChange({ client, path, body: condition })); break;
+        case 'update': result = await unwrap(BlyggerApi.updateItem({ client, path, body: { ...command.changes, ...condition } })); break;
       }
     }
+    if (result && 'revision' in result && typeof result.revision === 'number') revision = result.revision;
     // Finish read-back inside the handler, before another command starts.
     if (command.type === 'save' || command.type === 'update') await items.utils.writeUpsert(sourceSchemas.items.parse({ ...result, pins: items.get(itemId!)?.pins }));
     // A delete caller refreshes after leaving the editor, so its active view
@@ -504,9 +516,9 @@ export const readingView = (sub: string, offset: number) =>
 export async function saveReadState(read: ReadWrite[], unread: UnreadWrite[]) {
   for (const step of planReadWrites(read, unread)) {
     if (step.op === 'put')
-      await unwrap(BlyggerApi.markRead({ client, path: { sub: step.mark.sub, remoteId: step.mark.remote_id }, body: { version: step.mark.version } }));
+      await unwrap(BlyggerApi.markRead({ client, path: { sub: step.mark.sub, remoteId: step.mark.remoteId }, body: { version: step.mark.version } }));
     else if (step.op === 'delete')
-      await unwrap(BlyggerApi.markUnread({ client, path: { sub: step.mark.sub, remoteId: step.mark.remote_id } }));
+      await unwrap(BlyggerApi.markUnread({ client, path: { sub: step.mark.sub, remoteId: step.mark.remoteId } }));
     else if (step.op === 'read') await unwrap(BlyggerApi.markReadBatch({ client, body: { items: step.items } }));
     else await unwrap(BlyggerApi.markUnreadBatch({ client, body: { items: step.items } }));
   }
@@ -555,15 +567,15 @@ export const hopperStats = createCollection(
         const ids = subsetIds(context);
         if (!ids) throw new Error('Hopper stats require an id predicate');
         return existing(ids, async (id) => {
-          const { total, source_count } = await readHopper(id, true, generation);
-          return { id, total, source_count };
+          const { total, sourceCount } = await readHopper(id, true, generation);
+          return { id, total, sourceCount };
         });
       }),
     select: (response) => response.data,
   }),
 );
 function hopperSubset(context: QueryFunctionContext) {
-  const ids = subsetIds(context, 'hopper_id');
+  const ids = subsetIds(context, "hopperId");
   if (!ids) throw new Error('Hopper rows require a hopper_id predicate');
   const { limit: requestedLimit, filters } = parseLoadSubsetOptions(context.meta?.loadSubsetOptions);
   const start = filters.find((filter) => filter.field.join('.') === 'rank' && filter.operator === 'gte');
@@ -579,12 +591,12 @@ export const hopperEntries = createCollection(queryCollectionOptions({
   syncMode: 'on-demand',
   queryKey: ['hopper-entries'],
   queryClient,
-  getKey: (row) => JSON.stringify([row.hopper_id, row.item.subscription_id, row.item.remote_id]),
+  getKey: (row) => JSON.stringify([row.hopperId, row.item.subscriptionId, row.item.remoteId]),
   queryFn: (context) => cachedQuery(context, 'hoppers', sourceSchemas.hopperEntries.array(), async (_context, generation) => {
     const { ids, offset, limit, preview } = hopperSubset(context);
     const groups = await existing(ids, async (id) => {
       const result = await readHopper(id, preview, generation);
-      const entries = result.items.map((item, rank) => ({ hopper_id: id, rank, item }));
+      const entries = result.items.map((item, rank) => ({ hopperId: id, rank, item }));
       return entries.slice(offset, limit === undefined ? undefined : offset + limit);
     });
     return groups.flat();
@@ -597,7 +609,7 @@ export const hopperMemberships = createCollection(queryCollectionOptions({
   ...collectionPollingOptions,
   schema: sourceSchemas.hopperMemberships,
   id: 'hopper-memberships', syncMode: 'on-demand', queryKey: ['hopper-memberships'], queryClient,
-  getKey: (row) => JSON.stringify([row.hopper_id, row.subscription_id, row.remote_id]),
+  getKey: (row) => JSON.stringify([row.hopperId, row.subscriptionId, row.remoteId]),
   queryFn: (context) => cachedQuery(context, 'hoppers', sourceSchemas.hopperMemberships.array(), async (_context, generation) => {
     const { ids, offset, limit, preview } = hopperSubset(context);
     const groups = await existing(ids, async (id) => {
@@ -611,8 +623,8 @@ export const hopperMemberships = createCollection(queryCollectionOptions({
 }));
 hoppers.createIndex((row) => row.id, { indexType: BasicIndex });
 hopperStats.createIndex((row) => row.id, { indexType: BasicIndex });
-hopperEntries.createIndex((row) => row.hopper_id, { indexType: BasicIndex });
-hopperMemberships.createIndex((row) => row.hopper_id, { indexType: BasicIndex });
+hopperEntries.createIndex((row) => row.hopperId, { indexType: BasicIndex });
+hopperMemberships.createIndex((row) => row.hopperId, { indexType: BasicIndex });
 function hopperView(id: string, preview: boolean) {
   return createLiveQueryCollection({
     id: `hopper-${preview ? 'preview' : 'detail'}-view:${id}`,
@@ -622,18 +634,18 @@ function hopperView(id: string, preview: boolean) {
       .select(({ hopper, stats }) => {
         const entries = q.from({ entry: hopperEntries })
           .where(({ entry }) => preview
-            ? and(eq(entry.hopper_id, hopper.id), gte(entry.rank, 0), lt(entry.rank, 3))
-            : eq(entry.hopper_id, hopper.id))
+            ? and(eq(entry.hopperId, hopper.id), gte(entry.rank, 0), lt(entry.rank, 3))
+            : eq(entry.hopperId, hopper.id))
           .orderBy(({ entry }) => entry.rank);
         const memberships = q.from({ member: hopperMemberships })
           .where(({ member }) => preview
-            ? and(eq(member.hopper_id, hopper.id), gte(member.rank, 0), lt(member.rank, 3))
-            : eq(member.hopper_id, hopper.id))
+            ? and(eq(member.hopperId, hopper.id), gte(member.rank, 0), lt(member.rank, 3))
+            : eq(member.hopperId, hopper.id))
           .orderBy(({ member }) => member.rank);
         return {
           hopper,
           total: stats.total,
-          source_count: stats.source_count,
+          sourceCount: stats.sourceCount,
           items: toArray(entries.select(({ entry }) => entry.item)),
           memberships: toArray(memberships.select(({ member }) => member)),
         };
@@ -721,7 +733,7 @@ export const inbound = createCollection(queryCollectionOptions({
       (await mentions('inbound', signal)).filter((row): row is Mention => 'hidden' in row)),
   select: (response) => response.data,
 }));
-inbound.createIndex(row => row.target_item_id, { indexType: BasicIndex });
+inbound.createIndex(row => row.targetItemId, { indexType: BasicIndex });
 export const outbound = createCollection(queryCollectionOptions({
   ...collectionPollingOptions,
   schema: sourceSchemas.outbound,
@@ -729,7 +741,7 @@ export const outbound = createCollection(queryCollectionOptions({
   getKey: (row) => row.id,
   queryFn: (context) =>
     cachedQuery(context, 'mentions', sourceSchemas.outbound.array(), async ({ signal }) =>
-      (await mentions('outbound', signal)).filter((row): row is MentionOutRow => 'next_attempt_at' in row)),
+      (await mentions('outbound', signal)).filter((row): row is OutboundMention => "nextAttemptAt" in row)),
   select: (response) => response.data,
 }));
 // A source card joins the mention to the Reading tables: whether an import of

@@ -18,9 +18,9 @@ it("previews spend the read budget, not the write budget", async () => {
   const login = await call(STUDIO + "/login", { method: "POST", redirect: "manual", headers: { "CF-Connecting-IP": "2001:db8:b0d6::1" }, body: new URLSearchParams({ password: env.OWNER_PASSWORD }) });
   const cookie = login.headers.get("set-cookie")!.split(";")[0];
   const post = (path: string, body: unknown) => call(path, { method: "POST", headers: { cookie, "Content-Type": "application/json" }, body: JSON.stringify(body) });
-  for (let i = 0; i < 10; i++) expect((await post("/api/preview", { content_md: `typing ${i}` })).status).toBe(200);
+  for (let i = 0; i < 10; i++) expect((await post("/blyg/api/preview", { contentMd: `typing ${i}` })).status).toBe(200);
   // Real writes are still bounded by the write budget.
   const writes = [];
-  for (let i = 0; i < 3; i++) writes.push((await post("/api/items", { content_md: `draft ${i}` })).status);
+  for (let i = 0; i < 3; i++) writes.push((await post("/blyg/api/items", { contentMd: `draft ${i}` })).status);
   expect(writes).toEqual([201, 201, 429]);
 });

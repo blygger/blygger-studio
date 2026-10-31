@@ -1,3 +1,4 @@
+import { fixtureJson } from './api-fixture';
 import { test, expect, type Page } from './fixture';
 
 // "The page zooms in randomly and has to be resized" (iOS Safari / the
@@ -19,13 +20,7 @@ async function login(page: Page) {
   await expect(page.locator('#composer-text')).toBeVisible();
 }
 const api = (page: Page, method: string, path: string, body?: unknown) =>
-  page.evaluate(
-    async ({ method, path, body }) => {
-      const response = await fetch(`/api${path}`, { method, headers: { 'content-type': 'application/json' }, ...(body === undefined ? {} : { body: JSON.stringify(body) }) });
-      return { status: response.status, json: await response.json().catch(() => null) };
-    },
-    { method, path, body },
-  );
+  page.evaluate(fixtureJson, { method, path: `/api${path}`, body });
 /** Every visible text field whose computed font-size is under 16px. */
 const smallFields = (page: Page) =>
   page.evaluate(() =>
@@ -94,7 +89,7 @@ test('every field on the main screens is at least 16px', async ({ page }) => {
 
 test('every field in the editor and in sheets is at least 16px', async ({ page }) => {
   await login(page);
-  const { json } = await api(page, 'POST', '/items', { content_md: 'Zoom audit draft.', kind: 'fragment' });
+  const { json } = await api(page, 'POST', '/items', { contentMd: 'Zoom audit draft.', kind: 'fragment' });
   try {
     await page.goto(`/studio/edit/${json.id}`);
     await expect(page.locator('#md-input')).toBeVisible();

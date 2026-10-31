@@ -111,7 +111,7 @@ test('every reading card shows its source URL, opening in a new tab, as the ⋯ 
 test('subscribing to a source already subscribed shows the refusal in the sheet', async ({ page }) => {
   await login(page); await page.goto('/studio/reading');
   await page.route('**/api/subscriptions', route => route.request().method() === 'POST'
-    ? route.fulfill({ status: 409, json: { error: 'already subscribed to Small Hours' } })
+    ? route.fulfill({ status: 409, json: { code: 'conflict', message: 'already subscribed to Small Hours' } })
     : route.continue());
   await page.getByRole('button', { name: 'subscribe', exact: true }).click();
   const sheet = page.getByRole('dialog', { name: 'subscribe' });
@@ -157,10 +157,10 @@ test('the source inspector toggles the blogroll, pauses and resumes, and confirm
   await expect(blogroll).not.toBeChecked();
   await blogroll.check();
   await expect(page.locator('.toast')).toHaveText('added to blogroll');
-  await expect.poll(async () => (await api(page, 'GET', '/subscriptions/parity-rss')).json.in_blogroll).toBe(true);
+  await expect.poll(async () => (await api(page, 'GET', '/subscriptions/parity-rss')).json.inBlogroll).toBe(true);
   await expect(page.locator('.list-h').last()).toContainText('1 in blogroll');
   await blogroll.uncheck();
-  await expect.poll(async () => (await api(page, 'GET', '/subscriptions/parity-rss')).json.in_blogroll).toBe(false);
+  await expect.poll(async () => (await api(page, 'GET', '/subscriptions/parity-rss')).json.inBlogroll).toBe(false);
   // pause, then resume
   await inspector.getByRole('button', { name: 'pause', exact: true }).click();
   await expect(inspector).toHaveCount(0);
@@ -257,7 +257,7 @@ test('+ add to hopper… offers the hoppers and a new one, and adds the entry', 
   await answerSheet(page, { name: 'Name the new hopper:', text: name });
   await expect(page.locator('.toast')).toHaveText(`added to ${name}`);
   const hopper = (await api(page, 'GET', '/hoppers?limit=100')).json.items.find((h: { name: string }) => h.name === name);
-  expect((await api(page, 'GET', `/hoppers/${hopper.id}`)).json.memberships).toEqual([expect.objectContaining({ subscription_id: 'parity-native', remote_id: NATIVE })]);
+  expect((await api(page, 'GET', `/hoppers/${hopper.id}`)).json.memberships).toEqual([expect.objectContaining({ subscriptionId: 'parity-native', remoteId: NATIVE })]);
   // The new hopper is offered next time; choosing it again is harmless.
   await entry.getByRole('button', { name: 'add to hopper', exact: true }).click();
   await sheet.getByRole('button', { name, exact: true }).click();
@@ -382,6 +382,6 @@ test('swipes: a source ← opens its inspector, an entry → thumbs it, and the 
   // ← on an entry is stub ↗.
   const created = page.waitForResponse(response => response.url().endsWith('/api/items') && response.request().method() === 'POST');
   await swipe(page, entry.locator('.byline'), -140);
-  expect((await created).request().postDataJSON()).toEqual({ mode: 'response', source: { subscription_id: 'parity-native', remote_id: NATIVE } });
+  expect((await created).request().postDataJSON()).toEqual({ mode: 'response', source: { subscriptionId: 'parity-native', remoteId: NATIVE } });
   await expect(page).toHaveURL(/\/edit\//);
 });

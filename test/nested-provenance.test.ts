@@ -14,10 +14,10 @@ describe("nested provenance on public pages", () => {
   it("links a thread's quote of a thread's quote of a fragment on the permalink", async () => {
     const cookie = await login();
     const leaf = await createAndPublish(cookie, "Deepest words.");
-    const mid = (await apiJson(cookie, "POST", "/api/items", { content_md: `![[${leaf}]]\n\nMiddle.`, kind: "thread" })).json.id as string;
-    expect((await apiJson(cookie, "POST", `/api/items/${mid}/publish`, {})).status).toBe(200);
-    const top = (await apiJson(cookie, "POST", "/api/items", { content_md: `![[${mid}]]\n\nTop.`, kind: "thread" })).json.id as string;
-    expect((await apiJson(cookie, "POST", `/api/items/${top}/publish`, {})).status).toBe(200);
+    const mid = (await apiJson(cookie, "POST", "/blyg/api/items", { contentMd: `![[${leaf}]]\n\nMiddle.`, kind: "thread" })).json.id as string;
+    expect((await apiJson(cookie, "POST", `/blyg/api/items/${mid}/publish`, {})).status).toBe(200);
+    const top = (await apiJson(cookie, "POST", "/blyg/api/items", { contentMd: `![[${mid}]]\n\nTop.`, kind: "thread" })).json.id as string;
+    expect((await apiJson(cookie, "POST", `/blyg/api/items/${top}/publish`, {})).status).toBe(200);
 
     const html = await (await getPublic(`/blyg/t/${top}/`)).text();
     const lines = [...html.matchAll(/<p class="provenance[^"]*">.*?<\/p>/g)].map((m) => m[0]);

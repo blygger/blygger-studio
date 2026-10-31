@@ -58,7 +58,7 @@ test('the studio wears the reading theme from settings, and repaints when it cha
 test('a confirm sheet cancels, dismisses with Escape, and resolves on accept', async ({ page }) => {
   await login(page);
   const marker = `Sheet fixture ${test.info().project.name} ${Date.now()}`;
-  const id = await page.evaluate(async marker => (await (await fetch('/api/items', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ content_md: marker }) })).json()).id as string, marker);
+  const id = await page.evaluate(async marker => (await (await fetch('/api/items', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ contentMd: marker }) })).json()).id as string, marker);
   await page.reload();
   const row = await expandRow(page, id);
   const exists = () => page.evaluate(async id => (await fetch(`/api/items/${id}`)).status, id);

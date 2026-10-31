@@ -65,11 +65,11 @@ describe("root mount", () => {
     const created = await app.request(`${HOST}/api/items`, {
       method: "POST",
       headers: { cookie, "content-type": "application/json" },
-      body: JSON.stringify({ content_md: "root-mounted pin" }),
+      body: JSON.stringify({ contentMd: "root-mounted pin" }),
     }, appEnv());
-    const { id } = (await created.json()) as { id: string };
-    await app.request(`${HOST}/api/items/${id}/publish`, { method: "POST", headers: { cookie, "content-type": "application/json" }, body: "{}" }, appEnv());
-    await app.request(`${HOST}/api/items/${id}/versions/1/pin`, { method: "PUT", headers: { cookie } }, appEnv());
+    const { id, revision } = (await created.json()) as { id: string; revision: number };
+    await app.request(`${HOST}/api/items/${id}/publish`, { method: "POST", headers: { cookie, "content-type": "application/json" }, body: JSON.stringify({ expectedRevision: revision }) }, appEnv());
+    await app.request(`${HOST}/api/items/${id}/versions/1/pin`, { method: "PUT", headers: { cookie, "content-type": "application/json" }, body: JSON.stringify({ expectedRevision: revision + 1 }) }, appEnv());
 
     const page = await app.request(`${HOST}/f/${id}/v1/`, {}, appEnv());
     expect(page.status).toBe(200);

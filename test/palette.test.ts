@@ -142,7 +142,7 @@ describe("the candidate list pages, and says so", () => {
   // token rather than the whole blyg — otherwise the totals drift with
   // whatever the describes above happened to publish.
   const search = (cookie: string, q: string, offset?: number) =>
-    apiJson(cookie, "GET", `/api/search?q=${q}${offset === undefined ? "" : `&offset=${offset}`}`);
+    apiJson(cookie, "GET", `/blyg/api/search?q=${q}${offset === undefined ? "" : `&offset=${offset}`}`);
 
   it("caps a page at 20 but reports the true total", async () => {
     const cookie = await login();
@@ -179,9 +179,9 @@ describe("the candidate list pages, and says so", () => {
     const cookie = await login();
     await createAndPublish(cookie, "junkoffsettoken the only one");
     for (const bad of ["abc", "-5"]) {
-      expect((await apiJson(cookie, "GET", `/api/search?q=junkoffsettoken&offset=${bad}`)).status).toBe(400);
+      expect((await apiJson(cookie, "GET", `/blyg/api/search?q=junkoffsettoken&offset=${bad}`)).status).toBe(400);
     }
-    const empty = await apiJson(cookie, "GET", "/api/search?q=junkoffsettoken&offset=");
+    const empty = await apiJson(cookie, "GET", "/blyg/api/search?q=junkoffsettoken&offset=");
     expect(empty.json.offset).toBe(0); expect(empty.json.items).toHaveLength(1);
   });
 

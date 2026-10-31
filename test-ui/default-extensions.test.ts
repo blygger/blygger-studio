@@ -68,34 +68,34 @@ test('inspect adds one ⋯ row that opens its own sheet', () => {
   expect(opened).toHaveLength(1);
 });
 
-test('inspect elides bodies, parses *_json columns, and summarises the reference fields', () => {
+test('inspect elides bodies and summarises structured reference fields', () => {
   const imported = {
-    remote_id: 'abc', kind: 'thread', version: 3, state: 'current', content_hash: 'sha256-x',
-    content_md: 'hello', content_html: '<p>hello</p>',
-    stub_of_json: JSON.stringify({ origin: 'https://a.example/', id: 'p1', version: 2 }),
-    transclusions_json: JSON.stringify([{ id: 't1' }, { id: 't2' }]),
-    forked_from_json: null, media_json: 'not json',
+    remoteId: 'abc', kind: 'thread', version: 3, state: 'current', contentHash: 'sha256-x',
+    contentMd: 'hello', contentHtml: '<p>hello</p>',
+    stubOf: { origin: 'https://a.example/', id: 'p1', version: 2 },
+    transclusions: [{ id: 't1' }, { id: 't2' }],
+    forkedFrom: null, media: null,
   };
   expect(shapeRecord(imported)).toEqual({
     ...imported,
-    content_md: '‹5 characters, not shown›', content_html: '‹12 characters, not shown›',
-    stub_of_json: { origin: 'https://a.example/', id: 'p1', version: 2 },
-    transclusions_json: [{ id: 't1' }, { id: 't2' }],
-    media_json: 'not json',
+    contentMd: '‹5 characters, not shown›', contentHtml: '‹12 characters, not shown›',
+    stubOf: { origin: 'https://a.example/', id: 'p1', version: 2 },
+    transclusions: [{ id: 't1' }, { id: 't2' }],
+    media: null,
   });
   expect(summary(imported)).toEqual([
     ['id', 'abc'], ['kind', 'thread'], ['version', '3'], ['state', 'current'], ['content hash', 'sha256-x'],
     ['stub of', 'https://a.example/ p1 v2'], ['transclusions', '2'],
   ]);
   const own = {
-    id: 'mine', kind: 'fragment', status: 'public', version: 1, content_md: 'x',
-    stub_of: { url: 'https://elsewhere.example/post' }, forked_from: null,
-    published: { content_hash: 'sha256-y', content_html: '<p>x</p>', transclusions: [] },
-    versions: [{ version: 1, content_md: 'x', content_html: '<p>x</p>' }],
+    id: 'mine', kind: 'fragment', status: 'public', version: 1, contentMd: 'x',
+    stubOf: { url: 'https://elsewhere.example/post' }, forkedFrom: null,
+    published: { contentHash: 'sha256-y', contentHtml: '<p>x</p>', transclusions: [] },
+    versions: [{ version: 1, contentMd: 'x', contentHtml: '<p>x</p>' }],
   };
   expect(summary(own)).toEqual([
     ['id', 'mine'], ['kind', 'fragment'], ['version', '1'], ['state', 'public'], ['content hash', 'sha256-y'],
     ['stub of', 'https://elsewhere.example/post'], ['transclusions', '0'],
   ]);
-  expect((shapeRecord(own) as { versions: { content_html: string }[] }).versions[0].content_html).toBe('‹8 characters, not shown›');
+  expect((shapeRecord(own) as { versions: { contentHtml: string }[] }).versions[0].contentHtml).toBe('‹8 characters, not shown›');
 });

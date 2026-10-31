@@ -1,3 +1,5 @@
+import { testMediaKey } from './helpers.ts';
+import { testItemRevision } from './helpers.ts';
 // Attachments per version (blygger-studio#7, migration 0031). §5.4 makes media
 // part of a version: each version's document lists its own `media`, a later
 // version may leave one out, and the earlier versions keep serving its bytes.
@@ -5,18 +7,19 @@ import { env, SELF } from "cloudflare:test";
 import { describe, expect, it } from "vitest";
 import migration0031 from "../migrations/0031_version_media.sql?raw";
 import { apiJson, BASE, createAndPublish, getPublic, login } from "./helpers.ts";
+import { getItem, restoreVersion } from "../src/model.ts";
 
 async function upload(cookie: string, item: string, bytes: number[], extra: Record<string, string> = {}) {
   const form = new FormData();
   form.set("file", new File([new Uint8Array([0x89, 0x50, 0x4e, 0x47, ...bytes])], "p.png", { type: "image/png" }));
-  form.set("item_id", item);
+  (form.set("itemId", item), form.set('expectedRevision', String(await testItemRevision(item))));
   for (const [k, v] of Object.entries(extra)) form.set(k, v);
-  const res = await SELF.fetch(`${BASE}/api/media`, { method: "POST", headers: { cookie }, body: form });
+  const res = await SELF.fetch(`${BASE}/blyg/api/media`, { method: "POST", headers: { cookie }, body: form });
   expect(res.status).toBe(201);
   return (await res.json()) as { id: string; url: string };
 }
-const publish = async (cookie: string, id: string) => expect((await apiJson(cookie, "POST", `/api/items/${id}/publish`, {})).status).toBe(200);
-const remove = async (cookie: string, media: string) => (await apiJson(cookie, "DELETE", `/api/media/${media}`)).json.outcome;
+const publish = async (cookie: string, id: string) => expect((await apiJson(cookie, "POST", `/blyg/api/items/${id}/publish`, {})).status).toBe(200);
+const remove = async (cookie: string, media: string) => (await apiJson(cookie, "DELETE", `/blyg/api/media/${media}`)).json.outcome;
 const document = async (id: string) => (await (await getPublic(`/blyg/items/${id}.json`)).json()) as { version: number; media: { url: string }[] };
 const urls = async (id: string) => (await document(id)).media.map((m) => m.url);
 const dirty = async (id: string) => (await env.DB.prepare("SELECT dirty FROM items WHERE id = ?").bind(id).first<{ dirty: number }>())!.dirty;
@@ -28,26 +31,26 @@ describe("attachments per version (studio#7)", () => {
     const a = await upload(cookie, id, [1], { alt: "a" });
     const b = await upload(cookie, id, [2], { alt: "b" });
     await publish(cookie, id);
-    expect(await urls(id)).toEqual([a.url, b.url]);
+    expect(await urls(id)).toEqual([testMediaKey(a.url), testMediaKey(b.url)]);
 
     // An appended attachment is in no version's text, only in its list, and
     // removing it used to delete the bytes the live version still showed.
     expect(await remove(cookie, a.id)).toBe("detached");
-    expect(await urls(id), "the live version keeps what it published").toEqual([a.url, b.url]);
+    expect(await urls(id), "the live version keeps what it published").toEqual([testMediaKey(a.url), testMediaKey(b.url)]);
     expect(await dirty(id), "the working copy now differs").toBe(1);
-    expect((await getPublic(`/blyg/${a.url}`)).status).toBe(200);
+    expect((await getPublic(new URL(a.url).pathname)).status).toBe(200);
 
     await publish(cookie, id);
     const next = await document(id);
-    expect(next.media.map((m) => m.url)).toEqual([b.url]);
-    expect((await getPublic(`/blyg/${a.url}`)).status, "an earlier version still lists it (§5.4)").toBe(200);
+    expect(next.media.map((m) => m.url)).toEqual([testMediaKey(b.url)]);
+    expect((await getPublic(new URL(a.url).pathname)).status, "an earlier version still lists it (§5.4)").toBe(200);
     const page = await (await getPublic(`/blyg/f/${id}/`)).text();
-    expect(page).toContain(b.url);
-    expect(page).not.toContain(a.url);
+    expect(page).toContain(testMediaKey(b.url));
+    expect(page).not.toContain(testMediaKey(a.url));
     const feed = await (await getPublic("/blyg/feed.xml")).text();
     const entry = feed.slice(feed.indexOf(`<guid isPermaLink="false">`), feed.indexOf("</item>"));
-    expect(feed).toContain(b.url);
-    expect(entry).not.toContain(a.url);
+    expect(feed).toContain(testMediaKey(b.url));
+    expect(entry).not.toContain(testMediaKey(a.url));
   });
 
   it("lists an attachment added to a published item from its next version on", async () => {
@@ -57,7 +60,7 @@ describe("attachments per version (studio#7)", () => {
     expect(await urls(id)).toEqual([]);
     expect(await dirty(id)).toBe(1);
     await publish(cookie, id);
-    expect(await urls(id)).toEqual([a.url]);
+    expect(await urls(id)).toEqual([testMediaKey(a.url)]);
   });
 
   it("deletes outright what no version listed", async () => {
@@ -65,20 +68,79 @@ describe("attachments per version (studio#7)", () => {
     const id = await createAndPublish(cookie, "nothing attached yet");
     const a = await upload(cookie, id, [4]);
     expect(await remove(cookie, a.id)).toBe("deleted");
-    expect(await env.MEDIA.get(a.url)).toBeNull();
+    expect(await env.MEDIA.get(testMediaKey(a.url))).toBeNull();
   });
 
   it("an inline attachment follows its version's text", async () => {
     const cookie = await login();
-    const created = await apiJson(cookie, "POST", "/api/items", { content_md: "draft" });
+    const created = await apiJson(cookie, "POST", "/blyg/api/items", { contentMd: "draft" });
     const id = created.json.id as string;
     const a = await upload(cookie, id, [5], { inline: "true" });
-    expect((await apiJson(cookie, "PATCH", `/api/items/${id}`, { content_md: `![a](/blyg/${a.url})` })).status).toBe(200);
+    expect((await apiJson(cookie, "PATCH", `/blyg/api/items/${id}`, { contentMd: `![a](/blyg/${testMediaKey(a.url)})` })).status).toBe(200);
     await publish(cookie, id);
-    expect(await urls(id)).toEqual([a.url]);
-    expect((await apiJson(cookie, "PATCH", `/api/items/${id}`, { content_md: "no picture now" })).status).toBe(200);
+    expect(await urls(id)).toEqual([testMediaKey(a.url)]);
+    expect((await apiJson(cookie, "PATCH", `/blyg/api/items/${id}`, { contentMd: "no picture now" })).status).toBe(200);
     await publish(cookie, id);
     expect(await urls(id)).toEqual([]);
+  });
+
+  it("discard restores removed attachments and excludes unpublished additions", async () => {
+    const cookie = await login();
+    const id = await createAndPublish(cookie, "published words");
+    const original = await upload(cookie, id, [8]);
+    await publish(cookie, id); // v2 owns the original attachment
+    expect(await remove(cookie, original.id)).toBe("detached");
+    const added = await upload(cookie, id, [9]);
+
+    expect((await apiJson(cookie, "POST", `/blyg/api/items/${id}/restore`, { version: 2 })).status).toBe(200);
+    const detail = (await apiJson(cookie, "GET", `/blyg/api/items/${id}`)).json;
+    expect(detail).toMatchObject({ dirty: false, version: 2 });
+    expect(detail.media.map((m: { id: string }) => m.id)).toEqual([original.id]);
+    expect(detail.publishedMedia.map((m: { id: string }) => m.id)).toEqual([original.id]);
+    expect(await env.MEDIA.get(testMediaKey(added.url)), "discard does not destroy uploaded bytes").not.toBeNull();
+    expect(await env.DB.prepare("SELECT item_id FROM media WHERE id = ?").bind(added.id).first()).toEqual({ item_id: null });
+
+    await publish(cookie, id);
+    expect(await urls(id)).toEqual([testMediaKey(original.url)]);
+    expect((await getPublic(new URL(original.url).pathname)).status).toBe(200);
+  });
+
+  it("restoring an older version restores its attachments without changing the live version", async () => {
+    const cookie = await login();
+    const id = await createAndPublish(cookie, "published words");
+    const old = await upload(cookie, id, [10]);
+    await publish(cookie, id); // v2
+    await remove(cookie, old.id);
+    const current = await upload(cookie, id, [11]);
+    await publish(cookie, id); // v3
+
+    expect((await apiJson(cookie, "POST", `/blyg/api/items/${id}/restore`, { version: 2 })).status).toBe(200);
+    const detail = (await apiJson(cookie, "GET", `/blyg/api/items/${id}`)).json;
+    expect(detail).toMatchObject({ dirty: true, version: 3 });
+    expect(detail.media.map((m: { id: string }) => m.id)).toEqual([old.id]);
+    expect(detail.publishedMedia.map((m: { id: string }) => m.id)).toEqual([current.id]);
+    expect(await urls(id)).toEqual([testMediaKey(current.url)]);
+
+    await publish(cookie, id);
+    expect(await urls(id)).toEqual([testMediaKey(old.url)]);
+    expect((await getPublic(new URL(current.url).pathname)).status, "v3 retains its bytes").toBe(200);
+  });
+
+  it("rejects a stale restore without changing text or attachment membership", async () => {
+    const cookie = await login();
+    const id = await createAndPublish(cookie, "published words");
+    const original = await upload(cookie, id, [12]);
+    await publish(cookie, id);
+    await remove(cookie, original.id);
+    const added = await upload(cookie, id, [13]);
+    const stale = (await getItem(env.DB, id))!;
+    await apiJson(cookie, "PATCH", `/blyg/api/items/${id}`, { contentMd: "concurrent edit" });
+    const before = (await apiJson(cookie, "GET", `/blyg/api/items/${id}`)).json;
+
+    await expect(restoreVersion(env.DB, stale, 2)).rejects.toThrow("item revision conflict");
+    expect((await apiJson(cookie, "GET", `/blyg/api/items/${id}`)).json).toEqual(before);
+    expect(before.media.map((m: { id: string }) => m.id)).toEqual([added.id]);
+    expect(await env.DB.prepare("SELECT item_id FROM media WHERE id = ?").bind(original.id).first()).toEqual({ item_id: null });
   });
 });
 

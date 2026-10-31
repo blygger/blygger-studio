@@ -40,6 +40,7 @@ try {
   const wranglerCli = join(root, "node_modules/wrangler/bin/wrangler.js");
   // Seed the old schema first. No fixture command can contact remote D1.
   execFileSync(process.execPath, [wranglerCli, "d1", "migrations", "apply", "DB", "--local", "--persist-to", localD1], { cwd: installed, encoding: "utf8", env: { ...process.env, WRANGLER_LOG_PATH: join(temp, "wrangler.log") } });
+  execFileSync(process.execPath, [wranglerCli, "d1", "execute", "DB", "--local", "--persist-to", localD1, "--command", "INSERT INTO items (id,kind,status,created,updated,version,content_md,dirty) VALUES ('00000000000000000000000001','fragment','draft','2026-10-31','2026-10-31',0,'existing upgrade draft',1)"], { cwd: installed, encoding: "utf8", env: { ...process.env, WRANGLER_LOG_PATH: join(temp, "wrangler.log") } });
   const require = createRequire(import.meta.url);
   const npmCli = process.env.npm_execpath ?? require.resolve("npm/bin/npm-cli.js");
   const log = join(temp, "commands.jsonl");
@@ -88,6 +89,14 @@ const result = spawnSync(cmd, forwarded, { stdio: 'inherit' }); process.exit(res
   const rateColumns = executeLocal('PRAGMA table_info("rateLimit")');
   assert.deepEqual(rateColumns.map((column: { name: string }) => column.name), ["id", "key", "count", "lastRequest"]);
   assert.ok(rateColumns.every((column: { notnull: number }) => column.notnull === 1), "Native limiter columns must be non-null after upgrade");
+  const versionColumns = executeLocal('PRAGMA table_info("versions")');
+  assert.ok(versionColumns.some((column: { name: string; notnull: number }) => column.name === 'kind' && column.notnull === 0), "Version state must remain nullable for unresolved legacy rows and old Worker inserts");
+  const itemColumns = executeLocal('PRAGMA table_info("items")');
+  assert.ok(itemColumns.some((column: { name: string; notnull: number; dflt_value: string }) => column.name === 'revision' && column.notnull === 1 && column.dflt_value === '1'), "Existing items acquire a non-null initial revision");
+  assert.deepEqual(executeLocal("SELECT revision,version,content_md FROM items WHERE id='00000000000000000000000001'"), [{ revision: 1, version: 0, content_md: 'existing upgrade draft' }]);
+  const beforeRevisionOnly = executeLocal('SELECT items,reading,feed FROM change_state WHERE id=1')[0];
+  executeLocal("UPDATE items SET revision=revision+1 WHERE id='00000000000000000000000001' AND revision=1");
+  assert.deepEqual(executeLocal('SELECT items,reading,feed FROM change_state WHERE id=1'), [{ ...beforeRevisionOnly, items: beforeRevisionOnly.items + 1 }], "Upgraded private revision-only writes invalidate items without public feed/reading churn");
   const state = executeLocal('SELECT epoch FROM oauth_state WHERE id=1');
   assert.deepEqual(state, [{ epoch: 0 }], "Migration initializes the revoke-all epoch");
   assert.match(output, /When you are ready:  npm run deploy/);

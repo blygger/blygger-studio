@@ -36,10 +36,10 @@ describe("every inline script parses", () => {
   it("public pages that render an item", async () => {
     const cookie = await login();
     const id = await createAndPublish(cookie, "an item with versions");
-    await apiJson(cookie, "PUT", `/api/items/${id}/versions/${1}/pin`);
-    const thread = (await apiJson(cookie, "POST", "/api/items", { content_md: "a thread", kind: "thread" })).json
+    await apiJson(cookie, "PUT", `/blyg/api/items/${id}/versions/${1}/pin`);
+    const thread = (await apiJson(cookie, "POST", "/blyg/api/items", { contentMd: "a thread", kind: "thread" })).json
       .id as string;
-    await apiJson(cookie, "POST", `/api/items/${thread}/publish`, {});
+    await apiJson(cookie, "POST", `/blyg/api/items/${thread}/publish`, {});
 
     // Session 21 put the version-nav script on the permalink and thread pages
     // too, so all three need the parse check, not just the feed.

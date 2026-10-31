@@ -8,15 +8,16 @@
 //
 // Nothing here reaches the wire: extension routes are /api only, never
 // blyg.json, a public page or content_html.
-import type { RouteConfig, RouteHandler } from "@hono/zod-openapi";
-import { contractApp } from "../contract/app.ts";
-import type { Env } from "../types.ts";
+import type { RouteConfig } from "@hono/zod-openapi";
+import type { OperationHandler } from "../operation-types.ts";
+import type { OperationDefinition } from "../operations.ts";
+import { readOperation } from "../operation-policy.ts";
 import type { FeedAlgorithm } from "../feeds/types.ts";
 import { parseEnabledExtensions } from "./names.ts";
 
 /** Registers an extension's read routes. Only routes the extension declared with extensionRoute() are accepted. */
 export interface ExtensionRouter {
-  get<R extends RouteConfig>(route: R, handler: RouteHandler<R, { Bindings: Env }>): void;
+  get<R extends RouteConfig>(route: R, handler: OperationHandler): void;
 }
 export interface ServerExtension {
   /** The extension's name (extensions/catalog.ts). */
@@ -35,21 +36,15 @@ export async function isExtensionEnabled(db: D1Database, name: string) {
   return parseEnabledExtensions(row?.value).includes(name);
 }
 
-/** One Hono app holding every compiled-in extension's routes, each prefix gated on its Settings toggle. */
-export function extensionApi(extensions: readonly ServerExtension[]) {
-  const app = contractApp();
+/** Compiled route implementations. Authority and feature state remain request-local. */
+export function extensionDefinitions(extensions: readonly ServerExtension[]): OperationDefinition[] {
+  const definitions: OperationDefinition[] = [];
   for (const extension of extensions) {
     const prefix = `/ext/${extension.name}/`;
-    app.use(`${prefix}*`, async (c, next) => {
-      if (!(await isExtensionEnabled(c.env.DB, extension.name))) return c.json({ error: `extension ${extension.name} is not enabled` }, 404);
-      return next();
-    });
-    extension.routes({
-      get(route, handler) {
-        if (route.method !== "get" || !route.path.startsWith(prefix)) throw new Error(`extension ${extension.name} may only add GET routes under /api${prefix}: ${route.method} ${route.path}`);
-        app.openapi(route, handler as never);
-      },
-    });
+    extension.routes({ get(route, handler) {
+      if (route.method !== 'get' || !route.path.startsWith(prefix)) throw new Error(`extension ${extension.name} may only add GET routes under /api${prefix}: ${route.method} ${route.path}`);
+      definitions.push({ route: { ...route, policy: { ...readOperation(), extension: extension.name } }, handler });
+    } });
   }
-  return app;
+  return definitions;
 }

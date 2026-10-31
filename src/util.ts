@@ -16,10 +16,14 @@ export function normalizeMount(raw: string | undefined): string {
   return m.startsWith("/") ? m : "/" + m;
 }
 
-/** Shared mounted Studio path for routing and links. */
-export function studioPath(mount: string): string {
-  return mount + "/studio";
+/** Canonical paths for one deployment. Root nodes retain /api. */
+export function deploymentPaths(rawMount: string | undefined) {
+  const publicBase = normalizeMount(rawMount), studio = publicBase + '/studio';
+  return { publicBase, studio, api: publicBase + '/api', issuer: studio + '/auth', mcp: studio + '/mcp', media: publicBase + '/media' };
 }
+
+/** Shared mounted Studio path for routing and links. */
+export function studioPath(mount: string): string { return deploymentPaths(mount).studio; }
 
 /** Crockford base32, lowercase, no i/l/o/u. */
 import { ID_ALPHABET } from "./identity.ts";

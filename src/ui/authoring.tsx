@@ -506,7 +506,7 @@ function ToolRow({
 const resolveOwn: Resolve = (id, form) => {
   const row = items.get(id);
   if (!row || row.status !== 'public') return undefined;
-  return form === 'link' ? itemTitle(row.content_md) : plainText(row.content_md);
+  return form === 'link' ? itemTitle(row.contentMd) : plainText(row.contentMd);
 };
 async function copyText(text: string, done: string) {
   try {
@@ -526,7 +526,7 @@ async function copyText(text: string, done: string) {
 }
 function useSharing() {
   const settings = useSettings();
-  const base = settings?.site_url || new URL(`${mount}/`, location.origin).href;
+  const base = settings?.siteUrl || new URL(`${mount}/`, location.origin).href;
   const url = (item: Shareable) => permalink(base, item.kind, item.id);
   return {
     copy: (item: Shareable) =>
@@ -548,9 +548,9 @@ function useSharing() {
 /** A row's published words: the working copy when it has no unpublished changes. */
 async function publishedOf(item: Row): Promise<Shareable> {
   const kind = item.kind === 'thread' ? 'thread' : 'fragment';
-  if (!item.dirty) return { id: item.id, kind, md: item.content_md };
+  if (!item.dirty) return { id: item.id, kind, md: item.contentMd };
   const detail = await unwrap(BlyggerApi.getItem({ client, path: { id: item.id } }));
-  return { id: item.id, kind, md: detail.published?.content_md ?? detail.content_md };
+  return { id: item.id, kind, md: detail.published?.contentMd ?? detail.contentMd };
 }
 
 /** "published vN" with the permalink, copy + link and share… (Thicket's publish-success). */
@@ -613,6 +613,7 @@ function useUpload(
   id: string | undefined | (() => Promise<string | undefined>),
   textarea: React.RefObject<HTMLTextAreaElement | null>,
   setText: (text: string) => void,
+  write: ReturnType<typeof createDraftAction>,
 ) {
   const input = useRef<HTMLInputElement>(null);
   const action = useAction();
@@ -631,14 +632,10 @@ function useUpload(
     const placed = insertBlock(current(), at.start, at.end, token);
     setText(placed.text);
     try {
-      const media = await unwrap(
-        BlyggerApi.uploadMedia({
-          client,
-          // inline: placed in the text, so shown only where its line is (studio#24).
-          body: { file, inline: 'true', ...(itemId ? { item_id: itemId } : {}) },
-        }),
-      );
-      setText(current().replace(token, `![](${mount}/${media.url})`));
+      const media = itemId
+        ? await write({ type: 'upload', file, inline: true })
+        : await unwrap(BlyggerApi.uploadMedia({ client, body: { file, inline: 'true' } }));
+      setText(current().replace(token, `![](${media.url})`));
       setAttached(media.url);
       if (itemId) await changed('item');
     } catch (error) {
@@ -771,10 +768,10 @@ function useNoteConfirm(write: ReturnType<typeof createDraftAction>) {
   ): Promise<NoteChoice | null> => {
     const typed = note.trim();
     if (item.version === 0) return Promise.resolve({ note: typed, generated: false });
-    const auto = !typed && !!settings?.auto_change_notes;
-    const classifying = !!settings?.ai_model_classify;
+    const auto = !typed && !!settings?.autoChangeNotes;
+    const classifying = !!settings?.aiModelClassify;
     if (!typed && !auto && !classifying) return Promise.resolve({ note: '', generated: false });
-    const inNote = classifying && settings?.change_category_in_note !== false;
+    const inNote = classifying && settings?.changeCategoryInNote !== false;
     return new Promise((resolve) => {
       setState({
         version: item.version + 1,
@@ -995,7 +992,7 @@ export function Compose() {
     setText(next);
     setSaved(false);
   };
-  const upload = useUpload(save, input, change);
+  const upload = useUpload(save, input, change, write);
   const tools = useTextTools(input, change);
   const setKindTo = (value: Kind) => {
     setKind(value);
@@ -1186,15 +1183,50 @@ function ItemRow({
   const action = useAction();
   const [expanded, setExpanded] = useState(false);
   const [open, setOpen] = useState(false);
-  const [text, setText] = useState(item.content_md);
+  const [text, setText] = useState(item.contentMd);
   const [saved, setSaved] = useState(false);
-  const write = useMemo(() => createDraftAction(item.id), [item.id]);
+  const session = useMemo(() => {
+    let revision = item.revision;
+    let current = createDraftAction(item.id, revision);
+    let pending = 0;
+    const write: typeof current = async (command) => {
+      pending++;
+      try {
+        const result = await current(command);
+        if ('revision' in result && typeof result.revision === 'number')
+          revision = result.revision;
+        return result;
+      } finally {
+        pending--;
+      }
+    };
+    return {
+      write,
+      acceptRevision(next: number) {
+        // Opening a clean editor explicitly accepts a new baseline. Preserve
+        // any active queue and do not roll back an acknowledged local write
+        // while its polled props are still catching up.
+        if (pending || next < revision) return false;
+        if (next !== revision) {
+          current = createDraftAction(item.id, next);
+          revision = next;
+        }
+        return true;
+      },
+    };
+  }, [item.id]);
+  const { write } = session;
   const confirmNote = useNoteConfirm(write);
   const draft = useRef<Draft | null>(null);
   if (!draft.current)
-    draft.current = new Draft(item.content_md, async (content) => {
+    draft.current = new Draft(item.contentMd, async (content) => {
       await write({ type: 'save', text: content });
     });
+  const acceptFresh = () => {
+    if (draft.current!.dirty || !session.acceptRevision(item.revision)) return;
+    draft.current!.accept(item.contentMd);
+    setText(item.contentMd);
+  };
   const kind: Kind = item.kind === 'thread' ? 'thread' : 'fragment';
   const publishRow = async () => {
     const choice = await confirmNote.request(item, '');
@@ -1205,6 +1237,7 @@ function ItemRow({
     return result;
   };
   const save = async () => {
+    acceptFresh();
     const current = await draft.current!.save();
     if (current) setSaved(true);
     return current;
@@ -1228,7 +1261,7 @@ function ItemRow({
     setText(value);
     setSaved(false);
   };
-  const { count, withoutDirectives } = extractDirectives(item.content_md);
+  const { count, withoutDirectives } = extractDirectives(item.contentMd);
   const stripped = previewStrip(
     withoutDirectives,
     parseScopes(withoutDirectives).scopes,
@@ -1240,7 +1273,7 @@ function ItemRow({
   // and public pages show (quotes baked, links resolved); until it answers,
   // say what the item does.
   const LINK = linkInline();
-  const links = (item.content_md.match(LINK) ?? []).length;
+  const links = (item.contentMd.match(LINK) ?? []).length;
   // Bare [[id]] tokens are not prose: without them, is anything left?
   const prose = links ? previewFromHtml(renderMarkdown(stripped.text.replace(LINK, ''))) : own;
   const ownEmpty = !prose.title && !prose.body;
@@ -1248,17 +1281,18 @@ function ItemRow({
   useEffect(() => {
     if (!ownEmpty || !(count || links)) return;
     let live = true;
-    unwrap(BlyggerApi.preview({ client, body: { content_md: item.content_md, item_id: item.id, kind: item.kind === 'thread' ? 'thread' : 'fragment' } }))
+    unwrap(BlyggerApi.preview({ client, body: { contentMd: item.contentMd, itemId: item.id, kind: item.kind === 'thread' ? 'thread' : 'fragment' } }))
       .then((r) => live && setResolved(previewFromHtml(r.html)))
       .catch(() => {});
     return () => {
       live = false;
     };
-  }, [ownEmpty, item.content_md]);
+  }, [ownEmpty, item.contentMd]);
   const preview = ownEmpty && resolved && (resolved.title || resolved.body) ? resolved : own;
   const doesOnly = count ? `Only quotes ${count} item${count === 1 ? '' : 's'}` : links ? `Only links ${links} item${links === 1 ? '' : 's'}` : null;
   const mutate = (fn: () => Promise<unknown>) =>
     void action.run(async () => {
+      acceptFresh();
       if (draft.current!.dirty && !(await save())) return;
       return fn();
     });
@@ -1294,8 +1328,8 @@ function ItemRow({
           <span className="item-meta">
             {item.kind === 'thread' ? <span className="badge">thread</span> : null}
             {count ? <span className="badge">⧉{count}</span> : null}
-            {item.stub_of ? <span className="badge">stub</span> : null}
-            {item.forked_from ? <span className="badge">fork</span> : null}
+            {item.stubOf ? <span className="badge">stub</span> : null}
+            {item.forkedFrom ? <span className="badge">fork</span> : null}
             <span>
               {item.status} · v{item.version}
               {item.dirty && item.status === 'public' ? (
@@ -1389,10 +1423,7 @@ function ItemRow({
                 data-action="quick-edit"
                 className={open ? 'btn btn-ghost btn-mini is-on' : 'btn btn-ghost btn-mini'}
                 onClick={() => {
-                  if (!draft.current!.dirty) {
-                    draft.current!.accept(item.content_md);
-                    setText(item.content_md);
-                  }
+                  acceptFresh();
                   setOpen((value) => !value);
                 }}
               >
@@ -1424,6 +1455,7 @@ function ItemRow({
                     })
                   )
                     void action.run(async () => {
+                      acceptFresh();
                       await write({ type: 'delete' });
                       await changed('items', 'reading');
                       toast('Draft discarded', { tone: 'ok' });
@@ -1539,14 +1571,14 @@ function Editor({ item }: { item: Detail }) {
     useLiveQuery({ query: (q) => q.from({ hopper: hoppers }) }).data ?? [];
   const sharing = useSharing();
   const action = useAction();
-  const write = useMemo(() => createDraftAction(item.id), [item.id]);
+  const write = useMemo(() => createDraftAction(item.id, item.revision), [item.id]);
   const draft = useRef<Draft | null>(null);
   if (!draft.current) {
-    draft.current = new Draft(item.content_md, async (text) => {
+    draft.current = new Draft(item.contentMd, async (text) => {
       await write({ type: 'save', text });
     });
-    const cleaned = stripStaleUploads(item.content_md);
-    if (cleaned !== item.content_md) draft.current.edit(cleaned);
+    const cleaned = stripStaleUploads(item.contentMd);
+    if (cleaned !== item.contentMd) draft.current.edit(cleaned);
   }
   const [text, setText] = useState(draft.current.text);
   const [note, setNote] = useState('');
@@ -1558,7 +1590,12 @@ function Editor({ item }: { item: Detail }) {
     useState<Awaited<ReturnType<typeof getPreview>>>();
   const [version, setVersion] = useState<Version>();
   const [saved, setSaved] = useState(false);
-  const [replacing, setReplacing] = useState(false);
+  const [replacing, setReplacingState] = useState(false);
+  const replacementPending = useRef(false);
+  const setReplacing = (active: boolean) => {
+    replacementPending.current = active;
+    setReplacingState(active);
+  };
   const [published, setPublished] = useState<Published>();
   // Phones show one pane at a time; ≥900px shows both (authoring.css).
   const [pane, setPane] = useState<'draft' | 'preview'>('draft');
@@ -1576,9 +1613,11 @@ function Editor({ item }: { item: Detail }) {
     return current;
   };
   useBlocker({
-    enableBeforeUnload: () => !leaving.current && draft.current!.dirty,
+    enableBeforeUnload: () => !leaving.current && (replacementPending.current || draft.current!.dirty),
     shouldBlockFn: async () => {
-      if (leaving.current || !draft.current!.dirty) return false;
+      if (leaving.current) return false;
+      if (replacementPending.current) return true;
+      if (!draft.current!.dirty) return false;
       try {
         return !(await save());
       } catch (error) {
@@ -1600,7 +1639,7 @@ function Editor({ item }: { item: Detail }) {
   useEffect(() => {
     const controller = new AbortController();
     const timer = setTimeout(() => {
-      void getPreview(text, item.id, item.authored_kind, controller.signal)
+      void getPreview(text, item.id, item.kind, controller.signal)
         .then(setPreview)
         .catch((error) => {
           if (!controller.signal.aborted)
@@ -1620,8 +1659,8 @@ function Editor({ item }: { item: Detail }) {
       clearTimeout(timer);
       controller.abort();
     };
-  }, [text, item.id, item.authored_kind]);
-  const upload = useUpload(item.id, input, edit);
+  }, [text, item.id, item.kind]);
+  const upload = useUpload(item.id, input, edit, write);
   const tools = useTextTools(input, edit);
   const operation = (fn: () => Promise<unknown>) =>
     void action.run(async () => {
@@ -1629,7 +1668,7 @@ function Editor({ item }: { item: Detail }) {
       return fn();
     });
   const switchKind = () => write({ type: 'update', changes: {
-    kind: item.authored_kind === 'fragment' ? 'thread' : 'fragment',
+    kind: item.kind === 'fragment' ? 'thread' : 'fragment',
   } });
   const restore = async (version: number, discardChanges = false) => {
     const question = discardChanges
@@ -1651,8 +1690,8 @@ function Editor({ item }: { item: Detail }) {
     setReplacing(true);
     try {
       const restored = await write({ type: 'restore', version });
-      draft.current!.accept(restored.content_md);
-      setText(restored.content_md);
+      draft.current!.accept(restored.contentMd);
+      setText(restored.contentMd);
       setSaved(true);
     } finally {
       setReplacing(false);
@@ -1697,7 +1736,7 @@ function Editor({ item }: { item: Detail }) {
     // `text` is the scope's output alone; the draft is the whole document with
     // it spliced in, which the server has already saved. Replacing the draft
     // with `text` threw away everything around the scope (0.10.0–0.27.1).
-    if (draft.current!.revision === revision) edit(result.content_md);
+    if (draft.current!.revision === revision) edit(result.contentMd);
   };
   const pin = async (version: number) => {
     if (
@@ -1718,13 +1757,13 @@ function Editor({ item }: { item: Detail }) {
       // A note describes one change; it must not ride along on the next.
       setNote('');
       setDrafted(undefined);
-      setPublished({ id: item.id, kind: item.authored_kind, md, version: result.version });
+      setPublished({ id: item.id, kind: item.kind, md, version: result.version });
       return result;
     });
-  const isThread = item.authored_kind === 'thread';
+  const isThread = item.kind === 'thread';
   const isPublic = item.status === 'public';
   // Attachments the live version lists that the working copy no longer has.
-  const dropped = item.published_media.filter((m) => !item.media.some((w) => w.id === m.id));
+  const dropped = item.publishedMedia.filter((m) => !item.media.some((w) => w.id === m.id));
   // Own items can go in hoppers beside what you read (session 47); "~own" is
   // the store's marker for them (src/importer/store.ts OWN_SUBSCRIPTION).
   const addToHopper = async () => {
@@ -1749,14 +1788,14 @@ function Editor({ item }: { item: Detail }) {
     await changed('hoppers', 'hopper', 'hopper-preview');
     toast(`added to ${name}`);
   };
-  const edited = !saved && text !== item.content_md;
+  const edited = !saved && text !== item.contentMd;
   // Unpublished changes, discounting a working copy that already holds the
   // published words again (discard changes leaves `dirty` set on purpose).
   const unpublished =
     edited ||
     (item.dirty &&
       !(
-        text === item.published?.content_md &&
+        text === item.published?.contentMd &&
         !item.published?.generated.length
       ));
   const scopes = preview?.scopes ?? [];
@@ -1772,8 +1811,8 @@ function Editor({ item }: { item: Detail }) {
   }, [upload.attached]);
   const shareable: Shareable = {
     id: item.id,
-    kind: item.authored_kind,
-    md: item.published?.content_md ?? item.content_md,
+    kind: item.kind,
+    md: item.published?.contentMd ?? item.contentMd,
   };
   const more = () =>
     void menu({
@@ -1802,17 +1841,17 @@ function Editor({ item }: { item: Detail }) {
         // The static front page (session 47): a published thread at the public root.
         isPublic && isThread && settings && {
           icon: '⌂',
-          label: settings.front_page === item.id ? 'stop using as front page' : 'set as front page',
+          label: settings.frontPage === item.id ? 'stop using as front page' : 'set as front page',
           description:
-            settings.front_page === item.id
+            settings.frontPage === item.id
               ? 'your public home page goes back to your latest items'
-              : `readers arriving at your blyg see this thread; your latest items move to /${settings.posts_path}/`,
+              : `readers arriving at your blyg see this thread; your latest items move to /${settings.postsPath}/`,
           disabled: action.busy,
           onSelect: () =>
             void action.run(async () => {
-              const front = settings.front_page === item.id ? '' : item.id;
+              const front = settings.frontPage === item.id ? '' : item.id;
               await settingsCollection.update('settings', (row) => {
-                row.front_page = front;
+                row.frontPage = front;
               }).when('settled');
               toast(front ? 'This thread is now your front page' : 'Your home page shows your latest items again', { tone: 'ok' });
             }),
@@ -1857,7 +1896,7 @@ function Editor({ item }: { item: Detail }) {
   return (
     <div className="editor">
       <p className="ed-head">
-        <Link to="/">← compose</Link> · {item.authored_kind} · {item.status} · v
+        <Link to="/">← compose</Link> · {item.kind} · {item.status} · v
         {item.version}
         {item.version > 0 && unpublished ? (
           <>
@@ -1876,19 +1915,19 @@ function Editor({ item }: { item: Detail }) {
             {action.warning}
           </p>
         ) : null}
-        {preview?.link_errors?.map((e, i) => (
+        {preview?.linkErrors?.map((e, i) => (
           <Failure key={`link:${i}`} error={e.reason} />
         ))}
         {preview?.errors?.map((e, i) => <Failure key={i} error={e.reason} />)}
       </div>
-      {item.stub_of ? (
+      {item.stubOf ? (
         <p className="stub-head">
-          stub of {'url' in item.stub_of ? item.stub_of.url : item.stub_of.id}{' '}
+          stub of {'url' in item.stubOf ? item.stubOf.url : item.stubOf.id}{' '}
           <Button
             className="btn btn-ghost btn-mini"
             onClick={() =>
               operation(async () => {
-                await write({ type: 'update', changes: { stub_of: null } });
+                await write({ type: 'update', changes: { stubOf: null } });
               })
             }
           >
@@ -1896,19 +1935,19 @@ function Editor({ item }: { item: Detail }) {
           </Button>
         </p>
       ) : null}
-      {item.stub_of && 'id' in item.stub_of && isThread ? (
+      {item.stubOf && 'id' in item.stubOf && isThread ? (
         <StubQuote
           setPane={setPane}
-          target={item.stub_of.id}
+          target={item.stubOf.id}
           text={text}
           edit={edit}
           input={input}
           fresh={item.version === 0}
         />
       ) : null}
-      {item.forked_from ? (
+      {item.forkedFrom ? (
         <p className="stub-head">
-          fork of {item.forked_from.id} v{item.forked_from.version}
+          fork of {item.forkedFrom.id} v{item.forkedFrom.version}
         </p>
       ) : null}
       <div className="segmented compact pane-toggle" role="group" aria-label="pane">
@@ -2013,7 +2052,7 @@ function Editor({ item }: { item: Detail }) {
           open={noteOpen}
           setOpen={setNoteOpen}
           summary="edit note"
-          hint={settings?.auto_change_notes && item.version > 0 ? 'drafted for you if empty' : 'optional'}
+          hint={settings?.autoChangeNotes && item.version > 0 ? 'drafted for you if empty' : 'optional'}
         >
           <div className="row">
             <input
@@ -2128,7 +2167,7 @@ function Editor({ item }: { item: Detail }) {
                 [
                   [
                     'default',
-                    `default (${settings?.highlight_generated_default ? 'on' : 'off'})`,
+                    `default (${settings?.highlightGeneratedDefault ? 'on' : 'off'})`,
                   ],
                   ['show', 'on'],
                   ['hide', 'off'],
@@ -2164,14 +2203,15 @@ function Editor({ item }: { item: Detail }) {
           {item.media.length ? (
             <section className="media">
               {item.media.map((media) => {
-                const inText = text.includes(media.url);
+                const path = new URL(media.url).pathname;
+                const inText = text.includes(media.url) || text.includes(path) || text.includes(path.slice(mount.length + 1));
                 // The live version keeps what it lists (studio#7): removing it
                 // here takes it off the next version only.
-                const live = item.published_media.some((m) => m.id === media.id);
+                const live = item.publishedMedia.some((m) => m.id === media.id);
                 return (
                   <p key={media.id} className="attachment kv" data-media={media.id}>
                     <a
-                      href={`${mount}/${media.url}`}
+                      href={media.url}
                       target="_blank"
                       rel="noreferrer"
                     >
@@ -2194,13 +2234,7 @@ function Editor({ item }: { item: Detail }) {
                           disabled={action.busy}
                           onClick={() =>
                             void action.run(async () => {
-                              await unwrap(
-                                BlyggerApi.deleteMedia({
-                                  client,
-                                  path: { id: media.id },
-                                }),
-                              );
-                              await changed('item');
+                              await write({ type: 'delete-media', mediaId: media.id });
                             })
                           }
                         >
@@ -2219,7 +2253,7 @@ function Editor({ item }: { item: Detail }) {
             <section className="media" data-dropped>
               {dropped.map((media) => (
                 <p key={media.id} className="attachment kv muted" data-media={media.id}>
-                  <a href={`${mount}/${media.url}`} target="_blank" rel="noreferrer">
+                  <a href={media.url} target="_blank" rel="noreferrer">
                     {media.alt || media.url}
                   </a>{' '}
                   <span className="h-hint">· in the live version, leaves with the next one</span>
@@ -2229,7 +2263,7 @@ function Editor({ item }: { item: Detail }) {
           ) : null}
         </Card>
         {isPublic && isThread ? (
-          <QuotedSnapshots id={item.id} version={item.version} unpublished={unpublished} />
+          <QuotedSnapshots id={item.id} version={item.version} unpublished={unpublished} write={write} />
         ) : null}
         <Card
           id="history"
@@ -2250,22 +2284,22 @@ function Editor({ item }: { item: Detail }) {
                 <li className="h-row" key={v.version}>
                   <strong className="vnum">v{v.version}</strong>{' '}
                   <span className="h-note">{v.note}</span>
-                  {v.note_generated ? (
+                  {v.noteGenerated ? (
                     <span className="badge" title="note drafted by the studio">generated</span>
                   ) : null}
-                  {v.change_class?.category ? (
+                  {v.changeClass?.category ? (
                     <span
                       className="badge change-class"
-                      data-category={v.change_class.category}
+                      data-category={v.changeClass.category}
                       title={
-                        v.change_class.overridden
+                        v.changeClass.overridden
                           ? 'kind of change, set by you (private to this studio)'
-                          : v.change_class.model
-                            ? `kind of change, from ${v.change_class.model}${v.change_class.probability !== null ? ` (${Math.round(v.change_class.probability * 100)}%)` : ''} (private to this studio)`
+                          : v.changeClass.model
+                            ? `kind of change, from ${v.changeClass.model}${v.changeClass.probability !== null ? ` (${Math.round(v.changeClass.probability * 100)}%)` : ''} (private to this studio)`
                             : 'kind of change (private to this studio)'
                       }
                     >
-                      {v.change_class.category}
+                      {v.changeClass.category}
                     </span>
                   ) : null}{' '}
                   <span className="h-actions">
@@ -2292,7 +2326,7 @@ function Editor({ item }: { item: Detail }) {
                           fork
                         </Link>
                       </>
-                    ) : v.content_md ? (
+                    ) : v.kind !== 'withdrawn' ? (
                       <Button
                         data-action="pin"
                         className="btn btn-ghost btn-mini"
@@ -2302,7 +2336,7 @@ function Editor({ item }: { item: Detail }) {
                         pin
                       </Button>
                     ) : null}
-                    {v.content_md ? (
+                    {v.kind !== 'withdrawn' ? (
                       <Button
                         className="btn btn-ghost btn-mini"
                         disabled={action.busy || upload.action.busy}
@@ -2326,7 +2360,7 @@ function Editor({ item }: { item: Detail }) {
         close={() => setVersion(undefined)}
         title={`version ${version?.version}`}
       >
-        <Html id="h-viewer-body" html={version?.content_html ?? ''} />
+        <Html id="h-viewer-body" html={version?.contentHtml ?? ''} />
       </Modal>
       <ActionBar>
         <span className="state">
@@ -2396,10 +2430,12 @@ function QuotedSnapshots({
   id,
   version,
   unpublished,
+  write,
 }: {
   id: string;
   version: number;
   unpublished: boolean;
+  write: ReturnType<typeof createDraftAction>;
 }) {
   const action = useAction();
   const [report, setReport] = useState<Freshness>();
@@ -2423,9 +2459,7 @@ function QuotedSnapshots({
   if (failed) return <Failure error={failed} />;
   if (!report || !report.quotes.length) return null;
   const refresh = async () => {
-    const result = await unwrap(
-      BlyggerApi.refreshItem({ client, path: { id }, body: { note } }),
-    );
+    const result = await write({ type: 'refresh', note });
     await changed('item', 'items', 'reading');
     setReport(await loadFreshness(id));
     return result;
@@ -2746,7 +2780,7 @@ const getPreview = (
   unwrap(
     BlyggerApi.preview({
       client,
-      body: { content_md: text, item_id: id, kind },
+      body: { contentMd: text, itemId: id, kind },
       signal,
     }),
   );

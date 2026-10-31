@@ -1,3 +1,4 @@
+import { testRevisionBody } from './helpers.ts';
 /**
  * R01/R02: imported markup and attribution fields are data even when quoted by
  * the owner. OWASP XSS guidance requires safe HTML and attribute contexts:
@@ -30,7 +31,7 @@ async function setup(html: string, page = 'post') {
   expect(login.status).toBe(302); const cookie = login.headers.get('set-cookie')!.split(';')[0];
   await env.DB.prepare("INSERT INTO subscriptions(id,kind,origin,feed_url,title,created) VALUES ('review-native','blyg','https://publisher.example/','https://publisher.example/feed','Publisher','2026-10-01')").run();
   await env.DB.prepare("INSERT INTO imported_items(subscription_id,remote_id,kind,state,version,observed_at,content_html,l0,page) VALUES ('review-native',?,'fragment','current',1,'2026-10-01',?,0,?)").bind(sourceId, html, page).run();
-  const owner = (path: string, method = 'GET', body?: unknown) => receive(path, { method, headers: { cookie, 'Content-Type': 'application/json' }, ...(body === undefined ? {} : { body: JSON.stringify(body) }) });
+  const owner = async (path: string, method = 'GET', body?: unknown) => { body = await testRevisionBody(method, path, body); return receive(path, { method, headers: { cookie, 'Content-Type': 'application/json' }, ...(body === undefined ? {} : { body: JSON.stringify(body) }) }); };
   return { owner, cookie };
 }
 // Public pages carry their own trusted inline scripts, so script elements are
@@ -54,20 +55,20 @@ async function inert(html: string, law: string, publicPage = false) {
 }
 it.each(['preview', 'publication', 'history'])('keeps remote HTML inert in transclusion %s', async surface => {
   const f = await setup('<p>Safe quoted text <a href="https://safe.example/">safe link</a></p><img src="/missing" onerror="document.documentElement.dataset.compromised=1"><svg onload="document.documentElement.dataset.compromised=1"></svg>');
-  const content_md = `![[${sourceId}]]`;
-  const preview = await f.owner('/api/preview', 'POST', { kind: 'thread', content_md }); expect(preview.status).toBe(200);
+  const contentMd = `![[${sourceId}]]`;
+  const preview = await f.owner('/blyg/api/preview', 'POST', { kind: 'thread', contentMd }); expect(preview.status).toBe(200);
   const p = await preview.json() as { html: string; errors: unknown[] };
   expect(p.errors).toEqual([]); expect(p.html).toContain('Safe quoted text');
   expect(p.html).toContain('href="https://safe.example/"');
   if (surface === 'preview') return inert(p.html, 'transclusion preview cannot execute imported HTML');
-  const created = await f.owner('/api/items', 'POST', { kind: 'thread', content_md }); expect(created.status).toBe(201);
+  const created = await f.owner('/blyg/api/items', 'POST', { kind: 'thread', contentMd }); expect(created.status).toBe(201);
   const { id } = await created.json() as { id: string };
-  expect((await f.owner(`/api/items/${id}/publish`, 'POST')).status).toBe(200);
+  expect((await f.owner(`/blyg/api/items/${id}/publish`, 'POST')).status).toBe(200);
   const publicPage = await receive(`/blyg/t/${id}/`); expect(publicPage.status).toBe(200);
   if (surface === 'publication') return inert(await publicPage.text(), 'published transclusion cannot execute imported HTML', true);
-  const history = await f.owner(`/api/items/${id}/versions/1`); expect(history.status).toBe(200);
-  const h = await history.json() as { content_html: string };
-  await inert(h.content_html, 'history cannot execute imported HTML');
+  const history = await f.owner(`/blyg/api/items/${id}/versions/1`); expect(history.status).toBe(200);
+  const h = await history.json() as { contentHtml: string };
+  await inert(h.contentHtml, 'history cannot execute imported HTML');
 });
 // §5.2/§10.2: publish bakes the target's content_html verbatim into the
 // thread's content_html; sanitizing belongs to every render (above), never to
@@ -75,9 +76,9 @@ it.each(['preview', 'publication', 'history'])('keeps remote HTML inert in trans
 it('bakes remote HTML verbatim into the published thread document', async () => {
   const source = '<p>Quoted <a href="https://safe.example/">link</a></p><picture><source srcset="https://publisher.example/a.webp"><img src="https://publisher.example/a.png" onerror="x()"></picture>';
   const f = await setup(source);
-  const created = await f.owner('/api/items', 'POST', { kind: 'thread', content_md: `![[${sourceId}]]` }); expect(created.status).toBe(201);
+  const created = await f.owner('/blyg/api/items', 'POST', { kind: 'thread', contentMd: `![[${sourceId}]]` }); expect(created.status).toBe(201);
   const { id } = await created.json() as { id: string };
-  expect((await f.owner(`/api/items/${id}/publish`, 'POST')).status).toBe(200);
+  expect((await f.owner(`/blyg/api/items/${id}/publish`, 'POST')).status).toBe(200);
   const document = await (await receive(`/blyg/items/${id}.json`)).json() as { content_html: string };
   expect(document.content_html).toContain(`>\n${source}\n</blockquote>`);
 });
@@ -87,13 +88,13 @@ it('remote attribution cannot inject elements into a public hopper', async () =>
   await env.DB.prepare("INSERT INTO hopper_items(hopper_id,subscription_id,remote_id,added_at) VALUES ('review-hopper','review-native',?,'2026-10-01')").bind(sourceId).run();
   const response = await receive('/blyg/h/review/'); expect(response.status).toBe(200);
   await inert(await response.text(), 'remote page must stay within its href attribute', true);
-  expect((await f.owner('/api/settings')).status).toBe(200);
+  expect((await f.owner('/blyg/api/settings')).status).toBe(200);
 });
 it('remote attribution cannot inject elements into public transclusion provenance', async () => {
   const f = await setup('<p>Safe quoted text</p>', 'post"><img src="/missing" onerror="document.documentElement.dataset.compromised=1">');
-  const created = await f.owner('/api/items', 'POST', { kind: 'thread', content_md: `![[${sourceId}]]` }); expect(created.status).toBe(201);
+  const created = await f.owner('/blyg/api/items', 'POST', { kind: 'thread', contentMd: `![[${sourceId}]]` }); expect(created.status).toBe(201);
   const { id } = await created.json() as { id: string };
-  expect((await f.owner(`/api/items/${id}/publish`, 'POST')).status).toBe(200);
+  expect((await f.owner(`/blyg/api/items/${id}/publish`, 'POST')).status).toBe(200);
   const response = await receive(`/blyg/t/${id}/`); expect(response.status).toBe(200);
   await inert(await response.text(), 'provenance href cannot create attacker markup', true);
 });
@@ -103,18 +104,18 @@ it('remote attribution cannot inject elements into public transclusion provenanc
 // snapshot. These witnesses seed the pre-fix shape, not a fresh safe publication.
 it.each(['public', 'pin', 'history', 'detail', 'reading'])('renders legacy bakes inert in %s without changing their snapshot', async surface => {
   const f = await setup('<p>Safe quoted text</p>');
-  const created = await f.owner('/api/items', 'POST', { kind: 'thread', content_md: `![[${sourceId}]]` });
+  const created = await f.owner('/blyg/api/items', 'POST', { kind: 'thread', contentMd: `![[${sourceId}]]` });
   expect(created.status).toBe(201); const { id } = await created.json() as { id: string };
-  expect((await f.owner(`/api/items/${id}/publish`, 'POST')).status).toBe(200);
+  expect((await f.owner(`/blyg/api/items/${id}/publish`, 'POST')).status).toBe(200);
   const legacy = '<blockquote class="blyg-transclusion" data-blyg-id="' + sourceId + '"><p>Legacy safe text</p><img src="/missing" onerror="document.documentElement.dataset.compromised=1"></blockquote>';
   await env.DB.prepare('UPDATE versions SET content_html=?, pinned=1 WHERE item_id=? AND version=1').bind(legacy, id).run();
-  const paths = { public: `/blyg/t/${id}/`, pin: `/blyg/t/${id}/v1/`, history: `/api/items/${id}/versions/1`, detail: `/api/items/${id}`, reading: '/api/reading?sub=own' };
+  const paths = { public: `/blyg/t/${id}/`, pin: `/blyg/t/${id}/v1/`, history: `/blyg/api/items/${id}/versions/1`, detail: `/blyg/api/items/${id}`, reading: '/blyg/api/reading?sub=own' };
   const response = await f.owner(paths[surface as keyof typeof paths]); expect(response.status).toBe(200);
   let html: string;
   if (surface === 'public' || surface === 'pin') html = await response.text();
   else {
     const value = await response.json() as any;
-    html = surface === 'history' ? value.content_html : surface === 'detail' ? value.versions[0].content_html : value.items.find((entry: any) => entry.own?.id === id).contentHtml;
+    html = surface === 'history' ? value.contentHtml : surface === 'detail' ? value.versions[0].contentHtml : value.items.find((entry: any) => entry.own?.id === id).contentHtml;
   }
   expect(html).toContain('Legacy safe text');
   await inert(html, 'legacy snapshot cannot regain script authority during presentation', surface === 'public' || surface === 'pin');
@@ -127,18 +128,18 @@ it.each(['public', 'pin', 'history', 'detail', 'reading'])('renders legacy bakes
 it.each([
   ['cited.url', { url: 'https://cited.example/p', cited: { source: 'Cited', url: 'javascript:document.documentElement.dataset.compromised=1', retrieved: '2026-10-01T00:00:00Z' } }],
   ['stub_of.url', { url: 'javascript:document.documentElement.dataset.compromised=1' }],
-])('a delegated %s with an active scheme is refused', async (_field, stub_of) => {
+])('a delegated %s with an active scheme is refused', async (_field, stubOf) => {
   const { flow } = await import('./oauth-flow-driver.ts');
   const f = await flow();
-  const minted = await f.request('/api/authorizations', { method: 'POST', headers: { cookie: f.owner, 'Content-Type': 'application/json' }, body: JSON.stringify({ name: 'citation drafter', scope: ['owner:draft'], resource: 'api' }) });
+  const minted = await f.request('/blyg/api/authorizations', { method: 'POST', headers: { cookie: f.owner, 'Content-Type': 'application/json' }, body: JSON.stringify({ name: 'citation drafter', scope: ['owner:draft'], resource: 'api' }) });
   expect(minted.status).toBe(200);
-  const { access_token } = await minted.json() as { access_token: string };
-  const draft = (path: string, method: string, body: unknown) => f.request(path, { method, headers: { Authorization: 'Bearer ' + access_token, 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
-  const created = await draft('/api/items', 'POST', { kind: 'thread', content_md: 'A response' });
+  const { accessToken } = await minted.json() as { accessToken: string };
+  const draft = async (path: string, method: string, body: unknown) => f.request(path, { method, headers: { Authorization: 'Bearer ' + accessToken, 'Content-Type': 'application/json' }, body: JSON.stringify(await testRevisionBody(method, path, body)) });
+  const created = await draft('/blyg/api/items', 'POST', { kind: 'thread', contentMd: 'A response' });
   expect(created.status).toBe(201);
   const { id } = await created.json() as { id: string };
-  expect((await draft('/api/items/' + id, 'PATCH', { stub_of })).status, 'active-scheme citations are refused at write').toBe(400);
-  expect((await draft('/api/items/' + id, 'PATCH', { stub_of: { url: 'https://cited.example/p', cited: { source: 'Cited', url: 'https://cited.example/p', retrieved: '2026-10-01T00:00:00Z' } } })).status, 'an http(s) citation stays writable').toBe(200);
+  expect((await draft('/blyg/api/items/' + id, 'PATCH', { stubOf })).status, 'active-scheme citations are refused at write').toBe(400);
+  expect((await draft('/blyg/api/items/' + id, 'PATCH', { stubOf: { url: 'https://cited.example/p', cited: { source: 'Cited', url: 'https://cited.example/p', retrieved: '2026-10-01T00:00:00Z' } } })).status, 'an http(s) citation stays writable').toBe(200);
 });
 // Rows stored before the 0.27 write check reach the same anchors. Rendering
 // must keep them inert on its own. Fork citations come from our own origin or
@@ -149,9 +150,9 @@ it.each([
   ['fork_cite.url', {}, { forked_from: '{"origin":"https://fork.example/","id":"0000000000000000000000000f","version":1}', fork_cite: '{"source":"F","url":"javascript:document.documentElement.dataset.compromised=1","retrieved":"2026-10-01T00:00:00Z"}' }],
 ] as const)('a stored %s cannot become an active link on public pages', async (_field, version, item) => {
   const f = await setup('<p>unused</p>');
-  const created = await f.owner('/api/items', 'POST', { kind: 'thread', content_md: 'A response' }); expect(created.status).toBe(201);
+  const created = await f.owner('/blyg/api/items', 'POST', { kind: 'thread', contentMd: 'A response' }); expect(created.status).toBe(201);
   const { id } = await created.json() as { id: string };
-  expect((await f.owner(`/api/items/${id}/publish`, 'POST')).status).toBe(200);
+  expect((await f.owner(`/blyg/api/items/${id}/publish`, 'POST')).status).toBe(200);
   // Observe the seeded field itself: native D1 change counts also include
   // tracking writes, and null/no-op assignments deliberately do not track.
   for (const [column, value] of Object.entries(version)) expect(await env.DB.prepare(`UPDATE versions SET ${column}=? WHERE item_id=? AND version=1 RETURNING ${column} AS value`).bind(value, id).first()).toEqual({ value });
@@ -167,9 +168,9 @@ it.each([
 // renderer that dropped every link could not pass the law above.
 it('a stored https citation stays a working link', async () => {
   const f = await setup('<p>unused</p>');
-  const created = await f.owner('/api/items', 'POST', { kind: 'thread', content_md: 'A response' }); expect(created.status).toBe(201);
+  const created = await f.owner('/blyg/api/items', 'POST', { kind: 'thread', contentMd: 'A response' }); expect(created.status).toBe(201);
   const { id } = await created.json() as { id: string };
-  expect((await f.owner(`/api/items/${id}/publish`, 'POST')).status).toBe(200);
+  expect((await f.owner(`/blyg/api/items/${id}/publish`, 'POST')).status).toBe(200);
   await env.DB.prepare('UPDATE versions SET stub_of=?, stub_cite=? WHERE item_id=?').bind('{"url":"https://cited.example/p"}', '{"source":"S","url":"https://cited.example/p?a=1&b=2","retrieved":"2026-10-01T00:00:00Z"}', id).run();
   for (const path of [`/blyg/t/${id}/`, '/blyg/']) expect(await (await receive(path)).text(), 'a safe citation keeps its exact link on ' + path).toContain('href="https://cited.example/p?a=1&amp;b=2"');
 });
@@ -180,10 +181,10 @@ it('author links refuse active schemes on write and render inert from stored row
   await env.DB.prepare('DELETE FROM security_budgets').run();
   const { flow } = await import('./oauth-flow-driver.ts');
   const f = await flow();
-  const minted = await f.request('/api/authorizations', { method: 'POST', headers: { cookie: f.owner, 'Content-Type': 'application/json' }, body: JSON.stringify({ name: 'settings manager', scope: ['owner:manage'], resource: 'api' }) });
+  const minted = await f.request('/blyg/api/authorizations', { method: 'POST', headers: { cookie: f.owner, 'Content-Type': 'application/json' }, body: JSON.stringify({ name: 'settings manager', scope: ['owner:manage'], resource: 'api' }) });
   expect(minted.status).toBe(200);
-  const { access_token } = await minted.json() as { access_token: string };
-  const manage = (author_links: unknown) => f.request('/api/settings', { method: 'PATCH', headers: { Authorization: 'Bearer ' + access_token, 'Content-Type': 'application/json' }, body: JSON.stringify({ author_links }) });
+  const { accessToken } = await minted.json() as { accessToken: string };
+  const manage = (authorLinks: unknown) => f.request('/blyg/api/settings', { method: 'PATCH', headers: { Authorization: 'Bearer ' + accessToken, 'Content-Type': 'application/json' }, body: JSON.stringify({ authorLinks }) });
   for (const url of ['javascript:document.documentElement.dataset.compromised=1', ' JaVaScRiPt:alert(1)', 'data:text/html,<script>alert(1)</script>'])
     expect((await manage([{ label: 'me', url }])).status, 'active-scheme author links are refused at write').toBe(400);
   expect((await manage([{ label: 'me', url: 'https://me.example/' }, { label: 'mail', url: 'mailto:me@example.test' }])).status, 'followable author links stay writable').toBe(200);
@@ -205,30 +206,30 @@ it('no manage-writable setting can activate markup on any public page', async ()
   await env.DB.prepare('DELETE FROM security_budgets').run();
   const { flow } = await import('./oauth-flow-driver.ts');
   const f = await flow();
-  const minted = await f.request('/api/authorizations', { method: 'POST', headers: { cookie: f.owner, 'Content-Type': 'application/json' }, body: JSON.stringify({ name: 'settings sweep', scope: ['owner:manage'], resource: 'api' }) });
+  const minted = await f.request('/blyg/api/authorizations', { method: 'POST', headers: { cookie: f.owner, 'Content-Type': 'application/json' }, body: JSON.stringify({ name: 'settings sweep', scope: ['owner:manage'], resource: 'api' }) });
   expect(minted.status).toBe(200);
-  const { access_token } = await minted.json() as { access_token: string };
-  const owner = (path: string, method: string, body?: unknown) => f.request(path, { method, headers: { cookie: f.owner, 'Content-Type': 'application/json' }, ...(body === undefined ? {} : { body: JSON.stringify(body) }) });
-  const fragment = await (await owner('/api/items', 'POST', { content_md: 'Sweep fragment' })).json() as { id: string };
-  const thread = await (await owner('/api/items', 'POST', { kind: 'thread', content_md: 'Sweep thread' })).json() as { id: string };
-  for (const id of [fragment.id, thread.id]) expect((await owner(`/api/items/${id}/publish`, 'POST')).status).toBe(200);
-  expect((await owner(`/api/items/${fragment.id}/versions/1/pin`, 'PUT')).status).toBe(200);
+  const { accessToken } = await minted.json() as { accessToken: string };
+  const owner = async (path: string, method: string, body?: unknown) => { body = await testRevisionBody(method, path, body); return f.request(path, { method, headers: { cookie: f.owner, 'Content-Type': 'application/json' }, ...(body === undefined ? {} : { body: JSON.stringify(body) }) }); };
+  const fragment = await (await owner('/blyg/api/items', 'POST', { contentMd: 'Sweep fragment' })).json() as { id: string };
+  const thread = await (await owner('/blyg/api/items', 'POST', { kind: 'thread', contentMd: 'Sweep thread' })).json() as { id: string };
+  for (const id of [fragment.id, thread.id]) expect((await owner(`/blyg/api/items/${id}/publish`, 'POST')).status).toBe(200);
+  expect((await owner(`/blyg/api/items/${fragment.id}/versions/1/pin`, 'PUT')).status).toBe(200);
   await env.DB.prepare("INSERT OR REPLACE INTO hoppers(id,name,slug,public,created) VALUES ('sweep-hopper','Sweep','sweep',1,'2026-10-01')").run();
   const pages = ['/blyg/', '/blyg/archive/', `/blyg/f/${fragment.id}/`, `/blyg/t/${thread.id}/`, `/blyg/f/${fragment.id}/v1/`, '/blyg/h/sweep/'];
   const scripts = async (html: string) => { let n = 0; await new HTMLRewriter().on('script', { element() { n++; } }).transform(new Response(html)).text(); return n; };
   const baseline = new Map<string, number>();
   for (const path of pages) { const page = await f.request(path); expect(page.status, path).toBe(200); baseline.set(path, await scripts(await page.text())); }
   const payloads = ['javascript:document.documentElement.dataset.compromised=1', '"><img src=/x onerror=document.documentElement.dataset.compromised=1>', "'><svg onload=document.documentElement.dataset.compromised=1>", '</script><script>document.documentElement.dataset.compromised=1</script>'];
-  const keys = ['site_title', 'theme', 'author_name', 'author_bio', 'site_url', 'avatar_media_id', 'update_feed_url', 'timezone', 'ai_model_tk', 'ai_model_changelog', 'ai_model_feed', 'feed_prompt', 'ai_style_prompt'];
+  const keys = ['siteTitle', 'theme', 'authorName', 'authorBio', 'siteUrl', 'avatarMediaId', 'updateFeedUrl', 'timezone', 'aiModelTk', 'aiModelChangelog', 'aiModelFeed', 'feedPrompt', 'aiStylePrompt'];
   for (const payload of payloads) {
     const stored: string[] = [];
     for (const key of keys) {
-      const response = await f.request('/api/settings', { method: 'PATCH', headers: { Authorization: 'Bearer ' + access_token, 'Content-Type': 'application/json' }, body: JSON.stringify({ [key]: payload }) });
+      const response = await f.request('/blyg/api/settings', { method: 'PATCH', headers: { Authorization: 'Bearer ' + accessToken, 'Content-Type': 'application/json' }, body: JSON.stringify({ [key]: payload }) });
       expect(response.status, 'a hostile ' + key + ' is refused or stored, never a server error').toBeLessThan(500);
       if (response.ok) stored.push(key);
     }
     expect(stored.length, 'the sweep reaches stored settings').toBeGreaterThan(0);
-    expect(stored, 'site_url accepts only an absolute http(s) URL').not.toContain('site_url');
+    expect(stored, 'siteUrl accepts only an absolute http(s) URL').not.toContain('siteUrl');
     for (const path of pages) {
       const html = await (await f.request(path)).text();
       await inert(html, `stored settings [${stored.join(',')}] cannot activate markup on ${path}`, true);
@@ -238,7 +239,7 @@ it('no manage-writable setting can activate markup on any public page', async ()
   // A pre-0.27 row holds any string; reading it must not mint active links.
   await env.DB.prepare("INSERT INTO settings(key,value) VALUES ('site_url',?) ON CONFLICT(key) DO UPDATE SET value=excluded.value").bind(payloads[0]).run();
   for (const path of pages) await inert(await (await f.request(path)).text(), 'a stored legacy site_url cannot activate markup on ' + path, true);
-  expect((await owner('/api/settings', 'PATCH', { site_title: 'Restored', theme: 'auto', timezone: 'UTC', site_url: '', avatar_media_id: '', author_name: '', author_bio: '' })).status).toBe(200);
+  expect((await owner('/blyg/api/settings', 'PATCH', { siteTitle: 'Restored', theme: 'auto', timezone: 'UTC', siteUrl: '', avatarMediaId: '', authorName: '', authorBio: '' })).status).toBe(200);
 });
 // The same inventory law for the other delegated writers: draft-scoped item
 // text and citation captions, and manage-scoped collection and blogroll names.
@@ -248,23 +249,23 @@ it('no delegated item, collection or blogroll text can activate markup on public
   const { flow } = await import('./oauth-flow-driver.ts');
   const f = await flow();
   const token = async (scope: string) => {
-    const minted = await f.request('/api/authorizations', { method: 'POST', headers: { cookie: f.owner, 'Content-Type': 'application/json' }, body: JSON.stringify({ name: 'sweep ' + scope, scope: [scope], resource: 'api' }) });
-    expect(minted.status).toBe(200); return (await minted.json() as { access_token: string }).access_token;
+    const minted = await f.request('/blyg/api/authorizations', { method: 'POST', headers: { cookie: f.owner, 'Content-Type': 'application/json' }, body: JSON.stringify({ name: 'sweep ' + scope, scope: [scope], resource: 'api' }) });
+    expect(minted.status).toBe(200); return (await minted.json() as { accessToken: string }).accessToken;
   };
   const draft = await token('owner:draft'), manage = await token('owner:manage');
   const as = (bearer: string, path: string, method: string, body: unknown) => f.request(path, { method, headers: { Authorization: 'Bearer ' + bearer, 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
   const payload = '"><img src=/x onerror=document.documentElement.dataset.compromised=1><a href="javascript:document.documentElement.dataset.compromised=1">x</a>';
   await env.DB.prepare("INSERT OR REPLACE INTO subscriptions(id,kind,origin,feed_url,title,created) VALUES ('sweep-sub','blyg','https://sweep.example/','https://sweep.example/feed.xml','Sweep','2026-10-01')").run();
-  expect((await as(manage, '/api/subscriptions/sweep-sub', 'PATCH', { title: payload, in_blogroll: true })).status).toBe(200);
-  const hopper = await as(manage, '/api/hoppers', 'POST', { name: payload }); expect(hopper.status).toBe(201);
+  expect((await as(manage, '/blyg/api/subscriptions/sweep-sub', 'PATCH', { title: payload, inBlogroll: true })).status).toBe(200);
+  const hopper = await as(manage, '/blyg/api/hoppers', 'POST', { name: payload }); expect(hopper.status).toBe(201);
   const { id: hopperId } = await hopper.json() as { id: string };
-  const updated = await as(manage, '/api/hoppers/' + hopperId, 'PATCH', { public: true, description: payload.slice(0, 280) }); expect(updated.status).toBe(200);
+  const updated = await as(manage, '/blyg/api/hoppers/' + hopperId, 'PATCH', { public: true, description: payload.slice(0, 280) }); expect(updated.status).toBe(200);
   const { slug } = await updated.json() as { slug: string };
   const ids: string[] = [];
-  for (const body of [{ content_md: payload }, { kind: 'thread', content_md: payload, stub_of: { url: 'https://cited.example/p', cited: { source: payload, author: payload, excerpt: payload, url: 'https://cited.example/p', retrieved: '2026-10-01T00:00:00Z' } } }]) {
-    const created = await as(draft, '/api/items', 'POST', body); expect(created.status).toBe(201);
+  for (const body of [{ contentMd: payload }, { kind: 'thread', contentMd: payload, stubOf: { url: 'https://cited.example/p', cited: { source: payload, author: payload, excerpt: payload, url: 'https://cited.example/p', retrieved: '2026-10-01T00:00:00Z' } } }]) {
+    const created = await as(draft, '/blyg/api/items', 'POST', body); expect(created.status).toBe(201);
     const { id } = await created.json() as { id: string }; ids.push(id);
-    expect((await f.request(`/api/items/${id}/publish`, { method: 'POST', headers: { cookie: f.owner } })).status).toBe(200);
+    expect((await f.request(`/blyg/api/items/${id}/publish`, { method: 'POST', headers: { cookie: f.owner, 'Content-Type': 'application/json' }, body: JSON.stringify(await testRevisionBody('POST', `/blyg/api/items/${id}/publish`)) })).status).toBe(200);
   }
   for (const path of ['/blyg/', '/blyg/archive/', `/blyg/f/${ids[0]}/`, `/blyg/t/${ids[1]}/`, `/blyg/h/${slug}/`]) {
     const page = await f.request(path); expect(page.status, path).toBe(200);

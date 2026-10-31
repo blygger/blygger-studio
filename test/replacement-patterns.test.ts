@@ -9,8 +9,8 @@ const NASTY = "Cost $& and $$ and $` and $' and $1 end";
 describe("replacement patterns in author text", () => {
   it("a block TK span with $-patterns publishes verbatim", async () => {
     const cookie = await login();
-    const id = (await apiJson(cookie, "POST", "/api/items", { content_md: `Intro.\n\n[TK]impyrt=${NASTY}[/TK]\n\nOutro.` })).json.id as string;
-    expect((await apiJson(cookie, "POST", `/api/items/${id}/publish`, {})).status).toBe(200);
+    const id = (await apiJson(cookie, "POST", "/blyg/api/items", { contentMd: `Intro.\n\n[TK]impyrt=${NASTY}[/TK]\n\nOutro.` })).json.id as string;
+    expect((await apiJson(cookie, "POST", `/blyg/api/items/${id}/publish`, {})).status).toBe(200);
     const doc = await (await getPublic(`/blyg/items/${id}.json`)).json<any>();
     // Markdown escapes the ampersand; every other character lands as written.
     expect(doc.content_html).toContain(`<div class="blyg-tk-gen"><p>${NASTY.replace("&", "&amp;")}</p>`);

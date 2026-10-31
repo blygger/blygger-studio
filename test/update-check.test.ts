@@ -127,14 +127,14 @@ describe("fetchLatest never throws", () => {
 describe("update preferences and release state", () => {
   it("checking is on by default and its notice is unacknowledged", async () => {
     const cookie = await login();
-    expect((await apiJson(cookie, "GET", "/api/settings")).json).toMatchObject({ update_check: true, update_notice_ack: false });
+    expect((await apiJson(cookie, "GET", "/blyg/api/settings")).json).toMatchObject({ updateCheck: true, updateNoticeAck: false });
   });
 
   it("the notice acknowledgement persists", async () => {
     const cookie = await login();
-    expect((await apiJson(cookie, "GET", "/api/settings")).json.update_notice_ack).toBe(false);
-    await apiJson(cookie, "PATCH", "/api/settings", { update_notice_ack: true });
-    expect((await apiJson(cookie, "GET", "/api/settings")).json.update_notice_ack).toBe(true);
+    expect((await apiJson(cookie, "GET", "/blyg/api/settings")).json.updateNoticeAck).toBe(false);
+    await apiJson(cookie, "PATCH", "/blyg/api/settings", { updateNoticeAck: true });
+    expect((await apiJson(cookie, "GET", "/blyg/api/settings")).json.updateNoticeAck).toBe(true);
   });
 
   it("returns stored newer-release state", async () => {
@@ -154,8 +154,9 @@ describe("update preferences and release state", () => {
         "INSERT INTO settings (key, value) VALUES ('update_checked_at', ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value",
       ).bind(new Date().toISOString()),
     ]);
-    const state = (await apiJson(cookie, "GET", "/api/update-state")).json;
-    expect(readState(state)).toMatchObject({ latest: "99.0.0", behind: true });
+    const state = (await apiJson(cookie, "GET", "/blyg/api/update-state")).json;
+    expect(state).toMatchObject({ updateLatestSeen: '99.0.0', updateCheckedAt: expect.any(String) });
+    expect(readState({ update_latest_seen: state.updateLatestSeen, update_checked_at: state.updateCheckedAt })).toMatchObject({ latest: "99.0.0", behind: true });
   });
 
   it("returns level release state without an upgrade", async () => {
@@ -168,19 +169,21 @@ describe("update preferences and release state", () => {
         "INSERT INTO settings (key, value) VALUES ('update_checked_at', ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value",
       ).bind(new Date().toISOString()),
     ]);
-    expect(readState((await apiJson(cookie, "GET", "/api/update-state")).json)).toMatchObject({ latest: CLIENT.version, behind: false });
+    const state = (await apiJson(cookie, "GET", "/blyg/api/update-state")).json;
+    expect(state).toMatchObject({ updateLatestSeen: CLIENT.version, updateCheckedAt: expect.any(String) });
+    expect(readState({ update_latest_seen: state.updateLatestSeen, update_checked_at: state.updateCheckedAt })).toMatchObject({ latest: CLIENT.version, behind: false });
   });
 
   it("turning the check off persists the preference", async () => {
     const cookie = await login();
-    await apiJson(cookie, "PATCH", "/api/settings", { update_check: false });
-    expect((await apiJson(cookie, "GET", "/api/settings")).json.update_check).toBe(false);
+    await apiJson(cookie, "PATCH", "/blyg/api/settings", { updateCheck: false });
+    expect((await apiJson(cookie, "GET", "/blyg/api/settings")).json.updateCheck).toBe(false);
   });
 
   it("rejects a junk update_check rather than silently ignoring it", async () => {
     const cookie = await login();
     // Silently ignoring would leave an operator believing they had changed it.
-    const res = await apiJson(cookie, "PATCH", "/api/settings", { update_check: "maybe" });
+    const res = await apiJson(cookie, "PATCH", "/blyg/api/settings", { updateCheck: "maybe" });
     expect(res.status).toBe(400);
   });
 });

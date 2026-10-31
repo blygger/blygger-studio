@@ -79,9 +79,9 @@ describe("the grammar", () => {
 });
 
 async function publish(cookie: string, body: Record<string, unknown>): Promise<string> {
-  const created = await apiJson(cookie, "POST", "/api/items", body);
+  const created = await apiJson(cookie, "POST", "/blyg/api/items", body);
   const id = created.json.id as string;
-  const res = await apiJson(cookie, "POST", `/api/items/${id}/publish`, {});
+  const res = await apiJson(cookie, "POST", `/blyg/api/items/${id}/publish`, {});
   expect(res.status, JSON.stringify(res.json)).toBe(200);
   return id;
 }
@@ -90,9 +90,9 @@ const doc = async (id: string) => (await getPublic(`/blyg/items/${id}.json`)).js
 describe("a labelled link", () => {
   it("shows the label as its text, escaped, and stays silent", async () => {
     const cookie = await login();
-    await apiJson(cookie, "PATCH", "/api/settings", { site_url: OURS });
+    await apiJson(cookie, "PATCH", "/blyg/api/settings", { siteUrl: OURS });
     const target = await createAndPublish(cookie, "# Their heading\n\nBody.");
-    const id = await publish(cookie, { content_md: `As in [[${target} | the <b>earlier</b> | note]], yes.` });
+    const id = await publish(cookie, { contentMd: `As in [[${target} | the <b>earlier</b> | note]], yes.` });
     const d = await doc(id);
     expect(d.content_html).toContain(
       `As in <a href="${OURS}f/${target}/">the &lt;b&gt;earlier&lt;/b&gt; | note</a>, yes.`,
@@ -105,15 +105,15 @@ describe("a labelled link", () => {
 
   it("falls back to the target's own text when the label is empty", async () => {
     const cookie = await login();
-    await apiJson(cookie, "PATCH", "/api/settings", { site_url: OURS });
+    await apiJson(cookie, "PATCH", "/blyg/api/settings", { siteUrl: OURS });
     const target = await createAndPublish(cookie, "# The real title\n\nBody.");
-    const id = await publish(cookie, { content_md: `See [[${target} | ]].` });
+    const id = await publish(cookie, { contentMd: `See [[${target} | ]].` });
     expect((await doc(id)).content_html).toContain(`<a href="${OURS}f/${target}/">The real title</a>`);
   });
 
   it("is inert inside code, label and all (#54)", async () => {
     const cookie = await login();
-    const id = await publish(cookie, { content_md: `Write \`[[${ID} | a label]]\` to label a link.` });
+    const id = await publish(cookie, { contentMd: `Write \`[[${ID} | a label]]\` to label a link.` });
     expect((await doc(id)).content_html).toContain(`<code>[[${ID} | a label]]</code>`);
   });
 });
@@ -122,7 +122,7 @@ describe("a labelled directive", () => {
   it("quotes as if unlabelled: the label reaches neither the bake nor the record", async () => {
     const cookie = await login();
     const target = await createAndPublish(cookie, "Words worth quoting.");
-    const id = await publish(cookie, { kind: "thread", content_md: `Intro.\n\n![[${target} | note to self]]\n\nOutro.` });
+    const id = await publish(cookie, { kind: "thread", contentMd: `Intro.\n\n![[${target} | note to self]]\n\nOutro.` });
     const d = await doc(id);
     expect(d.content_html).toContain(`data-blyg-id="${target}"`);
     expect(d.content_html).toContain("Words worth quoting.");
@@ -136,7 +136,7 @@ describe("a labelled directive", () => {
     const target = await createAndPublish(cookie, "First sentence here. Second sentence there.");
     const id = await publish(cookie, {
       kind: "thread",
-      content_md: `![[${target} | the second sentence]]\n> Second sentence there.\n\nMy reply.`,
+      contentMd: `![[${target} | the second sentence]]\n> Second sentence there.\n\nMy reply.`,
     });
     const d = await doc(id);
     expect(d.content_html).toContain("blyg-partial");
@@ -149,7 +149,7 @@ describe("the picker writes the long form", () => {
     const cookie = await login();
     await createAndPublish(cookie, "# Labeltoken heading\n\nBody text.");
     await createAndPublish(cookie, "labeltoken with no heading at all");
-    const res = await apiJson(cookie, "GET", "/api/search?q=labeltoken");
+    const res = await apiJson(cookie, "GET", "/blyg/api/search?q=labeltoken");
     const labels = res.json.items.map((h: { label: string }) => h.label).sort();
     expect(labels).toEqual(["Labeltoken heading", "“labeltoken with no heading at all”"]);
   });

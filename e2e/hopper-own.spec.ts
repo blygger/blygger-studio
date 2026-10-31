@@ -1,13 +1,11 @@
+import { fixtureJson } from './api-fixture';
 import { test, expect, type Page } from './fixture.ts';
 import { editorMenu } from './editor.ts';
 
 // Own items in hoppers (session 47): added from the editor's ⋯ menu, listed in
 // the studio's hopper view with an edit link, removable there.
 const api = (page: Page, method: string, path: string, body?: unknown) =>
-  page.evaluate(async ([method, path, body]) => {
-    const res = await fetch(path as string, { method: method as string, headers: { 'content-type': 'application/json' }, body: body === undefined ? undefined : JSON.stringify(body) });
-    return { status: res.status, json: await res.json().catch(() => null) };
-  }, [method, path, body] as const);
+  page.evaluate(fixtureJson, { method, path, body });
 
 test('an own post goes in a hopper from its menu and shows in the hopper', async ({ page }) => {
   const errors: string[] = [];
@@ -18,7 +16,7 @@ test('an own post goes in a hopper from its menu and shows in the hopper', async
   await expect(page.locator('#composer-text')).toBeVisible();
   const project = test.info().project.name;
   const hopper = (await api(page, 'POST', '/api/hoppers', { name: `Own picks ${project}` })).json as { id: string };
-  const created = await api(page, 'POST', '/api/items', { content_md: `# Own pick ${project}\n\nmine` });
+  const created = await api(page, 'POST', '/api/items', { contentMd: `# Own pick ${project}\n\nmine` });
   const id = created.json.id as string;
   expect((await api(page, 'POST', `/api/items/${id}/publish`, {})).status).toBe(200);
 

@@ -130,16 +130,16 @@ describe("endpoint discovery (§2.3.4)", () => {
 describe("sending (§2.3.3)", () => {
   it("enqueues one mention per remote reference on publish, and delivers source + target", async () => {
     const cookie = await login();
-    await apiJson(cookie, "PATCH", "/api/settings", { site_url: OURS });
+    await apiJson(cookie, "PATCH", "/blyg/api/settings", { siteUrl: OURS });
     const remoteId = newId();
     await importFrom(THEIRS, { id: remoteId, kind: "fragment", version: 2, content_md: "their post", page: `f/${remoteId}/` });
 
-    const stub = await apiJson(cookie, "POST", "/api/items", {
+    const stub = await apiJson(cookie, "POST", "/blyg/api/items", {
       kind: "thread",
-      content_md: `![[${remoteId}]]\n\nMy response.`,
-      stub_of: { origin: THEIRS, id: remoteId, version: 2 },
+      contentMd: `![[${remoteId}]]\n\nMy response.`,
+      stubOf: { origin: THEIRS, id: remoteId, version: 2 },
     });
-    expect((await apiJson(cookie, "POST", `/api/items/${stub.json.id}/publish`, {})).status).toBe(200);
+    expect((await apiJson(cookie, "POST", `/blyg/api/items/${stub.json.id}/publish`, {})).status).toBe(200);
 
     const queued = (await listOutbound(env.DB)).filter((r) => r.item_id === stub.json.id);
     // The stub citation and the transclusion name the same item, so one
@@ -163,11 +163,11 @@ describe("sending (§2.3.3)", () => {
 
   it("a republish re-sends only when the target's version changed (§15.2)", async () => {
     const cookie = await login();
-    await apiJson(cookie, "PATCH", "/api/settings", { site_url: OURS });
+    await apiJson(cookie, "PATCH", "/blyg/api/settings", { siteUrl: OURS });
     const remoteId = newId();
     await importFrom(THEIRS, { id: remoteId, kind: "fragment", version: 2, content_md: "their post", page: `f/${remoteId}/` });
-    const thread = (await apiJson(cookie, "POST", "/api/items", { kind: "thread", content_md: `![[${remoteId}]]\n\nMine.` })).json.id as string;
-    expect((await apiJson(cookie, "POST", `/api/items/${thread}/publish`, {})).status).toBe(200);
+    const thread = (await apiJson(cookie, "POST", "/blyg/api/items", { kind: "thread", contentMd: `![[${remoteId}]]\n\nMine.` })).json.id as string;
+    expect((await apiJson(cookie, "POST", `/blyg/api/items/${thread}/publish`, {})).status).toBe(200);
 
     const row = () => listOutbound(env.DB).then((rows) => rows.find((r) => r.item_id === thread)!);
     expect((await row()).target_version).toBe(2);
@@ -183,8 +183,8 @@ describe("sending (§2.3.3)", () => {
     // Republish with the reference untouched: an edit to our own prose. Until
     // migration 0011 this reset the row to `pending` and re-notified an origin
     // that had nothing new to hear.
-    await apiJson(cookie, "PATCH", `/api/items/${thread}`, { content_md: `![[${remoteId}]]\n\nMine, with a typo fixed.` });
-    expect((await apiJson(cookie, "POST", `/api/items/${thread}/publish`, {})).status).toBe(200);
+    await apiJson(cookie, "PATCH", `/blyg/api/items/${thread}`, { contentMd: `![[${remoteId}]]\n\nMine, with a typo fixed.` });
+    expect((await apiJson(cookie, "POST", `/blyg/api/items/${thread}/publish`, {})).status).toBe(200);
     expect((await row()).status).toBe("sent");
     // Our own version moved; the target's did not, and the target's is the test.
     expect((await row()).version).toBe(2);
@@ -195,7 +195,7 @@ describe("sending (§2.3.3)", () => {
     await env.DB.prepare("UPDATE imported_items SET version = 3, content_html = ? WHERE remote_id = ?")
       .bind("<p>their post, revised</p>", remoteId)
       .run();
-    expect((await apiJson(cookie, "POST", `/api/items/${thread}/publish`, {})).status).toBe(200);
+    expect((await apiJson(cookie, "POST", `/blyg/api/items/${thread}/publish`, {})).status).toBe(200);
     expect((await row()).status).toBe("pending");
     expect((await row()).target_version).toBe(3);
 
@@ -210,15 +210,15 @@ describe("sending (§2.3.3)", () => {
 
   it("withdrawal re-sends although nothing about the target changed (§15.7)", async () => {
     const cookie = await login();
-    await apiJson(cookie, "PATCH", "/api/settings", { site_url: OURS });
+    await apiJson(cookie, "PATCH", "/blyg/api/settings", { siteUrl: OURS });
     const remoteId = newId();
     await importFrom(THEIRS, { id: remoteId, kind: "fragment", version: 2, content_md: "their post", page: `f/${remoteId}/` });
-    const stub = (await apiJson(cookie, "POST", "/api/items", {
+    const stub = (await apiJson(cookie, "POST", "/blyg/api/items", {
       kind: "thread",
-      content_md: `![[${remoteId}]]`,
-      stub_of: { origin: THEIRS, id: remoteId, version: 2 },
+      contentMd: `![[${remoteId}]]`,
+      stubOf: { origin: THEIRS, id: remoteId, version: 2 },
     })).json.id as string;
-    await apiJson(cookie, "POST", `/api/items/${stub}/publish`, {});
+    await apiJson(cookie, "POST", `/blyg/api/items/${stub}/publish`, {});
     const row = () => listOutbound(env.DB).then((rows) => rows.find((r) => r.item_id === stub)!);
     await settleOutbound(stub);
     await markOutbound(env.DB, (await row()).id, { status: "sent" });
@@ -226,16 +226,16 @@ describe("sending (§2.3.3)", () => {
     // The one notification owed precisely *because* nothing changed: the
     // receiver has to re-verify and find a withdrawn document. It is the only
     // caller that overrides the re-send test.
-    expect((await apiJson(cookie, "POST", `/api/items/${stub}/withdraw`, {})).status).toBe(200);
+    expect((await apiJson(cookie, "POST", `/blyg/api/items/${stub}/withdraw`, {})).status).toBe(200);
     expect((await row()).status).toBe("pending");
   });
 
   it("a {url} stub is sent once and never re-sent — a web page has no version", async () => {
     const cookie = await login();
-    await apiJson(cookie, "PATCH", "/api/settings", { site_url: OURS });
+    await apiJson(cookie, "PATCH", "/blyg/api/settings", { siteUrl: OURS });
     const url = "https://example.org/some/essay";
-    const stub = (await apiJson(cookie, "POST", "/api/items", { kind: "thread", content_md: "Answering this.", stub_of: { url } })).json.id as string;
-    await apiJson(cookie, "POST", `/api/items/${stub}/publish`, {});
+    const stub = (await apiJson(cookie, "POST", "/blyg/api/items", { kind: "thread", contentMd: "Answering this.", stubOf: { url } })).json.id as string;
+    await apiJson(cookie, "POST", `/blyg/api/items/${stub}/publish`, {});
     const row = () => listOutbound(env.DB).then((rows) => rows.find((r) => r.item_id === stub)!);
     expect((await row()).target).toBe(url);
     expect((await row()).target_version).toBeNull();
@@ -245,35 +245,35 @@ describe("sending (§2.3.3)", () => {
     // Two null target versions must read as unchanged, which is why the
     // comparison is `IS NOT` and not `<>` — under `<>` this would re-send on
     // every republish forever.
-    await apiJson(cookie, "PATCH", `/api/items/${stub}`, { content_md: "Answering this, at more length." });
-    await apiJson(cookie, "POST", `/api/items/${stub}/publish`, {});
+    await apiJson(cookie, "PATCH", `/blyg/api/items/${stub}`, { contentMd: "Answering this, at more length." });
+    await apiJson(cookie, "POST", `/blyg/api/items/${stub}/publish`, {});
     expect((await row()).status).toBe("sent");
   });
 
   it("never sends for an own-origin reference", async () => {
     const cookie = await login();
-    await apiJson(cookie, "PATCH", "/api/settings", { site_url: OURS });
+    await apiJson(cookie, "PATCH", "/blyg/api/settings", { siteUrl: OURS });
     const mine = await createAndPublish(cookie, "my own fragment");
-    const stub = await apiJson(cookie, "POST", "/api/items", {
+    const stub = await apiJson(cookie, "POST", "/blyg/api/items", {
       kind: "thread",
-      content_md: `![[${mine}]]`,
-      stub_of: { origin: OURS, id: mine, version: 1 },
+      contentMd: `![[${mine}]]`,
+      stubOf: { origin: OURS, id: mine, version: 1 },
     });
-    await apiJson(cookie, "POST", `/api/items/${stub.json.id}/publish`, {});
+    await apiJson(cookie, "POST", `/blyg/api/items/${stub.json.id}/publish`, {});
     expect((await listOutbound(env.DB)).filter((r) => r.item_id === stub.json.id)).toHaveLength(0);
   });
 
   it("records no_endpoint without retrying, and backs off on a 5xx", async () => {
     const cookie = await login();
-    await apiJson(cookie, "PATCH", "/api/settings", { site_url: OURS });
+    await apiJson(cookie, "PATCH", "/blyg/api/settings", { siteUrl: OURS });
     const silent = newId();
     await importFrom("https://static.example/", { id: silent, kind: "fragment", version: 1, content_md: "static blyg" }, "Static");
-    const a = await apiJson(cookie, "POST", "/api/items", {
+    const a = await apiJson(cookie, "POST", "/blyg/api/items", {
       kind: "thread",
-      content_md: `![[${silent}]]`,
-      stub_of: { origin: "https://static.example/", id: silent, version: 1 },
+      contentMd: `![[${silent}]]`,
+      stubOf: { origin: "https://static.example/", id: silent, version: 1 },
     });
-    await apiJson(cookie, "POST", `/api/items/${a.json.id}/publish`, {});
+    await apiJson(cookie, "POST", `/blyg/api/items/${a.json.id}/publish`, {});
 
     // A static blyg: manifest present, no endpoint key. Conformant, unreachable.
     const quiet = fixtureNet({
@@ -285,12 +285,12 @@ describe("sending (§2.3.3)", () => {
 
     const down = newId();
     await importFrom("https://down.example/", { id: down, kind: "fragment", version: 1, content_md: "down" }, "Down");
-    const b = await apiJson(cookie, "POST", "/api/items", {
+    const b = await apiJson(cookie, "POST", "/blyg/api/items", {
       kind: "thread",
-      content_md: `![[${down}]]`,
-      stub_of: { origin: "https://down.example/", id: down, version: 1 },
+      contentMd: `![[${down}]]`,
+      stubOf: { origin: "https://down.example/", id: down, version: 1 },
     });
-    await apiJson(cookie, "POST", `/api/items/${b.json.id}/publish`, {});
+    await apiJson(cookie, "POST", `/blyg/api/items/${b.json.id}/publish`, {});
     const broken = fixtureNet({
       "https://down.example/blyg.json": { body: JSON.stringify({ blyg: "0.3", site: "https://down.example/", webmention: "wm" }) },
       "https://down.example/wm": { status: 503 },
@@ -308,15 +308,15 @@ describe("sending (§2.3.3)", () => {
     // 0.36.1's receiver refuses a repeat claim for the same pair within 60 s, so a
     // quick republish meets a 429. That must stay retryable, not terminal like other 4xx.
     const cookie = await login();
-    await apiJson(cookie, "PATCH", "/api/settings", { site_url: OURS });
+    await apiJson(cookie, "PATCH", "/blyg/api/settings", { siteUrl: OURS });
     const busy = newId();
     await importFrom("https://busy.example/", { id: busy, kind: "fragment", version: 1, content_md: "busy" }, "Busy");
-    const stub = await apiJson(cookie, "POST", "/api/items", {
+    const stub = await apiJson(cookie, "POST", "/blyg/api/items", {
       kind: "thread",
-      content_md: `![[${busy}]]`,
-      stub_of: { origin: "https://busy.example/", id: busy, version: 1 },
+      contentMd: `![[${busy}]]`,
+      stubOf: { origin: "https://busy.example/", id: busy, version: 1 },
     });
-    await apiJson(cookie, "POST", `/api/items/${stub.json.id}/publish`, {});
+    await apiJson(cookie, "POST", `/blyg/api/items/${stub.json.id}/publish`, {});
     const limited = fixtureNet({
       "https://busy.example/blyg.json": { body: JSON.stringify({ blyg: "0.3", site: "https://busy.example/", webmention: "wm" }) },
       "https://busy.example/wm": { status: 429 },
@@ -332,19 +332,19 @@ describe("sending (§2.3.3)", () => {
 
 describe("mention targets without the target's page (§15.2 sixth revision, decision #85)", () => {
   async function quoteAndPublish(cookie: string, origin: string, id: string): Promise<string> {
-    const item = await apiJson(cookie, "POST", "/api/items", {
+    const item = await apiJson(cookie, "POST", "/blyg/api/items", {
       kind: "thread",
-      content_md: `![[${id}]]\n\nMine.`,
-      stub_of: { origin, id, version: 1 },
+      contentMd: `![[${id}]]\n\nMine.`,
+      stubOf: { origin, id, version: 1 },
     });
-    expect((await apiJson(cookie, "POST", `/api/items/${item.json.id}/publish`, {})).status).toBe(200);
+    expect((await apiJson(cookie, "POST", `/blyg/api/items/${item.json.id}/publish`, {})).status).toBe(200);
     return item.json.id as string;
   }
   const targetOf = async (itemId: string) => (await listOutbound(env.DB)).filter((r) => r.item_id === itemId).map((r) => r.target);
 
   it("an import that declares its page is still mentioned at the page", async () => {
     const cookie = await login();
-    await apiJson(cookie, "PATCH", "/api/settings", { site_url: OURS });
+    await apiJson(cookie, "PATCH", "/blyg/api/settings", { siteUrl: OURS });
     const origin = "https://paged.example/";
     const id = newId();
     await importFrom(origin, { id, kind: "fragment", version: 1, content_md: "paged", page: `posts/${id}.html` }, "Paged");
@@ -353,7 +353,7 @@ describe("mention targets without the target's page (§15.2 sixth revision, deci
 
   it("an import without page is mentioned at its item document, never at f/{id}/", async () => {
     const cookie = await login();
-    await apiJson(cookie, "PATCH", "/api/settings", { site_url: OURS });
+    await apiJson(cookie, "PATCH", "/blyg/api/settings", { siteUrl: OURS });
     const origin = "https://pageless.example/";
     const id = newId();
     await importFrom(origin, { id, kind: "fragment", version: 1, content_md: "no page" }, "Pageless");
@@ -362,7 +362,7 @@ describe("mention targets without the target's page (§15.2 sixth revision, deci
 
   it("a thread without page is not guessed as t/{id}/ (nor as f/{id}/)", async () => {
     const cookie = await login();
-    await apiJson(cookie, "PATCH", "/api/settings", { site_url: OURS });
+    await apiJson(cookie, "PATCH", "/blyg/api/settings", { siteUrl: OURS });
     const origin = "https://threads.example/";
     const id = newId();
     await importFrom(origin, { id, kind: "thread", version: 1, content_md: "a thread" }, "Threads");
@@ -373,7 +373,7 @@ describe("mention targets without the target's page (§15.2 sixth revision, deci
 
   it("a subscription whose manifest declared an item template is mentioned at the templated address", async () => {
     const cookie = await login();
-    await apiJson(cookie, "PATCH", "/api/settings", { site_url: OURS });
+    await apiJson(cookie, "PATCH", "/blyg/api/settings", { siteUrl: OURS });
     const origin = "https://templated.example/";
     const id = newId();
     const sub = await importFrom(origin, { id, kind: "thread", version: 1, content_md: "templated" }, "Templated");
@@ -383,11 +383,11 @@ describe("mention targets without the target's page (§15.2 sixth revision, deci
 
   it("an origin we do not subscribe to has its manifest read once, for item template and endpoint", async () => {
     const cookie = await login();
-    await apiJson(cookie, "PATCH", "/api/settings", { site_url: OURS });
+    await apiJson(cookie, "PATCH", "/blyg/api/settings", { siteUrl: OURS });
     const origin = "https://stranger.example/";
     const a = newId(), b = newId();
-    const item = await apiJson(cookie, "POST", "/api/items", { kind: "fragment", content_md: "Mine." });
-    await apiJson(cookie, "POST", `/api/items/${item.json.id}/publish`, {});
+    const item = await apiJson(cookie, "POST", "/blyg/api/items", { kind: "fragment", contentMd: "Mine." });
+    await apiJson(cookie, "POST", `/blyg/api/items/${item.json.id}/publish`, {});
     // The references are hand-set on the version row: the publish route reads
     // manifests with the real network, which this runtime refuses.
     const row = { ...(await getVersion(env.DB, item.json.id, 1)) } as VersionRow;
@@ -410,11 +410,11 @@ describe("mention targets without the target's page (§15.2 sixth revision, deci
   it("an endpoint learnt at enqueue is what delivery posts to", async () => {
     const origin = "https://stranger2.example/";
     const cookie = await login();
-    await apiJson(cookie, "PATCH", "/api/settings", { site_url: OURS });
+    await apiJson(cookie, "PATCH", "/blyg/api/settings", { siteUrl: OURS });
     const id = newId();
-    const item = await apiJson(cookie, "POST", "/api/items", { kind: "fragment", content_md: "Mine." });
+    const item = await apiJson(cookie, "POST", "/blyg/api/items", { kind: "fragment", contentMd: "Mine." });
     // Published first, so the item has a public source URL to send.
-    await apiJson(cookie, "POST", `/api/items/${item.json.id}/publish`, {});
+    await apiJson(cookie, "POST", `/blyg/api/items/${item.json.id}/publish`, {});
     const row = { ...(await getVersion(env.DB, item.json.id, 1)) } as VersionRow;
     row.transclusions = JSON.stringify([{ id, version: 1, origin }]);
     const net = fixtureNet({
@@ -432,7 +432,7 @@ describe("mention targets without the target's page (§15.2 sixth revision, deci
 describe("receiving and structural verification (§2.3.5)", () => {
   async function ourItem(): Promise<{ id: string; target: string; cookie: string }> {
     const cookie = await login();
-    await apiJson(cookie, "PATCH", "/api/settings", { site_url: OURS });
+    await apiJson(cookie, "PATCH", "/blyg/api/settings", { siteUrl: OURS });
     const id = await createAndPublish(cookie, "a fragment worth responding to");
     return { id, target: `${OURS}f/${id}/`, cookie };
   }
@@ -654,9 +654,9 @@ describe("receiving and structural verification (§2.3.5)", () => {
 
   it("a pinned version's document names its item: 202, recorded and verified against the item (§15.3, #84)", async () => {
     const { id, cookie } = await ourItem();
-    await apiJson(cookie, "PATCH", `/api/items/${id}`, { content_md: "a fragment worth responding to, revised" });
-    await apiJson(cookie, "POST", `/api/items/${id}/publish`, {});
-    expect((await apiJson(cookie, "PUT", `/api/items/${id}/versions/1/pin`)).status).toBe(200);
+    await apiJson(cookie, "PATCH", `/blyg/api/items/${id}`, { contentMd: "a fragment worth responding to, revised" });
+    await apiJson(cookie, "POST", `/blyg/api/items/${id}/publish`, {});
+    expect((await apiJson(cookie, "PUT", `/blyg/api/items/${id}/versions/1/pin`)).status).toBe(200);
     const target = `${OURS}items/${id}/v1.json`;
     const src = sourceFixture({ stubTargetId: id });
     const net = fixtureNet(src.map);
@@ -681,7 +681,7 @@ describe("receiving and structural verification (§2.3.5)", () => {
 
   it("an unpinned v3, an unknown id or another blyg's page is 400 (§15.3, #84)", async () => {
     const { id, cookie } = await ourItem();
-    expect((await apiJson(cookie, "PUT", `/api/items/${id}/versions/1/pin`)).status).toBe(200);
+    expect((await apiJson(cookie, "PUT", `/blyg/api/items/${id}/versions/1/pin`)).status).toBe(200);
     const source = `${THEIRS}t/${newId()}/`;
     for (const target of [
       `${OURS}items/${id}/v3.json`,
@@ -703,13 +703,13 @@ describe("receiving and structural verification (§2.3.5)", () => {
     // The item document is served for either kind.
     expect(await targetItemId(env.DB, new URL(`${OURS}items/${id}.json`), OURS)).toBe(id);
     // A withdrawn fragment keeps its authored kind.
-    await apiJson(cookie, "POST", `/api/items/${id}/withdraw`, {});
+    await apiJson(cookie, "POST", `/blyg/api/items/${id}/withdraw`, {});
     expect(await targetItemId(env.DB, new URL(`${OURS}f/${id}/`), OURS)).toBe(id);
     expect(await targetItemId(env.DB, new URL(`${OURS}t/${id}/`), OURS)).toBeNull();
 
     // And a thread named at f/{id}/.
-    const thread = (await apiJson(cookie, "POST", "/api/items", { kind: "thread", content_md: "A thread of mine." })).json.id as string;
-    expect((await apiJson(cookie, "POST", `/api/items/${thread}/publish`, {})).status).toBe(200);
+    const thread = (await apiJson(cookie, "POST", "/blyg/api/items", { kind: "thread", contentMd: "A thread of mine." })).json.id as string;
+    expect((await apiJson(cookie, "POST", `/blyg/api/items/${thread}/publish`, {})).status).toBe(200);
     expect(await targetItemId(env.DB, new URL(`${OURS}t/${thread}/`), OURS)).toBe(thread);
     expect((await receiveMention(env.DB, { source, target: `${OURS}f/${thread}/` }, OURS)).status).toBe(400);
   });
@@ -732,9 +732,9 @@ describe("receiving and structural verification (§2.3.5)", () => {
 
   it("accepts a mention that targets a withdrawn item — people may respond to a withdrawal", async () => {
     const cookie = await login();
-    await apiJson(cookie, "PATCH", "/api/settings", { site_url: OURS });
+    await apiJson(cookie, "PATCH", "/blyg/api/settings", { siteUrl: OURS });
     const id = await createAndPublish(cookie, "soon withdrawn");
-    await apiJson(cookie, "POST", `/api/items/${id}/withdraw`, {});
+    await apiJson(cookie, "POST", `/blyg/api/items/${id}/withdraw`, {});
     const res = await receiveMention(env.DB, { source: `${THEIRS}t/x/`, target: `${OURS}f/${id}/` }, OURS);
     expect(res.status).toBe(202);
   });
@@ -909,7 +909,7 @@ describe("the endpoint route (§2.3.1)", () => {
 describe("detect stubs — /studio/mentions (§3.3)", () => {
   it("returns verified relations and identifies imported sources for stub-back", async () => {
     const cookie = await login();
-    await apiJson(cookie, "PATCH", "/api/settings", { site_url: OURS });
+    await apiJson(cookie, "PATCH", "/blyg/api/settings", { siteUrl: OURS });
     const mine = await createAndPublish(cookie, "something people respond to");
 
     // Someone we subscribe to and have imported: stub-back is possible.
@@ -953,41 +953,41 @@ describe("detect stubs — /studio/mentions (§3.3)", () => {
     });
     await verifyMention(env.DB, stranger.id, `https://stranger.example/t/${strangerId}/`, mine, OURS, strangerNet.fetch);
 
-    const result = await apiJson(cookie, "GET", "/api/mentions?direction=inbound");
-    const rows = result.json.items.filter((row: { target_item_id: string }) => row.target_item_id === mine);
+    const result = await apiJson(cookie, "GET", "/blyg/api/mentions?direction=inbound");
+    const rows = result.json.items.filter((row: { targetItemId: string }) => row.targetItemId === mine);
     expect(rows).toHaveLength(2);
     expect(rows.find((row: { id: string }) => row.id === known.id)).toMatchObject({ relation: "stub", status: "verified" });
-    expect(JSON.parse(rows.find((row: { id: string }) => row.id === known.id).source_author_json).name).toBe("Friend Author");
+    expect(rows.find((row: { id: string }) => row.id === known.id).sourceAuthor.name).toBe("Friend Author");
     expect(rows.find((row: { id: string }) => row.id === stranger.id)).toMatchObject({ relation: "transclusion", status: "verified" });
-    expect((await apiJson(cookie, "GET", `/api/mentions/${known.id}/source`)).json.holder).toBeTruthy();
-    expect((await apiJson(cookie, "GET", `/api/mentions/${stranger.id}/source`)).json.holder).toBeNull();
+    expect((await apiJson(cookie, "GET", `/blyg/api/mentions/${known.id}/source`)).json.holder).toBeTruthy();
+    expect((await apiJson(cookie, "GET", `/blyg/api/mentions/${stranger.id}/source`)).json.holder).toBeNull();
   });
 
   it("exposes the outbound queue and canonical site preference", async () => {
     const cookie = await login();
-    await apiJson(cookie, "PATCH", "/api/settings", { site_url: "" });
-    expect((await apiJson(cookie, "GET", "/api/settings")).json.site_url).toBe("");
+    await apiJson(cookie, "PATCH", "/blyg/api/settings", { siteUrl: "" });
+    expect((await apiJson(cookie, "GET", "/blyg/api/settings")).json.siteUrl).toBe("");
 
-    await apiJson(cookie, "PATCH", "/api/settings", { site_url: OURS });
+    await apiJson(cookie, "PATCH", "/blyg/api/settings", { siteUrl: OURS });
     const remoteId = newId();
     await importFrom(THEIRS, { id: remoteId, kind: "fragment", version: 1, content_md: "theirs" });
-    const stub = await apiJson(cookie, "POST", "/api/items", {
+    const stub = await apiJson(cookie, "POST", "/blyg/api/items", {
       kind: "thread",
-      content_md: `![[${remoteId}]]`,
-      stub_of: { origin: THEIRS, id: remoteId, version: 1 },
+      contentMd: `![[${remoteId}]]`,
+      stubOf: { origin: THEIRS, id: remoteId, version: 1 },
     });
-    await apiJson(cookie, "POST", `/api/items/${stub.json.id}/publish`, {});
+    await apiJson(cookie, "POST", `/blyg/api/items/${stub.json.id}/publish`, {});
 
-    expect((await apiJson(cookie, "GET", "/api/settings")).json.site_url).toBe(OURS);
-    const after = await apiJson(cookie, "GET", "/api/mentions?direction=outbound");
-    expect(after.json.items).toEqual(expect.arrayContaining([expect.objectContaining({ target: `${THEIRS}items/${remoteId}.json`, item_id: stub.json.id })]));
+    expect((await apiJson(cookie, "GET", "/blyg/api/settings")).json.siteUrl).toBe(OURS);
+    const after = await apiJson(cookie, "GET", "/blyg/api/mentions?direction=outbound");
+    expect(after.json.items).toEqual(expect.arrayContaining([expect.objectContaining({ target: `${THEIRS}items/${remoteId}.json`, itemId: stub.json.id })]));
   });
 });
 
 describe("the stub stack (§4.3)", () => {
   it("A's fragment → B's stub → A's stub of the stub, nested two deep and verified", async () => {
     const cookie = await login();
-    await apiJson(cookie, "PATCH", "/api/settings", { site_url: OURS });
+    await apiJson(cookie, "PATCH", "/blyg/api/settings", { siteUrl: OURS });
 
     // A (us) publishes F.
     const f = await createAndPublish(cookie, "the original claim");
@@ -1018,10 +1018,10 @@ describe("the stub stack (§4.3)", () => {
     expect((await verifyMention(env.DB, inbound.id, `${THEIRS}t/${s1}/`, f, OURS, net.fetch)).relation).toBe("stub");
 
     // A stubs the stub back, from the studio's own gesture.
-    const created = await apiJson(cookie, "POST", "/api/items", { mode: "response", source: { subscription_id: subId, remote_id: s1 } });
+    const created = await apiJson(cookie, "POST", "/blyg/api/items", { mode: "response", source: { subscriptionId: subId, remoteId: s1 } });
     expect(created.status).toBe(201);
     const s2 = created.json.id as string;
-    expect((await apiJson(cookie, "POST", `/api/items/${s2}/publish`, {})).status).toBe(200);
+    expect((await apiJson(cookie, "POST", `/blyg/api/items/${s2}/publish`, {})).status).toBe(200);
 
     const doc = await (await getPublic(`/blyg/items/${s2}.json`)).json<any>();
     expect(doc.stub_of).toMatchObject({ origin: THEIRS, id: s1, version: 1 });
@@ -1076,13 +1076,13 @@ describe("registrableDomain — the rate-limit grouping heuristic (§9.1 gap 1)"
 // option no caller ever passed.
 describe("declining to receive mentions (§15 is optional)", () => {
   async function setAccept(cookie: string, accept: boolean) {
-    const res = await apiJson(cookie, "PATCH", "/api/settings", { accept_mentions: accept });
+    const res = await apiJson(cookie, "PATCH", "/blyg/api/settings", { acceptMentions: accept });
     expect(res.status).toBe(200);
   }
 
   it("withdraws the endpoint from the manifest, the pages and the network", async () => {
     const cookie = await login();
-    await apiJson(cookie, "PATCH", "/api/settings", { site_url: OURS });
+    await apiJson(cookie, "PATCH", "/blyg/api/settings", { siteUrl: OURS });
     const id = await createAndPublish(cookie, "an item someone might respond to");
     const target = `${OURS}f/${id}/`;
 
@@ -1111,7 +1111,7 @@ describe("declining to receive mentions (§15 is optional)", () => {
     });
     expect(res.status).toBe(404);
 
-    expect((await apiJson(cookie, "GET", "/api/settings")).json.accept_mentions).toBe(false);
+    expect((await apiJson(cookie, "GET", "/blyg/api/settings")).json.acceptMentions).toBe(false);
 
     // Reversible, and the item is untouched by any of it.
     await setAccept(cookie, true);
@@ -1121,17 +1121,17 @@ describe("declining to receive mentions (§15 is optional)", () => {
 
   it("still sends mentions — the two halves are independent", async () => {
     const cookie = await login();
-    await apiJson(cookie, "PATCH", "/api/settings", { site_url: OURS });
+    await apiJson(cookie, "PATCH", "/blyg/api/settings", { siteUrl: OURS });
     await setAccept(cookie, false);
 
     const remoteId = newId();
     await importFrom(THEIRS, { id: remoteId, kind: "fragment", version: 2, content_md: "their post", page: `f/${remoteId}/` });
-    const stub = await apiJson(cookie, "POST", "/api/items", {
+    const stub = await apiJson(cookie, "POST", "/blyg/api/items", {
       kind: "thread",
-      content_md: `![[${remoteId}]]\n\nMy response.`,
-      stub_of: { origin: THEIRS, id: remoteId, version: 2 },
+      contentMd: `![[${remoteId}]]\n\nMy response.`,
+      stubOf: { origin: THEIRS, id: remoteId, version: 2 },
     });
-    expect((await apiJson(cookie, "POST", `/api/items/${stub.json.id}/publish`, {})).status).toBe(200);
+    expect((await apiJson(cookie, "POST", `/blyg/api/items/${stub.json.id}/publish`, {})).status).toBe(200);
 
     const queued = (await listOutbound(env.DB)).filter((r) => r.item_id === stub.json.id);
     expect(queued).toHaveLength(1);
@@ -1140,11 +1140,11 @@ describe("declining to receive mentions (§15 is optional)", () => {
 
   it("refuses a value that is neither true nor false, rather than reading it as on", async () => {
     const cookie = await login();
-    const res = await apiJson(cookie, "PATCH", "/api/settings", { accept_mentions: "no" });
+    const res = await apiJson(cookie, "PATCH", "/blyg/api/settings", { acceptMentions: "no" });
     expect(res.status).toBe(400);
     // `getSettings` treats anything but "off" as on, so a typo that was stored
     // would silently re-open the endpoint the operator meant to close.
-    expect((await apiJson(cookie, "PATCH", "/api/settings", { accept_mentions: false })).status).toBe(200);
+    expect((await apiJson(cookie, "PATCH", "/blyg/api/settings", { acceptMentions: false })).status).toBe(200);
     const manifest = await (await getPublic("/blyg/blyg.json")).json<{ webmention?: string }>();
     expect(manifest.webmention).toBeUndefined();
   });

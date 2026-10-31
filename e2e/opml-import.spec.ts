@@ -34,9 +34,9 @@ const OPML = `<?xml version="1.0" encoding="UTF-8"?>
 </opml>`;
 
 const subscription = (url: string) => ({
-  id: `sub-${new URL(url).hostname}`, kind: 'rss', origin: url, feed_url: url, title: new URL(url).hostname, status: 'active',
-  last_poll_at: null, fail_count: 0, last_index_sync_at: null, created: '2026-10-18T00:00:00Z',
-  title_follows_source: true, in_blogroll: false, flags: [],
+  id: `sub-${new URL(url).hostname}`, kind: 'rss', origin: url, feedUrl: url, title: new URL(url).hostname, status: 'active',
+  lastPollAt: null, failCount: 0, lastIndexSyncAt: null, created: '2026-10-18T00:00:00Z',
+  titleFollowsSource: true, inBlogroll: false, flags: [],
 });
 
 test('an OPML file is previewed, imported one feed at a time, and summarised', async ({ page }) => {
@@ -56,9 +56,9 @@ test('an OPML file is previewed, imported one feed at a time, and summarised', a
     try {
       const host = new URL(body.url).hostname;
       if (host === 'alpha.example' || host === 'beta.example') return await route.fulfill({ status: 201, json: subscription(body.url) });
-      if (host === 'gamma.example' && gammaTries++ === 0) return await route.fulfill({ status: 429, headers: { 'Retry-After': '1' }, json: { error: 'API work budget exceeded' } });
-      if (host === 'gamma.example') return await route.fulfill({ status: 409, json: { error: 'already subscribed to Gamma' } });
-      return await route.fulfill({ status: 422, json: { error: 'could not resolve this URL to a blyg or a feed', tried: [body.url] } });
+      if (host === 'gamma.example' && gammaTries++ === 0) return await route.fulfill({ status: 429, headers: { 'Retry-After': '1' }, json: { code: 'rate-limit', message: 'API work budget exceeded' } });
+      if (host === 'gamma.example') return await route.fulfill({ status: 409, json: { code: 'conflict', message: 'already subscribed to Gamma' } });
+      return await route.fulfill({ status: 422, json: { code: 'unprocessable', message: 'could not resolve this URL to a blyg or a feed', details: { tried: [body.url] } } });
     } finally {
       inFlight--;
     }
@@ -66,7 +66,7 @@ test('an OPML file is previewed, imported one feed at a time, and summarised', a
   await page.route('**/api/subscriptions/sub-*', async (route) => {
     if (route.request().method() !== 'PATCH') return route.fallback();
     patches.push(route.request().url());
-    await route.fulfill({ json: { ...subscription('https://x.example/'), in_blogroll: true } });
+    await route.fulfill({ json: { ...subscription('https://x.example/'), inBlogroll: true } });
   });
 
   await page.locator('#opml-open').click();
@@ -116,7 +116,7 @@ test('the blogroll box adds each new subscription with PATCH, and a malformed fi
   await page.route('**/api/subscriptions/sub-*', async (route) => {
     if (route.request().method() !== 'PATCH') return route.fallback();
     patched.push(route.request().postDataJSON());
-    await route.fulfill({ json: { ...subscription('https://one.example/feed'), in_blogroll: true } });
+    await route.fulfill({ json: { ...subscription('https://one.example/feed'), inBlogroll: true } });
   });
 
   await page.locator('#opml-open').click();
@@ -131,5 +131,5 @@ test('the blogroll box adds each new subscription with PATCH, and a malformed fi
   await sheet.getByRole('checkbox', { name: 'add these to my blogroll' }).check();
   await sheet.getByRole('button', { name: 'import 1 feed' }).click();
   await expect(sheet.locator('.opml-summary')).toContainText('1 added · 0 already subscribed · 0 failed');
-  expect(patched).toEqual([{ in_blogroll: true }]);
+  expect(patched).toEqual([{ inBlogroll: true }]);
 });

@@ -176,7 +176,7 @@ export function parseShared(text: string): SharedLook | { error: string } {
       return { error: 'name must be text' };
     const name = typeof v.name === 'string' ? v.name.trim() : '';
     const badName = themeNameError(name);
-    if (badName) return { error: badName.replace('custom_theme_name: ', 'name: ') };
+    if (badName) return { error: badName.replace('customThemeName: ', 'name: ') };
     const look = { name, light: light.theme, dark: dark ? dark.theme : null };
     const incoherent = pairError(look.light, look.dark);
     return incoherent ? { error: incoherent } : look;

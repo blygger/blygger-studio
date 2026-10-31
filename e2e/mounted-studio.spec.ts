@@ -25,10 +25,12 @@ test("a forwarded nested Studio runs login, SDK saves, upload, and response crea
   await page.locator('[data-action="stub"][data-remote="remote"]').click();
   const response = await created;
   expect(response.status()).toBe(201);
-  expect(response.request().postDataJSON()).toMatchObject({ mode: "response", source: { subscription_id: "browser-source", remote_id: "remote" } });
+  expect(response.request().postDataJSON()).toMatchObject({ mode: "response", source: { subscriptionId: "browser-source", remoteId: "remote" } });
   await expect(page.locator("#md-input")).toHaveValue("[Remote title](https://source.example/post)\n\n");
   expect(page.url()).toContain(`${studio}/edit/`);
   expect(paths).toContain("/notes/b/studio/app.js");
-  expect(paths.every(path => path.startsWith("/notes/b/") || path.startsWith("/api/") || path === "/studio/app.js")).toBe(true);
+  expect(paths.every(path => path.startsWith("/notes/b/") || path === "/studio/app.js")).toBe(true);
+  expect((await page.request.get(`${origin}/api/settings`)).status()).toBe(404);
+  expect(paths.some(path => path.startsWith("/api/"))).toBe(false);
   expect(errors).toEqual([]);
 });

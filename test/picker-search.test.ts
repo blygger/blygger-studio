@@ -8,7 +8,7 @@ import { apiJson, createAndPublish, login } from "./helpers.ts";
 
 let cookie = "";
 let mine = "";
-const search = async (query: string) => (await apiJson(cookie, "GET", `/api/search?${query}`)).json as { items: { id: string; source: string; kind: string; source_title: string | null; subscription_id: string | null; excerpt: string }[]; total: number };
+const search = async (query: string) => (await apiJson(cookie, "GET", `/blyg/api/search?${query}`)).json as { items: { id: string; source: string; kind: string; sourceTitle: string | null; subscriptionId: string | null; excerpt: string }[]; total: number };
 
 beforeAll(async () => {
   cookie = await login();
@@ -38,13 +38,13 @@ describe("GET /api/search for the picker", () => {
   });
 
   it("filters by source and by one subscription, labelling each row", async () => {
-    expect((await search("q=zorbleflux&source=mine")).items).toEqual([expect.objectContaining({ id: mine, source: "mine", source_title: null, subscription_id: null })]);
+    expect((await search("q=zorbleflux&source=mine")).items).toEqual([expect.objectContaining({ id: mine, source: "mine", sourceTitle: null, subscriptionId: null })]);
     const imported = await search("q=zorbleflux&source=imported");
     expect(imported.items.map((i) => i.source)).toEqual(["imported", "imported"]);
     // A subscription with no title is named by its host.
-    expect(imported.items.find((i) => i.subscription_id === "pick-b")?.source_title).toBe("b.example");
+    expect(imported.items.find((i) => i.subscriptionId === "pick-b")?.sourceTitle).toBe("b.example");
     const one = await search("q=zorbleflux&sub=pick-a");
-    expect(one.items).toEqual([expect.objectContaining({ id: "pickaold00000000000000000a", kind: "thread", source_title: "Alpha Blyg" })]);
+    expect(one.items).toEqual([expect.objectContaining({ id: "pickaold00000000000000000a", kind: "thread", sourceTitle: "Alpha Blyg" })]);
   });
 
   it("sorts newest or oldest first, and pages with a total of the whole set", async () => {

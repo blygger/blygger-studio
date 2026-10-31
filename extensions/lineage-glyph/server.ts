@@ -1,6 +1,7 @@
 // The lineage-glyph extension's server half: two owner reads over the
 // references this node holds (lineage.ts). Mounted under /api/ext/lineage-glyph/
 // behind the owner API's middleware, and only answering when enabled.
+import { success, failure } from "../../src/operation-types.ts";
 import type { ServerExtension } from "../../src/extensions/server.ts";
 import { getSettings } from "../../src/model.ts";
 import { getSubscription } from "../../src/importer/store.ts";
@@ -26,29 +27,29 @@ function parseKey(key: unknown): { sub: string | null; id: string } | null {
 export const server: ServerExtension = {
   name: "lineage-glyph",
   routes(router) {
-    router.get(routes.extLineageGlyphListSummaries, async (c) => {
+    router.get(routes.extLineageGlyphListSummaries, async (context, input) => {
       let keys: unknown;
       try {
-        keys = JSON.parse(c.req.query("keys") ?? "");
+        keys = JSON.parse(input.query.keys ?? "");
       } catch {
         keys = null;
       }
-      if (!Array.isArray(keys) || keys.length > MAX_SUMMARY_KEYS) return c.json({ error: `keys must be a JSON array of at most ${MAX_SUMMARY_KEYS} reading entry keys` }, 400);
+      if (!Array.isArray(keys) || keys.length > MAX_SUMMARY_KEYS) return failure('invalid-input', { error: `keys must be a JSON array of at most ${MAX_SUMMARY_KEYS} reading entry keys` });
       const nodes = keys.map((key) => [key, parseKey(key)] as const).filter((pair): pair is readonly [string, { sub: string | null; id: string }] => pair[1] !== null);
-      const ourOrigin = siteOrigin(await getSettings(c.env.DB), c.req.url, normalizeMount(c.env.MOUNT));
-      const summaries = await lineageSummaries(c.env.DB, ourOrigin, nodes.map(([, node]) => node));
-      return c.json({ summaries: Object.fromEntries(nodes.map(([key], i) => [key, summaries[i]])) }, 200);
+      const ourOrigin = siteOrigin(await getSettings(context.env.DB), context.url, normalizeMount(context.env.MOUNT));
+      const summaries = await lineageSummaries(context.env.DB, ourOrigin, nodes.map(([, node]) => node));
+      return success({ summaries: Object.fromEntries(nodes.map(([key], i) => [key, summaries[i]])) });
     });
-    router.get(routes.extLineageGlyphGetLineage, async (c) => {
-      const ourOrigin = siteOrigin(await getSettings(c.env.DB), c.req.url, normalizeMount(c.env.MOUNT));
-      const sub = c.req.query("sub");
-      let origin = normalizeOrigin(c.req.query("origin")) ?? ourOrigin;
+    router.get(routes.extLineageGlyphGetLineage, async (context, input) => {
+      const ourOrigin = siteOrigin(await getSettings(context.env.DB), context.url, normalizeMount(context.env.MOUNT));
+      const sub = input.query.sub;
+      let origin = normalizeOrigin(input.query.origin) ?? ourOrigin;
       if (sub && sub !== "own") {
-        const row = await getSubscription(c.env.DB, sub);
-        if (!row) return c.json({ error: "no such subscription" }, 404);
+        const row = await getSubscription(context.env.DB, sub);
+        if (!row) return failure('not-found', { error: 'no such subscription' });
         origin = normalizeOrigin(row.origin) ?? row.origin;
       }
-      return c.json(await lineageOf(c.env.DB, ourOrigin, origin, c.req.query("id") ?? ""), 200);
+      return success(await lineageOf(context.env.DB, ourOrigin, origin, input.query.id ?? ""));
     });
   },
 };

@@ -278,7 +278,7 @@ describe("build-models: manifest validation", () => {
 describe("GET /api/ai/models with Workers AI", () => {
   it("lists the Workers AI provider by binding, with no key secret, and never params or base URLs", async () => {
     const { apiJson, login } = await import("./helpers.ts");
-    const models = (await apiJson(await login(), "GET", "/api/ai/models")).json;
+    const models = (await apiJson(await login(), "GET", "/blyg/api/ai/models")).json;
     const wai = models.providers.find((p: { id: string }) => p.id === "workers-ai");
     // The suite binds no AI (remoteBindings: false, and the template's binding is commented out).
     expect(wai).toEqual({ id: "workers-ai", label: "Cloudflare Workers AI", binding: "AI", configured: false });

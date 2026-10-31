@@ -7,7 +7,7 @@ import { apiJson, createAndPublish, getPublic, login } from "./helpers.ts";
 describe("item lifecycle (§3.1)", () => {
   it("drafts are invisible on every public surface", async () => {
     const cookie = await login();
-    const { status, json } = await apiJson(cookie, "POST", "/api/items", { content_md: "secret draft" });
+    const { status, json } = await apiJson(cookie, "POST", "/blyg/api/items", { contentMd: "secret draft" });
     expect(status).toBe(201);
     const id = json.id;
 
@@ -38,13 +38,13 @@ describe("item lifecycle (§3.1)", () => {
   it("edit → publish bumps to v2 with note in changelog", async () => {
     const cookie = await login();
     const id = await createAndPublish(cookie, "first take");
-    await apiJson(cookie, "PATCH", `/api/items/${id}`, { content_md: "second take" });
+    await apiJson(cookie, "PATCH", `/blyg/api/items/${id}`, { contentMd: "second take" });
 
     // Working copy is not public until published.
     let item = await (await getPublic(`/blyg/items/${id}.json`)).json<any>();
     expect(item.content_md).toBe("first take");
 
-    const pub = await apiJson(cookie, "POST", `/api/items/${id}/publish`, { note: "typo" });
+    const pub = await apiJson(cookie, "POST", `/blyg/api/items/${id}/publish`, { note: "typo" });
     expect(pub.json.version).toBe(2);
     item = await (await getPublic(`/blyg/items/${id}.json`)).json<any>();
     expect(item.version).toBe(2);
@@ -56,8 +56,8 @@ describe("item lifecycle (§3.1)", () => {
   it("feed carries per-version GUIDs for both publish events", async () => {
     const cookie = await login();
     const id = await createAndPublish(cookie, "v1 content");
-    await apiJson(cookie, "PATCH", `/api/items/${id}`, { content_md: "v2 content" });
-    await apiJson(cookie, "POST", `/api/items/${id}/publish`, {});
+    await apiJson(cookie, "PATCH", `/blyg/api/items/${id}`, { contentMd: "v2 content" });
+    await apiJson(cookie, "POST", `/blyg/api/items/${id}/publish`, {});
     const xml = await (await getPublic("/blyg/feed.xml")).text();
     expect(xml).toContain(`blyg:${id}:v1`);
     expect(xml).toContain(`blyg:${id}:v2`);
@@ -66,7 +66,7 @@ describe("item lifecycle (§3.1)", () => {
   it("withdraw publishes a permanent endcap: 200 forever, one feed entry (§2.3)", async () => {
     const cookie = await login();
     const id = await createAndPublish(cookie, "now you see me");
-    const wd = await apiJson(cookie, "POST", `/api/items/${id}/withdraw`, { note: "second thoughts" });
+    const wd = await apiJson(cookie, "POST", `/blyg/api/items/${id}/withdraw`, { note: "second thoughts" });
     expect(wd.status).toBe(200);
     expect(wd.json.version).toBe(2);
 
@@ -95,17 +95,17 @@ describe("item lifecycle (§3.1)", () => {
     expect(xml).not.toContain(`blyg:${id}:v1`);
 
     // Cannot re-withdraw.
-    expect((await apiJson(cookie, "POST", `/api/items/${id}/withdraw`, {})).status).toBe(409);
+    expect((await apiJson(cookie, "POST", `/blyg/api/items/${id}/withdraw`, {})).status).toBe(409);
   });
 
   it("withdrawal is reversible: working copy survives, republish restores (§3.1)", async () => {
     const cookie = await login();
     const id = await createAndPublish(cookie, "phoenix v1");
-    await apiJson(cookie, "POST", `/api/items/${id}/withdraw`, {});
+    await apiJson(cookie, "POST", `/blyg/api/items/${id}/withdraw`, {});
 
     // Working copy retained and editable after withdrawal.
-    expect((await apiJson(cookie, "PATCH", `/api/items/${id}`, { content_md: "phoenix v3" })).status).toBe(200);
-    const pub = await apiJson(cookie, "POST", `/api/items/${id}/publish`, { note: "returned" });
+    expect((await apiJson(cookie, "PATCH", `/blyg/api/items/${id}`, { contentMd: "phoenix v3" })).status).toBe(200);
+    const pub = await apiJson(cookie, "POST", `/blyg/api/items/${id}/publish`, { note: "returned" });
     expect(pub.json.version).toBe(3);
 
     const item = await (await getPublic(`/blyg/items/${id}.json`)).json<any>();
@@ -119,16 +119,16 @@ describe("item lifecycle (§3.1)", () => {
   it("pinned versions are served at items/{id}/v{n}.json and survive withdrawal (§2.8)", async () => {
     const cookie = await login();
     const id = await createAndPublish(cookie, "citable *claim*");
-    await apiJson(cookie, "PATCH", `/api/items/${id}`, { content_md: "revised claim" });
-    await apiJson(cookie, "POST", `/api/items/${id}/publish`, {});
+    await apiJson(cookie, "PATCH", `/blyg/api/items/${id}`, { contentMd: "revised claim" });
+    await apiJson(cookie, "POST", `/blyg/api/items/${id}/publish`, {});
 
     // Unpinned versions are withheld.
     expect((await getPublic(`/blyg/items/${id}/v1.json`)).status).toBe(404);
 
-    const pin = await apiJson(cookie, "PUT", `/api/items/${id}/versions/${1}/pin`);
+    const pin = await apiJson(cookie, "PUT", `/blyg/api/items/${id}/versions/${1}/pin`);
     expect(pin.status).toBe(200);
     // Idempotent re-pin.
-    expect((await apiJson(cookie, "PUT", `/api/items/${id}/versions/${1}/pin`)).json.already).toBe(true);
+    expect((await apiJson(cookie, "PUT", `/blyg/api/items/${id}/versions/${1}/pin`)).json.already).toBe(true);
 
     const res = await getPublic(`/blyg/items/${id}/v1.json`);
     expect(res.status).toBe(200);
@@ -146,31 +146,31 @@ describe("item lifecycle (§3.1)", () => {
     expect((await getPublic(`/blyg/items/${id}/v2.json`)).status).toBe(404);
 
     // The pin survives withdrawal of the live stream.
-    await apiJson(cookie, "POST", `/api/items/${id}/withdraw`, {});
+    await apiJson(cookie, "POST", `/blyg/api/items/${id}/withdraw`, {});
     expect((await getPublic(`/blyg/items/${id}/v1.json`)).status).toBe(200);
 
     // Endcap versions cannot be pinned.
-    expect((await apiJson(cookie, "PUT", `/api/items/${id}/versions/${3}/pin`)).status).toBe(409);
+    expect((await apiJson(cookie, "PUT", `/blyg/api/items/${id}/versions/${3}/pin`)).status).toBe(409);
   });
 
   it("discarding a never-published draft hard-removes it; published delete is rejected", async () => {
     const cookie = await login();
-    const { json } = await apiJson(cookie, "POST", "/api/items", { content_md: "scratch" });
-    const del = await apiJson(cookie, "DELETE", `/api/items/${json.id}`);
+    const { json } = await apiJson(cookie, "POST", "/blyg/api/items", { contentMd: "scratch" });
+    const del = await apiJson(cookie, "DELETE", `/blyg/api/items/${json.id}`);
     expect(del.json.outcome).toBe("discarded");
-    expect((await apiJson(cookie, "PATCH", `/api/items/${json.id}`, { content_md: "x" })).status).toBe(404);
+    expect((await apiJson(cookie, "PATCH", `/blyg/api/items/${json.id}`, { contentMd: "x" })).status).toBe(404);
 
     const id = await createAndPublish(cookie, "not deletable");
-    expect((await apiJson(cookie, "DELETE", `/api/items/${id}`)).status).toBe(409);
+    expect((await apiJson(cookie, "DELETE", `/blyg/api/items/${id}`)).status).toBe(409);
   });
 
   it("enforces the 1,000-char fragment cap at publish (§2.7)", async () => {
     const cookie = await login();
-    const { json } = await apiJson(cookie, "POST", "/api/items", { content_md: "x".repeat(1001) });
-    const pub = await apiJson(cookie, "POST", `/api/items/${json.id}/publish`, {});
+    const { json } = await apiJson(cookie, "POST", "/blyg/api/items", { contentMd: "x".repeat(1001) });
+    const pub = await apiJson(cookie, "POST", `/blyg/api/items/${json.id}/publish`, {});
     expect(pub.status).toBe(400);
     // Exactly at the cap is fine.
-    await apiJson(cookie, "PATCH", `/api/items/${json.id}`, { content_md: "x".repeat(1000) });
-    expect((await apiJson(cookie, "POST", `/api/items/${json.id}/publish`, {})).status).toBe(200);
+    await apiJson(cookie, "PATCH", `/blyg/api/items/${json.id}`, { contentMd: "x".repeat(1000) });
+    expect((await apiJson(cookie, "POST", `/blyg/api/items/${json.id}/publish`, {})).status).toBe(200);
   });
 });

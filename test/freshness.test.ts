@@ -21,15 +21,15 @@ import { makeFixtureFetch } from "./importer/fixtures.ts";
 const THEIRS = "https://them.example/blyg/";
 
 async function publishThread(cookie: string, md: string): Promise<string> {
-  const id = (await apiJson(cookie, "POST", "/api/items", { content_md: md, kind: "thread" })).json.id as string;
-  const pub = await apiJson(cookie, "POST", `/api/items/${id}/publish`, {});
+  const id = (await apiJson(cookie, "POST", "/blyg/api/items", { contentMd: md, kind: "thread" })).json.id as string;
+  const pub = await apiJson(cookie, "POST", `/blyg/api/items/${id}/publish`, {});
   expect(pub.status).toBe(200);
   return id;
 }
 
 async function editAndPublish(cookie: string, id: string, md: string): Promise<void> {
-  expect((await apiJson(cookie, "PATCH", `/api/items/${id}`, { content_md: md })).status).toBe(200);
-  expect((await apiJson(cookie, "POST", `/api/items/${id}/publish`, {})).status).toBe(200);
+  expect((await apiJson(cookie, "PATCH", `/blyg/api/items/${id}`, { contentMd: md })).status).toBe(200);
+  expect((await apiJson(cookie, "POST", `/blyg/api/items/${id}/publish`, {})).status).toBe(200);
 }
 
 describe("detecting stale quotes", () => {
@@ -38,12 +38,12 @@ describe("detecting stale quotes", () => {
     const frag = await createAndPublish(cookie, "First take.");
     const thread = await publishThread(cookie, `![[${frag}]]\n\nCommentary.`);
 
-    let report = (await apiJson(cookie, "GET", `/api/items/${thread}/freshness`)).json;
+    let report = (await apiJson(cookie, "GET", `/blyg/api/items/${thread}/freshness`)).json;
     expect(report.quotes).toEqual([expect.objectContaining({ id: frag, baked: 1, held: 1, status: "current" })]);
     expect(report.stale).toBe(0);
 
     await editAndPublish(cookie, frag, "Second take.");
-    report = (await apiJson(cookie, "GET", `/api/items/${thread}/freshness`)).json;
+    report = (await apiJson(cookie, "GET", `/blyg/api/items/${thread}/freshness`)).json;
     expect(report.quotes).toEqual([expect.objectContaining({ id: frag, baked: 1, held: 2, status: "refreshable" })]);
     expect(report.stale).toBe(1);
     expect(report.blocking).toBe(0);
@@ -56,8 +56,8 @@ describe("detecting stale quotes", () => {
     const a = await publishThread(cookie, `![[${b}]]\n\nA says.`);
     await editAndPublish(cookie, c, "C, revised.");
     // B is stale (its quote of C); A is not — A holds B's unchanged bytes (#45).
-    expect((await apiJson(cookie, "GET", `/api/items/${b}/freshness`)).json.stale).toBe(1);
-    expect((await apiJson(cookie, "GET", `/api/items/${a}/freshness`)).json.stale).toBe(0);
+    expect((await apiJson(cookie, "GET", `/blyg/api/items/${b}/freshness`)).json.stale).toBe(1);
+    expect((await apiJson(cookie, "GET", `/blyg/api/items/${a}/freshness`)).json.stale).toBe(0);
   });
 
   it("a partial quote whose passage is gone from the new version is blocking, not refreshable", async () => {
@@ -65,7 +65,7 @@ describe("detecting stale quotes", () => {
     const frag = await createAndPublish(cookie, "Keep this sentence. Drop that one.");
     const thread = await publishThread(cookie, `![[${frag}]]\n> Drop that one.\n\nWhy it matters.`);
     await editAndPublish(cookie, frag, "Keep this sentence.");
-    const report = (await apiJson(cookie, "GET", `/api/items/${thread}/freshness`)).json;
+    const report = (await apiJson(cookie, "GET", `/blyg/api/items/${thread}/freshness`)).json;
     expect(report.quotes[0]).toMatchObject({ partial: true, status: "passage-missing" });
     expect(report.blocking).toBe(1);
     expect(report.stale).toBe(0);
@@ -75,8 +75,8 @@ describe("detecting stale quotes", () => {
     const cookie = await login();
     const frag = await createAndPublish(cookie, "Soon gone.");
     const thread = await publishThread(cookie, `![[${frag}]]\n\nHmm.`);
-    expect((await apiJson(cookie, "POST", `/api/items/${frag}/withdraw`, {})).status).toBe(200);
-    const report = (await apiJson(cookie, "GET", `/api/items/${thread}/freshness`)).json;
+    expect((await apiJson(cookie, "POST", `/blyg/api/items/${frag}/withdraw`, {})).status).toBe(200);
+    const report = (await apiJson(cookie, "GET", `/blyg/api/items/${thread}/freshness`)).json;
     expect(report.quotes[0]).toMatchObject({ status: "unresolvable", held: null });
     expect(report.blocking).toBe(1);
   });
@@ -87,7 +87,7 @@ describe("detecting stale quotes", () => {
     const stale = await publishThread(cookie, `![[${frag}]]\n\nOne.`);
     await editAndPublish(cookie, frag, "Edited.");
     const fresh = await publishThread(cookie, `![[${frag}]]\n\nTwo.`);
-    const list = (await apiJson(cookie, "GET", "/api/freshness")).json.items as { id: string }[];
+    const list = (await apiJson(cookie, "GET", "/blyg/api/freshness")).json.items as { id: string }[];
     expect(list.map((t) => t.id)).toContain(stale);
     expect(list.map((t) => t.id)).not.toContain(fresh);
   });
@@ -104,7 +104,7 @@ describe("detecting stale quotes", () => {
     await editAndPublish(cookie, b, "B v2.");
     const little = await publishThread(cookie, `![[${b}]]\n\nLittle.`);
     await editAndPublish(cookie, b, "B v3.");
-    const list = (await apiJson(cookie, "GET", "/api/freshness")).json.items as { id: string; behind: number; stale: number }[];
+    const list = (await apiJson(cookie, "GET", "/blyg/api/freshness")).json.items as { id: string; behind: number; stale: number }[];
     const ours = list.filter((t) => t.id === lots || t.id === little);
     expect(ours.map((t) => t.id)).toEqual([lots, little]);
     expect(ours[0]).toMatchObject({ behind: 5, stale: 2 });
@@ -114,7 +114,7 @@ describe("detecting stale quotes", () => {
   it("refuses a freshness report for something that is not a published thread", async () => {
     const cookie = await login();
     const frag = await createAndPublish(cookie, "Just a fragment.");
-    expect((await apiJson(cookie, "GET", `/api/items/${frag}/freshness`)).status).toBe(409);
+    expect((await apiJson(cookie, "GET", `/blyg/api/items/${frag}/freshness`)).status).toBe(409);
   });
 });
 
@@ -157,7 +157,7 @@ describe("refreshing — a republish of the published words", () => {
     const before = await (await getPublic(`/blyg/items/${thread}.json`)).json<any>();
     await editAndPublish(cookie, frag, "After.");
 
-    const res = await apiJson(cookie, "POST", `/api/items/${thread}/refresh`, { note: "refreshed quotes" });
+    const res = await apiJson(cookie, "POST", `/blyg/api/items/${thread}/refresh`, { note: "refreshed quotes" });
     expect(res.status).toBe(200);
     expect(res.json).toMatchObject({ version: 2, refreshed: [frag], resynced: 0 });
 
@@ -170,7 +170,7 @@ describe("refreshing — a republish of the published words", () => {
     expect(after.content_html).toContain("After.");
     expect(after.content_html).not.toContain("Before.");
     expect(after.changelog.at(-1)).toMatchObject({ version: 2, note: "refreshed quotes" });
-    expect((await apiJson(cookie, "GET", `/api/items/${thread}/freshness`)).json.stale).toBe(0);
+    expect((await apiJson(cookie, "GET", `/blyg/api/items/${thread}/freshness`)).json.stale).toBe(0);
   });
 
   it("refuses when the working copy has unpublished edits — those are other words", async () => {
@@ -178,10 +178,10 @@ describe("refreshing — a republish of the published words", () => {
     const frag = await createAndPublish(cookie, "Before.");
     const thread = await publishThread(cookie, `![[${frag}]]\n\nMy point.`);
     await editAndPublish(cookie, frag, "After.");
-    expect((await apiJson(cookie, "PATCH", `/api/items/${thread}`, { content_md: `![[${frag}]]\n\nHalf-written new point` })).status).toBe(200);
-    const res = await apiJson(cookie, "POST", `/api/items/${thread}/refresh`, {});
+    expect((await apiJson(cookie, "PATCH", `/blyg/api/items/${thread}`, { contentMd: `![[${frag}]]\n\nHalf-written new point` })).status).toBe(200);
+    const res = await apiJson(cookie, "POST", `/blyg/api/items/${thread}/refresh`, {});
     expect(res.status).toBe(409);
-    expect(res.json.error).toMatch(/unpublished edits/);
+    expect(res.json.message).toMatch(/unpublished edits/);
     expect((await getPublic(`/blyg/items/${thread}.json`).then((r) => r.json<any>())).version).toBe(1);
   });
 
@@ -189,9 +189,9 @@ describe("refreshing — a republish of the published words", () => {
     const cookie = await login();
     const frag = await createAndPublish(cookie, "Steady.");
     const thread = await publishThread(cookie, `![[${frag}]]\n\nFine.`);
-    const res = await apiJson(cookie, "POST", `/api/items/${thread}/refresh`, {});
+    const res = await apiJson(cookie, "POST", `/blyg/api/items/${thread}/refresh`, {});
     expect(res.status).toBe(409);
-    expect(res.json.error).toMatch(/already current/);
+    expect(res.json.message).toMatch(/already current/);
   });
 
   it("refuses, naming the quote, when a republish would fail", async () => {
@@ -200,10 +200,10 @@ describe("refreshing — a republish of the published words", () => {
     const gone = await createAndPublish(cookie, "Gone soon.");
     const thread = await publishThread(cookie, `![[${keep}]]\n\n![[${gone}]]\n\nBoth.`);
     await editAndPublish(cookie, keep, "Keep v2.");
-    expect((await apiJson(cookie, "POST", `/api/items/${gone}/withdraw`, {})).status).toBe(200);
-    const res = await apiJson(cookie, "POST", `/api/items/${thread}/refresh`, {});
+    expect((await apiJson(cookie, "POST", `/blyg/api/items/${gone}/withdraw`, {})).status).toBe(200);
+    const res = await apiJson(cookie, "POST", `/blyg/api/items/${thread}/refresh`, {});
     expect(res.status).toBe(409);
-    expect(res.json.errors).toEqual([expect.objectContaining({ id: gone })]);
+    expect(res.json.details.errors).toEqual([expect.objectContaining({ id: gone })]);
   });
 });
 
@@ -214,11 +214,11 @@ describe("what counts as the published words", () => {
     const md = `![[${frag}]]\n\nMy point.`;
     const thread = await publishThread(cookie, md);
     await editAndPublish(cookie, frag, "After.");
-    expect((await apiJson(cookie, "PATCH", `/api/items/${thread}`, { content_md: md + " Draft." })).status).toBe(200);
-    expect((await apiJson(cookie, "POST", `/api/items/${thread}/restore`, { version: 1 })).status).toBe(200);
-    expect((await apiJson(cookie, "GET", `/api/items/${thread}`)).json.dirty).toBe(false);
-    expect((await apiJson(cookie, "GET", `/api/items/${thread}/freshness`)).json.dirty).toBe(false);
-    expect((await apiJson(cookie, "POST", `/api/items/${thread}/refresh`, {})).status).toBe(200);
+    expect((await apiJson(cookie, "PATCH", `/blyg/api/items/${thread}`, { contentMd: md + " Draft." })).status).toBe(200);
+    expect((await apiJson(cookie, "POST", `/blyg/api/items/${thread}/restore`, { version: 1 })).status).toBe(200);
+    expect((await apiJson(cookie, "GET", `/blyg/api/items/${thread}`)).json.dirty).toBe(false);
+    expect((await apiJson(cookie, "GET", `/blyg/api/items/${thread}/freshness`)).json.dirty).toBe(false);
+    expect((await apiJson(cookie, "POST", `/blyg/api/items/${thread}/refresh`, {})).status).toBe(200);
   });
 
   it("refuses when republishing would drop a generation disclosure the published version made", async () => {
@@ -231,9 +231,9 @@ describe("what counts as the published words", () => {
     // from it — the restore drops the provenance cache a republish would need.
     await env.DB.prepare("UPDATE versions SET generated_json = ? WHERE item_id = ? AND version = 1")
       .bind(JSON.stringify([{ sources: [], model: "m" }]), thread).run();
-    expect((await apiJson(cookie, "POST", `/api/items/${thread}/restore`, { version: 1 })).status).toBe(200);
-    const res = await apiJson(cookie, "POST", `/api/items/${thread}/refresh`, {});
+    expect((await apiJson(cookie, "POST", `/blyg/api/items/${thread}/restore`, { version: 1 })).status).toBe(200);
+    const res = await apiJson(cookie, "POST", `/blyg/api/items/${thread}/refresh`, {});
     expect(res.status).toBe(409);
-    expect(res.json.error).toMatch(/unpublished edits/);
+    expect(res.json.message).toMatch(/unpublished edits/);
   });
 });

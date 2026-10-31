@@ -95,9 +95,9 @@ function nodeHandlers(node: LineageGlyphLineage['node'], context: EntryContext):
   const url = node.url;
   const open = url ? { run: () => void window.open(url, '_blank', 'noreferrer') } : { unavailable: 'No public page is known for it.' };
   const id = node.id;
-  const link = id ? { run: () => void run(() => openDraft({ content_md: `[[${id}]]\n\n`, kind: 'fragment' })) } : notHeld;
+  const link = id ? { run: () => void run(() => openDraft({ contentMd: `[[${id}]]\n\n`, kind: 'fragment' })) } : notHeld;
   if (node.held === 'imported' && node.sub && id) {
-    const source = { subscription_id: node.sub, remote_id: id };
+    const source = { subscriptionId: node.sub, remoteId: id };
     const respond = { run: () => void run(() => openDraft({ mode: 'response', source })) };
     return {
       stub: respond,
@@ -110,7 +110,7 @@ function nodeHandlers(node: LineageGlyphLineage['node'], context: EntryContext):
     };
   }
   if (node.held === 'own' && id) {
-    const respond = { run: () => void run(() => openDraft({ mode: 'response', source: { subscription_id: '~own', remote_id: id } })), note: OWN_NOTE };
+    const respond = { run: () => void run(() => openDraft({ mode: 'response', source: { subscriptionId: '~own', remoteId: id } })), note: OWN_NOTE };
     return {
       stub: respond,
       quote: respond,

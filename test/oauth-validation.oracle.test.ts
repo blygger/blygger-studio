@@ -126,7 +126,7 @@ describe('OAuth public validation oracles', () => {
   });
   it.each(['grant_type', 'code', 'client_id', 'code_verifier'])('rejects duplicate token %s', async field => {
     const f = await approved();
-    const body = new URLSearchParams({ grant_type: 'authorization_code', code: f.code, client_id: f.client.client_id, redirect_uri: f.redirect, resource: f.base + '/api', code_verifier: f.verifier });
+    const body = new URLSearchParams({ grant_type: 'authorization_code', code: f.code, client_id: f.client.client_id, redirect_uri: f.redirect, resource: f.base + '/blyg/api', code_verifier: f.verifier });
     body.append(field, body.get(field)!);
     const response = await f.request(f.issuer + '/oauth2/token', { method: 'POST', body });
     expect(response.status).toBe(400); expect(await response.json()).toMatchObject({ error: 'invalid_request' });
@@ -149,12 +149,12 @@ describe('OAuth public validation oracles', () => {
     expect(responses.map(response => response.status).sort()).toEqual([200, 400]);
     expect(await responses.find(response => response.status === 400)!.json()).toMatchObject({ error: 'invalid_grant' });
   });
-  it.each(['/relative', 'https://oauth-oracle.example.test/api#fragment', 'https://foreign.example/api'])('does not grant malformed or foreign resource %s', async resource => {
+  it.each(['/relative', 'https://oauth-oracle.example.test/blyg/api#fragment', 'https://foreign.example/api'])('does not grant malformed or foreign resource %s', async resource => {
     const f = await flow(); await authorizationError(await authorize(f, url => url.searchParams.set('resource', resource)), f);
   });
   it('preserves refresh scope on omission and rejects a new audience or client', async () => {
     const f = await approved(), initial = await (await f.token(f.code)).json() as { refresh_token: string; scope: string };
-    const refresh = (fields: Record<string, string> = {}) => f.request(f.issuer + '/oauth2/token', { method: 'POST', body: new URLSearchParams({ grant_type: 'refresh_token', client_id: f.client.client_id, refresh_token: initial.refresh_token, resource: f.base + '/api', ...fields }) });
+    const refresh = (fields: Record<string, string> = {}) => f.request(f.issuer + '/oauth2/token', { method: 'POST', body: new URLSearchParams({ grant_type: 'refresh_token', client_id: f.client.client_id, refresh_token: initial.refresh_token, resource: f.base + '/blyg/api', ...fields }) });
     const response = await refresh(); expect(response.status).toBe(200);
     expect((await response.json() as { scope: string }).scope.split(' ').sort()).toEqual(initial.scope.split(' ').sort());
     const wrongAudience = await refresh({ resource: f.base + '/blyg/studio/mcp' }); expect(wrongAudience.status).toBe(400);
@@ -165,7 +165,7 @@ describe('OAuth public validation oracles', () => {
     try {
       const f = await approved(), tokens = await (await f.token(f.code)).json() as { access_token: string };
       vi.setSystemTime(now + age * 1000);
-      const response = await f.request('/api/settings', { headers: { Authorization: 'Bearer ' + tokens.access_token } });
+      const response = await f.request('/blyg/api/settings', { headers: { Authorization: 'Bearer ' + tokens.access_token } });
       expect(response.status).toBe(age === 3599 ? 200 : 401);
     } finally { vi.useRealTimers(); }
   });
@@ -174,7 +174,7 @@ describe('OAuth public validation oracles', () => {
     try {
       const f = await approved(), tokens = await (await f.token(f.code)).json() as { refresh_token: string };
       vi.setSystemTime(now + age * 1000);
-      const response = await f.request(f.issuer + '/oauth2/token', { method: 'POST', body: new URLSearchParams({ grant_type: 'refresh_token', refresh_token: tokens.refresh_token, client_id: f.client.client_id, resource: f.base + '/api' }) });
+      const response = await f.request(f.issuer + '/oauth2/token', { method: 'POST', body: new URLSearchParams({ grant_type: 'refresh_token', refresh_token: tokens.refresh_token, client_id: f.client.client_id, resource: f.base + '/blyg/api' }) });
       expect(response.status).toBe(age === 2591999 ? 200 : 400);
       if (age === 2592000) expect(await response.json()).toMatchObject({ error: 'invalid_grant' });
     } finally { vi.useRealTimers(); }
@@ -204,15 +204,15 @@ describe('OAuth public validation oracles', () => {
   it('rejects a mutated production access-token signature before returning protected data', async () => {
     const f = await approved(), response = await f.token(f.code), tokens = await response.json() as { access_token: string };
     const parts = tokens.access_token.split('.'); parts[2] = (parts[2][0] === 'A' ? 'B' : 'A') + parts[2].slice(1);
-    const bad = await f.request('/api/settings', { headers: { Authorization: 'Bearer ' + parts.join('.') } });
+    const bad = await f.request('/blyg/api/settings', { headers: { Authorization: 'Bearer ' + parts.join('.') } });
     expect(bad.status).toBe(401); expect(await bad.json()).not.toHaveProperty('site_title');
   });
   it('uses syntactically valid, nonduplicated Bearer challenge attributes for missing, invalid and insufficient credentials', async () => {
     const f = await approved(), tokens = await (await f.token(f.code)).json() as { access_token: string };
     const cases: [string, RequestInit, number][] = [
-      ['/api/settings', {}, 401],
-      ['/api/settings', { headers: { Authorization: 'Bearer bad-oracle-token' } }, 401],
-      ['/api/items/missing/publish', { method: 'POST', headers: { Authorization: 'Bearer ' + tokens.access_token, 'Content-Type': 'application/json' }, body: '{}' }, 403],
+      ['/blyg/api/settings', {}, 401],
+      ['/blyg/api/settings', { headers: { Authorization: 'Bearer bad-oracle-token' } }, 401],
+      ['/blyg/api/items/missing/publish', { method: 'POST', headers: { Authorization: 'Bearer ' + tokens.access_token, 'Content-Type': 'application/json' }, body: '{}' }, 403],
     ];
     for (const [path, init, status] of cases) {
       const response = await f.request(path, init); expect(response.status).toBe(status);
@@ -231,7 +231,7 @@ describe('OAuth public validation oracles', () => {
   });
   it('publishes explicit protected resource metadata fields', async () => {
     const f = await flow();
-    for (const [name, expected] of [['api', f.base + '/api'], ['mcp', f.base + '/blyg/studio/mcp']]) {
+    for (const [name, expected] of [['api', f.base + '/blyg/api'], ['mcp', f.base + '/blyg/studio/mcp']]) {
       const response = await f.request(f.issuer + '/resources/' + name); expect(response.status).toBe(200); expect(response.headers.get('content-type')).toContain('application/json');
       expect(await response.json()).toMatchObject({ resource: expected, authorization_servers: [f.issuer], scopes_supported: expect.arrayContaining(['owner:read']), bearer_methods_supported: ['header'] });
     }

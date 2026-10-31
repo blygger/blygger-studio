@@ -12,21 +12,21 @@ test('status: own entries have none; null is unread; below the held version is u
 });
 
 test('one row is one PUT or DELETE, the shape opening an entry sends', () => {
-  const mark = { sub: 's', remote_id: 'r', version: 2 };
+  const mark = { sub: 's', remoteId: 'r', version: 2 };
   expect(planReadWrites([mark], [])).toEqual([{ op: 'put', mark }]);
-  expect(planReadWrites([], [{ sub: 's', remote_id: 'r' }])).toEqual([{ op: 'delete', mark: { sub: 's', remote_id: 'r' } }]);
+  expect(planReadWrites([], [{ sub: 's', remoteId: 'r' }])).toEqual([{ op: 'delete', mark: { sub: 's', remoteId: 'r' } }]);
   expect(planReadWrites([], [])).toEqual([]);
 });
 
 test('many rows are chunked to the server cap, never over it', () => {
-  const rows = Array.from({ length: 1201 }, (_, i) => ({ sub: 's', remote_id: `r${i}`, version: 1 }));
+  const rows = Array.from({ length: 1201 }, (_, i) => ({ sub: 's', remoteId: `r${i}`, version: 1 }));
   const ops = planReadWrites(rows, []);
   expect(ops.map((op) => (op.op === 'read' ? op.items.length : -1))).toEqual([500, 500, 201]);
   expect(ops.flatMap((op) => (op.op === 'read' ? op.items : []))).toEqual(rows);
-  const unread = planReadWrites([], rows.slice(0, 2).map(({ sub, remote_id }) => ({ sub, remote_id })), 1);
+  const unread = planReadWrites([], rows.slice(0, 2).map(({ sub, remoteId }) => ({ sub, remoteId })), 1);
   expect(unread).toEqual([
-    { op: 'unread', items: [{ sub: 's', remote_id: 'r0' }] },
-    { op: 'unread', items: [{ sub: 's', remote_id: 'r1' }] },
+    { op: 'unread', items: [{ sub: 's', remoteId: 'r0' }] },
+    { op: 'unread', items: [{ sub: 's', remoteId: 'r1' }] },
   ]);
 });
 
@@ -34,10 +34,10 @@ test('the studio marks at the held version and never sends read_at', () => {
   const imported = (remoteId: string, version: number) => ({ imported: { subscriptionId: 's', remoteId, version, readVersion: null } });
   const entries = [imported('a', 3), { imported: undefined }, imported('b', 1)];
   const read = readWrites(entries, true);
-  expect(read).toEqual({ read: [{ sub: 's', remote_id: 'a', version: 3 }, { sub: 's', remote_id: 'b', version: 1 }], unread: [] });
+  expect(read).toEqual({ read: [{ sub: 's', remoteId: 'a', version: 3 }, { sub: 's', remoteId: 'b', version: 1 }], unread: [] });
   for (const op of planReadWrites(read.read, read.unread)) {
     const marks = op.op === 'put' ? [op.mark] : op.op === 'read' ? op.items : [];
-    for (const mark of marks) expect(mark).not.toHaveProperty('read_at');
+    for (const mark of marks) expect(mark).not.toHaveProperty("readAt");
   }
-  expect(readWrites(entries, false)).toEqual({ read: [], unread: [{ sub: 's', remote_id: 'a' }, { sub: 's', remote_id: 'b' }] });
+  expect(readWrites(entries, false)).toEqual({ read: [], unread: [{ sub: 's', remoteId: 'a' }, { sub: 's', remoteId: 'b' }] });
 });

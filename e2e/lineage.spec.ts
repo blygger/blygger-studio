@@ -119,7 +119,7 @@ test('the explanation button runs the action: stub ↗ opens a response', async 
   await previewAt(page, sheet.locator('[data-vertex=stub]'));
   const created = page.waitForResponse(response => response.url().endsWith('/api/items') && response.request().method() === 'POST');
   await sheet.locator('.lg-explain').getByRole('button', { name: 'stub ↗', exact: true }).click();
-  expect((await created).request().postDataJSON()).toEqual({ mode: 'response', source: { subscription_id: 'parity-native', remote_id: NATIVE } });
+  expect((await created).request().postDataJSON()).toEqual({ mode: 'response', source: { subscriptionId: 'parity-native', remoteId: NATIVE } });
   await expect(page).toHaveURL(/\/edit\//);
 });
 
@@ -188,7 +188,7 @@ test('quote selection opens the stub editor', async ({ page }) => {
   await previewAt(page, sheet.locator('[data-vertex=quote]'));
   const created = page.waitForResponse(response => response.url().endsWith('/api/items') && response.request().method() === 'POST');
   await sheet.locator('.lg-explain').getByRole('button', { name: 'quote a passage' }).click();
-  expect((await created).request().postDataJSON()).toEqual({ mode: 'response', source: { subscription_id: 'parity-native', remote_id: NATIVE } });
+  expect((await created).request().postDataJSON()).toEqual({ mode: 'response', source: { subscriptionId: 'parity-native', remoteId: NATIVE } });
   await expect(page).toHaveURL(/\/edit\//);
   await expect(page.locator('[data-action=choose-passage]')).toBeVisible();
 });

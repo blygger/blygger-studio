@@ -1,7 +1,8 @@
 import { expect, test } from 'vitest';
 import { ItemSchema, ProvenanceSchema, VersionReferenceSchema } from '../src/contract/resources.ts';
-import { SettingsSchema, SignalRowSchema } from '../src/contract/schemas.ts';
-import { zItem, zGenerationProvenance, zVersionReference, zSignalRow, zSettings, zListItemsResponse } from '../sdk/dist/schemas.js';
+import { SettingsSchema } from '../src/contract/settings.ts';
+import { SignalSchema } from '../src/contract/resources.ts';
+import { zItem, zGenerationProvenance, zVersionReference, zSignal, zSettings, zListItemsResponse } from '../sdk/dist/schemas.js';
 
 test('generated OpenAPI schemas preserve permissive provenance metadata', () => {
   const provenance = { sources: [{ id: 'source', version: 1 }], model: 'model', provider: { request: 'opaque-id' } };
@@ -19,9 +20,9 @@ test('generated OpenAPI schemas reject extra fields on strict version references
 
 test('generated item collection schema preserves both item fields and optional pins', () => {
   const item = {
-    id: 'a', kind: 'fragment', status: 'draft', created: '2026-10-06', updated: '2026-10-06', version: 1,
-    content_md: 'draft', dirty: false, responses: 'default', highlight: 'default',
-    provenance: [{ sources: [], provider: 'custom' }], stub_of: null, forked_from: null, fork_cite: null,
+    id: 'a', revision: 1, kind: 'fragment', status: 'draft', created: '2026-10-06', updated: '2026-10-06', version: 1,
+    contentMd: 'draft', dirty: false, responses: 'default', highlight: 'default',
+    provenance: [{ sources: [], provider: 'custom' }], stubOf: null, forkedFrom: null, forkCite: null,
   };
   expect(zItem.parse(item)).toEqual(ItemSchema.parse(item));
   const withPins = { ...item, pins: [{ version: 1, kind: 'fragment' }] };
@@ -31,12 +32,12 @@ test('generated item collection schema preserves both item fields and optional p
 
 test('generated scalar and enum constraints match their API schemas', () => {
   const signals = [
-    { subscription_id: 's', remote_id: 'r', thumb: 1, at: 'now' },
-    { subscription_id: 's', remote_id: 'r', thumb: 0, at: 'now' },
-    { subscription_id: 's', remote_id: 'r', thumb: -1, at: null },
+    { subscriptionId: 's', remoteId: 'r', thumb: 1, at: 'now' },
+    { subscriptionId: 's', remoteId: 'r', thumb: 0, at: 'now' },
+    { subscriptionId: 's', remoteId: 'r', thumb: -1, at: null },
   ];
   for (const signal of signals)
-    expect(zSignalRow.safeParse(signal).success).toBe(SignalRowSchema.safeParse(signal).success);
+    expect(zSignal.safeParse(signal).success).toBe(SignalSchema.safeParse(signal).success);
   const themes = ['valid-theme', 42, null];
   for (const theme of themes)
     expect(zSettings.shape.theme.safeParse(theme).success).toBe(SettingsSchema.shape.theme.safeParse(theme).success);

@@ -214,7 +214,7 @@ describe("definition of done (tk-core-plan.md §7)", () => {
     expect(item2.content_md).toContain("relativity, roughly");
 
     // Full owner loop confirms the publish endpoint itself carries the same behavior.
-    const republish = await apiJson(cookie, "POST", `/api/items/${threadItem.id}/publish`, {});
+    const republish = await apiJson(cookie, "POST", `/blyg/api/items/${threadItem.id}/publish`, {});
     // No working-copy changes since last publish — republish still succeeds (v3).
     expect(republish.status).toBe(200);
     expect(republish.json.version).toBe(3);
@@ -228,18 +228,18 @@ describe("composer TK affordances (session 18)", () => {
     // unresolved-scope rejection must not read as "your text vanished": the
     // draft holds it, and the client now navigates there instead of reloading.
     const cookie = await login();
-    const created = await apiJson(cookie, "POST", "/api/items", {
-      content_md: "[TK]say something about pelicans[/TK]",
+    const created = await apiJson(cookie, "POST", "/blyg/api/items", {
+      contentMd: "[TK]say something about pelicans[/TK]",
     });
     expect(created.status).toBe(201);
-    const publish = await apiJson(cookie, "POST", `/api/items/${created.json.id}/publish`, {});
+    const publish = await apiJson(cookie, "POST", `/blyg/api/items/${created.json.id}/publish`, {});
     expect(publish.status).toBe(400);
-    expect(publish.json.error).toMatch(/not publish-ready/);
+    expect(publish.json.message).toMatch(/not publish-ready/);
 
     // The draft still exists and still carries the scope, verbatim.
-    const draft = await apiJson(cookie, "GET", `/api/items/${created.json.id}`);
+    const draft = await apiJson(cookie, "GET", `/blyg/api/items/${created.json.id}`);
     expect(draft.status).toBe(200);
-    expect(draft.json.content_md).toBe("[TK]say something about pelicans[/TK]");
+    expect(draft.json.contentMd).toBe("[TK]say something about pelicans[/TK]");
   });
 });
 
@@ -250,9 +250,9 @@ describe("an own-line directive in TK output (decision #60)", () => {
     const cookie = await login();
     const quoted = await createAndPublish(cookie, "words someone else will echo");
     const md = `Intro.\n\n[TK]write a bridge[=]bridge line\n![[${quoted}]]\nafter[/TK]`;
-    const created = await apiJson(cookie, "POST", "/api/items", { content_md: md, kind: "thread" });
+    const created = await apiJson(cookie, "POST", "/blyg/api/items", { contentMd: md, kind: "thread" });
     expect(created.status).toBe(201);
-    const res = await apiJson(cookie, "POST", `/api/items/${created.json.id}/publish`, {});
+    const res = await apiJson(cookie, "POST", `/blyg/api/items/${created.json.id}/publish`, {});
     expect(res.status).toBe(200);
     expect(res.json.warning).toContain(`![[${quoted}]]`);
     const doc = await (await getPublic(`/blyg/items/${created.json.id}.json`)).json<any>();
@@ -263,8 +263,8 @@ describe("an own-line directive in TK output (decision #60)", () => {
     const cookie = await login();
     const quoted = await createAndPublish(cookie, "words quoted on purpose");
     const md = `[TK]open with ![[${quoted}]] then riff[=]x\n![[${quoted}]]\ny[/TK]`;
-    const created = await apiJson(cookie, "POST", "/api/items", { content_md: md, kind: "thread" });
-    const res = await apiJson(cookie, "POST", `/api/items/${created.json.id}/publish`, {});
+    const created = await apiJson(cookie, "POST", "/blyg/api/items", { contentMd: md, kind: "thread" });
+    const res = await apiJson(cookie, "POST", `/blyg/api/items/${created.json.id}/publish`, {});
     expect(res.status).toBe(200);
     expect(res.json.warning).toBeUndefined();
   });

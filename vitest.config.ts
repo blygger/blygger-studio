@@ -1,5 +1,5 @@
 import path from "node:path";
-import { cloudflareTest, readD1Migrations } from "@cloudflare/vitest-pool-workers";
+import { cloudflareTest, readD1Migrations } from "@cloudflare/vitest-plugin";
 import { defineConfig } from "vitest/config";
 
 const oracleTarget = process.env.ORACLE_TARGET, oracleSeed = process.env.ORACLE_SEED;
@@ -39,6 +39,10 @@ export default defineConfig({
             // about one run in six on it; tests of the budget set their own.
             API_READ_LIMIT: "100000",
             API_WRITE_LIMIT: "100000",
+            // The scope oracle opens a real MCP connection for all 31 nonempty
+            // subsets. Budget oracles supply their own small limits.
+            MCP_REQUEST_LIMIT: "100000",
+            MCP_DELEGATED_REQUEST_LIMIT: "100000",
           },
         },
       };

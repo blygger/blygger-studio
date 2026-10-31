@@ -1,3 +1,5 @@
+import { assertItemRevision, ItemRevisionConflict } from './item-revision.ts';
+import { authoredVersionKind, versionState } from './version-state.ts';
 import { DEFAULT_FONT, isFont } from "./fonts.ts";
 import { DEFAULT_FEED_ORDER } from "./feeds/index.ts";
 import { DEFAULT_POSTS_PATH } from "./front-page.ts";
@@ -234,30 +236,16 @@ export async function createFork(
 /**
  * The item's authored kind — 'fragment' or 'thread' — independent of the
  * transient 'withdrawn' state a live item.kind carries after withdrawal.
- * For a withdrawn item, derived from the last real (non-endcap) version's
- * transclusions column, per §3.1 republish rules.
+ * For a withdrawn item, use the previous publication's stored kind, with its
+ * legacy transclusions fallback, per §3.1 republish rules.
  */
 export async function authoredKind(db: D1Database, item: ItemRow): Promise<"fragment" | "thread"> {
   if (item.kind === "fragment" || item.kind === "thread") return item.kind;
   const prev = await db
-    .prepare("SELECT transclusions FROM versions WHERE item_id = ? AND version = ?")
+    .prepare("SELECT kind, transclusions FROM versions WHERE item_id = ? AND version = ?")
     .bind(item.id, item.version - 1)
-    .first<{ transclusions: string | null }>();
-  return prev?.transclusions ? "thread" : "fragment";
-}
-
-/**
- * Change a never-published draft's kind. Guarded by `version = 0` in the SQL
- * as well as by the caller, because this is the one field that stops being
- * editable the moment an item is published: from then on it is a wire field
- * readers already have, and a row of history that must keep agreeing with the
- * documents it describes.
- */
-export async function setDraftKind(db: D1Database, id: string, kind: "fragment" | "thread"): Promise<void> {
-  await db
-    .prepare("UPDATE items SET kind = ?, dirty = 1, updated = ? WHERE id = ? AND version = 0")
-    .bind(kind, nowIso(), id)
-    .run();
+    .first<Pick<VersionRow, "kind" | "transclusions">>();
+  return authoredVersionKind(prev, Boolean(prev?.transclusions));
 }
 
 /**
@@ -280,21 +268,8 @@ export function itemShowsResponses(item: ItemRow, settings: Settings): boolean {
 /** Save the working copy. Does not touch `updated` for ever-published items — that field is publish-facing. */
 export async function saveWorkingCopy(db: D1Database, id: string, contentMd: string): Promise<void> {
   await db
-    .prepare("UPDATE items SET content_md = ?, dirty = 1, updated = CASE WHEN version = 0 THEN ? ELSE updated END WHERE id = ?")
+    .prepare("UPDATE items SET content_md = ?, dirty = 1, updated = CASE WHEN version = 0 THEN ? ELSE updated END, revision = revision + 1 WHERE id = ?")
     .bind(contentMd, nowIso(), id)
-    .run();
-}
-
-/**
- * Set or clear the working copy's stub citation (§2.2). Kept separate from
- * saveWorkingCopy because the two are independent: retargeting a stub is not
- * an edit of the prose, and clearing it leaves the body exactly as written —
- * a former stub is just a thread that quotes something.
- */
-export async function setStubOf(db: D1Database, id: string, stub: StubOf | null): Promise<void> {
-  await db
-    .prepare("UPDATE items SET stub_of = ?, dirty = 1 WHERE id = ?")
-    .bind(stub ? JSON.stringify(stub) : null, id)
     .run();
 }
 
@@ -319,22 +294,6 @@ export function getTkProvenance(item: ItemRow): (ScopeProvenance | null)[] {
   } catch {
     return [];
   }
-}
-
-/** Record scope `index`'s provenance, resizing the cache to `scopeCount` (current scope count). */
-export async function setTkProvenance(
-  db: D1Database,
-  itemId: string,
-  index: number,
-  scopeCount: number,
-  provenance: ScopeProvenance,
-): Promise<void> {
-  const item = await getItem(db, itemId);
-  const arr = getTkProvenance(item!);
-  while (arr.length < scopeCount) arr.push(null);
-  arr.length = scopeCount;
-  arr[index] = provenance;
-  await db.prepare("UPDATE items SET tk_provenance_json = ? WHERE id = ?").bind(JSON.stringify(arr), itemId).run();
 }
 
 /**
@@ -464,18 +423,19 @@ export async function publish(db: D1Database, item: ItemRow, note: string | null
   // inline ones its text places. Frozen with the version, so dropping one from
   // the working copy changes the next version and never this one.
   const shown = JSON.stringify(visibleMedia(await listMediaForItem(db, item.id), contentHtml).map((m) => m.id));
-  await db.batch([
+  const committed = await db.batch([
     db.prepare(
-      "INSERT INTO versions (item_id, version, content_md, content_html, content_hash, published_at, note, transclusions, generated_json, stub_of, stub_cite, note_generated) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
-    ).bind(item.id, version, strippedMd, contentHtml, hash, now, note, transclusionsJson, generatedJson, stubJson, citeJson, note && noteGenerated ? 1 : 0),
+      "INSERT INTO versions (item_id, version, content_md, content_html, content_hash, published_at, note, transclusions, generated_json, stub_of, stub_cite, note_generated, kind) SELECT ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ? FROM items WHERE id = ? AND revision = ?",
+    ).bind(item.id, version, strippedMd, contentHtml, hash, now, note, transclusionsJson, generatedJson, stubJson, citeJson, note && noteGenerated ? 1 : 0, kind, item.id, item.revision),
     // Rows still attached at the write, so a removal racing the publish wins.
-    db.prepare("INSERT INTO version_media (item_id, version, media_id) SELECT ?, ?, m.id FROM json_each(?) s JOIN media m ON m.id = s.value WHERE m.item_id = ?")
-      .bind(item.id, version, shown, item.id),
+    db.prepare("INSERT INTO version_media (item_id, version, media_id) SELECT ?, ?, m.id FROM json_each(?) s JOIN media m ON m.id = s.value WHERE m.item_id = ? AND EXISTS (SELECT 1 FROM items WHERE id = ? AND revision = ?)")
+      .bind(item.id, version, shown, item.id, item.id, item.revision),
     // The agreed citation goes back into the working copy as well, or the copy
     // keeps citing the older version and differs from what it just published.
-    db.prepare("UPDATE items SET status = 'public', kind = ?, version = ?, dirty = 0, updated = ?, stub_of = ? WHERE id = ?")
-      .bind(kind, version, now, stubJson, item.id),
+    db.prepare("UPDATE items SET status = 'public', kind = ?, version = ?, dirty = 0, updated = ?, stub_of = ?, revision = revision + 1 WHERE id = ? AND revision = ?")
+      .bind(kind, version, now, stubJson, item.id, item.revision),
   ]);
+  if (!committed[2].meta.changes) throw new ItemRevisionConflict(item.id, item.revision);
   // The owner's private interaction log (src/interactions.ts): stubs, forks and
   // quotes of other blygs' items that this version newly makes.
   await recordPublishInteractions(db, item.id, version, normalizedOrigin(origin));
@@ -500,12 +460,13 @@ export async function withdraw(db: D1Database, item: ItemRow, note: string | nul
   const now = nowIso();
   const version = item.version + 1;
   const hash = await contentHash("");
-  await db.batch([
-    db.prepare("INSERT INTO versions (item_id, version, content_md, content_hash, published_at, note) VALUES (?, ?, '', ?, ?, ?)")
-      .bind(item.id, version, hash, now, note),
-    db.prepare("UPDATE items SET status = 'withdrawn', kind = 'withdrawn', version = ?, dirty = 1, updated = ? WHERE id = ?")
-      .bind(version, now, item.id),
+  const committed = await db.batch([
+    db.prepare("INSERT INTO versions (item_id, version, content_md, content_hash, published_at, note, kind) SELECT ?, ?, '', ?, ?, ?, 'withdrawn' FROM items WHERE id = ? AND revision = ?")
+      .bind(item.id, version, hash, now, note, item.id, item.revision),
+    db.prepare("UPDATE items SET status = 'withdrawn', kind = 'withdrawn', version = ?, dirty = 1, updated = ?, revision = revision + 1 WHERE id = ? AND revision = ?")
+      .bind(version, now, item.id, item.revision),
   ]);
+  if (!committed[1].meta.changes) throw new ItemRevisionConflict(item.id, item.revision);
   return version;
 }
 
@@ -514,8 +475,8 @@ export async function discardDraft(db: D1Database, item: ItemRow): Promise<boole
   // Authorize at the atomic write boundary. A publication after the caller's
   // read must preserve both the public item and its media.
   const results = await db.batch([
-    db.prepare("DELETE FROM media WHERE item_id = ? AND EXISTS (SELECT 1 FROM items WHERE id = ? AND version = 0)").bind(item.id, item.id),
-    db.prepare("DELETE FROM items WHERE id = ? AND version = 0").bind(item.id),
+    db.prepare("DELETE FROM media WHERE item_id = ? AND EXISTS (SELECT 1 FROM items WHERE id = ? AND version = 0 AND revision = ?)").bind(item.id, item.id, item.revision),
+    db.prepare("DELETE FROM items WHERE id = ? AND version = 0 AND revision = ?").bind(item.id, item.revision),
   ]);
   return results[1].meta.changes > 0;
 }
@@ -539,7 +500,8 @@ export class RestoreVersionError extends Error {}
  * exist.
  *
  * Restoring the **current** version is "discard changes", and there the
- * working copy becomes that version whole: its stub citation comes back too
+ * working copy becomes that version whole: its attachments and stub citation
+ * come back too
  * (publish version-agrees the citation, §2.2, so the published one can be
  * ahead of the working copy's), and the copy is clean again — unless the
  * version disclosed generated text, whose provenance a restore cannot carry
@@ -550,22 +512,41 @@ export class RestoreVersionError extends Error {}
 export async function restoreVersion(db: D1Database, item: ItemRow, version: number): Promise<void> {
   const row = await getVersion(db, item.id, version);
   if (!row) throw new RestoreVersionError(`item has no version ${version}`);
-  if (!row.content_md) {
+  if (versionState(row) === "withdrawn") {
     throw new RestoreVersionError(`v${version} is a withdrawal endcap and has no content to restore`);
   }
   const discard = version === item.version;
-  await db
-    .prepare("UPDATE items SET content_md = ?, tk_provenance_json = NULL, stub_of = CASE WHEN ? THEN ? ELSE stub_of END, dirty = ? WHERE id = ?")
-    .bind(row.content_md, discard ? 1 : 0, row.stub_of, discard && !row.generated_json ? 0 : 1, item.id)
-    .run();
+  // All three statements see the same source state in one transaction. Do not
+  // detach attachments if an edit or publication invalidated the caller's read.
+  const guard = "id = ? AND revision = ?";
+  const expected = [item.id, item.revision];
+  const results = await db.batch([
+    db.prepare(`UPDATE media SET item_id = NULL WHERE item_id = ? AND id NOT IN (SELECT media_id FROM version_media WHERE item_id = ? AND version = ?) AND EXISTS (SELECT 1 FROM items WHERE ${guard})`)
+      .bind(item.id, item.id, version, ...expected),
+    // A prior detach retains the media row and bytes for its published versions.
+    db.prepare(`UPDATE media SET item_id = ? WHERE id IN (SELECT media_id FROM version_media WHERE item_id = ? AND version = ?) AND EXISTS (SELECT 1 FROM items WHERE ${guard})`)
+      .bind(item.id, item.id, version, ...expected),
+    db.prepare(`UPDATE items SET content_md = ?, tk_provenance_json = NULL, stub_of = CASE WHEN ? THEN ? ELSE stub_of END, dirty = ?, revision = revision + 1 WHERE ${guard}`)
+      .bind(row.content_md, discard ? 1 : 0, row.stub_of, discard && !row.generated_json ? 0 : 1, ...expected),
+  ]);
+  if (!results[2].meta.changes) throw new ItemRevisionConflict(item.id, item.revision);
 }
 
 /** Irrevocably pin a version (§2.8). Idempotent; never unset. */
-export async function pinVersion(db: D1Database, itemId: string, version: number): Promise<void> {
-  await db
-    .prepare("UPDATE versions SET pinned = 1, pinned_at = COALESCE(pinned_at, ?) WHERE item_id = ? AND version = ?")
-    .bind(nowIso(), itemId, version)
-    .run();
+export async function pinVersion(db: D1Database, itemId: string, version: number, expectedRevision?: number): Promise<number> {
+  const item = await getItem(db, itemId);
+  if (!item) throw new ItemRevisionConflict(itemId, expectedRevision ?? 0);
+  assertItemRevision(item, expectedRevision ?? item.revision);
+  const row = await getVersion(db, itemId, version);
+  if (!row || row.pinned === 1) return item.revision;
+  const committed = await db.batch([
+    db.prepare("UPDATE versions SET pinned = 1, pinned_at = COALESCE(pinned_at, ?) WHERE item_id = ? AND version = ? AND EXISTS (SELECT 1 FROM items WHERE id = ? AND revision = ?)")
+      .bind(nowIso(), itemId, version, itemId, item.revision),
+    db.prepare("UPDATE items SET revision = revision + 1 WHERE id = ? AND revision = ?")
+      .bind(itemId, item.revision),
+  ]);
+  if (!committed[1].meta.changes) throw new ItemRevisionConflict(itemId, item.revision);
+  return item.revision + 1;
 }
 
 export async function getVersion(db: D1Database, itemId: string, version: number): Promise<VersionRow | null> {
@@ -657,15 +638,29 @@ export async function insertMedia(
   row: Omit<MediaRow, "created">,
   unpublishedOnly = false,
   sha256: string | null = null,
+  expectedRevision?: number,
 ): Promise<MediaRow | null> {
   const created = nowIso();
-  // Evaluate publication and insert in one statement. A publisher can run while
-  // the R2 upload awaits; a separate earlier read is not an authorization gate.
-  const result = await db
-    .prepare("INSERT INTO media (id, item_id, r2_key, mime, alt, created, inline, sha256) SELECT ?, ?, ?, ?, ?, ?, ?, ? WHERE ? = 0 OR ? IS NULL OR EXISTS (SELECT 1 FROM items WHERE id = ? AND version = 0)")
-    .bind(row.id, row.item_id, row.r2_key, row.mime, row.alt, created, row.inline, sha256, unpublishedOnly ? 1 : 0, row.item_id, row.item_id)
-    .run();
-  return result.meta.changes ? { ...row, created } : null;
+  const item = row.item_id ? await getItem(db, row.item_id) : null;
+  if (row.item_id && !item) {
+    if (expectedRevision !== undefined) throw new ItemRevisionConflict(row.item_id, expectedRevision);
+    return null;
+  }
+  if (item) assertItemRevision(item, expectedRevision ?? item.revision);
+  const revision = item?.revision ?? 0;
+  // Membership and the owning item's revision commit in one transaction.
+  const committed = await db.batch([
+    db.prepare("INSERT INTO media (id, item_id, r2_key, mime, alt, created, inline, sha256) SELECT ?, ?, ?, ?, ?, ?, ?, ? WHERE ? IS NULL OR EXISTS (SELECT 1 FROM items WHERE id = ? AND revision = ? AND (? = 0 OR version = 0))")
+      .bind(row.id, row.item_id, row.r2_key, row.mime, row.alt, created, row.inline, sha256, row.item_id, row.item_id, revision, unpublishedOnly ? 1 : 0),
+    db.prepare("UPDATE items SET dirty = CASE WHEN status = 'public' THEN 1 ELSE dirty END, revision = revision + 1 WHERE id = ? AND revision = ? AND EXISTS (SELECT 1 FROM media WHERE id = ? AND item_id = ?)")
+      .bind(row.item_id, revision, row.id, row.item_id),
+  ]);
+  if (!committed[0].meta.changes) {
+    const current = item ? await getItem(db, item.id) : null;
+    if (item && current?.revision !== revision) throw new ItemRevisionConflict(item.id, revision);
+    return null;
+  }
+  return { ...row, created };
 }
 
 /** The item's earlier upload of the same file (bytes and type) in the same placement, if any (migration 0028, studio#7). */

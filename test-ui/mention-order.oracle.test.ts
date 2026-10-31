@@ -78,12 +78,12 @@ campaign('mention-order', input, async ({ rows, reverse, modes, missingTarget, d
     { key: 99, target: 1, verified: 10, seen: 10, hidden: false, status: 'verified' },
   ];
   for (const snapshot of [[], reverse ? [...facts].reverse() : facts]) {
-    const wire = snapshot.map(row => ({ id: id(row.key), target_item_id: String(row.target),
-      verified_at: row.verified === null ? null : date(row.verified), last_seen: date(row.seen), hidden: row.hidden, status: row.status }));
+    const wire = snapshot.map(row => ({ id: id(row.key), targetItemId: String(row.target),
+      verifiedAt: row.verified === null ? null : date(row.verified), lastSeen: date(row.seen), hidden: row.hidden, status: row.status }));
     const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
     const source = createCollection(queryCollectionOptions({ queryKey: ['mention-order'], queryClient: client,
       getKey: row => row.id, queryFn: async () => wire }));
-    source.createIndex(row => row.target_item_id, { indexType: BasicIndex });
+    source.createIndex(row => row.targetItemId, { indexType: BasicIndex });
     const owned = createCollection(queryCollectionOptions({ queryKey: ['mention-targets'], queryClient: client,
       getKey: row => row.id, queryFn: async () => modes.flatMap((responses, i) => i === missingTarget ? [] : [{ id: String(i), responses }]) }));
     owned.createIndex(row => row.id, { indexType: BasicIndex });

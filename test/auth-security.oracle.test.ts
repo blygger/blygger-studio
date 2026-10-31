@@ -48,22 +48,24 @@ async function issued() {
   expect(response.status, 'security setup must issue a real credential').toBe(200);
   return { ...f, code, tokens: await response.json() as { access_token: string; refresh_token: string; id_token: string } };
 }
-const refresh = (f: Awaited<ReturnType<typeof issued>>, token: string) => f.request(f.issuer + '/oauth2/token', { method: 'POST', body: new URLSearchParams({ grant_type: 'refresh_token', client_id: f.client.client_id, refresh_token: token, resource: f.base + '/api' }) });
-const read = (f: Awaited<ReturnType<typeof flow>>, token: string) => f.request('/api/settings', { headers: { Authorization: 'Bearer ' + token } });
+const refresh = (f: Awaited<ReturnType<typeof issued>>, token: string) => f.request(f.issuer + '/oauth2/token', { method: 'POST', body: new URLSearchParams({ grant_type: 'refresh_token', client_id: f.client.client_id, refresh_token: token, resource: f.base + '/blyg/api' }) });
+const read = (f: Awaited<ReturnType<typeof flow>>, token: string) => f.request('/blyg/api/settings', { headers: { Authorization: 'Bearer ' + token } });
 const mcp = (f: Awaited<ReturnType<typeof issued>>, token: string, name = 'getSettings') => f.request('/blyg/studio/mcp', {
   method: 'POST', headers: { Authorization: 'Bearer ' + token, 'Content-Type': 'application/json', Accept: 'application/json, text/event-stream', 'MCP-Protocol-Version': '2026-07-28', 'MCP-Method': 'tools/call', 'MCP-Name': name },
-  body: JSON.stringify({ jsonrpc: '2.0', id: 1, method: 'tools/call', params: { name, arguments: name === 'createItem' ? { body: { content_md: 'must not write' } } : {}, _meta: { 'io.modelcontextprotocol/protocolVersion': '2026-07-28', 'io.modelcontextprotocol/clientCapabilities': {} } } }),
+  body: JSON.stringify({ jsonrpc: '2.0', id: 1, method: 'tools/call', params: { name, arguments: name === 'createItem' ? { body: { contentMd: 'must not write' } } : {}, _meta: { 'io.modelcontextprotocol/protocolVersion': '2026-07-28', 'io.modelcontextprotocol/clientCapabilities': {} } } }),
 });
 
 // Literal security laws are independent of native provider implementation.
 // Do not weaken 401 to "any error": denial must occur before protected work.
 describe('security release boundaries', () => {
-  it.each(['/blyg/studio/login', '/blyg/studio/auth/oauth2/token', '/api/settings', '/blyg/studio/mcp'])('rejects non-loopback cleartext auth transport at %s', async path => {
+  it.each(['/blyg/studio/login', '/blyg/studio/auth/oauth2/token', '/blyg/api/settings', '/blyg/studio/mcp'])('rejects non-loopback cleartext auth transport at %s', async path => {
     const ctx = createExecutionContext();
     const response = await makeApp('/blyg').fetch(new Request('http://insecure.example.test' + path, { method: 'POST', headers: { 'CF-Connecting-IP': '198.51.100.251' }, body: new URLSearchParams({ password: env.OWNER_PASSWORD, grant_type: 'authorization_code' }) }), env, ctx);
     await waitOnExecutionContext(ctx);
     expect(response.status, 'cleartext protected transport must fail closed').toBe(400);
-    expect(await response.json()).toEqual({ error: 'HTTPS required' });
+    expect(await response.json()).toEqual(path === '/blyg/api/settings' || path === '/blyg/studio/mcp'
+      ? { code: 'invalid-input', message: 'HTTPS required' }
+      : { error: 'HTTPS required' });
     expect(response.headers.get('set-cookie')).toBeNull();
     expect(response.headers.get('cache-control')).toBe('no-store');
   });
@@ -85,7 +87,7 @@ describe('security release boundaries', () => {
     const f = await issued(), other = await flow();
     const patches: Record<string, string>[] = [{ scope: 'owner:publish' }, { resource: f.base + '/blyg/studio/mcp' }, { client_id: other.client.client_id }];
     for (const patch of patches) {
-      const rejected = await f.request(f.issuer + '/oauth2/token', { method: 'POST', body: new URLSearchParams({ grant_type: 'refresh_token', client_id: f.client.client_id, refresh_token: f.tokens.refresh_token, resource: f.base + '/api', ...patch }) });
+      const rejected = await f.request(f.issuer + '/oauth2/token', { method: 'POST', body: new URLSearchParams({ grant_type: 'refresh_token', client_id: f.client.client_id, refresh_token: f.tokens.refresh_token, resource: f.base + '/blyg/api', ...patch }) });
       expect(rejected.status).toBe(400);
       expect((await read(f, f.tokens.access_token)).status, 'invalid binding must not revoke the legitimate grant').toBe(200);
     }
@@ -127,15 +129,15 @@ describe('security release boundaries', () => {
       const binding = consent.headers.getSetCookie().map(cookie => cookie.split(';')[0]).join('; ');
       const approval = await f.request(f.issuer + '/consent', { method: 'POST', headers: { cookie: f.owner + '; ' + binding, Origin: f.base }, body: new URLSearchParams([['handle', handle], ['decision', 'allow'], ['scope', 'owner:read'], ['scope', 'owner:draft']]) });
       const code = new URL(approval.headers.get('location')!).searchParams.get('code')!;
-      const exchange = await f.request(f.issuer + '/oauth2/token', { method: 'POST', headers: { Authorization: 'Basic ' + btoa(client.client_id + ':' + client.client_secret) }, body: new URLSearchParams({ grant_type: 'authorization_code', code, redirect_uri: f.redirect, code_verifier: f.verifier, resource: f.base + '/api' }) });
+      const exchange = await f.request(f.issuer + '/oauth2/token', { method: 'POST', headers: { Authorization: 'Basic ' + btoa(client.client_id + ':' + client.client_secret) }, body: new URLSearchParams({ grant_type: 'authorization_code', code, redirect_uri: f.redirect, code_verifier: f.verifier, resource: f.base + '/blyg/api' }) });
       expect(exchange.status).toBe(200); f.tokens = await exchange.json() as typeof f.tokens;
       f.client.client_id = client.client_id;
     }
     const introspect = () => f.request(f.issuer + '/oauth2/introspect', { method: 'POST', headers: { Authorization: 'Basic ' + btoa(client.client_id + ':' + client.client_secret) }, body: new URLSearchParams({ token: f.tokens[tokenKind], token_type_hint: tokenKind }) });
     const before = await introspect(); expect(before.status).toBe(200); expect(await before.json()).toMatchObject({ active: true });
-    const listing = await (await f.request('/api/authorizations', { headers: { cookie: f.owner } })).json() as { items: { id: string; clientId: string }[] };
+    const listing = await (await f.request('/blyg/api/authorizations', { headers: { cookie: f.owner } })).json() as { items: { id: string; clientId: string }[] };
     const grant = listing.items.find(value => value.clientId === f.client.client_id)!;
-    expect((await f.request('/api/authorizations/' + grant.id, { method: 'DELETE', headers: { cookie: f.owner } })).status).toBe(200);
+    expect((await f.request('/blyg/api/authorizations/' + grant.id, { method: 'DELETE', headers: { cookie: f.owner } })).status).toBe(200);
     const after = await introspect(); expect(after.status).toBe(200); expect(await after.json(), 'a revoked grant introspects inactive').toEqual({ active: false });
   });
 
@@ -182,7 +184,7 @@ describe('security release boundaries', () => {
         const value = Reflect.get(target, key); return typeof value === 'function' ? value.bind(target) : value;
       } });
       const ctx = createExecutionContext();
-      const path = endpoint === 'registration' ? f.issuer + '/oauth2/register' : endpoint === 'owner-login' ? f.base + '/blyg/studio/login' : f.base + '/api/authorizations';
+      const path = endpoint === 'registration' ? f.issuer + '/oauth2/register' : endpoint === 'owner-login' ? f.base + '/blyg/studio/login' : f.base + '/blyg/api/authorizations';
       const body = endpoint === 'registration' ? JSON.stringify({ client_name: marker, redirect_uris: [f.redirect], token_endpoint_auth_method: 'none' }) : endpoint === 'owner-login' ? new URLSearchParams({ password: marker }) : JSON.stringify({ name: marker, resource: 'api', scope: ['owner:read'] });
       const response = await makeApp('/blyg').fetch(new Request(path, { method: 'POST', headers: { ...(endpoint === 'owner-login' ? {} : { 'content-type': 'application/json' }), ...(endpoint === 'manual-mint' ? { cookie: f.owner } : {}), 'CF-Connecting-IP': '198.51.100.230' }, body }), { ...env, DB: database }, ctx);
       await waitOnExecutionContext(ctx);
@@ -204,7 +206,7 @@ describe('security release boundaries', () => {
     const substitute = await new SignJWT(payload).setProtectedHeader({ alg: 'RS256', kid: 'untrusted-key', typ: 'at+jwt' }).sign(privateKey);
     for (const token of [substitute, f.tokens.id_token]) {
       expect((await read(f, token)).status, 'wrong key or token type must deny protected reads').toBe(401);
-      expect((await f.request('/api/items', { method: 'POST', headers: { Authorization: 'Bearer ' + token, 'Content-Type': 'application/json' }, body: JSON.stringify({ content_md: 'must not write' }) })).status).toBe(401);
+      expect((await f.request('/blyg/api/items', { method: 'POST', headers: { Authorization: 'Bearer ' + token, 'Content-Type': 'application/json' }, body: JSON.stringify({ contentMd: 'must not write' }) })).status).toBe(401);
     }
   });
 
@@ -214,14 +216,14 @@ describe('security release boundaries', () => {
   // these cases do not independently count every downstream side effect.
   it('rejects the hostile trusted-key claim matrix at MCP before reads or writes', async () => {
     const f = await issued();
-    const minted = await f.request('/api/authorizations', { method: 'POST', headers: { cookie: f.owner, 'Content-Type': 'application/json' }, body: JSON.stringify({ name: 'MCP claim fixture', resource: 'mcp', scope: ['owner:read', 'owner:draft'] }) });
+    const minted = await f.request('/blyg/api/authorizations', { method: 'POST', headers: { cookie: f.owner, 'Content-Type': 'application/json' }, body: JSON.stringify({ name: 'MCP claim fixture', resource: 'mcp', scope: ['owner:read', 'owner:draft'] }) });
     expect(minted.status).toBe(200);
-    const { access_token } = await minted.json() as { access_token: string };
+    const { accessToken: access_token } = await minted.json() as { accessToken: string };
     const payload = decodeJwt(access_token), server = await authorizationServer(f.issuer, env);
     const neighbor = await server.api.signJWT({ body: { payload } });
     expect((await mcp(f, neighbor.token)).status, 'valid MCP claim neighbor must reach its tool').toBe(200);
     const patches = [
-      { iss: 'https://foreign.example.test/auth' }, { sub: 'attacker' }, { aud: f.base + '/api' },
+      { iss: 'https://foreign.example.test/auth' }, { sub: 'attacker' }, { aud: f.base + '/blyg/api' },
       { exp: Math.floor(Date.now() / 1000) - 1 }, { nbf: Math.floor(Date.now() / 1000) + 3600 },
       { grantId: undefined }, { credentialVersion: 'foreign-version' }, { cnf: { jkt: 'unsupported-sender' } },
     ];
@@ -249,7 +251,7 @@ describe('security release boundaries', () => {
     // credential or private key is read, and the HTTP endpoint stays excluded.
     const signed = await server.api.signJWT({ body: { payload: { ...payload, ...patches[axis] } } });
     expect((await read(f, signed.token)).status, 'invalid claim must deny protected reads').toBe(401);
-    expect((await f.request('/api/items', { method: 'POST', headers: { Authorization: 'Bearer ' + signed.token, 'Content-Type': 'application/json' }, body: JSON.stringify({ content_md: 'must not write' }) })).status).toBe(401);
+    expect((await f.request('/blyg/api/items', { method: 'POST', headers: { Authorization: 'Bearer ' + signed.token, 'Content-Type': 'application/json' }, body: JSON.stringify({ contentMd: 'must not write' }) })).status).toBe(401);
   });
   // RFC6749 §2.3.1 allows client identity in HTTP Basic rather than the form:
   // https://www.rfc-editor.org/rfc/rfc6749.html#section-2.3.1
@@ -271,10 +273,10 @@ describe('security release boundaries', () => {
     expect(approval.status).toBe(302);
     const code = new URL(approval.headers.get('location')!).searchParams.get('code')!;
     const exchange = (values: Record<string, string>, secret = client.client_secret) => f.request(f.issuer + '/oauth2/token', { method: 'POST', headers: { Authorization: 'Basic ' + btoa(encodeURIComponent(client.client_id) + ':' + encodeURIComponent(secret)), 'Content-Type': 'application/x-www-form-urlencoded' }, body: new URLSearchParams(values) });
-    const first = await exchange({ grant_type: 'authorization_code', code, redirect_uri: f.redirect, code_verifier: f.verifier, resource: f.base + '/api' });
+    const first = await exchange({ grant_type: 'authorization_code', code, redirect_uri: f.redirect, code_verifier: f.verifier, resource: f.base + '/blyg/api' });
     expect(first.status).toBe(200);
     const issued = await first.json() as { refresh_token: string };
-    const refresh = { grant_type: 'refresh_token', refresh_token: issued.refresh_token, resource: f.base + '/api' };
+    const refresh = { grant_type: 'refresh_token', refresh_token: issued.refresh_token, resource: f.base + '/blyg/api' };
     const rotated = await exchange(refresh); expect(rotated.status).toBe(200);
     const next = await rotated.json() as { access_token: string; refresh_token: string };
     expect((await read(f, next.access_token)).status).toBe(200);
@@ -293,7 +295,7 @@ describe('security release boundaries', () => {
 // The owner listing must never resurrect a tombstoned grant (RFC7009 §2.1).
 it('a revoke between token validation and grant persistence cannot resurrect its listing', async () => {
   const f = await issued();
-  const list = async () => (await (await f.request('/api/authorizations', { headers: { cookie: f.owner } })).json() as {items:{id:string;clientId:string}[]}).items;
+  const list = async () => (await (await f.request('/blyg/api/authorizations', { headers: { cookie: f.owner } })).json() as {items:{id:string;clientId:string}[]}).items;
   const grant = (await list()).find(row => row.clientId === f.client.client_id)!; expect(grant).toBeDefined();
   let reached!:()=>void, release!:()=>void;
   const paused = new Promise<void>(resolve=>{reached=resolve;}), resume = new Promise<void>(resolve=>{release=resolve;});
@@ -312,7 +314,7 @@ it('a revoke between token validation and grant persistence cannot resurrect its
   const pending=rememberAuthorization(f.issuer, {...env,DB:database},f.tokens.access_token);
   try {
     await paused;
-    expect((await f.request('/api/authorizations/'+grant.id,{method:'DELETE',headers:{cookie:f.owner}})).status).toBe(200);
+    expect((await f.request('/blyg/api/authorizations/'+grant.id,{method:'DELETE',headers:{cookie:f.owner}})).status).toBe(200);
   } finally { release(); }
   await pending;
   expect(await env.DB.prepare('SELECT grant_id FROM oauth_authorizations WHERE grant_id=?').bind(grant.id).first(),'revocation tombstone must block late grant persistence').toBeNull();
@@ -327,10 +329,10 @@ it('the owner listing excludes stale persisted rows for revoked grants', async (
   const f = await issued();
   const row = await env.DB.prepare('SELECT * FROM oauth_authorizations WHERE client_id=?').bind(f.client.client_id).first<Record<string, unknown>>();
   expect(row).not.toBeNull();
-  expect((await f.request('/api/authorizations/'+row!.grant_id,{method:'DELETE',headers:{cookie:f.owner}})).status).toBe(200);
+  expect((await f.request('/blyg/api/authorizations/'+row!.grant_id,{method:'DELETE',headers:{cookie:f.owner}})).status).toBe(200);
   await env.DB.prepare('INSERT INTO oauth_authorizations(grant_id,client_id,name,manual,resource,scopes,created,expires,version) VALUES (?,?,?,?,?,?,?,?,?)')
     .bind(...['grant_id','client_id','name','manual','resource','scopes','created','expires','version'].map(key=>row![key])).run();
-  const list = await (await f.request('/api/authorizations',{headers:{cookie:f.owner}})).json() as {items:{id:string}[]};
+  const list = await (await f.request('/blyg/api/authorizations',{headers:{cookie:f.owner}})).json() as {items:{id:string}[]};
   expect(list.items.some(entry=>entry.id===row!.grant_id),'stored stale grant rows cannot appear active').toBe(false);
   expect((await read(f,f.tokens.access_token)).status).toBe(401);
 });

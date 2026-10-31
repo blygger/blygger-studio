@@ -21,26 +21,26 @@ export function readStatus(imported: { readVersion: number | null; version: numb
 export const needsRead = (status: ReadStatus | null) => status === 'unread' || status === 'updated';
 
 /**
- * A read the studio sends. No `read_at`: the studio acts online, so its reads
- * always apply. The API's `read_at` is for offline queues (Blygger Desktop),
+ * A read the studio sends. No `readAt`: the studio acts online, so its reads
+ * always apply. The API's `readAt` is for offline queues (Blygger Desktop),
  * and a browser clock behind the server's would let a "mark unread" followed
  * by opening the post drop the read silently.
  */
 export interface ReadWrite {
   sub: string;
-  remote_id: string;
+  remoteId: string;
   version: number;
 }
 export interface UnreadWrite {
   sub: string;
-  remote_id: string;
+  remoteId: string;
 }
 type Markable = { imported?: { subscriptionId: string; remoteId: string; version: number } | undefined };
 
 /** The writes that mark `entries` read (at the version held here) or unread; own entries are skipped. */
 export function readWrites(entries: Markable[], read: boolean): { read: ReadWrite[]; unread: UnreadWrite[] } {
   const refs = entries.flatMap((entry) => (entry.imported ? [entry.imported] : []));
-  const ref = (imported: NonNullable<Markable['imported']>) => ({ sub: imported.subscriptionId, remote_id: imported.remoteId });
+  const ref = (imported: NonNullable<Markable['imported']>) => ({ sub: imported.subscriptionId, remoteId: imported.remoteId });
   return read
     ? { read: refs.map((imported) => ({ ...ref(imported), version: imported.version })), unread: [] }
     : { read: [], unread: refs.map(ref) };

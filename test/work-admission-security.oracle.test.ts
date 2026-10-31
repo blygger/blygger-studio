@@ -28,14 +28,14 @@ beforeEach(async () => {
 it('enforces a write budget before creating an extra item', async () => {
   const f = await flow(), bindings = { ...env, API_WRITE_LIMIT: '2' } as typeof env;
   for (let index = 0; index < 3; index++) {
-    const response = await f.request('/api/items', { method: 'POST', headers: { cookie: f.owner, 'Content-Type': 'application/json' }, body: JSON.stringify({ content_md: 'budget ' + index }) }, bindings);
+    const response = await f.request('/blyg/api/items', { method: 'POST', headers: { cookie: f.owner, 'Content-Type': 'application/json' }, body: JSON.stringify({ contentMd: 'budget ' + index }) }, bindings);
     expect(response.status, 'write admission must stop before extra item work').toBe(index < 2 ? 201 : 429);
   }
   expect((await env.DB.prepare('SELECT id FROM items').all()).results).toHaveLength(2);
 });
 it('atomic admission cannot overspend a write budget under concurrency', async () => {
   const f = await flow(), bindings = { ...env, API_WRITE_LIMIT: '2' } as typeof env;
-  const responses = await Promise.all(Array.from({ length: 6 }, (_, index) => f.request('/api/items', { method: 'POST', headers: { cookie: f.owner, 'Content-Type': 'application/json' }, body: JSON.stringify({ content_md: 'concurrent ' + index }) }, bindings)));
+  const responses = await Promise.all(Array.from({ length: 6 }, (_, index) => f.request('/blyg/api/items', { method: 'POST', headers: { cookie: f.owner, 'Content-Type': 'application/json' }, body: JSON.stringify({ contentMd: 'concurrent ' + index }) }, bindings)));
   expect(responses.filter(response => response.status === 201), 'concurrent writes share one atomic budget').toHaveLength(2);
   expect(responses.filter(response => response.status === 429)).toHaveLength(4);
 });
@@ -70,11 +70,11 @@ it('scope denials do not burn the account write budget', async () => {
   const readOnly = new Hono().route('/api', createOwnerApi({ scope: ['owner:read'], clientId: 'denied', userId: 'owner' }));
   for (let index = 0; index < 3; index++) {
     const ctx = createExecutionContext();
-    const response = await readOnly.fetch(new Request('https://admission.example/api/items', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ content_md: 'denied' }) }), bindings, ctx);
+    const response = await readOnly.fetch(new Request('https://admission.example/api/items', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ contentMd: 'denied' }) }), bindings, ctx);
     await waitOnExecutionContext(ctx); expect(response.status).toBe(403);
   }
   const f = await flow();
-  for (let index = 0; index < 2; index++) expect((await f.request('/api/items', { method: 'POST', headers: { cookie: f.owner, 'Content-Type': 'application/json' }, body: JSON.stringify({ content_md: 'admitted' }) }, bindings)).status).toBe(201);
+  for (let index = 0; index < 2; index++) expect((await f.request('/blyg/api/items', { method: 'POST', headers: { cookie: f.owner, 'Content-Type': 'application/json' }, body: JSON.stringify({ contentMd: 'admitted' }) }, bindings)).status).toBe(201);
 });
 it('concurrent registration claims cannot exceed the client storage cap', async () => {
   const f = await flow(), bindings = { ...env, OAUTH_CLIENT_LIMIT: '2' };
@@ -86,12 +86,12 @@ it('concurrent registration claims cannot exceed the client storage cap', async 
 
 it('MCP tools consume their grant read budget independently of owner reads', async () => {
   const f = await flow(), bindings = { ...env, API_READ_LIMIT: '2' };
-  const minted = await f.request('/api/authorizations', { method: 'POST', headers: { cookie: f.owner, 'Content-Type': 'application/json' }, body: JSON.stringify({ name: 'budget MCP', scope: ['owner:read'], resource: 'mcp' }) }, bindings);
+  const minted = await f.request('/blyg/api/authorizations', { method: 'POST', headers: { cookie: f.owner, 'Content-Type': 'application/json' }, body: JSON.stringify({ name: 'budget MCP', scope: ['owner:read'], resource: 'mcp' }) }, bindings);
   expect(minted.status).toBe(200);
-  const { access_token } = await minted.json() as { access_token: string };
-  expect((await f.request('/api/settings', { headers: { cookie: f.owner } }, bindings)).status).toBe(200);
+  const { accessToken } = await minted.json() as { accessToken: string };
+  expect((await f.request('/blyg/api/settings', { headers: { cookie: f.owner } }, bindings)).status).toBe(200);
   for (let index = 0; index < 3; index++) {
-    const response = await f.request('/blyg/studio/mcp', { method: 'POST', headers: { Authorization: 'Bearer ' + access_token, 'Content-Type': 'application/json', Accept: 'application/json, text/event-stream', 'mcp-protocol-version': '2026-07-28', 'mcp-method': 'tools/call', 'mcp-name': 'getSettings' }, body: JSON.stringify({ jsonrpc: '2.0', id: 1, method: 'tools/call', params: { name: 'getSettings', arguments: {}, _meta: { 'io.modelcontextprotocol/protocolVersion': '2026-07-28', 'io.modelcontextprotocol/clientCapabilities': {} } } }) }, bindings);
+    const response = await f.request('/blyg/studio/mcp', { method: 'POST', headers: { Authorization: 'Bearer ' + accessToken, 'Content-Type': 'application/json', Accept: 'application/json, text/event-stream', 'mcp-protocol-version': '2026-07-28', 'mcp-method': 'tools/call', 'mcp-name': 'getSettings' }, body: JSON.stringify({ jsonrpc: '2.0', id: 1, method: 'tools/call', params: { name: 'getSettings', arguments: {}, _meta: { 'io.modelcontextprotocol/protocolVersion': '2026-07-28', 'io.modelcontextprotocol/clientCapabilities': {} } } }) }, bindings);
     expect(response.status).toBe(200);
     const value = await response.json() as { result: { isError?: boolean; content: { text: string }[] } };
     expect(Boolean(value.result.isError), 'MCP tools cannot evade the grant read budget').toBe(index === 2);
@@ -112,7 +112,7 @@ it('a new minute restores admission without erasing earlier writes', async () =>
   const f = await flow(), bindings = { ...env, API_WRITE_LIMIT: '2' };
   const start = Math.floor(Date.now() / 60000) * 60000 + 1000;
   const clock = vi.spyOn(Date, 'now').mockReturnValue(start);
-  const write = () => f.request('/api/items', { method: 'POST', headers: { cookie: f.owner, 'Content-Type': 'application/json' }, body: JSON.stringify({ content_md: 'window neighbor' }) }, bindings);
+  const write = () => f.request('/blyg/api/items', { method: 'POST', headers: { cookie: f.owner, 'Content-Type': 'application/json' }, body: JSON.stringify({ contentMd: 'window neighbor' }) }, bindings);
   try {
     expect((await write()).status).toBe(201); expect((await write()).status).toBe(201); expect((await write()).status).toBe(429);
     clock.mockReturnValue(start + 60000);
@@ -132,11 +132,11 @@ it('failed registrations release their storage claims for a valid neighbor', asy
 // cover that control path before rebuilding request-local MCP handlers.
 it('MCP discovery cannot bypass its request work budget', async () => {
   const f = await flow(), bindings = { ...env, MCP_REQUEST_LIMIT: '2' };
-  const minted = await f.request('/api/authorizations', { method: 'POST', headers: { cookie: f.owner, 'Content-Type': 'application/json' }, body: JSON.stringify({ name: 'discovery budget', scope: ['owner:read'], resource: 'mcp' }) });
+  const minted = await f.request('/blyg/api/authorizations', { method: 'POST', headers: { cookie: f.owner, 'Content-Type': 'application/json' }, body: JSON.stringify({ name: 'discovery budget', scope: ['owner:read'], resource: 'mcp' }) });
   expect(minted.status).toBe(200);
-  const { access_token } = await minted.json() as { access_token: string };
+  const { accessToken } = await minted.json() as { accessToken: string };
   for (let index = 0; index < 3; index++) {
-    const response = await f.request('/blyg/studio/mcp', { method: 'POST', headers: { Authorization: 'Bearer ' + access_token, 'Content-Type': 'application/json', Accept: 'application/json, text/event-stream', 'mcp-protocol-version': '2026-07-28', 'mcp-method': 'tools/list' }, body: JSON.stringify({ jsonrpc: '2.0', id: 1, method: 'tools/list', params: { _meta: { 'io.modelcontextprotocol/protocolVersion': '2026-07-28', 'io.modelcontextprotocol/clientCapabilities': {} } } }) }, bindings);
+    const response = await f.request('/blyg/studio/mcp', { method: 'POST', headers: { Authorization: 'Bearer ' + accessToken, 'Content-Type': 'application/json', Accept: 'application/json, text/event-stream', 'mcp-protocol-version': '2026-07-28', 'mcp-method': 'tools/list' }, body: JSON.stringify({ jsonrpc: '2.0', id: 1, method: 'tools/list', params: { _meta: { 'io.modelcontextprotocol/protocolVersion': '2026-07-28', 'io.modelcontextprotocol/clientCapabilities': {} } } }) }, bindings);
     expect(response.status, 'MCP control work requires admission too').toBe(index < 2 ? 200 : 429);
   }
 });

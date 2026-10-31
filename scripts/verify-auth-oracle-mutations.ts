@@ -22,7 +22,7 @@ import { tmpdir } from 'node:os';
 // repository source/test paths plus tracked files, never ignored credentials.
 const root = resolve('.'), temporary = mkdtempSync(join(tmpdir(), 'blygger-auth-mutations-'));
 const controls = [
-  { name: 'delegated scope enforcement omitted', file: 'src/owner-api.ts', from: "if (required.some(scope => !delegated.scope.includes(scope)))", to: 'if (false)', test: 'test/authorization.oracle.test.ts', pattern: 'distinguishes root invalidation', target: 'authorization', captureSeed: 20261016, checkpoint: 'authorization API decision' },
+  { name: 'delegated scope enforcement omitted', file: 'src/operation-runner.ts', from: "if (context.access !== null && required.some(scope => !context.access!.scope.includes(scope)))", to: 'if (false)', test: 'test/authorization.oracle.test.ts', pattern: 'distinguishes root invalidation', target: 'authorization', captureSeed: 20261016, checkpoint: 'authorization API decision' },
   { name: 'password reset revokes delegated grants', file: 'src/oauth.ts', from: "return hashCredential(JSON.stringify([env.COOKIE_SECRET, epoch]));", to: "return hashCredential(JSON.stringify([env.COOKIE_SECRET, env.OWNER_PASSWORD, epoch]));", test: 'test/owner-reset.oracle.test.ts', pattern: 'preserves API and MCP grants', checkpoint: 'password reset must preserve delegated access' },
   { name: 'expiry boundary remains readable', file: 'src/oauth-storage.ts', from: 'expires > ?', to: 'expires >= ?', test: 'test/oauth-storage.oracle.test.ts', pattern: 'reconstructs overwrite', target: 'oauth-storage', captureSeed: 20261002, checkpoint: 'OAuth storage prefix pages' },
 ];

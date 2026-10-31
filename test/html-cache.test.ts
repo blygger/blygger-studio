@@ -55,7 +55,7 @@ describe('public HTML caching', () => {
   it('covers archives, permalinks and pinned HTML without caching missing pages', async () => {
     const cookie = await login();
     const id = await createAndPublish(cookie, 'HTML cache item');
-    expect((await apiJson(cookie, 'PUT', `/api/items/${id}/versions/1/pin`)).status).toBe(200);
+    expect((await apiJson(cookie, 'PUT', `/blyg/api/items/${id}/versions/1/pin`)).status).toBe(200);
     for (const path of ['/archive/', `/f/${id}/`, `/f/${id}/v1/`]) {
       const response = await SELF.fetch(`${BASE}/blyg${path}`);
       expect(response.status, path).toBe(200);
@@ -73,7 +73,7 @@ describe('public HTML caching', () => {
   });
 
   it('leaves private and wire responses outside the HTML policy', async () => {
-    for (const path of ['/api/settings', '/blyg/studio/login', '/blyg/blyg.json', '/blyg/style.css', '/blyg/feed.xml']) {
+    for (const path of ['/blyg/api/settings', '/blyg/studio/login', '/blyg/blyg.json', '/blyg/style.css', '/blyg/feed.xml']) {
       const response = await SELF.fetch(`${BASE}${path}`);
       expect(response.headers.has('cloudflare-cdn-cache-control'), path).toBe(false);
       await response.arrayBuffer();
@@ -111,7 +111,7 @@ describe('cached entrypoint dispatch', () => {
     for (const page of ['/studio', '/studio/login', '/feed.xml', '/items/id.json', '/media/image.jpg', '/unknown/deeper', '/feed']) {
       expect(publicHtmlRequest(new Request(`${BASE}${mount}${page}`), mount)).toBe(false);
     }
-    expect(publicHtmlRequest(new Request(`${BASE}/api/settings`), mount)).toBe(false);
+    expect(publicHtmlRequest(new Request(`${BASE}/blyg/api/settings`), mount)).toBe(false);
     expect(publicHtmlRequest(new Request(`${BASE}${mount}/`, { method: 'POST' }), mount)).toBe(false);
     if (mount) expect(publicHtmlRequest(new Request(`${BASE}${mount}extra/`), mount)).toBe(false);
   });
@@ -253,7 +253,7 @@ describe('cached entrypoint dispatch', () => {
   it('the item page renders a newly verified response and drops it when hidden', async () => {
     const cookie = await login();
     const item = await createAndPublish(cookie, 'Cached page awaiting a response');
-    expect((await apiJson(cookie, 'PATCH', `/api/items/${item}`, { responses: 'show' })).status).toBe(200);
+    expect((await apiJson(cookie, 'PATCH', `/blyg/api/items/${item}`, { responses: 'show' })).status).toBe(200);
     const path = `/blyg/f/${item}/`;
     const first = await (await getPublic(path)).text();
     expect(first).not.toContain('responder.example');

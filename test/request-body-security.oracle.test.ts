@@ -15,10 +15,10 @@ import { flow } from './oauth-flow-driver.ts';
 it('REST refuses streamed oversized bodies before writing', async () => {
   const f = await flow(), bindings = { ...env, API_BODY_LIMIT: '128' };
   const before = await env.DB.prepare('SELECT COUNT(*) AS n FROM items').first<{ n: number }>();
-  const response = await f.request('/api/items', { method: 'POST', headers: { cookie: f.owner, 'Content-Type': 'application/json' }, body: JSON.stringify({ content_md: 'x'.repeat(129 - JSON.stringify({ content_md: '' }).length) }) }, bindings);
+  const response = await f.request('/blyg/api/items', { method: 'POST', headers: { cookie: f.owner, 'Content-Type': 'application/json' }, body: JSON.stringify({ contentMd: 'x'.repeat(129 - JSON.stringify({ contentMd: '' }).length) }) }, bindings);
   expect(response.status, 'byte admission must precede write work').toBe(413);
   expect(await env.DB.prepare('SELECT COUNT(*) AS n FROM items').first()).toEqual(before);
-  expect((await f.request('/api/items', { method: 'POST', headers: { cookie: f.owner, 'Content-Type': 'application/json' }, body: JSON.stringify({ content_md: 'x'.repeat(128 - JSON.stringify({ content_md: '' }).length) }) }, bindings)).status).toBe(201);
+  expect((await f.request('/blyg/api/items', { method: 'POST', headers: { cookie: f.owner, 'Content-Type': 'application/json' }, body: JSON.stringify({ contentMd: 'x'.repeat(128 - JSON.stringify({ contentMd: '' }).length) }) }, bindings)).status).toBe(201);
 });
 it('OAuth refuses oversized registration bodies before client storage', async () => {
   const f = await flow();

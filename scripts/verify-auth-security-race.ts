@@ -19,8 +19,8 @@
  */
 import assert from 'node:assert/strict';
 import { build } from 'esbuild';
-import { Miniflare } from 'miniflare';
-import { readD1Migrations } from '@cloudflare/vitest-pool-workers';
+import { Miniflare, convertV4MiniflareOptions } from 'miniflare';
+import { readD1Migrations } from '@cloudflare/vitest-plugin';
 import { URLSearchParams } from 'node:url';
 
 // Two real workerd isolates share D1. A test-only service binding controls the
@@ -32,7 +32,7 @@ const claimed = new Promise<void>(resolve => { reached = resolve; });
 const resume = new Promise<void>(resolve => { release = resolve; });
 const output = await build({ entryPoints: ['test/security-race-worker.ts'], bundle: true, platform: 'neutral', conditions: ['workerd'], external: ['cloudflare:*', 'node:*'], mainFields: ['module', 'main'], format: 'esm', target: 'es2022', loader: { '.txt': 'text' }, write: false });
 const workers = ['auth-a', 'auth-b'].map(name => ({ name, routes: ['race-oracle.example.test/*'], modules: [{ type: 'ESModule' as const, path: 'worker.mjs', contents: output.outputFiles[0].text }], compatibilityDate: '2026-07-01', compatibilityFlags: ['nodejs_compat'], bindings: { MOUNT: '/blyg', OWNER_PASSWORD: 'security-race-fixture-password', COOKIE_SECRET: 'security-race-fixture-secret-32-characters' }, d1Databases: { DB: 'shared-security-race' }, r2Buckets: { MEDIA: 'shared-media' }, outboundService: () => new Response(null, { status: 503 }), serviceBindings: { ORACLE_GATE: async () => { reached(); await resume; return new Response('released'); } } }));
-const mf = new Miniflare({ workers });
+const mf = new Miniflare(convertV4MiniflareOptions({ workers }));
 let pending: ReturnType<Awaited<ReturnType<typeof mf.getWorker>>['fetch']> | undefined;
 try {
   const db = await mf.getD1Database('DB', 'auth-a');
@@ -47,7 +47,7 @@ try {
   const verifier = 'controlled-security-race-verifier-'.padEnd(64, 'a');
   const digest = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(verifier));
   const challenge = Buffer.from(digest).toString('base64url');
-  let consent = await request(a, '/blyg/studio/auth/oauth2/authorize?' + new URLSearchParams({ client_id, response_type: 'code', redirect_uri: redirect, scope: 'owner:read offline_access', resource: origin + '/api', code_challenge_method: 'S256', code_challenge: challenge }), { headers: { cookie: owner } });
+  let consent = await request(a, '/blyg/studio/auth/oauth2/authorize?' + new URLSearchParams({ client_id, response_type: 'code', redirect_uri: redirect, scope: 'owner:read offline_access', resource: origin + '/blyg/api', code_challenge_method: 'S256', code_challenge: challenge }), { headers: { cookie: owner } });
   const nativeCookies = consent.headers.getSetCookie().map(value => value.split(';')[0]);
   if (consent.headers.get('content-type')?.includes('application/json')) {
     // Service fetch negotiation returns the native continuation as JSON. Follow
@@ -65,9 +65,9 @@ try {
   const binding = [...nativeCookies, ...consent.headers.getSetCookie().map(value => value.split(';')[0])].join('; ');
   const approval = await request(a, '/blyg/studio/auth/consent', { method: 'POST', headers: { cookie: owner + '; ' + binding, Origin: origin }, body: new URLSearchParams({ handle, decision: 'allow', scope: 'owner:read' }) });
   assert.equal(approval.status, 302, 'Owner consent: ' + (approval.status === 302 ? 'approved' : (await approval.clone().json() as { error?: string }).error)); const code = new URL(approval.headers.get('location')!).searchParams.get('code')!;
-  const issuance = await request(a, '/blyg/studio/auth/oauth2/token', { method: 'POST', body: new URLSearchParams({ grant_type: 'authorization_code', code, client_id, redirect_uri: redirect, resource: origin + '/api', code_verifier: verifier }) });
+  const issuance = await request(a, '/blyg/studio/auth/oauth2/token', { method: 'POST', body: new URLSearchParams({ grant_type: 'authorization_code', code, client_id, redirect_uri: redirect, resource: origin + '/blyg/api', code_verifier: verifier }) });
   assert.equal(issuance.status, 200); const tokens = await issuance.json() as { access_token: string; refresh_token: string };
-  const refresh = (worker: typeof a, gated = false) => request(worker, '/blyg/studio/auth/oauth2/token', { method: 'POST', headers: gated ? { 'x-oracle-gate': 'claimed' } : {}, body: new URLSearchParams({ grant_type: 'refresh_token', client_id, refresh_token: tokens.refresh_token, resource: origin + '/api' }) });
+  const refresh = (worker: typeof a, gated = false) => request(worker, '/blyg/studio/auth/oauth2/token', { method: 'POST', headers: gated ? { 'x-oracle-gate': 'claimed' } : {}, body: new URLSearchParams({ grant_type: 'refresh_token', client_id, refresh_token: tokens.refresh_token, resource: origin + '/blyg/api' }) });
   pending = refresh(a, true);
   const rotation = pending;
   // Fail on an absent seam rather than inventing evidence from a timeout.
@@ -77,21 +77,21 @@ try {
     const replay = await refresh(b); assert.equal(replay.status, 400);
     assert.equal((await replay.json() as { error: string }).error, 'invalid_grant');
   } else {
-    const listing = await request(b, '/api/authorizations', { headers: { cookie: owner } });
+    const listing = await request(b, '/blyg/api/authorizations', { headers: { cookie: owner } });
     assert.equal(listing.status, 200);
     const grants = await listing.json() as { items: { id: string; clientId: string }[] };
     const grant = grants.items.find(value => value.clientId === client_id);
     assert.ok(grant, 'Issued grant must be listed before owner revocation');
-    const path = '/api/authorizations' + (mode === 'revoke' ? '/' + encodeURIComponent(grant.id) : '');
+    const path = '/blyg/api/authorizations' + (mode === 'revoke' ? '/' + encodeURIComponent(grant.id) : '');
     const revoked = await request(b, path, { method: 'DELETE', headers: { cookie: owner } });
     assert.equal(revoked.status, 200);
   }
-  const dead = await request(b, '/api/settings', { headers: { Authorization: 'Bearer ' + tokens.access_token } });
+  const dead = await request(b, '/blyg/api/settings', { headers: { Authorization: 'Bearer ' + tokens.access_token } });
   assert.equal(dead.status, 401, 'Cross-isolate replay must revoke the existing signed access token');
   release(); const winner = await rotation;
   assert.equal(winner.status, 400, 'Paused issuance must not return usable credentials after family revocation');
   assert.equal((await winner.json() as { error: string }).error, 'invalid_grant');
-  const observer = await request(a, '/api/settings', { headers: { Authorization: 'Bearer ' + tokens.access_token } });
+  const observer = await request(a, '/blyg/api/settings', { headers: { Authorization: 'Bearer ' + tokens.access_token } });
   assert.equal(observer.status, 401);
   console.log('Controlled cross-isolate ' + mode + ' denies prior access and pending issuance');
 } finally {

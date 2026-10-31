@@ -16,8 +16,8 @@ const UNKNOWN = "00000000000000000000000000";
 const PUA = /[-]|%EE%80%8[0-5]/;
 
 async function publish(cookie: string, md: string, kind: "fragment" | "thread" = "thread") {
-  const id = (await apiJson(cookie, "POST", "/api/items", { content_md: md, kind })).json.id as string;
-  const res = await apiJson(cookie, "POST", `/api/items/${id}/publish`, {});
+  const id = (await apiJson(cookie, "POST", "/blyg/api/items", { contentMd: md, kind })).json.id as string;
+  const res = await apiJson(cookie, "POST", `/blyg/api/items/${id}/publish`, {});
   const doc = res.status === 200 ? await (await getPublic(`/blyg/items/${id}.json`)).json<any>() : null;
   return { id, res, doc };
 }
@@ -85,20 +85,20 @@ describe("a directive left on its own line in TK output (provisional, session 33
 describe("TK sources through the generate route", () => {
   it("a thread is a source since G8 (#44): resolution passes and the request goes on to the provider", async () => {
     const cookie = await login();
-    const thread = (await apiJson(cookie, "POST", "/api/items", { content_md: "a thread", kind: "thread" })).json.id as string;
-    await apiJson(cookie, "POST", `/api/items/${thread}/publish`, {});
-    const id = (await apiJson(cookie, "POST", "/api/items", { content_md: `[TK]summarize ![[${thread}]][/TK]` })).json.id as string;
-    const res = await apiJson(cookie, "POST", `/api/items/${id}/generate`, { scope: 0 });
+    const thread = (await apiJson(cookie, "POST", "/blyg/api/items", { contentMd: "a thread", kind: "thread" })).json.id as string;
+    await apiJson(cookie, "POST", `/blyg/api/items/${thread}/publish`, {});
+    const id = (await apiJson(cookie, "POST", "/blyg/api/items", { contentMd: `[TK]summarize ![[${thread}]][/TK]` })).json.id as string;
+    const res = await apiJson(cookie, "POST", `/blyg/api/items/${id}/generate`, { scope: 0 });
     // This suite configures no provider, so the request fails there, past the
     // source check rather than at it.
-    expect(res.json.error).not.toMatch(/unresolvable source|not yet implemented/);
+    expect(res.json.message).not.toMatch(/unresolvable source|not yet implemented/);
   });
 
   it("a genuinely unknown id still says why", async () => {
     const cookie = await login();
-    const id = (await apiJson(cookie, "POST", "/api/items", { content_md: `[TK]summarize ![[${UNKNOWN}]][/TK]` })).json.id as string;
-    const res = await apiJson(cookie, "POST", `/api/items/${id}/generate`, { scope: 0 });
-    expect(res.json.error).toBe("unresolvable source: unknown item");
+    const id = (await apiJson(cookie, "POST", "/blyg/api/items", { contentMd: `[TK]summarize ![[${UNKNOWN}]][/TK]` })).json.id as string;
+    const res = await apiJson(cookie, "POST", `/blyg/api/items/${id}/generate`, { scope: 0 });
+    expect(res.json.message).toBe("unresolvable source: unknown item");
   });
 });
 
@@ -142,12 +142,12 @@ describe("studio#14: the preview resolves links in generated blocks", () => {
   it("shows the anchor publish will make, and reports an unknown id", async () => {
     const cookie = await login();
     const target = await createAndPublish(cookie, "Target text.");
-    const ok = await apiJson(cookie, "POST", "/api/preview", { content_md: `[TK]write[=]One [[${target}]].\n\nTwo.[/TK]`, kind: "fragment" });
+    const ok = await apiJson(cookie, "POST", "/blyg/api/preview", { contentMd: `[TK]write[=]One [[${target}]].\n\nTwo.[/TK]`, kind: "fragment" });
     expect(ok.json.html).toMatch(new RegExp(`<a href="[^"]*/f/${target}/">`));
-    expect(ok.json.link_errors).toEqual([]);
-    const bad = await apiJson(cookie, "POST", "/api/preview", { content_md: `[TK]write[=]One [[${UNKNOWN}]].\n\nTwo.[/TK]`, kind: "fragment" });
-    expect(bad.json.link_errors).toHaveLength(1);
-    const thread = await apiJson(cookie, "POST", "/api/preview", { content_md: `[TK]write[=]One [[${UNKNOWN}]].\n\nTwo.[/TK]`, kind: "thread" });
+    expect(ok.json.linkErrors).toEqual([]);
+    const bad = await apiJson(cookie, "POST", "/blyg/api/preview", { contentMd: `[TK]write[=]One [[${UNKNOWN}]].\n\nTwo.[/TK]`, kind: "fragment" });
+    expect(bad.json.linkErrors).toHaveLength(1);
+    const thread = await apiJson(cookie, "POST", "/blyg/api/preview", { contentMd: `[TK]write[=]One [[${UNKNOWN}]].\n\nTwo.[/TK]`, kind: "thread" });
     expect(thread.json.errors).toHaveLength(1);
   });
 });
