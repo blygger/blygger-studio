@@ -28,7 +28,7 @@ Update the plan when a finding changes its scope or design.
 | 2 HTTP behavior | Open, all nine upstream CI jobs pass | `codex/api-http`, based on `codex/api-cleanup` | [91](https://github.com/blygger/blygger-studio/pull/91) |
 | 3a Operation policies and discovery | Open, all nine upstream CI jobs pass | `codex/api-operation-policy`, after 93 | [95](https://github.com/blygger/blygger-studio/pull/95) |
 | 3b Shared operation execution | Open, eight checks pass; final mutation job running | `codex/api-operation-runner`, after 95 | [96](https://github.com/blygger/blygger-studio/pull/96) |
-| 4 Mounted API cutover | Local checks pass; publication in progress | `codex/api-mount-cutover`, after 96 | Pending |
+| 4 Mounted API cutover | Open, local checks pass; CI in progress | `codex/api-mount-cutover`, after 96 | [97](https://github.com/blygger/blygger-studio/pull/97) |
 | 5 Conditional mutations | Planned | After 3 | Pending |
 | 6 Private resources | Planned | After 5, with 4 integrated | Pending |
 | 7 Cursor pages and TanStack loading | Planned | After 6 | Pending |
@@ -469,3 +469,80 @@ requests are never intercepted, even though the owner-free offline shell
 correctly includes the API boot path. SDK archive names use a version
 placeholder so old generated paths cannot be paired with new base URLs.
 Client0.49.7, private contract2.0.0, SDK0.3.0. No migration.
+
+Part4 is published as [PR97](https://github.com/blygger/blygger-studio/pull/97),
+head `6a7ff15`, on PR96. The plan issue and CI heartbeat include it. Part5
+continues on `codex/api-item-revisions` without waiting for parent merges.
+
+All nine upstream jobs passed for each published head90,91,93,95,96,97.
+All review submissions and inline comment lists are empty. The current-head
+snapshot is in `/tmp/blygger-api-review-evaluation/stack-green-20261031.json`.
+The CI heartbeat stops until another head is published.
+
+## Part 5: conditional item mutations — 2026-10-31
+
+Work continues on `codex/api-item-revisions`. Every participating API writer
+captures a private revision, checks it at commit, and returns the resulting
+revision. Text and positional provenance install together. Attachment changes
+and publication transitions advance that same item revision. Studio carries
+its observed revision through a paced command queue and rejects stale work.
+
+Review reproduced missing polling invalidation on revision-only writes, stale
+media deletion after detachment, restore read-back adopting a foreign revision,
+and inconsistent typed conflict details at upload/discard/generation boundaries.
+Focused repairs preserve public reading/feed invalidation policy and retained
+media bytes. Evidence and the lossless ledger are under
+`/tmp/blygger-api-item-revisions`.
+
+The rollout audit reproduced an old in-flight generation overwriting a new
+revision-aware edit across two Worker isolates sharing D1. A control that drains
+old writes before migration/cutover prevents it. The upgrade procedure needs a
+write-pause/drain boundary or mixed-version writer safeguards. That choice is
+pending with the user; independent implementation and fixture repairs continue.
+
+Part5 validation so far:159 Worker files,1,950 tests passed,five skipped.
+All121 UI tests pass, including actual quick-editor actions and controlled
+restore/read-back queues. The installed SDK0.4.0 accepts its own revision
+receipts, rejects stale publication, and retains the committed text/version.
+Installed Node/Chromium consumers, both TypeScript resolution modes, fresh
+Worker D1/R2 persistence, and the0.8.3 local upgrade pass. The upgrade receiver
+also checks an existing draft's initial revision and selective polling trigger.
+The archived lineage demo silently left both rows unpublished against the new
+API; the repaired demo publishes both through explicit receipt chains.
+
+Two media mutation controls reach their semantic failure checkpoints. All82
+exact mutation anchors match. Typecheck, SDK generation, release check and
+whitespace checks pass. Full desktop/mobile browser verification is running.
+The release build/verification and lineage demo ran in an isolated temporary
+copy so browser tests retained stable SDK and asset files.
+
+Both prep-pr reviewers completed their final source pass without another
+actionable production finding. The lossless ledger also records the
+lost-response browser contract: a real committed save whose response is lost
+retains local text, and a repeat with the old revision must409 rather than
+silently adopt another token. Rollout choice I14 remains pending.
+
+Part8 follow-up from the final header pass: inspect the mounted private API's
+early OPTIONS204 in `src/index.ts`. Its local CORS branch currently omits an
+explicit Cache-Control header, unlike public-wire preflight. Add a same-path
+probe before repair and preserve root/nested behavior. This remains a named
+header-audit follow-up rather than an unverified claim of shared caching.
+
+Final part5 browser run:399 passed,five skipped across the full desktop/mobile
+suite (404 declared cases). The real lost-response histories pass for both
+fragments and threads on both devices. All19 regenerated SDK/OpenAPI files
+match the working source. Final ledger:18 retained rows,12 fixed,five
+duplicates and one design decision (I14). No other open review item.
+
+The user clarified that these are single-user APIs. The rollout risk requires
+an old in-flight request and a new write to the same item during cutover.
+Keep the upgrade simple: finish pending writes, including generation, before
+upgrading, and avoid edits until deployment finishes. Record this limit in the
+changelog and both installation guides. Add no maintenance gate or mixed-version
+writer layer. The concrete old/new evidence remains in
+`/tmp/blygger-api-item-revisions/rollout-boundary.md`.
+
+I14 is disposed as a known, accepted upgrade limit with documented operator
+guidance. The final ledger has18 rows:12 fixed,five duplicates and one deferred
+mixed-version compatibility requirement. No open design decision. Parts6–8
+retain their planned scope.

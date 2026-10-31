@@ -1,9 +1,10 @@
 // Task 5 acceptance: media round-trip through R2, type/size validation.
 import { SELF } from "cloudflare:test";
 import { describe, expect, it } from "vitest";
-import { apiJson, BASE, createAndPublish, getPublic, login } from "./helpers.ts";
+import { testItemRevision, apiJson, BASE, createAndPublish, getPublic, login } from "./helpers.ts";
 
 async function upload(cookie: string, file: File, extra: Record<string, string> = {}) {
+  if (extra.item_id) extra = { ...extra, expectedRevision: String(await testItemRevision(extra.item_id)) };
   const form = new FormData();
   form.set("file", file);
   for (const [k, v] of Object.entries(extra)) form.set(k, v);
@@ -97,7 +98,7 @@ describe("duplicate uploads (studio#7, migration 0028)", () => {
     expect(first.status).toBe(201);
     const again = await upload(cookie, png(1, 2), { item_id: id, alt: "second" });
     expect(again.status).toBe(200);
-    expect(again.json).toEqual({ id: first.json.id, url: first.json.url, mime: "image/png", duplicate: true });
+    expect(again.json).toEqual({ id: first.json.id, url: first.json.url, mime: "image/png", duplicate: true, revision: first.json.revision });
     expect((await apiJson(cookie, "POST", `/blyg/api/items/${id}/publish`, {})).status).toBe(200);
 
     const item = await (await getPublic(`/blyg/items/${id}.json`)).json<any>();

@@ -1,3 +1,4 @@
+import { fixtureJson } from './api-fixture';
 import { test, expect } from "./fixture";
 
 // The optional change classifier's chip in the Version N dialog (session 49).
@@ -14,7 +15,7 @@ test.describe("change classifier", () => {
   });
 
   const apiFor = (page: import("@playwright/test").Page) => (m: string, p: string, d?: unknown) =>
-    page.evaluate(async ([m, p, d]) => (await fetch('/api' + p, { method: m, headers: { 'content-type': 'application/json' }, body: d === undefined ? undefined : JSON.stringify(d) })).json(), [m, p, d] as const);
+    page.evaluate(fixtureJson, { method: m, path: '/api' + p, body: d }).then(result => result.json);
 
   test("the chip writes the category into the note, the author can change it, and publish carries the choice", async ({ page }) => {
     const errors: string[] = [];

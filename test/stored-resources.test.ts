@@ -1,3 +1,4 @@
+import { testItemRevision } from './helpers.ts';
 import { SELF, env } from "cloudflare:test";
 import { describe, expect, it } from "vitest";
 import { BlyggerApi as api, createBlyggerClient, unwrap } from "../sdk/dist/browser.js";
@@ -24,7 +25,7 @@ describe("stored JSON isolation through SDK", () => {
   for (const [column, field, fallback] of [["generated_json", "generated", []], ["transclusions", "transclusions", []], ["stub_of", "stub_of", null], ["stub_cite", "stub_cite", null]] as const) it.each(["{", '"wrong type"'])(`published ${column} isolates %s`, async value => {
     const cookie = await login(), client = clientFor(cookie);
     const item = await unwrap(api.createItem({ client, body: { content_md: "published", kind: "thread" } }));
-    await unwrap(api.publishItem({ client, path: { id: item.id } }));
+    await unwrap(api.publishItem({ client, path: { id: item.id } , body: { expectedRevision: await testItemRevision(item.id) } }));
     await env.DB.prepare(`UPDATE versions SET ${column} = ? WHERE item_id = ? AND version = 1`).bind(value, item.id).run();
     expect((await unwrap(api.getVersion({ client, path: { id: item.id, v: 1 } })))[field]).toEqual(fallback);
     expect((await unwrap(api.getItem({ client, path: { id: item.id } }))).versions[0][field]).toEqual(fallback);

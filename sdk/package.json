@@ -1,6 +1,6 @@
 {
   "name": "@blygger/sdk",
-  "version": "0.3.0",
+  "version": "0.4.0",
   "description": "Generated JavaScript and TypeScript client for the Blygger Studio API",
   "type": "module",
   "license": "MIT",

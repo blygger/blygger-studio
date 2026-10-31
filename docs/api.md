@@ -233,7 +233,8 @@ Delegated clients have less room: 120 a minute per grant, and 60 a minute shared
 
 ## Partial edits
 
-PATCH changes only supplied fields.
+Item commands require the observed `expectedRevision`.
+PATCH changes only supplied edit fields.
 Omitted fields retain their values.
 Null clears only fields that explicitly allow null, such as an item's `stub_of`.
 Unknown JSON fields fail validation rather than disappearing silently.
@@ -243,7 +244,7 @@ Preferences use booleans, not database integers or strings such as `"on"`.
 const item = await unwrap(BlyggerApi.updateItem({
   client,
   path: { id: blank.id },
-  body: { content_md: "Revised text", responses: "hide" },
+  body: { content_md: "Revised text", responses: "hide", expectedRevision: blank.revision },
 }));
 ```
 
@@ -440,3 +441,31 @@ Run `npm run sdk:generate` after changing the shared contract.
 Commit `openapi.json` and `sdk/generated/` with the server changes.
 CI validates generation drift, Worker behavior, browser flows, and packaged release artifacts.
 See [SDK usage](../sdk/README.md) for browser and server transports.
+
+### Conditional item commands
+
+Items have a private `revision` independent of their published `version`.
+Creation starts at1. Reads and successful commands return the current revision.
+Each command supplies `expectedRevision` from the snapshot it changes. A stale
+command returns409 with `code: "revision-conflict"`, `itemId`, and the rejected
+`expectedRevision`. A detached media conflict names `mediaId` because the owning
+attachment no longer exists.
+
+Working text, provenance, presentation preferences, attachment membership, and
+publication transitions advance revision atomically. Generation and remote
+refresh work retain their captured premise until commit. Pinning a version
+that is already pinned is repeat-safe and retains the current revision.
+Classifier and drafted-note reads require the observed revision without
+advancing it.
+
+Attached uploads require multipart `expectedRevision`; MCP carries the same
+number in the upload body. Attachment deletion requires JSON
+`{ "expectedRevision": n }`. Unattached upload/delete has no item precondition.
+Every item mutation, including publish, withdraw, restore and delete, requires
+a JSON condition. An empty creation body remains valid.
+
+Studio retains its observed revision for unsaved text. Successful receipts
+advance its paced command queue. A foreign polled revision cannot authorize an
+old queued edit. A clean quick-edit session accepts text and revision together.
+Conflicts require reconciliation. No blind retry or general idempotency receipt
+store is provided.

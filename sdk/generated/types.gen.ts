@@ -69,6 +69,7 @@ export type ChangeState = {
 
 export type Item = {
     id: string;
+    revision: number;
     kind: 'fragment' | 'thread' | 'withdrawn';
     status: 'draft' | 'public' | 'withdrawn';
     created: string;
@@ -1178,7 +1179,9 @@ export type CreateItemResponses = {
 export type CreateItemResponse = CreateItemResponses[keyof CreateItemResponses];
 
 export type DeleteItemData = {
-    body?: never;
+    body: {
+        expectedRevision: number;
+    };
     path: {
         id: string;
     };
@@ -1319,6 +1322,7 @@ export type GetItemResponses = {
      */
     200: {
         id: string;
+        revision: number;
         kind: 'fragment' | 'thread' | 'withdrawn';
         status: 'draft' | 'public' | 'withdrawn';
         created: string;
@@ -1362,6 +1366,7 @@ export type UpdateItemData = {
         } | null;
         responses?: 'default' | 'show' | 'hide';
         highlight?: 'default' | 'show' | 'hide';
+        expectedRevision: number;
     };
     path: {
         id: string;
@@ -1433,7 +1438,8 @@ export type UpdateItemResponses = {
 export type UpdateItemResponse = UpdateItemResponses[keyof UpdateItemResponses];
 
 export type PublishItemData = {
-    body?: {
+    body: {
+        expectedRevision: number;
         note?: string;
         note_generated?: boolean;
         /**
@@ -1507,6 +1513,7 @@ export type PublishItemResponses = {
      */
     200: {
         ok: boolean;
+        revision: number;
         version: number;
         warning?: string;
     };
@@ -1515,7 +1522,9 @@ export type PublishItemResponses = {
 export type PublishItemResponse = PublishItemResponses[keyof PublishItemResponses];
 
 export type ClassifyChangeData = {
-    body?: never;
+    body: {
+        expectedRevision: number;
+    };
     path: {
         id: string;
     };
@@ -1581,6 +1590,7 @@ export type ClassifyChangeResponses = {
      * Success
      */
     200: {
+        revision: number;
         /**
          * The version the working copy would publish as.
          */
@@ -1604,7 +1614,9 @@ export type ClassifyChangeResponses = {
 export type ClassifyChangeResponse = ClassifyChangeResponses[keyof ClassifyChangeResponses];
 
 export type DraftNoteData = {
-    body?: never;
+    body: {
+        expectedRevision: number;
+    };
     path: {
         id: string;
     };
@@ -1673,6 +1685,7 @@ export type DraftNoteResponses = {
         note: string;
         model: string;
         pinned_prior: boolean;
+        revision: number;
     };
 };
 
@@ -1680,6 +1693,7 @@ export type DraftNoteResponse = DraftNoteResponses[keyof DraftNoteResponses];
 
 export type GenerateItemData = {
     body: {
+        expectedRevision: number;
         scope: number;
     };
     path: {
@@ -1750,13 +1764,15 @@ export type GenerateItemResponses = {
         text: string;
         model: string;
         content_md: string;
+        revision: number;
     };
 };
 
 export type GenerateItemResponse = GenerateItemResponses[keyof GenerateItemResponses];
 
 export type WithdrawItemData = {
-    body?: {
+    body: {
+        expectedRevision: number;
         note?: string;
     };
     path: {
@@ -1825,6 +1841,7 @@ export type WithdrawItemResponses = {
      */
     200: {
         ok: boolean;
+        revision: number;
         version: number;
     };
 };
@@ -1832,7 +1849,9 @@ export type WithdrawItemResponses = {
 export type WithdrawItemResponse = WithdrawItemResponses[keyof WithdrawItemResponses];
 
 export type PinItemData = {
-    body?: never;
+    body: {
+        expectedRevision: number;
+    };
     path: {
         id: string;
         version: number;
@@ -1900,6 +1919,7 @@ export type PinItemResponses = {
      */
     200: {
         ok: boolean;
+        revision: number;
         version: number;
         already: boolean;
     };
@@ -1909,6 +1929,7 @@ export type PinItemResponse = PinItemResponses[keyof PinItemResponses];
 
 export type RestoreItemData = {
     body: {
+        expectedRevision: number;
         version: number;
     };
     path: {
@@ -1977,6 +1998,7 @@ export type RestoreItemResponses = {
      */
     200: {
         ok: boolean;
+        revision: number;
         restored: number;
         publishesAs: number;
     };
@@ -1988,6 +2010,7 @@ export type UploadMediaData = {
     body: {
         file: Blob | File;
         item_id?: string;
+        expectedRevision?: number;
         alt?: string;
         inline?: 'true' | 'false';
     };
@@ -2058,6 +2081,7 @@ export type UploadMediaResponses = {
         url: string;
         mime: string;
         duplicate: true;
+        revision?: number;
     };
     /**
      * Success
@@ -2066,13 +2090,16 @@ export type UploadMediaResponses = {
         id: string;
         url: string;
         mime: string;
+        revision?: number;
     };
 };
 
 export type UploadMediaResponse = UploadMediaResponses[keyof UploadMediaResponses];
 
 export type DeleteMediaData = {
-    body?: never;
+    body: {
+        expectedRevision?: number;
+    };
     path: {
         id: string;
     };
@@ -2140,6 +2167,7 @@ export type DeleteMediaResponses = {
     200: {
         ok: boolean;
         outcome: 'deleted' | 'detached';
+        revision?: number;
     };
 };
 
@@ -5725,7 +5753,8 @@ export type GetItemFreshnessResponses = {
 export type GetItemFreshnessResponse = GetItemFreshnessResponses[keyof GetItemFreshnessResponses];
 
 export type RefreshItemData = {
-    body?: {
+    body: {
+        expectedRevision: number;
         note?: string;
     };
     path: {
@@ -5794,6 +5823,7 @@ export type RefreshItemResponses = {
      */
     200: {
         ok: boolean;
+        revision: number;
         version: number;
         refreshed: Array<string>;
         resynced: number;

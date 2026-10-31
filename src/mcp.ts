@@ -6,6 +6,7 @@ import type { OperationPolicy } from './operation-policy.ts';
 import type { Context } from 'hono';
 import type { Env } from './types.ts';
 import { routes } from './contract/routes.ts';
+import { ItemRevisionSchema } from './contract/schemas.ts';
 import { operationDefinitions } from './operations.ts';
 import { runOperation } from './operation-runner.ts';
 import { failure, type MediaInput } from './operation-types.ts';
@@ -19,7 +20,7 @@ import type { ServerExtension } from './extensions/server.ts';
 
 /** Decode canonical padded RFC4648 Base64 without allowing atob's whitespace tolerance. */
 function mediaInput(body: unknown): MediaInput {
-  const { file, ...extra } = body as { file: { filename: string; contentType: string; dataBase64: string }; item_id?: string; alt?: string; inline?: string };
+  const { file, ...extra } = body as { file: { filename: string; contentType: string; dataBase64: string }; item_id?: string; expectedRevision?: number; alt?: string; inline?: string };
   const data = file.dataBase64, alphabet = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/';
   if (data.length % 4 !== 0 || !/^[A-Za-z0-9+/]*={0,2}$/.test(data) ||
       data.endsWith('==') && (alphabet.indexOf(data.at(-3)!) & 15) !== 0 ||
@@ -28,7 +29,7 @@ function mediaInput(body: unknown): MediaInput {
   }
   const decoded = atob(data), bytes = new Uint8Array(decoded.length);
   for (let i = 0; i < decoded.length; i++) bytes[i] = decoded.charCodeAt(i);
-  return { file: { bytes, mime: /^[\x20-\x7e]*$/.test(file.contentType) ? file.contentType.toLowerCase() : '', name: file.filename }, itemId: extra.item_id, alt: extra.alt, inline: extra.inline === 'true' };
+  return { file: { bytes, mime: /^[\x20-\x7e]*$/.test(file.contentType) ? file.contentType.toLowerCase() : '', name: file.filename }, itemId: extra.item_id, expectedRevision: extra.expectedRevision, alt: extra.alt, inline: extra.inline === 'true' };
 }
 
 // Only immutable schema metadata is shared. Servers, handlers and access stay
@@ -39,7 +40,7 @@ const toolDefinitions = Object.entries(routes).map(([name, definition]) => {
   const fields: Record<string, z.ZodType> = {};
   if (route.request?.params) fields.path = route.request.params as z.ZodType;
   if (route.request?.query) fields.query = (route.request.query as z.ZodObject).optional();
-  if (name === 'uploadMedia') fields.body = z.object({ file: z.object({ filename: z.string(), contentType: z.string(), dataBase64: z.string().describe('Canonical padded Base64. Decoded image file limit: 5 MiB.') }).strict(), item_id: z.string().optional(), alt: z.string().optional(), inline: z.enum(['true', 'false']).optional() }).strict();
+  if (name === 'uploadMedia') fields.body = z.object({ file: z.object({ filename: z.string(), contentType: z.string(), dataBase64: z.string().describe('Canonical padded Base64. Decoded image file limit: 5 MiB.') }).strict(), item_id: z.string().optional(), expectedRevision: ItemRevisionSchema.optional(), alt: z.string().optional(), inline: z.enum(['true', 'false']).optional() }).strict();
   else if (body) fields.body = route.request!.body!.required ? body : body.optional();
   const inputSchema = z.object(fields).strict();
   const description = `${route.method.toUpperCase()} {api}${route.path}. Required scopes: ${operationScopes(name).join(', ') || 'any authenticated identity'}.${route.policy.conditionalScopes ? ' ' + route.policy.conditionalScopes.description : ''}${route.policy.scopeNotes ? ' ' + route.policy.scopeNotes : ''}${name === 'createItem' || name === 'updateItem' ? ' For generated text, record provenance alongside TK scopes; provenance is client-asserted.' : ''}`;

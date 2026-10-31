@@ -1,3 +1,4 @@
+import { assertCurrentRevision, assertItemRevision, ItemRevisionConflict } from './item-revision.ts';
 import { success, created, failure, modelFailure, type OperationContext, type OperationInput } from './operation-types.ts';
 import { versionState } from './version-state.ts';
 import { isFont } from "./fonts.ts";
@@ -65,6 +66,13 @@ const MEDIA_MAX_BYTES = 5 * 1024 * 1024;
 
 type ItemBody = z.infer<typeof ItemEditSchema>;
 
+async function observedItem(context: OperationContext, input: OperationInput) {
+  const item = await getItem(context.env.DB, input.path.id);
+  if (item) assertItemRevision(item, (input.body as { expectedRevision: number }).expectedRevision);
+  return item;
+}
+
+
 const createItemOperation = async (context: OperationContext, input: OperationInput) => {
   const body = (input.body as z.infer<typeof ItemCreateSchema>);
   if (body.mode === "fork") return createForkResponse(context, body.source);
@@ -128,7 +136,7 @@ async function createForkResponse(context: OperationContext, body: { origin: str
 }
 
 const updateItemOperation = async (context: OperationContext, input: OperationInput) => {
-  const item = await getItem(context.env.DB, input.path.id);
+  const item = await observedItem(context, input);
   if (!item) return failure('not-found', { error: "not found" });
   const body = (input.body as ItemBody);
   const kind = body.kind ?? await authoredKind(context.env.DB, item);
@@ -166,10 +174,10 @@ const updateItemOperation = async (context: OperationContext, input: OperationIn
   // concurrent publication or citation edit cannot invalidate that check.
   // A provenance-only patch also validated the stored text. When text is
   // supplied, the provenance check used that replacement instead.
-  const checkedStoredText = body.provenance !== undefined && body.content_md === undefined;
-  const fresh = await context.env.DB.prepare(`UPDATE items SET ${assignments.join(", ")} WHERE id = ? AND version = ? AND kind = ? AND stub_of IS ? AND tk_provenance_json IS ?${checkedStoredText ? " AND content_md = ?" : ""} RETURNING *`)
-    .bind(...values, item.id, item.version, item.kind, item.stub_of, item.tk_provenance_json, ...(checkedStoredText ? [item.content_md] : [])).first<ItemRow>();
-  if (!fresh) return failure('conflict', { error: "item changed while applying the patch; reload and try again" });
+  assignments.push("revision = revision + 1");
+  const fresh = await context.env.DB.prepare(`UPDATE items SET ${assignments.join(", ")} WHERE id = ? AND revision = ? RETURNING *`)
+    .bind(...values, item.id, item.revision).first<ItemRow>();
+  if (!fresh) throw new ItemRevisionConflict(item.id, item.revision);
   return success(itemResource(fresh));
 };
 
@@ -233,7 +241,7 @@ async function publishAndNotify(context: OperationContext, item: ItemRow, note: 
     // Studio-private bookkeeping must never fail a publish that has happened.
     if (settle) await settle(version).catch((e) => console.error("change class not settled", e));
     await sendMentionsFor(context, item.id, version);
-    return success({ ok: true, version, ...extra, ...(warning ? { warning } : {}) });
+    return success({ ok: true, version, revision: item.revision + 1, ...extra, ...(warning ? { warning } : {}) });
   } catch (e) {
     if (e instanceof TransclusionResolveError) {
       // Both bracket forms report here: `![[id]]` directives and `[[id]]`
@@ -256,7 +264,7 @@ const publishItemOperation = async (context: OperationContext, input: OperationI
   // Also the republish path for withdrawn items: vN+1 restores 'public'/authored kind.
   // Studio-side fragment cap (§2.7) is enforced inside publish() against the
   // TK-stripped (published) length, not the raw working copy — see FragmentTooLongError.
-  const item = await getItem(context.env.DB, input.path.id);
+  const item = await observedItem(context, input);
   if (!item) return failure('not-found', { error: "not found" });
   const body = (input.body as { note?: string; note_generated?: boolean; change_category?: ChangeCategory | null });
   // note_generated is the studio's own assertion that the note is the drafted
@@ -274,20 +282,21 @@ const publishItemOperation = async (context: OperationContext, input: OperationI
  * never an error, so publish proceeds without one.
  */
 const classifyChangeOperation = async (context: OperationContext, input: OperationInput) => {
-  const item = await getItem(context.env.DB, input.path.id);
+  const item = await observedItem(context, input);
   if (!item) return failure('not-found', { error: "not found" });
   const result = await classifyChange(context.env, item);
   if (!result.ok) return modelFailure({ error: result.error }, result.status);
-  return success({ version: result.version, category: result.category, model: result.model, probability: result.probability, ...(result.reason ? { reason: result.reason } : {}) });
+  return success({ revision: item.revision, version: result.version, category: result.category, model: result.model, probability: result.probability, ...(result.reason ? { reason: result.reason } : {}) });
 };
 
 /** Draft a changelog note from the local diff (#40). Never publishes; the author edits and decides. */
 const draftNoteOperation = async (context: OperationContext, input: OperationInput) => {
-  const item = await getItem(context.env.DB, input.path.id);
+  const item = await observedItem(context, input);
   if (!item) return failure('not-found', { error: "not found" });
   const result = await draftChangeNote(context.env, item);
   if (!result.ok) return modelFailure({ error: result.error }, result.status);
-  return success({ note: result.note, model: result.model, pinned_prior: result.pinnedPrior });
+  await assertCurrentRevision(context.env.DB, item);
+  return success({ revision: item.revision, note: result.note, model: result.model, pinned_prior: result.pinnedPrior });
 };
 
 // --- Snapshot freshness (decision #33's direct check; #38: detect always,
@@ -315,7 +324,7 @@ const getItemFreshnessOperation = async (context: OperationContext, input: Opera
  */
 const refreshItemOperation = async (context: OperationContext, input: OperationInput) => {
   const db = context.env.DB;
-  let item = await getItem(db, input.path.id);
+  const item = await observedItem(context, input);
   if (!item) return failure('not-found', { error: "not found" });
   if (item.kind !== "thread" || item.status !== "public") return failure('conflict', { error: "only a published thread has quoted snapshots" });
   const body = (input.body as { note?: string });
@@ -338,7 +347,7 @@ const refreshItemOperation = async (context: OperationContext, input: OperationI
   if (!refreshed.length) {
     return failure('conflict', { error: behind.size ? "the newer versions could not be imported yet; try again after the next poll" : "every quote is already current" });
   }
-  item = (await getItem(db, item.id))!;
+  await assertCurrentRevision(db, item);
   return publishAndNotify(context, item, body.note?.trim() || null, { refreshed, resynced });
 };
 
@@ -351,18 +360,18 @@ const refreshItemOperation = async (context: OperationContext, input: OperationI
  * provider fetch (same DI pattern as importer/schedule.ts's runScheduledPoll).
  */
 const generateItemOperation = async (context: OperationContext, input: OperationInput) => {
-  const item = await getItem(context.env.DB, input.path.id);
+  const item = await observedItem(context, input);
   if (!item) return failure('not-found', { error: "not found" });
   const body = (input.body as { scope: number });
 
   const origin = siteOrigin(await getSettings(context.env.DB), context.url, normalizeMount(context.env.MOUNT));
   const result = await runGenerateScope(context.env, item, body.scope, undefined, origin);
   if (!result.ok) return modelFailure(result.body, result.status as 400 | 404 | 502);
-  return success({ text: result.text, model: result.model, content_md: result.content_md });
+  return success({ text: result.text, model: result.model, content_md: result.content_md, revision: result.revision });
 };
 
 const withdrawItemOperation = async (context: OperationContext, input: OperationInput) => {
-  const item = await getItem(context.env.DB, input.path.id);
+  const item = await observedItem(context, input);
   if (!item) return failure('not-found', { error: "not found" });
   if (item.status === "withdrawn") return failure('conflict', { error: "already withdrawn" });
   if (item.status !== "public") return failure('conflict', { error: "not published" });
@@ -379,11 +388,11 @@ const withdrawItemOperation = async (context: OperationContext, input: Operation
   // that must go out precisely when the reference has not changed, so it is the
   // one caller allowed to override the test (migration 0011).
   await sendMentionsFor(context, item.id, item.version, { force: true });
-  return success({ ok: true, version });
+  return success({ ok: true, version, revision: item.revision + 1 });
 };
 
 const pinItemOperation = async (context: OperationContext, input: OperationInput) => {
-  const item = await getItem(context.env.DB, input.path.id);
+  const item = await observedItem(context, input);
   if (!item) return failure('not-found', { error: "not found" });
   const version = Number(input.path.version);
   const row = await getVersion(context.env.DB, item.id, version);
@@ -391,8 +400,8 @@ const pinItemOperation = async (context: OperationContext, input: OperationInput
   // Endcap (withdrawal) versions have no content to cite (§2.8).
   if (versionState(row) === "withdrawn") return failure('conflict', { error: "cannot pin an endcap version" });
   const already = row.pinned === 1;
-  if (!already) await pinVersion(context.env.DB, item.id, version);
-  return success({ ok: true, version: version, already });
+  const revision = already ? item.revision : await pinVersion(context.env.DB, item.id, version, item.revision);
+  return success({ ok: true, version: version, already, revision });
 };
 
 /**
@@ -402,7 +411,7 @@ const pinItemOperation = async (context: OperationContext, input: OperationInput
  * model.restoreVersion().
  */
 const restoreItemOperation = async (context: OperationContext, input: OperationInput) => {
-  const item = await getItem(context.env.DB, input.path.id);
+  const item = await observedItem(context, input);
   if (!item) return failure('not-found', { error: "not found" });
   const body = (input.body as { version: number });
   try {
@@ -411,15 +420,15 @@ const restoreItemOperation = async (context: OperationContext, input: OperationI
     if (err instanceof RestoreVersionError) return failure('conflict', { error: err.message });
     throw err;
   }
-  return success({ ok: true, restored: body.version, publishesAs: item.version + 1 });
+  return success({ ok: true, restored: body.version, publishesAs: item.version + 1, revision: item.revision + 1 });
 };
 
 const deleteItemOperation = async (context: OperationContext, input: OperationInput) => {
   // Drafts only. Published items leave the public stream via withdraw — no delete exists.
-  const item = await getItem(context.env.DB, input.path.id);
+  const item = await observedItem(context, input);
   if (!item) return failure('not-found', { error: "not found" });
   if (item.version > 0) return failure('conflict', { error: "published items are withdrawn, not deleted" });
-  if (!await discardDraft(context.env.DB, item)) return failure('conflict', { error: "item changed while discarding; reload and try again" });
+  if (!await discardDraft(context.env.DB, item)) throw new ItemRevisionConflict(item.id, item.revision);
   return success({ ok: true, outcome: "discarded" });
 };
 
@@ -431,8 +440,11 @@ const uploadMediaOperation = async (context: OperationContext, input: OperationI
   if (!ext) return failure('unsupported-media', { error: `unsupported type ${file.mime || "(none)"}; allowed: png/jpg/gif/webp/svg` });
   if (file.bytes.byteLength > MEDIA_MAX_BYTES) return failure('too-large', { error: "file exceeds 5 MB" });
   const itemId = media?.itemId;
-  if (typeof itemId === "string" && itemId && !(await getItem(context.env.DB, itemId))) {
-    return failure('not-found', { error: "item_id not found" });
+  const item = itemId ? await getItem(context.env.DB, itemId) : null;
+  if (itemId && !item) return failure('not-found', { error: "item_id not found" });
+  if (item) {
+    if (media.expectedRevision === undefined) return failure('invalid-input', { error: 'expectedRevision required when attaching media' });
+    assertItemRevision(item, media.expectedRevision);
   }
   const bytes = file.bytes;
   // The studio sends inline=true for an upload it places in the text
@@ -443,26 +455,26 @@ const uploadMediaOperation = async (context: OperationContext, input: OperationI
   // there, store nothing.
   const sha256 = typeof itemId === "string" && itemId ? hex(new Uint8Array(await crypto.subtle.digest("SHA-256", bytes))) : null;
   const existing = sha256 ? await findDuplicateMedia(context.env.DB, itemId as string, sha256, file.mime, inline) : null;
-  if (existing) return success({ id: existing.id, url: existing.r2_key, mime: existing.mime, duplicate: true });
+  if (existing) return success({ id: existing.id, url: existing.r2_key, mime: existing.mime, duplicate: true, ...(item ? { revision: item.revision } : {}) });
   const id = newMediaId();
   const r2Key = `media/${id}.${ext}`;
   await context.env.MEDIA.put(r2Key, bytes, { httpMetadata: { contentType: file.mime } });
   const alt = media?.alt;
-  const row = await insertMedia(context.env.DB, {
-    id,
-    item_id: typeof itemId === "string" && itemId ? itemId : null,
-    r2_key: r2Key,
-    mime: file.mime,
-    alt: typeof alt === "string" ? alt : null,
-    inline,
-  }, context.access !== null && !context.access.scope.includes('owner:publish'), sha256);
+  let row;
+  try {
+    row = await insertMedia(context.env.DB, {
+      id, item_id: item?.id ?? null, r2_key: r2Key, mime: file.mime,
+      alt: typeof alt === "string" ? alt : null, inline,
+    }, context.access !== null && !context.access.scope.includes('owner:publish'), sha256, item?.revision);
+  } catch (error) {
+    await context.env.MEDIA.delete(r2Key);
+    throw error;
+  }
   if (!row) {
     await context.env.MEDIA.delete(r2Key);
     return failure('forbidden', { error: 'owner:publish required to attach media to a published item' }, ['owner:draft', 'owner:publish']);
   }
-  // A published item lists it from its next version on (migration 0031).
-  if (row.item_id) await context.env.DB.prepare("UPDATE items SET dirty = 1 WHERE id = ? AND status = 'public'").bind(row.item_id).run();
-  return created({ id: row.id, url: row.r2_key, mime: row.mime }, `${deploymentPaths(context.env.MOUNT).publicBase}/${row.r2_key}`);
+  return created({ id: row.id, url: row.r2_key, mime: row.mime, ...(item ? { revision: item.revision + 1 } : {}) }, `${deploymentPaths(context.env.MOUNT).publicBase}/${row.r2_key}`);
 };
 
 /**
@@ -478,19 +490,29 @@ const deleteMediaOperation = async (context: OperationContext, input: OperationI
   const row = await getMedia(db, input.path.id);
   if (!row) return failure('not-found', { error: "not found" });
   if ((await getSettings(db)).avatar_media_id === row.id) return failure('conflict', { error: "this is the avatar; change it in Settings" });
-  // An appended attachment is in no version's text, only in its list.
-  const published = await db.prepare("SELECT 1 WHERE EXISTS (SELECT 1 FROM version_media WHERE media_id = ?) OR EXISTS (SELECT 1 FROM versions WHERE instr(content_html, ?) > 0)").bind(row.id, row.r2_key).first();
-  if (published) {
-    // The working copy now differs from the live version, which still lists it.
-    await db.batch([
-      db.prepare("UPDATE items SET dirty = 1 WHERE id = ? AND status = 'public' AND EXISTS (SELECT 1 FROM version_media WHERE item_id = ? AND version = items.version AND media_id = ?)").bind(row.item_id, row.item_id, row.id),
-      db.prepare("UPDATE media SET item_id = NULL WHERE id = ?").bind(row.id),
-    ]);
-    return success({ ok: true, outcome: "detached" as const });
+  const item = row.item_id ? await getItem(db, row.item_id) : null;
+  const expectedRevision = (input.body as { expectedRevision?: number }).expectedRevision;
+  if (!item && expectedRevision !== undefined) return failure('conflict', { error: 'attachment changed; reload and try again', code: 'revision-conflict', expectedRevision, mediaId: row.id });
+  if (item) {
+    if (expectedRevision === undefined) return failure('invalid-input', { error: 'expectedRevision required when removing an attachment' });
+    assertItemRevision(item, expectedRevision);
   }
-  await context.env.MEDIA.delete(row.r2_key);
-  await db.prepare("DELETE FROM media WHERE id = ?").bind(row.id).run();
-  return success({ ok: true, outcome: "deleted" as const });
+  const guard = "id = ? AND item_id IS ? AND (? IS NULL OR EXISTS (SELECT 1 FROM items WHERE id = ? AND revision = ?)) AND NOT EXISTS (SELECT 1 FROM settings WHERE key = 'avatar_media_id' AND value = ?)";
+  const args = [row.id, row.item_id, row.item_id, row.item_id, item?.revision ?? 0, row.id];
+  const retained = "EXISTS (SELECT 1 FROM version_media WHERE media_id = ?) OR EXISTS (SELECT 1 FROM versions WHERE instr(content_html, ?) > 0)";
+  const committed = await db.batch([
+    db.prepare(`DELETE FROM media WHERE ${guard} AND NOT (${retained})`).bind(...args, row.id, row.r2_key),
+    db.prepare(`UPDATE media SET item_id = NULL WHERE ${guard} AND (${retained})`).bind(...args, row.id, row.r2_key),
+    db.prepare("UPDATE items SET dirty = CASE WHEN version > 0 THEN 1 ELSE dirty END, revision = revision + 1 WHERE id = ? AND revision = ? AND NOT EXISTS (SELECT 1 FROM media WHERE id = ? AND item_id = ?) AND NOT EXISTS (SELECT 1 FROM settings WHERE key = 'avatar_media_id' AND value = ?)")
+      .bind(item?.id ?? null, item?.revision ?? 0, row.id, row.item_id, row.id),
+  ]);
+  if (!committed[0].meta.changes && !committed[1].meta.changes) {
+    if (item) throw new ItemRevisionConflict(item.id, item.revision);
+    return failure('conflict', { error: 'media changed; reload and try again' });
+  }
+  const outcome = committed[0].meta.changes ? 'deleted' : 'detached';
+  if (outcome === 'deleted') await context.env.MEDIA.delete(row.r2_key);
+  return success({ ok: true, outcome, ...(item ? { revision: item.revision + 1 } : {}) });
 };
 
 const SETTINGS_KEYS = [

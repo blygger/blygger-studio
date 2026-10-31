@@ -1,3 +1,4 @@
+import { testRevisionBody } from './helpers.ts';
 /**
  * R01/R02: imported markup and attribution fields are data even when quoted by
  * the owner. OWASP XSS guidance requires safe HTML and attribute contexts:
@@ -30,7 +31,7 @@ async function setup(html: string, page = 'post') {
   expect(login.status).toBe(302); const cookie = login.headers.get('set-cookie')!.split(';')[0];
   await env.DB.prepare("INSERT INTO subscriptions(id,kind,origin,feed_url,title,created) VALUES ('review-native','blyg','https://publisher.example/','https://publisher.example/feed','Publisher','2026-10-01')").run();
   await env.DB.prepare("INSERT INTO imported_items(subscription_id,remote_id,kind,state,version,observed_at,content_html,l0,page) VALUES ('review-native',?,'fragment','current',1,'2026-10-01',?,0,?)").bind(sourceId, html, page).run();
-  const owner = (path: string, method = 'GET', body?: unknown) => receive(path, { method, headers: { cookie, 'Content-Type': 'application/json' }, ...(body === undefined ? {} : { body: JSON.stringify(body) }) });
+  const owner = async (path: string, method = 'GET', body?: unknown) => { body = await testRevisionBody(method, path, body); return receive(path, { method, headers: { cookie, 'Content-Type': 'application/json' }, ...(body === undefined ? {} : { body: JSON.stringify(body) }) }); };
   return { owner, cookie };
 }
 // Public pages carry their own trusted inline scripts, so script elements are
@@ -133,7 +134,7 @@ it.each([
   const minted = await f.request('/blyg/api/authorizations', { method: 'POST', headers: { cookie: f.owner, 'Content-Type': 'application/json' }, body: JSON.stringify({ name: 'citation drafter', scope: ['owner:draft'], resource: 'api' }) });
   expect(minted.status).toBe(200);
   const { access_token } = await minted.json() as { access_token: string };
-  const draft = (path: string, method: string, body: unknown) => f.request(path, { method, headers: { Authorization: 'Bearer ' + access_token, 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+  const draft = async (path: string, method: string, body: unknown) => f.request(path, { method, headers: { Authorization: 'Bearer ' + access_token, 'Content-Type': 'application/json' }, body: JSON.stringify(await testRevisionBody(method, path, body)) });
   const created = await draft('/blyg/api/items', 'POST', { kind: 'thread', content_md: 'A response' });
   expect(created.status).toBe(201);
   const { id } = await created.json() as { id: string };
@@ -208,7 +209,7 @@ it('no manage-writable setting can activate markup on any public page', async ()
   const minted = await f.request('/blyg/api/authorizations', { method: 'POST', headers: { cookie: f.owner, 'Content-Type': 'application/json' }, body: JSON.stringify({ name: 'settings sweep', scope: ['owner:manage'], resource: 'api' }) });
   expect(minted.status).toBe(200);
   const { access_token } = await minted.json() as { access_token: string };
-  const owner = (path: string, method: string, body?: unknown) => f.request(path, { method, headers: { cookie: f.owner, 'Content-Type': 'application/json' }, ...(body === undefined ? {} : { body: JSON.stringify(body) }) });
+  const owner = async (path: string, method: string, body?: unknown) => { body = await testRevisionBody(method, path, body); return f.request(path, { method, headers: { cookie: f.owner, 'Content-Type': 'application/json' }, ...(body === undefined ? {} : { body: JSON.stringify(body) }) }); };
   const fragment = await (await owner('/blyg/api/items', 'POST', { content_md: 'Sweep fragment' })).json() as { id: string };
   const thread = await (await owner('/blyg/api/items', 'POST', { kind: 'thread', content_md: 'Sweep thread' })).json() as { id: string };
   for (const id of [fragment.id, thread.id]) expect((await owner(`/blyg/api/items/${id}/publish`, 'POST')).status).toBe(200);
@@ -264,7 +265,7 @@ it('no delegated item, collection or blogroll text can activate markup on public
   for (const body of [{ content_md: payload }, { kind: 'thread', content_md: payload, stub_of: { url: 'https://cited.example/p', cited: { source: payload, author: payload, excerpt: payload, url: 'https://cited.example/p', retrieved: '2026-10-01T00:00:00Z' } } }]) {
     const created = await as(draft, '/blyg/api/items', 'POST', body); expect(created.status).toBe(201);
     const { id } = await created.json() as { id: string }; ids.push(id);
-    expect((await f.request(`/blyg/api/items/${id}/publish`, { method: 'POST', headers: { cookie: f.owner } })).status).toBe(200);
+    expect((await f.request(`/blyg/api/items/${id}/publish`, { method: 'POST', headers: { cookie: f.owner, 'Content-Type': 'application/json' }, body: JSON.stringify(await testRevisionBody('POST', `/blyg/api/items/${id}/publish`)) })).status).toBe(200);
   }
   for (const path of ['/blyg/', '/blyg/archive/', `/blyg/f/${ids[0]}/`, `/blyg/t/${ids[1]}/`, `/blyg/h/${slug}/`]) {
     const page = await f.request(path); expect(page.status, path).toBe(200);

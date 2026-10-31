@@ -1,3 +1,4 @@
+import { fixtureJson } from './api-fixture';
 import { test, expect, type Page } from './fixture';
 
 // Browsing the thicket from the reader (0.49.0): every quoted layer, at any
@@ -13,13 +14,7 @@ async function login(page: Page) {
   await expect(page.locator('#composer-text')).toBeVisible();
 }
 const api = (page: Page, method: string, path: string, body?: unknown) =>
-  page.evaluate(
-    async ({ method, path, body }) => {
-      const response = await fetch(`/api${path}`, { method, headers: { 'content-type': 'application/json' }, ...(body === undefined ? {} : { body: JSON.stringify(body) }) });
-      return { status: response.status, json: await response.json().catch(() => null) };
-    },
-    { method, path, body },
-  );
+  page.evaluate(fixtureJson, { method, path: `/api${path}`, body });
 async function publish(page: Page, content_md: string, kind: 'fragment' | 'thread') {
   const { json } = await api(page, 'POST', '/items', { content_md, kind });
   expect((await api(page, 'POST', `/items/${json.id}/publish`)).status).toBe(200);

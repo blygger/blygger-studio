@@ -1,3 +1,4 @@
+import { ItemRevisionConflict } from './item-revision.ts';
 import { versionState } from './version-state.ts';
 // The optional change classifier (session 49; Venkat's "Jev-class super cheap
 // classifier" post). Off by default: it runs only when Settings → AI names a
@@ -87,11 +88,12 @@ export interface ChangeClassRow {
   content_hash: string;
 }
 
-async function store(db: D1Database, row: ChangeClassRow): Promise<void> {
-  await db
-    .prepare("INSERT OR REPLACE INTO change_class (item_id, version, category, model, probability, classified_at, overridden, content_hash) VALUES (?, ?, ?, ?, ?, ?, ?, ?)")
-    .bind(row.item_id, row.version, row.category, row.model, row.probability, row.classified_at, row.overridden, row.content_hash)
+async function store(db: D1Database, row: ChangeClassRow, item?: ItemRow): Promise<void> {
+  const committed = await db
+    .prepare("INSERT OR REPLACE INTO change_class (item_id, version, category, model, probability, classified_at, overridden, content_hash) SELECT ?, ?, ?, ?, ?, ?, ?, ? WHERE ? IS NULL OR EXISTS (SELECT 1 FROM items WHERE id = ? AND revision = ?)")
+    .bind(row.item_id, row.version, row.category, row.model, row.probability, row.classified_at, row.overridden, row.content_hash, item?.id ?? null, item?.id ?? null, item?.revision ?? 0)
     .run();
+  if (item && !committed.meta.changes) throw new ItemRevisionConflict(item.id, item.revision);
 }
 
 /**
@@ -118,12 +120,16 @@ export async function classifyChange(
   const base = { item_id: item.id, version, classified_at: nowIso(), overridden: 0, content_hash: hash };
   // The same words again: a republish, decided here with no model call.
   if (hash === prior.content_hash) {
-    await store(env.DB, { ...base, category: "refresh", model: null, probability: null });
+    await store(env.DB, { ...base, category: "refresh", model: null, probability: null }, item);
     return { ok: true, version, category: "refresh", model: null, probability: null };
   }
   const none = async (reason: string): Promise<ClassifyResult> => {
     // An older classification of this version must not outlive a failed retry.
-    await env.DB.prepare("DELETE FROM change_class WHERE item_id = ? AND version = ?").bind(item.id, version).run();
+    const committed = await env.DB.batch([
+      env.DB.prepare("DELETE FROM change_class WHERE item_id = ? AND version = ? AND EXISTS (SELECT 1 FROM items WHERE id = ? AND revision = ?)").bind(item.id, version, item.id, item.revision),
+      env.DB.prepare("SELECT revision FROM items WHERE id = ? AND revision = ?").bind(item.id, item.revision),
+    ]);
+    if (!committed[1].results.length) throw new ItemRevisionConflict(item.id, item.revision);
     return { ok: true, version, category: null, model: null, probability: null, reason };
   };
   let answer;
@@ -135,7 +141,7 @@ export async function classifyChange(
     throw e;
   }
   if (!answer || !isChangeCategory(answer.choice) || answer.choice === "refresh") return none("the model gave no usable answer");
-  await store(env.DB, { ...base, category: answer.choice, model, probability: answer.probability });
+  await store(env.DB, { ...base, category: answer.choice, model, probability: answer.probability }, item);
   return { ok: true, version, category: answer.choice, model, probability: answer.probability };
 }
 

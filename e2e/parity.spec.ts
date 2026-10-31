@@ -55,8 +55,8 @@ for (const kind of ['fragment', 'thread'] as const) test(`${kind} discard change
   await login(page);
   const id = await page.evaluate(async kind => {
     const item = await (await fetch('/api/items', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ kind, content_md: 'published text' }) })).json();
-    await fetch(`/api/items/${item.id}/publish`, { method: 'POST' });
-    await fetch(`/api/items/${item.id}`, { method: 'PATCH', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ content_md: 'unpublished edit' }) });
+    const published = await (await fetch(`/api/items/${item.id}/publish`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ expectedRevision: item.revision }) })).json();
+    await fetch(`/api/items/${item.id}`, { method: 'PATCH', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ content_md: 'unpublished edit', expectedRevision: published.revision }) });
     return item.id as string;
   }, kind);
   await page.goto(`/studio/edit/${id}`);
@@ -155,7 +155,7 @@ test('palette pages all candidates and applies bracket grammar in each composer'
   await page.evaluate(async token => {
     for (let i = 0; i < 23; i++) {
       const item = await (await fetch('/api/items', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ content_md: `${token} ${i}` }) })).json();
-      await fetch(`/api/items/${item.id}/publish`, { method: 'POST' });
+      await fetch(`/api/items/${item.id}/publish`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ expectedRevision: item.revision }) });
     }
   }, token);
   await page.reload();

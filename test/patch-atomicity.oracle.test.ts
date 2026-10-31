@@ -1,3 +1,4 @@
+import { testItemRevision } from './helpers.ts';
 /**
  * Rejecting a patch must leave all its requested changes unapplied.
  * A successful patch changes only supplied mutable fields. Status alone cannot
@@ -40,7 +41,7 @@ async function patch(input: { text: boolean; kind: boolean; responses: boolean; 
   const client = clientFor(await login());
   const draft = await unwrap(BlyggerApi.createItem({ client, body: { kind: input.invalid === "domain" ? "fragment" : "thread", content_md: "before" } }));
   const before = await unwrap(BlyggerApi.getItem({ client, path: { id: draft.id } }));
-  const body: Record<string, unknown> = {};
+  const body: Record<string, unknown> = { expectedRevision: before.revision };
   if (input.text) body.content_md = "after";
   if (input.kind) body.kind = "fragment";
   if (input.responses) body.responses = "hide";
@@ -49,17 +50,17 @@ async function patch(input: { text: boolean; kind: boolean; responses: boolean; 
   if (input.invalid === "stub") body.stub_of = { url: "not a URL" };
   if (input.invalid === "immutable") body.forked_from = null;
   if (input.invalid === "domain") body.stub_of = { url: "https://valid.example/" };
-  const result = await BlyggerApi.updateItem({ client, path: { id: draft.id }, body: body as never });
+  const result = await BlyggerApi.updateItem({ client, path: { id: draft.id }, body: { ...(body as Record<string, unknown>), expectedRevision: await testItemRevision(draft.id) } });
   atCheckpoint("PATCH acceptance", () => expect(result.response!.status).toBe(input.invalid === "none" ? 200 : 400));
   const after = await unwrap(BlyggerApi.getItem({ client, path: { id: draft.id } }));
   // On rejection compare the entire owner projection, including timestamps.
   // On acceptance normalize only updated when this patch may change it. The expected
   // object then replaces explicit requested fields; omitted fields stay unchanged.
   if (input.invalid !== "none") atCheckpoint("PATCH rejection preserves all fields", () => expect(after).toEqual(before));
-  else atCheckpoint("PATCH changes only requested fields", () => expect(input.text || input.kind || input.clear ? { ...after, updated: before.updated } : after).toEqual({ ...before, ...(input.text ? { content_md: "after" } : {}), ...(input.kind ? { kind: "fragment", authored_kind: "fragment" } : {}), ...(input.responses ? { responses: "hide" } : {}) }));
+  else atCheckpoint("PATCH changes only requested fields", () => expect(input.text || input.kind || input.clear ? { ...after, updated: before.updated } : after).toEqual({ ...before, revision: before.revision + Number(input.text || input.kind || input.responses || input.clear), ...(input.text ? { content_md: "after" } : {}), ...(input.kind ? { kind: "fragment", authored_kind: "fragment" } : {}), ...(input.responses ? { responses: "hide" } : {}) }));
 }
 describe("PATCH atomicity oracle", () => {
-  it.each([false, true])("guards stored text only when provenance validation used it (replacement text: %s)", async replacement => {
+  it.each([false, true])("rejects every stale patch even when it supplies replacement text (replacement text: %s)", async replacement => {
     const cookie = await login();
     const draft = await unwrap(BlyggerApi.createItem({ client: clientFor(cookie), body: { content_md: "[TK]instruction[=]output[/TK]" } }));
     let reached = 0;
@@ -72,7 +73,7 @@ describe("PATCH atomicity oracle", () => {
           const bound = statement.bind(...values);
           return { first: async () => {
             reached++;
-            await unwrap(BlyggerApi.updateItem({ client: clientFor(cookie), path: { id: draft.id }, body: { content_md: "no scopes remain" } }));
+            await unwrap(BlyggerApi.updateItem({ client: clientFor(cookie), path: { id: draft.id }, body: { ...({ content_md: "no scopes remain" }), expectedRevision: await testItemRevision(draft.id) } }));
             concurrent = await unwrap(BlyggerApi.getItem({ client: clientFor(cookie), path: { id: draft.id } }));
             return bound.first();
           } };
@@ -82,17 +83,16 @@ describe("PATCH atomicity oracle", () => {
       return typeof value === "function" ? value.bind(target) : value;
     } });
     const context = createExecutionContext();
-    const body = { provenance: [{ sources: [], model: "client-model" }], ...(replacement ? { content_md: "[TK]replacement[=]new output[/TK]" } : {}) };
+    const body = { expectedRevision: draft.revision, provenance: [{ sources: [], model: "client-model" }], ...(replacement ? { content_md: "[TK]replacement[=]new output[/TK]" } : {}) };
     const response = await ownerApi.fetch(new Request(`${BASE}/items/${draft.id}`, {
       method: "PATCH", headers: { cookie, "content-type": "application/json" }, body: JSON.stringify(body),
     }), { ...env, DB: db } as Env, context);
     await waitOnExecutionContext(context);
 
     expect(reached).toBe(1);
-    expect(response.status).toBe(replacement ? 200 : 409);
+    expect(response.status).toBe(409);
     const after = await unwrap(BlyggerApi.getItem({ client: clientFor(cookie), path: { id: draft.id } }));
-    if (replacement) expect(after).toMatchObject(body);
-    else expect(after).toEqual(concurrent);
+    expect(after).toEqual(concurrent);
   });
   it("exercises every field and each rejection branch", async () => {
     for (const invalid of ["none", "responses", "stub", "immutable", "domain"]) await patch({ text: true, kind: true, responses: true, clear: true, invalid });
@@ -108,7 +108,7 @@ describe("PATCH atomicity oracle", () => {
   it.each(["kind", "stub", "withdraw"])("rejects the complete patch when a concurrent %s change invalidates its premise", async boundary => {
     const cookie = await login(), client = clientFor(cookie);
     const draft = await unwrap(BlyggerApi.createItem({ client, body: { kind: "thread", content_md: "before" } }));
-    if (boundary === "withdraw") await unwrap(BlyggerApi.publishItem({ client, path: { id: draft.id } }));
+    if (boundary === "withdraw") await unwrap(BlyggerApi.publishItem({ client, path: { id: draft.id } , body: { expectedRevision: await testItemRevision(draft.id) } }));
     let reached = 0;
     let concurrent: unknown;
     const db = new Proxy(env.DB, { get(target, key) {
@@ -119,8 +119,8 @@ describe("PATCH atomicity oracle", () => {
           const bound = statement.bind(...values);
           return { first: async () => {
             reached++;
-            if (boundary === "withdraw") await unwrap(BlyggerApi.withdrawItem({ client, path: { id: draft.id } }));
-            else await unwrap(BlyggerApi.updateItem({ client, path: { id: draft.id }, body: boundary === "kind" ? { kind: "fragment" } : { stub_of: { url: "https://other.example/" } } }));
+            if (boundary === "withdraw") await unwrap(BlyggerApi.withdrawItem({ client, path: { id: draft.id } , body: { expectedRevision: await testItemRevision(draft.id) } }));
+            else await unwrap(BlyggerApi.updateItem({ client, path: { id: draft.id }, body: { ...(boundary === "kind" ? { kind: "fragment" } : { stub_of: { url: "https://other.example/" } }), expectedRevision: await testItemRevision(draft.id) } }));
             concurrent = await unwrap(BlyggerApi.getItem({ client, path: { id: draft.id } }));
             return bound.first();
           } };
@@ -130,7 +130,7 @@ describe("PATCH atomicity oracle", () => {
       return typeof value === "function" ? value.bind(target) : value;
     } });
     const context = createExecutionContext();
-    const response = await ownerApi.fetch(new Request(`${BASE}/items/${draft.id}`, { method: "PATCH", headers: { cookie, "content-type": "application/json" }, body: JSON.stringify({ content_md: "must not persist", responses: "hide" }) }), { ...env, DB: db } as unknown as Env, context);
+    const response = await ownerApi.fetch(new Request(`${BASE}/items/${draft.id}`, { method: "PATCH", headers: { cookie, "content-type": "application/json" }, body: JSON.stringify({ content_md: "must not persist", responses: "hide", expectedRevision: await testItemRevision(draft.id) }) }), { ...env, DB: db } as unknown as Env, context);
     await waitOnExecutionContext(context);
     expect(reached).toBe(1); expect(response.status).toBe(409);
     expect(await unwrap(BlyggerApi.getItem({ client, path: { id: draft.id } }))).toEqual(concurrent);

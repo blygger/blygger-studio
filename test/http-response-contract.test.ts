@@ -1,3 +1,4 @@
+import { testItemRevision } from './helpers.ts';
 import { SELF, env, createExecutionContext, waitOnExecutionContext } from 'cloudflare:test';
 import { describe, expect, it } from 'vitest';
 import { makeApp } from '../src/index.ts';
@@ -58,7 +59,7 @@ describe('public HTTP response contract', () => {
     const { cookie, id } = await publishedFixture();
     const form = new FormData();
     form.set('file', new File(['fixed image bytes'], 'public.png', { type: 'image/png' }));
-    form.set('item_id', id);
+    (form.set('item_id', id), form.set('expectedRevision', String(await testItemRevision(id))));
     const uploaded = await request('/blyg/api/media', { method: 'POST', headers: { cookie }, body: form });
     expect(uploaded.status).toBe(201);
     const media = await uploaded.json<{ url: string }>();

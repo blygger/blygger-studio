@@ -78,7 +78,7 @@ test('a draft that only quotes or links shows what it quotes, not "(empty draft)
   const words = `${info.project.name} quoted target words`;
   const id = await page.evaluate(async (content_md) => {
     const item = await (await fetch('/api/items', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ content_md }) })).json();
-    await fetch(`/api/items/${item.id}/publish`, { method: 'POST' });
+    await fetch(`/api/items/${item.id}/publish`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ expectedRevision: item.revision }) });
     return item.id as string;
   }, words);
   for (const [kind, content_md] of [['thread', `![[${id}]]`], ['fragment', `[[${id}]]`]] as const) {

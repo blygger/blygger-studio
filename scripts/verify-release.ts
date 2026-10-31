@@ -61,6 +61,17 @@ try {
   const draft = await sdk.unwrap(sdk.BlyggerApi.createItem({ client, body: { content_md: "Packaged Node SDK" } }));
   const detail = await sdk.unwrap(sdk.BlyggerApi.getItem({ client, path: { id: draft.id } }));
   assert.equal(detail.content_md, "Packaged Node SDK");
+  assert.equal(draft.revision, 1);
+  const edited = await sdk.unwrap(sdk.BlyggerApi.updateItem({ client, path: { id: draft.id }, body: { content_md: "Conditional installed SDK edit", expectedRevision: draft.revision } }));
+  assert.equal(edited.revision, 2);
+  const stale = await sdk.BlyggerApi.publishItem({ client, path: { id: draft.id }, body: { expectedRevision: draft.revision } });
+  assert.equal(stale.response.status, 409);
+  assert.equal(stale.error.code, 'revision-conflict');
+  const retained = await sdk.unwrap(sdk.BlyggerApi.getItem({ client, path: { id: draft.id } }));
+  assert.equal(retained.content_md, "Conditional installed SDK edit");
+  assert.equal(retained.version, 0);
+  assert.equal(retained.revision, 2);
+
   const media = await sdk.unwrap(sdk.BlyggerApi.uploadMedia({ client, body: { file: new File([new Uint8Array([1, 2, 3])], "image.png", { type: "image/png" }) } }));
   assert.equal(media.mime, "image/png");
   const unauthorized = await sdk.BlyggerApi.getSettings({ client: sdk.createBlyggerClient({ baseUrl: baseUrl + "/api" }) });

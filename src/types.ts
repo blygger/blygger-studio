@@ -53,6 +53,8 @@ export interface Env {
 
 export interface ItemRow {
   id: string;
+  /** Private concurrency identity, independent of the public version. */
+  revision: number;
   kind: "fragment" | "thread" | "withdrawn";
   status: "draft" | "public" | "withdrawn";
   created: string;
@@ -64,7 +66,7 @@ export interface ItemRow {
    * Working-copy-side cache of per-scope TK generation provenance (migration
    * 0005) — JSON array of `ScopeProvenance | null`, positionally aligned to
    * the scope order in `content_md` as of the last /generate call. Not a
-   * wire artifact; see model.ts getTkProvenance/setTkProvenance.
+   * wire artifact; see model.ts getTkProvenance and item-revision.ts installWorkingCopy.
    */
   tk_provenance_json: string | null;
   /**

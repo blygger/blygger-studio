@@ -1,3 +1,4 @@
+import { testItemRevision } from './helpers.ts';
 import { env, SELF } from 'cloudflare:test';
 import { describe, expect, it } from 'vitest';
 import { apiJson, BASE, getPublic, login } from './helpers.ts';
@@ -56,7 +57,7 @@ describe('explicit publication state', () => {
     const id = (await apiJson(cookie, 'POST', '/blyg/api/items', { kind, content_md: '' })).json.id;
     const form = new FormData();
     form.set('file', new File(['media-only bytes'], 'only.png', { type: 'image/png' }));
-    form.set('item_id', id);
+    (form.set('item_id', id), form.set('expectedRevision', String(await testItemRevision(id))));
     const uploaded = await SELF.fetch(`${BASE}/blyg/api/media`, { method: 'POST', headers: { cookie }, body: form });
     expect(uploaded.status).toBe(201);
     const media = await uploaded.json<{ id: string; url: string }>();

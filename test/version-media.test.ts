@@ -1,3 +1,4 @@
+import { testItemRevision } from './helpers.ts';
 // Attachments per version (blygger-studio#7, migration 0031). §5.4 makes media
 // part of a version: each version's document lists its own `media`, a later
 // version may leave one out, and the earlier versions keep serving its bytes.
@@ -10,7 +11,7 @@ import { getItem, restoreVersion } from "../src/model.ts";
 async function upload(cookie: string, item: string, bytes: number[], extra: Record<string, string> = {}) {
   const form = new FormData();
   form.set("file", new File([new Uint8Array([0x89, 0x50, 0x4e, 0x47, ...bytes])], "p.png", { type: "image/png" }));
-  form.set("item_id", item);
+  (form.set("item_id", item), form.set('expectedRevision', String(await testItemRevision(item))));
   for (const [k, v] of Object.entries(extra)) form.set(k, v);
   const res = await SELF.fetch(`${BASE}/blyg/api/media`, { method: "POST", headers: { cookie }, body: form });
   expect(res.status).toBe(201);
@@ -135,7 +136,7 @@ describe("attachments per version (studio#7)", () => {
     await apiJson(cookie, "PATCH", `/blyg/api/items/${id}`, { content_md: "concurrent edit" });
     const before = (await apiJson(cookie, "GET", `/blyg/api/items/${id}`)).json;
 
-    await expect(restoreVersion(env.DB, stale, 2)).rejects.toThrow("item changed while restoring");
+    await expect(restoreVersion(env.DB, stale, 2)).rejects.toThrow("item revision conflict");
     expect((await apiJson(cookie, "GET", `/blyg/api/items/${id}`)).json).toEqual(before);
     expect(before.media.map((m: { id: string }) => m.id)).toEqual([added.id]);
     expect(await env.DB.prepare("SELECT item_id FROM media WHERE id = ?").bind(original.id).first()).toEqual({ item_id: null });

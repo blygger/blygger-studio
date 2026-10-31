@@ -1,12 +1,10 @@
+import { fixtureJson } from './api-fixture';
 import { test, expect, type Page } from './fixture.ts';
 
 // The links section (session 47): chosen in Settings, shown on every public
 // page. The form sends every field back, so it must save with the section set.
 const api = (page: Page, method: string, path: string, body?: unknown) =>
-  page.evaluate(async ([method, path, body]) => {
-    const res = await fetch(path as string, { method: method as string, headers: { 'content-type': 'application/json' }, body: body === undefined ? undefined : JSON.stringify(body) });
-    return { status: res.status, json: await res.json().catch(() => null) };
-  }, [method, path, body] as const);
+  page.evaluate(fixtureJson, { method, path, body });
 
 test('threads and links chosen in Settings show on the public page', async ({ page, browser }) => {
   const errors: string[] = [];

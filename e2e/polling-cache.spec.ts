@@ -87,8 +87,8 @@ test('a newly verified mention reaches the open mentions view in one poll, and a
   await page.getByRole('button', { name: 'log in', exact: true }).click(); await expect(page.locator('#composer-text')).toBeVisible();
   const marker = `Live mention target ${crypto.randomUUID()}`;
   const item = await page.evaluate(async content_md => {
-    const created = await (await fetch('/api/items', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ content_md, kind: 'thread' }) })).json() as { id: string };
-    await fetch(`/api/items/${created.id}/publish`, { method: 'POST' });
+    const created = await (await fetch('/api/items', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ content_md, kind: 'thread' }) })).json() as { id: string; revision: number };
+    await fetch(`/api/items/${created.id}/publish`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ expectedRevision: created.revision }) });
     return created.id;
   }, marker);
   await page.goto('/studio/mentions');

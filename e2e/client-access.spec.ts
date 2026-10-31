@@ -156,7 +156,7 @@ test('draft-only SVG uploads render as images without borrowing owner authority'
     await page.waitForLoadState('networkidle');
     await expect(page.locator('svg')).not.toHaveAttribute('data-script-ran', 'yes');
   } finally {
-    await page.request.delete('/api/media/' + media.id, { headers: { Origin: 'http://127.0.0.1:8787' } });
+    await page.request.delete('/api/media/' + media.id, { headers: { Origin: 'http://127.0.0.1:8787' }, data: {} });
     await page.request.delete('/api/authorizations/' + authorization.id, { headers: { Origin: 'http://127.0.0.1:8787' } });
   }
 });

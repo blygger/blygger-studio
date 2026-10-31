@@ -24,7 +24,7 @@ it.each(['', '/blyg', '/notes/b'])('uses one API address at mount %s', async mou
   expect(created.headers.get('location')).toBe(mount + '/api/items/' + (await created.json<{ id: string }>()).id);
   const caps = await unwrap(BlyggerApi.getCapabilities({ client }));
   expect(caps.endpoints.api).toBe(api);
-  expect(caps.contractVersion).toBe('2.0.0');
+  expect(caps.contractVersion).toBe('3.0.0');
   const document = await (await fetch(api + '/openapi.json', { headers: { cookie } })).json<any>();
   expect(document.servers).toEqual([{ url: api }]);
   expect(document.paths['/items/{id}']).toBeTruthy();

@@ -15,7 +15,7 @@ async function publish(page: Page, md: string, kind = 'fragment'): Promise<strin
   return page.evaluate(async ({ md, kind }) => {
     const json = { 'content-type': 'application/json' };
     const item = await (await fetch('/api/items', { method: 'POST', headers: json, body: JSON.stringify({ content_md: md, kind }) })).json();
-    await fetch(`/api/items/${item.id}/publish`, { method: 'POST', headers: json, body: '{}' });
+    await fetch(`/api/items/${item.id}/publish`, { method: 'POST', headers: json, body: JSON.stringify({ expectedRevision: item.revision }) });
     return item.id as string;
   }, { md, kind });
 }

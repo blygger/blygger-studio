@@ -1,3 +1,4 @@
+import { testItemRevision } from './helpers.ts';
 import { SELF, env } from "cloudflare:test";
 import { describe, expect, it } from "vitest";
 import { BlyggerApi, unwrap, BlyggerApiError, createBlyggerClient } from "../sdk/dist/browser.js";
@@ -16,19 +17,19 @@ describe("generated SDK against the real Worker", () => {
     const created = await BlyggerApi.createItem({ client, body: { content_md: "SDK draft" }, throwOnError: true });
     expect(created.response.status).toBe(201);
     const id = created.data.id;
-    await unwrap(BlyggerApi.updateItem({ client: client, path: { id }, body: { content_md: "SDK saved" } }));
+    await unwrap(BlyggerApi.updateItem({ client: client, path: { id }, body: { ...({ content_md: "SDK saved" }), expectedRevision: await testItemRevision(id) } }));
     expect((await unwrap(BlyggerApi.getItem({ client: client, path: { id } }))).content_md).toBe("SDK saved");
-    await unwrap(BlyggerApi.publishItem({ client: client, path: { id } }));
-    await unwrap(BlyggerApi.pinItem({ client: client, path: { id, version: 1 } }));
-    await unwrap(BlyggerApi.updateItem({ client: client, path: { id }, body: { content_md: "changed" } }));
-    await unwrap(BlyggerApi.restoreItem({ client: client, path: { id }, body: { version: 1 } }));
+    await unwrap(BlyggerApi.publishItem({ client: client, path: { id } , body: { expectedRevision: await testItemRevision(id) } }));
+    await unwrap(BlyggerApi.pinItem({ client: client, path: { id, version: 1 } , body: { expectedRevision: await testItemRevision(id) } }));
+    await unwrap(BlyggerApi.updateItem({ client: client, path: { id }, body: { ...({ content_md: "changed" }), expectedRevision: await testItemRevision(id) } }));
+    await unwrap(BlyggerApi.restoreItem({ client: client, path: { id }, body: { ...({ version: 1 }), expectedRevision: await testItemRevision(id) } }));
     expect((await unwrap(BlyggerApi.getItem({ client: client, path: { id } }))).content_md).toBe("SDK saved");
-    await unwrap(BlyggerApi.withdrawItem({ client: client, path: { id } }));
+    await unwrap(BlyggerApi.withdrawItem({ client: client, path: { id } , body: { expectedRevision: await testItemRevision(id) } }));
     expect((await unwrap(BlyggerApi.getItem({ client: client, path: { id } }))).status).toBe("withdrawn");
   });
   it("preserves structured validation and authorization failures", async () => {
     await expect(unwrap(BlyggerApi.getSettings({ client: clientFor() }))).rejects.toMatchObject({ statusCode: 401, body: { error: "unauthorized" } });
-    await expect(unwrap(BlyggerApi.generateItem({ client: clientFor(await login()), path: { id: "unknown" }, body: { scope: -1 } }))).rejects.toBeInstanceOf(BlyggerApiError);
+    await expect(unwrap(BlyggerApi.generateItem({ client: clientFor(await login()), path: { id: "unknown" }, body: { ...({ scope: -1 }), expectedRevision: await testItemRevision("unknown") } }))).rejects.toBeInstanceOf(BlyggerApiError);
     const response = await SELF.fetch(`${BASE}/blyg/api/items`, { method: "POST", headers: { cookie: await login(), "content-type": "application/json" }, body: '{"content_md":42}' });
     expect(response.status).toBe(400);
     expect((await response.json<{ error: string }>()).error).toContain("content_md");
@@ -120,15 +121,18 @@ describe("generated SDK against the real Worker", () => {
       expect(await res.json()).toMatchObject({ error: expect.any(String) });
     }
   });
-  it("keeps empty command bodies compatible with default JSON headers", async () => {
+  it("allows an empty creation body but requires a revision for item commands", async () => {
     const cookie = await login();
     const command = (path: string, body?: string) => SELF.fetch(`${BASE}${path}`, { method: "POST", headers: { cookie, "content-type": "application/json" }, body });
     const created = await command("/blyg/api/items", "");
     expect(created.status).toBe(201);
     const { id } = await created.json<{ id: string }>();
-    await unwrap(BlyggerApi.updateItem({ client: clientFor(cookie), path: { id }, body: { content_md: "empty-body commands" } }));
-    expect((await command(`/blyg/api/items/${id}/publish`)).status).toBe(200);
-    expect((await command(`/blyg/api/items/${id}/withdraw`, "")).status).toBe(200);
+    await unwrap(BlyggerApi.updateItem({ client: clientFor(cookie), path: { id }, body: { ...({ content_md: "empty-body commands" }), expectedRevision: await testItemRevision(id) } }));
+    expect((await command(`/blyg/api/items/${id}/publish`)).status).toBe(400);
+    const published = await command(`/blyg/api/items/${id}/publish`, JSON.stringify({ expectedRevision: await testItemRevision(id) }));
+    expect(published.status).toBe(200);
+    expect((await command(`/blyg/api/items/${id}/withdraw`, "")).status).toBe(400);
+    expect((await command(`/blyg/api/items/${id}/withdraw`, JSON.stringify({ expectedRevision: await testItemRevision(id) }))).status).toBe(200);
     expect((await command("/blyg/api/items", "{")).status).toBe(400);
   });
   it("documents the upload file as required and rejects missing or non-file values", async () => {
@@ -150,7 +154,7 @@ describe("generated SDK against the real Worker", () => {
     const ids: string[] = [];
     for (let i = 0; i < 26; i++) {
       const item = await unwrap(BlyggerApi.createItem({ client: client, body: { content_md: `budget ${i}` } }));
-      await unwrap(BlyggerApi.publishItem({ client: client, path: { id: item.id } }));
+      await unwrap(BlyggerApi.publishItem({ client: client, path: { id: item.id } , body: { expectedRevision: await testItemRevision(item.id) } }));
       ids.push(item.id);
     }
     let queries = 0;

@@ -348,6 +348,9 @@ compiled in or on by default.
 
 ### Upgrade a Worker archive installation
 
+For the0.49.8 revision cutover, finish pending writes, including generation,
+before upgrading. Avoid edits until deployment finishes.
+
 Download the new Worker archive. Check its checksum. Extract it into a new directory.
 Keep your existing deployment config and secrets. Copy the new `worker.js` and
 `migrations/` into your deployment directory. Do not replace your config with the
@@ -363,6 +366,9 @@ Deploying replaces code. It does not reset D1, R2, or stored Cloudflare secrets.
 The archive does not include `npm run upgrade`. Use these steps for each release.
 
 ### Upgrade a source installation
+
+For the0.49.8 revision cutover, finish pending writes, including generation,
+before invoking the updater. Avoid edits until deployment finishes.
 
 Commit or stash local changes first, including your deployment config, then run:
 

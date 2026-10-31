@@ -7,6 +7,29 @@ export const BASE = "https://example.com";
 /** Matches vitest.config.ts's default-worker MOUNT binding ("/blyg") — studio is nested under it since session 16. */
 export const STUDIO = "/blyg/studio";
 
+/** Sequential fixture setup only. Concurrency/contract tests send their captured revision explicitly. */
+export async function testItemRevision(id: string): Promise<number> {
+  return (await env.DB.prepare('SELECT revision FROM items WHERE id = ?').bind(id).first<{ revision: number }>())?.revision ?? 1;
+}
+export async function testMediaRevision(id: string): Promise<number | undefined> {
+  const row = await env.DB.prepare('SELECT item_id FROM media WHERE id = ?').bind(id).first<{ item_id: string | null }>();
+  return row?.item_id ? testItemRevision(row.item_id) : undefined;
+}
+
+/** Carry current revisions only in sequential legacy fixture setup, never race probes. */
+export async function testRevisionBody(method: string, path: string, body?: unknown): Promise<unknown> {
+  const pathname = new URL(path, BASE).pathname;
+  const item = /^(?:\/blyg)?\/api\/items\/([^/]+)(?:\/(?:publish|withdraw|restore|generate|refresh|classify|note-draft|versions\/\d+\/pin))?$/.exec(pathname);
+  const media = /^(?:\/blyg)?\/api\/media\/([^/]+)$/.exec(pathname);
+  if (!['GET', 'HEAD'].includes(method) && (item || media) &&
+      (body === undefined || body !== null && typeof body === 'object' && !Array.isArray(body)) &&
+      !(body && 'expectedRevision' in (body as object))) {
+    const expectedRevision = item ? await testItemRevision(decodeURIComponent(item[1])) : await testMediaRevision(decodeURIComponent(media![1]));
+    body = { ...(body as object | undefined), ...(expectedRevision === undefined ? {} : { expectedRevision }) };
+  }
+  return body;
+}
+
 /** Each call opens an independent test browser, with its own edge address. */
 let ownerBrowserSequence = 0;
 export async function login(password = "test-password", edgeIP = `2001:db8:c001:${(++ownerBrowserSequence).toString(16)}::1`): Promise<string> {
@@ -27,14 +50,16 @@ export async function apiJson(
   path: string,
   body?: unknown,
 ): Promise<{ status: number; json: any }> {
+  body = await testRevisionBody(method, path, body);
+  const pathname = new URL(path, BASE).pathname;
   const res = await SELF.fetch(`${BASE}${path}`, {
     method,
     headers: { cookie, ...(body !== undefined ? { "content-type": "application/json" } : {}) },
     body: body !== undefined ? JSON.stringify(body) : undefined,
   });
   const json = await res.json().catch(() => null);
-  const pathname = new URL(path, BASE).pathname.replace(/^\/blyg\/api/, "");
-  const contract = Object.values(routes).find((route) => route.method === method.toLowerCase() && new RegExp(`^${route.path.replace(/\{\w+\}/g, "[^/]+")}$`).test(pathname));
+  const relativePath = pathname.replace(/^\/blyg\/api/, "");
+  const contract = Object.values(routes).find((route) => route.method === method.toLowerCase() && new RegExp(`^${route.path.replace(/\{\w+\}/g, "[^/]+")}$`).test(relativePath));
   if (contract) {
     const definition = contract.responses[res.status];
     const media = definition && "content" in definition ? definition.content?.["application/json"] : undefined;

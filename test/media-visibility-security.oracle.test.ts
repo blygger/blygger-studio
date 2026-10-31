@@ -1,3 +1,5 @@
+import { testRevisionBody } from './helpers.ts';
+import { testItemRevision } from './helpers.ts';
 /**
  * Owner ruling: uploads are private until publication uses them. Protocol §5.4:
  * a published media URL MUST always serve the same bytes, and §9 withdrawal does
@@ -27,10 +29,10 @@ async function receive(path: string, init: RequestInit = {}) {
 async function fixture() {
   const login = await receive('/blyg/studio/login', { method: 'POST', headers: { 'CF-Connecting-IP': 'fd00:' + crypto.randomUUID().replaceAll('-', '').match(/.{4}/g)!.slice(0,7).join(':') }, body: new URLSearchParams({ password: env.OWNER_PASSWORD }) });
   expect(login.status).toBe(302); const cookie = login.headers.get('set-cookie')!.split(';')[0];
-  const owner = (path: string, method = 'GET', body?: unknown) => receive(path, { method, headers: { cookie, 'Content-Type': 'application/json' }, ...(body === undefined ? {} : { body: JSON.stringify(body) }) });
+  const owner = async (path: string, method = 'GET', body?: unknown) => { body = await testRevisionBody(method, path, body); return receive(path, { method, headers: { cookie, 'Content-Type': 'application/json' }, ...(body === undefined ? {} : { body: JSON.stringify(body) }) }); };
   const upload = async (item?: string, inline = false, bytes = 'private fixture bytes') => {
     const form = new FormData(); form.set('file', new File([bytes], 'private.png', { type: 'image/png' }));
-    if (item) form.set('item_id', item); if (inline) form.set('inline', 'true');
+    if (item) (form.set('item_id', item), form.set('expectedRevision', String(await testItemRevision(item)))); if (inline) form.set('inline', 'true');
     const response = await receive('/blyg/api/media', { method: 'POST', headers: { cookie }, body: form });
     expect(response.status).toBe(201); return response.json() as Promise<{id:string;url:string}>;
   };

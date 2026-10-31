@@ -1,3 +1,4 @@
+import { testRevisionBody } from './helpers.ts';
 /**
  * A client's generated-span claims must align with the content it changes.
  * Rejecting one field while persisting another would publish a false provenance claim.
@@ -27,7 +28,7 @@ it('keeps client claims aligned to generated spans and rejects a partial patch a
   const cookie = login.headers.get('set-cookie')!.split(';')[0];
   const source = { sources: [], model: 'oracle-agent', at: '2026-10-04T00:00:00Z' };
   const text = '[TK]first[=]First generated sentence.[/TK]\n\n[TK]second[=]Second generated sentence.[/TK]';
-  const request = (path: string, method = 'GET', body?: unknown) => SELF.fetch(BASE + path, { method, headers: { cookie, 'cf-connecting-ip': ip, ...(body === undefined ? {} : { 'Content-Type': 'application/json' }) }, ...(body === undefined ? {} : { body: JSON.stringify(body) }) });
+  const request = async (path: string, method = 'GET', body?: unknown) => { body = await testRevisionBody(method, path, body); return SELF.fetch(BASE + path, { method, headers: { cookie, 'cf-connecting-ip': ip, ...(body === undefined ? {} : { 'Content-Type': 'application/json' }) }, ...(body === undefined ? {} : { body: JSON.stringify(body) }) }); };
   const creation = await request('/blyg/api/items', 'POST', { content_md: text, provenance: [source, null] });
   atCheckpoint('client provenance creation', () => expect(creation.status).toBe(201));
   const draft = await creation.json() as { id: string };

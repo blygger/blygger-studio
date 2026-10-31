@@ -1,7 +1,10 @@
 import { z } from "@hono/zod-openapi";
 
+export const ItemRevisionSchema = z.number().int().positive().max(Number.MAX_SAFE_INTEGER);
+
 export const ItemRowSchema = z.object({
   id: z.string(),
+  revision: ItemRevisionSchema,
   kind: z.enum(["fragment", "thread", "withdrawn"]),
   status: z.enum(["draft", "public", "withdrawn"]),
   created: z.string(),

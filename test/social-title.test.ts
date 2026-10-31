@@ -1,3 +1,4 @@
+import { testItemRevision } from './helpers.ts';
 // What an item's head says about itself (session 29), completing the
 // social-card work f4ac2c9 started.
 //
@@ -102,7 +103,7 @@ describe("the pinned page describes what froze", () => {
     // An image attached to the live item after the pin froze.
     const form = new FormData();
     form.set("file", new File([new Uint8Array([3])], "later.png", { type: "image/png" }));
-    form.set("item_id", id);
+    (form.set("item_id", id), form.set('expectedRevision', String(await testItemRevision(id))));
     const later = (await (
       await SELF.fetch(`${BASE}/blyg/api/media`, { method: "POST", headers: { cookie }, body: form })
     ).json()) as any;

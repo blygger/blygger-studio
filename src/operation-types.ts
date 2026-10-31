@@ -5,6 +5,7 @@ import type { ServerExtension } from './extensions/server.ts';
 export interface MediaInput {
   file?: { bytes: Uint8Array; mime: string; name: string };
   itemId?: string;
+  expectedRevision?: number;
   alt?: string;
   inline?: boolean;
 }

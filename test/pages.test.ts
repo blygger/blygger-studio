@@ -1,3 +1,4 @@
+import { testItemRevision } from './helpers.ts';
 // Task 8 acceptance: public HTML renders the §4 wireframe structure;
 // markdown escaping verified (no raw HTML passthrough).
 import { SELF } from "cloudflare:test";
@@ -307,7 +308,7 @@ describe("social / meta tags (session 19)", () => {
     const id = await createAndPublish(cookie, "an illustrated fragment");
     const form = new FormData();
     form.set("file", new File([new Uint8Array([1])], "p.png", { type: "image/png" }));
-    form.set("item_id", id);
+    (form.set("item_id", id), form.set('expectedRevision', String(await testItemRevision(id))));
     const up = (await (
       await SELF.fetch(`${BASE}/blyg/api/media`, { method: "POST", headers: { cookie }, body: form })
     ).json()) as any;

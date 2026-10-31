@@ -93,6 +93,7 @@ export const zVersionReference = z.object({
 
 export const zItem = z.object({
     id: z.string(),
+    revision: z.int().gt(0).lte(9007199254740991),
     kind: z.enum([
         'fragment',
         'thread',
@@ -739,6 +740,10 @@ export const zCreateItemBody = z.union([
  */
 export const zCreateItemResponse = zItem;
 
+export const zDeleteItemBody = z.object({
+    expectedRevision: z.int().gt(0).lte(9007199254740991)
+}).strict();
+
 export const zDeleteItemPath = z.object({
     id: z.string().min(1)
 });
@@ -760,6 +765,7 @@ export const zGetItemPath = z.object({
  */
 export const zGetItemResponse = z.object({
     id: z.string(),
+    revision: z.int().gt(0).lte(9007199254740991),
     kind: z.enum([
         'fragment',
         'thread',
@@ -822,7 +828,8 @@ export const zUpdateItemBody = z.object({
         'default',
         'show',
         'hide'
-    ]).optional()
+    ]).optional(),
+    expectedRevision: z.int().gt(0).lte(9007199254740991)
 }).strict();
 
 export const zUpdateItemPath = z.object({
@@ -835,6 +842,7 @@ export const zUpdateItemPath = z.object({
 export const zUpdateItemResponse = zItem;
 
 export const zPublishItemBody = z.object({
+    expectedRevision: z.int().gt(0).lte(9007199254740991),
     note: z.string().optional(),
     note_generated: z.boolean().optional(),
     change_category: z.enum([
@@ -854,9 +862,14 @@ export const zPublishItemPath = z.object({
  */
 export const zPublishItemResponse = z.object({
     ok: z.boolean(),
+    revision: z.int().gt(0).lte(9007199254740991),
     version: z.number(),
     warning: z.string().optional()
 });
+
+export const zClassifyChangeBody = z.object({
+    expectedRevision: z.int().gt(0).lte(9007199254740991)
+}).strict();
 
 export const zClassifyChangePath = z.object({
     id: z.string().min(1)
@@ -866,6 +879,7 @@ export const zClassifyChangePath = z.object({
  * Success
  */
 export const zClassifyChangeResponse = z.object({
+    revision: z.int().gt(0).lte(9007199254740991),
     version: z.int(),
     category: z.enum([
         'refresh',
@@ -878,6 +892,10 @@ export const zClassifyChangeResponse = z.object({
     reason: z.string().optional()
 });
 
+export const zDraftNoteBody = z.object({
+    expectedRevision: z.int().gt(0).lte(9007199254740991)
+}).strict();
+
 export const zDraftNotePath = z.object({
     id: z.string().min(1)
 });
@@ -888,10 +906,12 @@ export const zDraftNotePath = z.object({
 export const zDraftNoteResponse = z.object({
     note: z.string(),
     model: z.string(),
-    pinned_prior: z.boolean()
+    pinned_prior: z.boolean(),
+    revision: z.int().gt(0).lte(9007199254740991)
 });
 
 export const zGenerateItemBody = z.object({
+    expectedRevision: z.int().gt(0).lte(9007199254740991),
     scope: z.int().gte(0)
 }).strict();
 
@@ -905,10 +925,12 @@ export const zGenerateItemPath = z.object({
 export const zGenerateItemResponse = z.object({
     text: z.string(),
     model: z.string(),
-    content_md: z.string()
+    content_md: z.string(),
+    revision: z.int().gt(0).lte(9007199254740991)
 });
 
 export const zWithdrawItemBody = z.object({
+    expectedRevision: z.int().gt(0).lte(9007199254740991),
     note: z.string().optional()
 }).strict();
 
@@ -921,8 +943,13 @@ export const zWithdrawItemPath = z.object({
  */
 export const zWithdrawItemResponse = z.object({
     ok: z.boolean(),
+    revision: z.int().gt(0).lte(9007199254740991),
     version: z.number()
 });
+
+export const zPinItemBody = z.object({
+    expectedRevision: z.int().gt(0).lte(9007199254740991)
+}).strict();
 
 export const zPinItemPath = z.object({
     id: z.string().min(1),
@@ -934,11 +961,13 @@ export const zPinItemPath = z.object({
  */
 export const zPinItemResponse = z.object({
     ok: z.boolean(),
+    revision: z.int().gt(0).lte(9007199254740991),
     version: z.number(),
     already: z.boolean()
 });
 
 export const zRestoreItemBody = z.object({
+    expectedRevision: z.int().gt(0).lte(9007199254740991),
     version: z.int().gt(0)
 }).strict();
 
@@ -951,6 +980,7 @@ export const zRestoreItemPath = z.object({
  */
 export const zRestoreItemResponse = z.object({
     ok: z.boolean(),
+    revision: z.int().gt(0).lte(9007199254740991),
     restored: z.number(),
     publishesAs: z.number()
 });
@@ -958,6 +988,7 @@ export const zRestoreItemResponse = z.object({
 export const zUploadMediaBody = z.object({
     file: z.string(),
     item_id: z.string().optional(),
+    expectedRevision: z.number().optional(),
     alt: z.string().optional(),
     inline: z.enum(['true', 'false']).optional()
 });
@@ -967,14 +998,20 @@ export const zUploadMediaResponse = z.union([
         id: z.string(),
         url: z.string(),
         mime: z.string(),
-        duplicate: z.literal(true)
+        duplicate: z.literal(true),
+        revision: z.int().gt(0).lte(9007199254740991).optional()
     }),
     z.object({
         id: z.string(),
         url: z.string(),
-        mime: z.string()
+        mime: z.string(),
+        revision: z.int().gt(0).lte(9007199254740991).optional()
     })
 ]);
+
+export const zDeleteMediaBody = z.object({
+    expectedRevision: z.int().gt(0).lte(9007199254740991).optional()
+}).strict();
 
 export const zDeleteMediaPath = z.object({
     id: z.string().min(1)
@@ -985,7 +1022,8 @@ export const zDeleteMediaPath = z.object({
  */
 export const zDeleteMediaResponse = z.object({
     ok: z.boolean(),
-    outcome: z.enum(['deleted', 'detached'])
+    outcome: z.enum(['deleted', 'detached']),
+    revision: z.int().gt(0).lte(9007199254740991).optional()
 });
 
 /**
@@ -1718,6 +1756,7 @@ export const zGetItemFreshnessQuery = z.object({
 export const zGetItemFreshnessResponse = zThreadFreshness;
 
 export const zRefreshItemBody = z.object({
+    expectedRevision: z.int().gt(0).lte(9007199254740991),
     note: z.string().optional()
 }).strict();
 
@@ -1730,6 +1769,7 @@ export const zRefreshItemPath = z.object({
  */
 export const zRefreshItemResponse = z.object({
     ok: z.boolean(),
+    revision: z.int().gt(0).lte(9007199254740991),
     version: z.number(),
     refreshed: z.array(z.string()),
     resynced: z.int().gte(0),

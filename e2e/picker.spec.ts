@@ -13,7 +13,7 @@ async function publish(page: Page, texts: string[]) {
     const ids: string[] = [];
     for (const content_md of texts) {
       const item = await (await fetch('/api/items', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ content_md }) })).json();
-      await fetch(`/api/items/${item.id}/publish`, { method: 'POST' });
+      await fetch(`/api/items/${item.id}/publish`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ expectedRevision: item.revision }) });
       ids.push(item.id);
       // Distinct publish times, so newest/oldest has an order to show.
       await new Promise((r) => setTimeout(r, 1100));

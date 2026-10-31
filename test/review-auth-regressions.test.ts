@@ -1,3 +1,5 @@
+import { testRevisionBody } from './helpers.ts';
+import { testItemRevision } from './helpers.ts';
 /**
  * External review receiving checks: delegated drafting must not change a published
  * item's media projection. Owner cookies must remain usable behind a Basic gate.
@@ -28,7 +30,7 @@ async function fixture(bindings = env) {
   const loggedIn = await request('/blyg/studio/login', { method: 'POST', body: new URLSearchParams({ password: env.OWNER_PASSWORD }) });
   expect(loggedIn.status).toBe(302);
   const cookie = loggedIn.headers.get('set-cookie')!.split(';')[0];
-  const owner = (path: string, method = 'GET', body?: unknown, headers = {}) => request(path, { method, headers: { cookie, ...headers, ...(body === undefined ? {} : { 'Content-Type': 'application/json' }) }, ...(body === undefined ? {} : { body: JSON.stringify(body) }) });
+  const owner = async (path: string, method = 'GET', body?: unknown, headers = {}) => { body = await testRevisionBody(method, path, body); return request(path, { method, headers: { cookie, ...headers, ...(body === undefined ? {} : { 'Content-Type': 'application/json' }) }, ...(body === undefined ? {} : { body: JSON.stringify(body) }) }); };
   const mint = async (scope: string[]) => {
     const response = await owner('/blyg/api/authorizations', 'POST', { name: 'Review fixture', scope, resource: 'api' });
     expect(response.status).toBe(200); return (await response.json() as { access_token: string }).access_token;
@@ -43,8 +45,8 @@ it('draft-only attachment cannot alter published media but can attach to a draft
   expect((await f.owner('/blyg/api/items/' + id + '/publish', 'POST')).status).toBe(200);
   const projection = () => f.request('/blyg/items/' + id + '.json').then(value => value.json());
   const before = await projection();
-  const upload = (item: string) => {
-    const form = new FormData(); form.set('item_id', item); form.set('file', new File(['image'], 'test.png', { type: 'image/png' }));
+  const upload = async (item: string) => {
+    const form = new FormData(); (form.set('item_id', item), form.set('expectedRevision', String(await testItemRevision(item)))); form.set('file', new File(['image'], 'test.png', { type: 'image/png' }));
     return f.request('/blyg/api/media', { method: 'POST', headers: { Authorization: 'Bearer ' + token }, body: form });
   };
   expect((await upload(id)).status, 'draft-only upload cannot publish an attachment').toBe(403);
@@ -146,7 +148,7 @@ it('cannot attach draft-only media when publication races the R2 upload', async 
   const f = await fixture({ ...env, MEDIA: media });
   const token = await f.mint(['owner:draft']);
   const item = await (await f.owner('/blyg/api/items', 'POST', { content_md: 'Concurrent attachment boundary' })).json() as { id: string };
-  const form = new FormData(); form.set('item_id', item.id); form.set('file', new File(['image'], 'race.png', { type: 'image/png' }));
+  const form = new FormData(); (form.set('item_id', item.id), form.set('expectedRevision', String(await testItemRevision(item.id)))); form.set('file', new File(['image'], 'race.png', { type: 'image/png' }));
   const upload = f.request('/blyg/api/media', { method: 'POST', headers: { Authorization: 'Bearer ' + token }, body: form });
   let before: unknown;
   try {
@@ -154,7 +156,9 @@ it('cannot attach draft-only media when publication races the R2 upload', async 
     expect((await f.owner('/blyg/api/items/' + item.id + '/publish', 'POST')).status).toBe(200);
     before = await (await f.request('/blyg/items/' + item.id + '.json')).json();
   } finally { release(); }
-  expect((await upload).status, 'publication racing upload must deny draft-only attachment').toBe(403);
+  const denied = await upload;
+  expect(denied.status, 'publication invalidates the captured attachment revision').toBe(409);
+  expect(await denied.json()).toMatchObject({ code: 'revision-conflict' });
   expect(await (await f.request('/blyg/items/' + item.id + '.json')).json()).toEqual(before);
   expect((await env.DB.prepare('SELECT id FROM media WHERE item_id=?').bind(item.id).all()).results).toEqual([]);
   expect(uploadedKey).not.toBe('');

@@ -31,10 +31,10 @@ export async function verifyPersistence(worker: string, temp: string) {
     await unwrap(BlyggerApi.updateSettings({ client, body: { site_url: "https://restart.example/" } }));
     const draft = await unwrap(BlyggerApi.createItem({ client, body: { content_md: "Unpublished restart draft" } }));
     const published = await unwrap(BlyggerApi.createItem({ client, body: { kind: "thread", content_md: "Frozen citation", stub_of: { url: "https://source.example/article" } } }));
-    await unwrap(BlyggerApi.publishItem({ client, path: { id: published.id } }));
-    await unwrap(BlyggerApi.pinItem({ client, path: { id: published.id, version: 1 } }));
-    await unwrap(BlyggerApi.updateItem({ client, path: { id: published.id }, body: { content_md: "Second edition" } }));
-    await unwrap(BlyggerApi.publishItem({ client, path: { id: published.id } }));
+    const first = await unwrap(BlyggerApi.publishItem({ client, path: { id: published.id }, body: { expectedRevision: published.revision } }));
+    const pin = await unwrap(BlyggerApi.pinItem({ client, path: { id: published.id, version: 1 }, body: { expectedRevision: first.revision } }));
+    const edited = await unwrap(BlyggerApi.updateItem({ client, path: { id: published.id }, body: { content_md: "Second edition", expectedRevision: pin.revision } }));
+    await unwrap(BlyggerApi.publishItem({ client, path: { id: published.id }, body: { expectedRevision: edited.revision } }));
     const before = await unwrap(BlyggerApi.getItem({ client, path: { id: published.id } }));
     assert.equal(before.versions.length, 2); assert.equal(before.versions[0].pinned, true);
     assert.ok(before.versions[0].stub_cite, "Citation fixture must be present before restart");

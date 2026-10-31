@@ -1,3 +1,4 @@
+import { testItemRevision } from './helpers.ts';
 /**
  * Owner ruling: delegated grants have separate quotas and an aggregate ceiling;
  * owner capacity is reserved. OWASP DoS guidance requires bounded costly work:
@@ -76,7 +77,7 @@ it('AI work through an MCP tool spends the grant share, not the owner reserve', 
   });
   try {
     const viaMcp = async () => {
-      const response = await f.request('/blyg/studio/mcp', { method: 'POST', headers: { Authorization: 'Bearer ' + access_token, 'Content-Type': 'application/json', Accept: 'application/json, text/event-stream', 'mcp-protocol-version': '2026-07-28', 'mcp-method': 'tools/call', 'mcp-name': 'generateItem' }, body: JSON.stringify({ jsonrpc: '2.0', id: 1, method: 'tools/call', params: { name: 'generateItem', arguments: { path: { id }, body: { scope: 0 } }, _meta: { 'io.modelcontextprotocol/protocolVersion': '2026-07-28', 'io.modelcontextprotocol/clientCapabilities': {} } } }) }, bindings);
+      const response = await f.request('/blyg/studio/mcp', { method: 'POST', headers: { Authorization: 'Bearer ' + access_token, 'Content-Type': 'application/json', Accept: 'application/json, text/event-stream', 'mcp-protocol-version': '2026-07-28', 'mcp-method': 'tools/call', 'mcp-name': 'generateItem' }, body: JSON.stringify({ jsonrpc: '2.0', id: 1, method: 'tools/call', params: { name: 'generateItem', arguments: { path: { id }, body: { scope: 0, expectedRevision: await testItemRevision(id) } }, _meta: { 'io.modelcontextprotocol/protocolVersion': '2026-07-28', 'io.modelcontextprotocol/clientCapabilities': {} } } }) }, bindings);
       expect(response.status).toBe(200);
       return (await response.json() as { result: { isError?: boolean; content: { text: string }[] } }).result;
     };
@@ -85,7 +86,7 @@ it('AI work through an MCP tool spends the grant share, not the owner reserve', 
     expect(refused.isError, 'MCP AI work cannot reach the owner reserve').toBe(true);
     expect(refused.content[0].text).toContain('budget');
     expect(calls).toBe(1);
-    const viaOwner = () => f.request('/blyg/api/items/' + id + '/generate', { method: 'POST', headers: { cookie: f.owner, 'Content-Type': 'application/json' }, body: JSON.stringify({ scope: 0 }) }, bindings);
+    const viaOwner = async () => f.request('/blyg/api/items/' + id + '/generate', { method: 'POST', headers: { cookie: f.owner, 'Content-Type': 'application/json' }, body: JSON.stringify({ scope: 0, expectedRevision: await testItemRevision(id) }) }, bindings);
     for (let i = 0; i < 2; i++) expect((await viaOwner()).status, 'the owner reserve survives delegated MCP work').toBe(200);
     expect((await viaOwner()).status).toBe(429);
     expect(calls).toBe(3);

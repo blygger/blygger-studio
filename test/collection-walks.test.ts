@@ -1,3 +1,4 @@
+import { testItemRevision } from './helpers.ts';
 /**
  * A complete static walk must not lose rows when timestamps tie across pages.
  * Signals own a generated oracle; this fixed witness checks the other collections.
@@ -24,7 +25,7 @@ it("walks every other collection completely across tied timestamps and page boun
   const ids: string[] = [], keys = Array.from({ length: 11 }, (_, i) => `walk-${String(i).padStart(2, "0")}`);
   for (const key of keys) {
     const item = await unwrap(api.createItem({ client, body: { content_md: `collection ${key}` } }));
-    ids.push(item.id); await unwrap(api.publishItem({ client, path: { id: item.id } }));
+    ids.push(item.id); await unwrap(api.publishItem({ client, path: { id: item.id } , body: { expectedRevision: await testItemRevision(item.id) } }));
   }
   await env.DB.prepare("UPDATE items SET updated = '2026-10-01T00:00:00Z'").run();
   await env.DB.batch(keys.flatMap(key => [

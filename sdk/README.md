@@ -24,7 +24,7 @@ const client = createBlyggerClient({ baseUrl: new URL("/blyg/api", window.locati
 const draft = await unwrap(BlyggerApi.createItem({
   client, body: { content_md: "Hello", kind: "fragment" },
 }));
-await unwrap(BlyggerApi.publishItem({ client, path: { id: draft.id } }));
+await unwrap(BlyggerApi.publishItem({ client, path: { id: draft.id }, body: { expectedRevision: draft.revision } }));
 const reading = await unwrap(BlyggerApi.listReading({ client, query: { offset: 0, limit: 25 } }));
 ```
 
@@ -50,6 +50,19 @@ Upload with `body: { file: new File([...], "image.png", { type: "image/png" }) }
 Node callers can use a Blob from `node:fs`'s `openAsBlob()` with native FormData
 handling. Filesystem streams are not accepted. Requests take a standard `signal`
 for cancellation. Ordinary API calls do not retry automatically.
+
+## Conditional item writes
+
+Creation returns the first private `revision`. Every item command carries
+`body.expectedRevision` from the snapshot it changes. Successful commands return
+the resulting revision. Attached media uploads and deletes use the owning item’s
+revision too. Unattached media operations have no item revision.
+
+A stale command returns HTTP409 with `code: "revision-conflict"`. Reload and let
+the owner reconcile their changes. Do not fetch a new revision to retry old text
+silently. A publication version, content hash, and HTTP validator are separate
+values and cannot replace the item revision. A lost mutation response does not
+make a blind retry safe.
 
 ## Results and errors
 

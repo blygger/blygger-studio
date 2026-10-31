@@ -19,7 +19,7 @@ describe("restore is forward-only", () => {
     const cookie = await login();
     const id = await createAndPublish(cookie, "take one");
     await publishEdit(cookie, id, "take two");
-    expect((await apiJson(cookie, "POST", `/blyg/api/items/${id}/restore`, { version: 1 })).json).toEqual({
+    expect((await apiJson(cookie, "POST", `/blyg/api/items/${id}/restore`, { version: 1 })).json).toMatchObject({
       ok: true,
       restored: 1,
       publishesAs: 3,

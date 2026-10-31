@@ -1,3 +1,4 @@
+import { testItemRevision } from './helpers.ts';
 import { createExecutionContext, env, waitOnExecutionContext } from "cloudflare:test";
 import { describe, expect, it } from "vitest";
 import { ownerApi } from "../src/owner-api.ts";
@@ -18,12 +19,12 @@ describe("resource API contract", () => {
     const blank = await BlyggerApi.createItem({ client, body: { mode: "blank", content_md: "original" } });
     expect(blank.response!.headers.get("location")).toBe(`/blyg/api/items/${blank.data!.id}`);
     const id = blank.data!.id;
-    await unwrap(BlyggerApi.publishItem({ client, path: { id } }));
-    await unwrap(BlyggerApi.pinItem({ client, path: { id, version: 1 } }));
+    await unwrap(BlyggerApi.publishItem({ client, path: { id } , body: { expectedRevision: await testItemRevision(id) } }));
+    await unwrap(BlyggerApi.pinItem({ client, path: { id, version: 1 } , body: { expectedRevision: await testItemRevision(id) } }));
     const fork = await unwrap(BlyggerApi.createItem({ client, body: { mode: "fork", source: { origin: BASE + "/blyg/", id, version: 1 } } }));
     expect(fork).toMatchObject({ content_md: "original", dirty: true, responses: "default", forked_from: { id, version: 1 } });
     expect(fork).not.toHaveProperty("tk_provenance_json");
-    const invalid = await BlyggerApi.updateItem({ client, path: { id: fork.id }, body: { forked_from: null } as never });
+    const invalid = await BlyggerApi.updateItem({ client, path: { id: fork.id }, body: { ...({ forked_from: null } as Record<string, unknown>), expectedRevision: await testItemRevision(fork.id) } });
     expect(invalid.response!.status).toBe(400);
     expect((await unwrap(BlyggerApi.getItem({ client, path: { id: fork.id } }))).forked_from).toEqual(fork.forked_from);
   });
@@ -66,7 +67,7 @@ describe("resource API contract", () => {
       return typeof value === "function" ? value.bind(target) : value;
     } });
     const ctx = createExecutionContext();
-    const response = await ownerApi.fetch(new Request(`${BASE}/items/${draft.id}`, { method: "PATCH", headers: { cookie, "content-type": "application/json" }, body: JSON.stringify({ kind: "thread", content_md: "must not apply" }) }), { ...env, DB: db } as unknown as Env, ctx);
+    const response = await ownerApi.fetch(new Request(`${BASE}/items/${draft.id}`, { method: "PATCH", headers: { cookie, "content-type": "application/json" }, body: JSON.stringify({ kind: "thread", content_md: "must not apply", expectedRevision: draft.revision }) }), { ...env, DB: db } as unknown as Env, ctx);
     await waitOnExecutionContext(ctx);
     expect(response.status).toBe(409);
     expect(await getItem(env.DB, draft.id)).toMatchObject({ kind: "fragment", content_md: "original", version: 1 });

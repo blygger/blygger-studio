@@ -1,3 +1,4 @@
+import { testItemRevision } from './helpers.ts';
 // studio#24 and Venkat's report (session 32): a Studio upload is placed in the
 // text, so it is shown only where its line is — once, and gone when the line
 // is deleted. Uploads from other tools that never touch the text are appended.
@@ -11,7 +12,7 @@ import { apiJson, BASE, getPublic, login } from "./helpers.ts";
 async function upload(cookie: string, itemId: string, name: string, inline: boolean) {
   const form = new FormData();
   form.set("file", new File([new Uint8Array([0x89, 0x50, 0x4e, 0x47, 1, 2])], name, { type: "image/png" }));
-  form.set("item_id", itemId);
+  (form.set("item_id", itemId), form.set('expectedRevision', String(await testItemRevision(itemId))));
   if (inline) form.set("inline", "true");
   const res = await SELF.fetch(`${BASE}/blyg/api/media`, { method: "POST", headers: { cookie }, body: form });
   return (await res.json()) as { id: string; url: string };

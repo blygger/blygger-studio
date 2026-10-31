@@ -43,8 +43,8 @@ test('the robot opens what the author disclosed: hover peeks, a click keeps it, 
   const id = await page.evaluate(async (md) => {
     const json = { 'content-type': 'application/json' };
     const item = await (await fetch('/api/items', { method: 'POST', headers: json, body: JSON.stringify({ content_md: md }) })).json();
-    await fetch(`/api/items/${item.id}/publish`, { method: 'POST' });
-    await fetch(`/api/items/${item.id}`, { method: 'PATCH', headers: json, body: JSON.stringify({ highlight: 'show' }) });
+    const published = await (await fetch(`/api/items/${item.id}/publish`, { method: 'POST', headers: json, body: JSON.stringify({ expectedRevision: item.revision }) })).json();
+    await fetch(`/api/items/${item.id}`, { method: 'PATCH', headers: json, body: JSON.stringify({ highlight: 'show', expectedRevision: published.revision }) });
     return item.id as string;
   }, md);
   await page.goto(`/f/${id}/`);

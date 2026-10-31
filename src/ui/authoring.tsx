@@ -613,6 +613,7 @@ function useUpload(
   id: string | undefined | (() => Promise<string | undefined>),
   textarea: React.RefObject<HTMLTextAreaElement | null>,
   setText: (text: string) => void,
+  write: ReturnType<typeof createDraftAction>,
 ) {
   const input = useRef<HTMLInputElement>(null);
   const action = useAction();
@@ -631,13 +632,9 @@ function useUpload(
     const placed = insertBlock(current(), at.start, at.end, token);
     setText(placed.text);
     try {
-      const media = await unwrap(
-        BlyggerApi.uploadMedia({
-          client,
-          // inline: placed in the text, so shown only where its line is (studio#24).
-          body: { file, inline: 'true', ...(itemId ? { item_id: itemId } : {}) },
-        }),
-      );
+      const media = itemId
+        ? await write({ type: 'upload', file, inline: true })
+        : await unwrap(BlyggerApi.uploadMedia({ client, body: { file, inline: 'true' } }));
       setText(current().replace(token, `![](${mount}/${media.url})`));
       setAttached(media.url);
       if (itemId) await changed('item');
@@ -995,7 +992,7 @@ export function Compose() {
     setText(next);
     setSaved(false);
   };
-  const upload = useUpload(save, input, change);
+  const upload = useUpload(save, input, change, write);
   const tools = useTextTools(input, change);
   const setKindTo = (value: Kind) => {
     setKind(value);
@@ -1188,13 +1185,48 @@ function ItemRow({
   const [open, setOpen] = useState(false);
   const [text, setText] = useState(item.content_md);
   const [saved, setSaved] = useState(false);
-  const write = useMemo(() => createDraftAction(item.id), [item.id]);
+  const session = useMemo(() => {
+    let revision = item.revision;
+    let current = createDraftAction(item.id, revision);
+    let pending = 0;
+    const write: typeof current = async (command) => {
+      pending++;
+      try {
+        const result = await current(command);
+        if ('revision' in result && typeof result.revision === 'number')
+          revision = result.revision;
+        return result;
+      } finally {
+        pending--;
+      }
+    };
+    return {
+      write,
+      acceptRevision(next: number) {
+        // Opening a clean editor explicitly accepts a new baseline. Preserve
+        // any active queue and do not roll back an acknowledged local write
+        // while its polled props are still catching up.
+        if (pending || next < revision) return false;
+        if (next !== revision) {
+          current = createDraftAction(item.id, next);
+          revision = next;
+        }
+        return true;
+      },
+    };
+  }, [item.id]);
+  const { write } = session;
   const confirmNote = useNoteConfirm(write);
   const draft = useRef<Draft | null>(null);
   if (!draft.current)
     draft.current = new Draft(item.content_md, async (content) => {
       await write({ type: 'save', text: content });
     });
+  const acceptFresh = () => {
+    if (draft.current!.dirty || !session.acceptRevision(item.revision)) return;
+    draft.current!.accept(item.content_md);
+    setText(item.content_md);
+  };
   const kind: Kind = item.kind === 'thread' ? 'thread' : 'fragment';
   const publishRow = async () => {
     const choice = await confirmNote.request(item, '');
@@ -1205,6 +1237,7 @@ function ItemRow({
     return result;
   };
   const save = async () => {
+    acceptFresh();
     const current = await draft.current!.save();
     if (current) setSaved(true);
     return current;
@@ -1259,6 +1292,7 @@ function ItemRow({
   const doesOnly = count ? `Only quotes ${count} item${count === 1 ? '' : 's'}` : links ? `Only links ${links} item${links === 1 ? '' : 's'}` : null;
   const mutate = (fn: () => Promise<unknown>) =>
     void action.run(async () => {
+      acceptFresh();
       if (draft.current!.dirty && !(await save())) return;
       return fn();
     });
@@ -1389,10 +1423,7 @@ function ItemRow({
                 data-action="quick-edit"
                 className={open ? 'btn btn-ghost btn-mini is-on' : 'btn btn-ghost btn-mini'}
                 onClick={() => {
-                  if (!draft.current!.dirty) {
-                    draft.current!.accept(item.content_md);
-                    setText(item.content_md);
-                  }
+                  acceptFresh();
                   setOpen((value) => !value);
                 }}
               >
@@ -1424,6 +1455,7 @@ function ItemRow({
                     })
                   )
                     void action.run(async () => {
+                      acceptFresh();
                       await write({ type: 'delete' });
                       await changed('items', 'reading');
                       toast('Draft discarded', { tone: 'ok' });
@@ -1539,7 +1571,7 @@ function Editor({ item }: { item: Detail }) {
     useLiveQuery({ query: (q) => q.from({ hopper: hoppers }) }).data ?? [];
   const sharing = useSharing();
   const action = useAction();
-  const write = useMemo(() => createDraftAction(item.id), [item.id]);
+  const write = useMemo(() => createDraftAction(item.id, item.revision), [item.id]);
   const draft = useRef<Draft | null>(null);
   if (!draft.current) {
     draft.current = new Draft(item.content_md, async (text) => {
@@ -1558,7 +1590,12 @@ function Editor({ item }: { item: Detail }) {
     useState<Awaited<ReturnType<typeof getPreview>>>();
   const [version, setVersion] = useState<Version>();
   const [saved, setSaved] = useState(false);
-  const [replacing, setReplacing] = useState(false);
+  const [replacing, setReplacingState] = useState(false);
+  const replacementPending = useRef(false);
+  const setReplacing = (active: boolean) => {
+    replacementPending.current = active;
+    setReplacingState(active);
+  };
   const [published, setPublished] = useState<Published>();
   // Phones show one pane at a time; ≥900px shows both (authoring.css).
   const [pane, setPane] = useState<'draft' | 'preview'>('draft');
@@ -1576,9 +1613,11 @@ function Editor({ item }: { item: Detail }) {
     return current;
   };
   useBlocker({
-    enableBeforeUnload: () => !leaving.current && draft.current!.dirty,
+    enableBeforeUnload: () => !leaving.current && (replacementPending.current || draft.current!.dirty),
     shouldBlockFn: async () => {
-      if (leaving.current || !draft.current!.dirty) return false;
+      if (leaving.current) return false;
+      if (replacementPending.current) return true;
+      if (!draft.current!.dirty) return false;
       try {
         return !(await save());
       } catch (error) {
@@ -1621,7 +1660,7 @@ function Editor({ item }: { item: Detail }) {
       controller.abort();
     };
   }, [text, item.id, item.authored_kind]);
-  const upload = useUpload(item.id, input, edit);
+  const upload = useUpload(item.id, input, edit, write);
   const tools = useTextTools(input, edit);
   const operation = (fn: () => Promise<unknown>) =>
     void action.run(async () => {
@@ -2194,13 +2233,7 @@ function Editor({ item }: { item: Detail }) {
                           disabled={action.busy}
                           onClick={() =>
                             void action.run(async () => {
-                              await unwrap(
-                                BlyggerApi.deleteMedia({
-                                  client,
-                                  path: { id: media.id },
-                                }),
-                              );
-                              await changed('item');
+                              await write({ type: 'delete-media', mediaId: media.id });
                             })
                           }
                         >
@@ -2229,7 +2262,7 @@ function Editor({ item }: { item: Detail }) {
           ) : null}
         </Card>
         {isPublic && isThread ? (
-          <QuotedSnapshots id={item.id} version={item.version} unpublished={unpublished} />
+          <QuotedSnapshots id={item.id} version={item.version} unpublished={unpublished} write={write} />
         ) : null}
         <Card
           id="history"
@@ -2396,10 +2429,12 @@ function QuotedSnapshots({
   id,
   version,
   unpublished,
+  write,
 }: {
   id: string;
   version: number;
   unpublished: boolean;
+  write: ReturnType<typeof createDraftAction>;
 }) {
   const action = useAction();
   const [report, setReport] = useState<Freshness>();
@@ -2423,9 +2458,7 @@ function QuotedSnapshots({
   if (failed) return <Failure error={failed} />;
   if (!report || !report.quotes.length) return null;
   const refresh = async () => {
-    const result = await unwrap(
-      BlyggerApi.refreshItem({ client, path: { id }, body: { note } }),
-    );
+    const result = await write({ type: 'refresh', note });
     await changed('item', 'items', 'reading');
     setReport(await loadFreshness(id));
     return result;

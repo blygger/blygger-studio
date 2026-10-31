@@ -18,6 +18,20 @@ not have its own repo until session 26.
 
 ---
 
+## 0.49.8 — Conditional item writes
+
+Item reads and creation return a private revision. Item commands require
+`expectedRevision` and return the resulting revision. Stale commands return409
+with `code: "revision-conflict"`. Text, generation provenance, attachment
+membership, and publication changes share the same conditional transition.
+Studio keeps the revision tied to its accepted text and serializes its writes.
+Private contract version:3.0.0. SDK version:0.4.0.
+
+**Migrations:**0035 adds the private revision and updates private item polling
+invalidation. Finish pending writes, including generation, before this upgrade.
+Avoid edits until deployment finishes. Old in-flight writes do not participate
+in the new revision checks.
+
 ## 0.49.7 — Mounted private API
 
 REST now lives at `{mount}/api`. Set SDK base URLs to that full address. Mounted nodes remove host-root `/api`; replace old REST tokens or request new OAuth consent. MCP audiences stay the same. Private contract version: 2.0.0. SDK version: 0.3.0.

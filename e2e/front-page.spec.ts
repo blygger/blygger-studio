@@ -1,3 +1,4 @@
+import { fixtureJson } from './api-fixture';
 import { test, expect, type Page } from './fixture.ts';
 import { editorMenu } from './editor.ts';
 
@@ -5,10 +6,7 @@ import { editorMenu } from './editor.ts';
 // root; the latest items move to /posts/, which every public page links to.
 // In-page fetches, so the owner cookie (Secure) rides along.
 const api = (page: Page, method: string, path: string, body?: unknown) =>
-  page.evaluate(async ([method, path, body]) => {
-    const res = await fetch(path as string, { method: method as string, headers: { 'content-type': 'application/json' }, body: body === undefined ? undefined : JSON.stringify(body) });
-    return { status: res.status, json: await res.json().catch(() => null) };
-  }, [method, path, body] as const);
+  page.evaluate(fixtureJson, { method, path, body });
 
 test('a thread becomes the front page from its menu, and back', async ({ page }) => {
   const errors: string[] = [];

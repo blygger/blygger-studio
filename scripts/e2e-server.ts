@@ -27,8 +27,8 @@ await mf.ready;
 const fixtureLogin = await mf.dispatchFetch('http://localhost/studio/login', { method: 'POST', headers: { 'content-type': 'application/x-www-form-urlencoded' }, body: 'password=test-password', redirect: 'manual' });
 const fixtureCookie = fixtureLogin.headers.get('set-cookie')!.split(';')[0];
 const targetResponse = await mf.dispatchFetch('http://localhost/api/items', { method: 'POST', headers: { cookie: fixtureCookie, 'content-type': 'application/json' }, body: JSON.stringify({ content_md: 'Mention target fixture', kind: 'thread' }) });
-const target = await targetResponse.json() as { id: string };
-await mf.dispatchFetch(`http://localhost/api/items/${target.id}/publish`, { method: 'POST', headers: { cookie: fixtureCookie } });
+const target = await targetResponse.json() as { id: string; revision: number };
+await mf.dispatchFetch(`http://localhost/api/items/${target.id}/publish`, { method: 'POST', headers: { cookie: fixtureCookie, 'content-type': 'application/json' }, body: JSON.stringify({ expectedRevision: target.revision }) });
 for (const [id, origin, remoteId, hidden] of [['parity-held', 'https://source.example/', '00000000000000000000000001', 0], ['parity-stranger', 'https://stranger.example/', '00000000000000000000000003', 1]] as const) {
   await db.prepare("INSERT INTO mentions_in (id, source, target, target_item_id, status, relation, source_origin, source_id, source_kind, source_version, source_author_json, source_page, first_seen, last_seen, verified_at, hidden) VALUES (?, ?, ?, ?, 'verified', 'stub', ?, ?, 'fragment', 1, ?, ?, '2026-10-01T00:00:00Z', '2026-10-01T00:00:00Z', '2026-10-01T00:00:00Z', ?)").bind(id, origin + remoteId, `http://localhost/t/${target.id}/`, target.id, origin, remoteId, JSON.stringify({ name: 'Source author' }), origin + 'post', hidden).run();
 }

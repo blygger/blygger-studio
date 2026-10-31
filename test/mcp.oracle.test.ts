@@ -211,7 +211,7 @@ describe('MCP contract oracles', () => {
       const mcp = content(await client.callTool({ name: 'getItem', arguments: { path: { id: created.id } } }));
       atCheckpoint('MCP REST item equivalence', () => expect(mcp).toEqual(rest));
       atCheckpoint('MCP generation provenance retained', () => expect(mcp.provenance).toEqual(provenance));
-      content(await client.callTool({ name: 'publishItem', arguments: { path: { id: created.id } } }));
+      content(await client.callTool({ name: 'publishItem', arguments: { path: { id: created.id }, body: { expectedRevision: created.revision } } }));
       const publicItem = await (await d.fetch(d.base + '/blyg/items/' + created.id + '.json')).json() as { generated: unknown; content_md: string };
       atCheckpoint('MCP public generation disclosure', () => { expect(publicItem.generated).toEqual(provenance); expect(publicItem.content_md).toContain('A generated sentence.'); expect(publicItem.content_md).not.toContain('[TK]'); });
       expect((await d.owner(d.mount + '/api/authorizations/' + credential.authorization.id, 'DELETE')).status).toBe(200);

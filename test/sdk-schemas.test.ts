@@ -19,7 +19,7 @@ test('generated OpenAPI schemas reject extra fields on strict version references
 
 test('generated item collection schema preserves both item fields and optional pins', () => {
   const item = {
-    id: 'a', kind: 'fragment', status: 'draft', created: '2026-10-06', updated: '2026-10-06', version: 1,
+    id: 'a', revision: 1, kind: 'fragment', status: 'draft', created: '2026-10-06', updated: '2026-10-06', version: 1,
     content_md: 'draft', dirty: false, responses: 'default', highlight: 'default',
     provenance: [{ sources: [], provider: 'custom' }], stub_of: null, forked_from: null, fork_cite: null,
   };

@@ -113,7 +113,11 @@ export const deleteItem = <ThrowOnError extends boolean = false>(options: Option
             type: 'apiKey'
         }, { scheme: 'bearer', type: 'http' }],
     url: '/items/{id}',
-    ...options
+    ...options,
+    headers: {
+        'Content-Type': 'application/json',
+        ...options.headers
+    }
 });
 
 export const getItem = <ThrowOnError extends boolean = false>(options: Options<GetItemData, ThrowOnError>): RequestResult<GetItemResponses, GetItemErrors, ThrowOnError> => (options.client ?? client).get<GetItemResponses, GetItemErrors, ThrowOnError>({
@@ -164,7 +168,11 @@ export const classifyChange = <ThrowOnError extends boolean = false>(options: Op
             type: 'apiKey'
         }, { scheme: 'bearer', type: 'http' }],
     url: '/items/{id}/classify',
-    ...options
+    ...options,
+    headers: {
+        'Content-Type': 'application/json',
+        ...options.headers
+    }
 });
 
 export const draftNote = <ThrowOnError extends boolean = false>(options: Options<DraftNoteData, ThrowOnError>): RequestResult<DraftNoteResponses, DraftNoteErrors, ThrowOnError> => (options.client ?? client).post<DraftNoteResponses, DraftNoteErrors, ThrowOnError>({
@@ -174,7 +182,11 @@ export const draftNote = <ThrowOnError extends boolean = false>(options: Options
             type: 'apiKey'
         }, { scheme: 'bearer', type: 'http' }],
     url: '/items/{id}/note-draft',
-    ...options
+    ...options,
+    headers: {
+        'Content-Type': 'application/json',
+        ...options.headers
+    }
 });
 
 export const generateItem = <ThrowOnError extends boolean = false>(options: Options<GenerateItemData, ThrowOnError>): RequestResult<GenerateItemResponses, GenerateItemErrors, ThrowOnError> => (options.client ?? client).post<GenerateItemResponses, GenerateItemErrors, ThrowOnError>({
@@ -212,7 +224,11 @@ export const pinItem = <ThrowOnError extends boolean = false>(options: Options<P
             type: 'apiKey'
         }, { scheme: 'bearer', type: 'http' }],
     url: '/items/{id}/versions/{version}/pin',
-    ...options
+    ...options,
+    headers: {
+        'Content-Type': 'application/json',
+        ...options.headers
+    }
 });
 
 export const restoreItem = <ThrowOnError extends boolean = false>(options: Options<RestoreItemData, ThrowOnError>): RequestResult<RestoreItemResponses, RestoreItemErrors, ThrowOnError> => (options.client ?? client).post<RestoreItemResponses, RestoreItemErrors, ThrowOnError>({
@@ -254,7 +270,11 @@ export const deleteMedia = <ThrowOnError extends boolean = false>(options: Optio
             type: 'apiKey'
         }, { scheme: 'bearer', type: 'http' }],
     url: '/media/{id}',
-    ...options
+    ...options,
+    headers: {
+        'Content-Type': 'application/json',
+        ...options.headers
+    }
 });
 
 export const getSettings = <ThrowOnError extends boolean = false>(options?: Options<GetSettingsData, ThrowOnError>): RequestResult<GetSettingsResponses, GetSettingsErrors, ThrowOnError> => (options?.client ?? client).get<GetSettingsResponses, GetSettingsErrors, ThrowOnError>({
