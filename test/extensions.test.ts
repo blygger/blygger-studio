@@ -7,13 +7,14 @@
 //   3. An extension can add owner reads only: GET, under /api/ext/<name>/,
 //      classified owner:read. Anything else is refused when it registers.
 //   4. The suite compiles in every extension in the repository.
+import { success } from "../src/operation-types.ts";
 import { env, createExecutionContext, waitOnExecutionContext } from "cloudflare:test";
 import { describe, expect, it } from "vitest";
 import { Hono } from "hono";
 import { z } from "@hono/zod-openapi";
 import { apiJson, login } from "./helpers.ts";
 import { createOwnerApi } from "../src/owner-api.ts";
-import { extensionApi, type ServerExtension } from "../src/extensions/server.ts";
+import { extensionDefinitions, type ServerExtension } from "../src/extensions/server.ts";
 import { extensionRoute } from "../src/extensions/contract.ts";
 import { parseEnabledExtensions } from "../src/extensions/names.ts";
 import { putSettings } from "../src/model.ts";
@@ -26,7 +27,7 @@ const probe = extensionRoute("probe", "status", "/status", z.object({ extension:
 const fixture: ServerExtension = {
   name: "probe",
   routes(router) {
-    router.get(probe, (c) => c.json({ extension: "probe", owner: true, ...(c.req.query("echo") ? { echo: c.req.query("echo") } : {}) }, 200));
+    router.get(probe, async (_, input) => success({ extension: "probe", owner: true, ...(input.query.echo ? { echo: input.query.echo } : {}) }));
   },
 };
 const enable = (names: string[]) => putSettings(env.DB, { extensions: JSON.stringify(names) });
@@ -115,9 +116,9 @@ describe("extension routes behind the owner API", () => {
 
   it("are refused at registration unless they are GETs under the extension's own prefix", () => {
     const write = { ...probe, method: "post" as const };
-    expect(() => extensionApi([{ name: "probe", routes: (router) => router.get(write, (c) => c.json({}, 200)) }])).toThrow(/only add GET routes/);
+    expect(() => extensionDefinitions([{ name: "probe", routes: (router) => router.get(write, async () => success({})) }])).toThrow(/only add GET routes/);
     const elsewhere = extensionRoute("other", "status", "/status", z.object({}));
-    expect(() => extensionApi([{ name: "probe", routes: (router) => router.get(elsewhere, (c) => c.json({}, 200)) }])).toThrow(/under \/api\/ext\/probe\//);
+    expect(() => extensionDefinitions([{ name: "probe", routes: (router) => router.get(elsewhere, async () => success({})) }])).toThrow(/under \/api\/ext\/probe\//);
   });
 });
 
@@ -148,4 +149,16 @@ describe("extension contract", () => {
     expect(compiledServerExtensions.map((extension) => extension.name).sort()).toEqual(withServer);
     for (const name of withServer) expect(EXTENSIONS as readonly string[]).toContain(name);
   });
+});
+
+it('keeps a disabled extension absent for unsupported owner methods', async () => {
+  const cookie = await login();
+  await enable([]);
+  const disabled = await receive(ownerApp(), '/ext/probe/status', { method: 'POST', headers: { cookie } });
+  expect(disabled.status).toBe(404);
+  expect(disabled.headers.get('allow')).toBeNull();
+  await enable(['probe']);
+  const enabled = await receive(ownerApp(), '/ext/probe/status', { method: 'POST', headers: { cookie } });
+  expect(enabled.status).toBe(405);
+  expect(enabled.headers.get('allow')).toContain('GET');
 });

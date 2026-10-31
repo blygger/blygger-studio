@@ -3,6 +3,7 @@ import { availableFeedAlgorithms, resolveFeedAlgorithm } from "./feeds/available
 import { loadFeedHistory } from "./feeds/history.ts";
 import type { ServerExtension } from "./extensions/server.ts";
 import { reverseChronological } from "./feeds/reverse-chronological.ts";
+import { authoredItemKindSql } from './version-state.ts';
 
 export type FeedItem = Pick<ItemRow, "id" | "kind" | "created" | "updated" | "version" | "forked_from" | "fork_cite" | "highlight_override">;
 
@@ -92,8 +93,7 @@ export async function loadProvenance(db: D1Database, threads: Transclusion[][]):
   const provenance: FeedProvenance = { localKinds: new Map(), remoteSources: new Map() };
   if (!localIds.size && !remote.size) return provenance;
   const [local, sources] = await db.batch([
-    db.prepare(`SELECT i.id, CASE WHEN i.kind = 'withdrawn' THEN
-      CASE WHEN COALESCE(v.transclusions, '') != '' THEN 'thread' ELSE 'fragment' END ELSE i.kind END AS kind
+    db.prepare(`SELECT i.id, ${authoredItemKindSql('v')} AS kind
       FROM json_each(?) s JOIN items i ON i.id = s.value
       LEFT JOIN versions v ON i.kind = 'withdrawn' AND v.item_id = i.id AND v.version = i.version - 1`)
       .bind(JSON.stringify([...localIds])),

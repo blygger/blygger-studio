@@ -1,9 +1,7 @@
+import { success, created, failure, modelFailure, type OperationContext, type OperationInput } from './operation-types.ts';
 import { itemResource, versionResource, mediaResource, subscriptionResource, hopperResource, importedResource, mentionResource } from "./contract/resources.ts";
 import { settingsResource } from "./settings-resource.ts";
 import { fetchOnSurface, itemUrl } from "./surface.ts";
-import type { Context } from "hono";
-import { contractApp, readJson } from "./contract/app.ts";
-import { routes } from "./contract/routes.ts";
 import { annotateTkPreview, scopeSummariesWithSources } from "./authoring.ts";
 import { getItem, getSettings, getSettingsMap, getVersion, listVersions } from "./model.ts";
 import { getHopper, getImportedItem, listSubscriptions, getSubscription } from "./importer/store.ts";
@@ -16,7 +14,7 @@ import { MODELS, bindingName, configuredProviders, isDecisionModel } from "./ai/
 import { changeClassesFor } from "./change-class.ts";
 import { INTERACTION_KINDS, listInteractions, listThumbs, type InteractionKind } from "./interactions.ts";
 import { normalizeMount } from "./util.ts";
-import type { Env, SignalRow, ImportedItemRow, ItemRow, SubscriptionRow, HopperRow, MentionInRow, MentionOutRow } from "./types.ts";
+import type { SignalRow, ImportedItemRow, ItemRow, SubscriptionRow, HopperRow, MentionInRow, MentionOutRow } from "./types.ts";
 import { itemDetail } from "./item-data.ts";
 import { readingData } from "./reading-data.ts";
 import { IMPORTED_READING_DEFAULT, importedReading } from "./imported-reading.ts";
@@ -30,9 +28,18 @@ import { classifyLinks, peekItem } from "./peek.ts";
 import { fetchImportedHistory, fetchPublicVersion } from "./imported-history.ts";
 import { readChanges } from './changes.ts';
 import { linkLabel } from "./link-label.ts";
+import { versionState } from './version-state.ts';
+import { operationAvailability } from './operation-availability.ts';
+import { API_CONTRACT_VERSION } from './operation-policy.ts';
+import { authLocations } from './oauth.ts';
 
-export const readApi = contractApp();
-readApi.openapi(routes.getChanges, async c => c.json(await readChanges(c.env.DB)));
+const getCapabilitiesOperation = async (context: OperationContext, input: OperationInput) => {
+  const { base, api, issuer, mcp } = authLocations(context.url, context.env);
+  const publicBase = new URL(context.url).origin + normalizeMount(context.env.MOUNT);
+  return success({ contractVersion: API_CONTRACT_VERSION, endpoints: { publicBase, studio: base, api, issuer, mcp, media: publicBase + '/media' },
+    ...await operationAvailability(context.env.DB, context.access, context.extensions) });
+};
+const getChangesOperation = async (context: OperationContext, input: OperationInput) => success(await readChanges(context.env.DB));
 async function collection<T>(db: D1Database, query: Record<string, string>, sql: string, countSql: string) {
   const offset = Number(query.offset ?? 0), limit = Number(query.limit ?? 100);
   const [rows, count] = await Promise.all([
@@ -42,77 +49,77 @@ async function collection<T>(db: D1Database, query: Record<string, string>, sql:
   return { items: rows.results, total: count?.total ?? 0, offset, limit };
 }
 
-readApi.openapi(routes.listItems, async (c) => {
-  const offset = Number(c.req.query("offset") ?? 0), limit = Number(c.req.query("limit") ?? 100);
+const listItemsOperation = async (context: OperationContext, input: OperationInput) => {
+  const offset = Number(input.query.offset ?? 0), limit = Number(input.query.limit ?? 100);
   const [rows, count] = await Promise.all([
-    c.env.DB.prepare("SELECT * FROM items ORDER BY updated DESC, rowid DESC LIMIT ? OFFSET ?").bind(limit, offset).all<ItemRow>(),
-    c.env.DB.prepare("SELECT COUNT(*) AS total FROM items").first<{ total: number }>(),
+    context.env.DB.prepare("SELECT * FROM items ORDER BY updated DESC, rowid DESC LIMIT ? OFFSET ?").bind(limit, offset).all<ItemRow>(),
+    context.env.DB.prepare("SELECT COUNT(*) AS total FROM items").first<{ total: number }>(),
   ]);
   // Return frozen version links without loading history bodies into the index.
-  const pins = rows.results.length ? (await c.env.DB.prepare(`SELECT item_id, version, CASE WHEN transclusions IS NULL THEN 'fragment' ELSE 'thread' END AS kind FROM versions WHERE pinned = 1 AND item_id IN (${rows.results.map(() => '?').join(',')}) ORDER BY version`).bind(...rows.results.map(row => row.id)).all<{ item_id: string; version: number; kind: 'fragment' | 'thread' }>()).results : [];
-  return c.json({ items: rows.results.map(row => ({ ...itemResource(row), pins: pins.filter(pin => pin.item_id === row.id).map(({ version, kind }) => ({ version, kind })) })), total: count?.total ?? 0, offset, limit });
-});
+  const pins = rows.results.length ? (await context.env.DB.prepare(`SELECT item_id, version, CASE WHEN kind IN ('fragment','thread') THEN kind WHEN transclusions IS NULL THEN 'fragment' ELSE 'thread' END AS kind FROM versions WHERE pinned = 1 AND item_id IN (${rows.results.map(() => '?').join(',')}) ORDER BY version`).bind(...rows.results.map(row => row.id)).all<{ item_id: string; version: number; kind: 'fragment' | 'thread' }>()).results : [];
+  return success({ items: rows.results.map(row => ({ ...itemResource(row), pins: pins.filter(pin => pin.item_id === row.id).map(({ version, kind }) => ({ version, kind })) })), total: count?.total ?? 0, offset, limit });
+};
 // Owner DTOs feed HTML previews. Sanitize copies, not immutable version rows or
 // public protocol snapshots, so legacy bakes cannot regain browser authority.
 async function presentVersion(row: Parameters<typeof versionResource>[0]) {
   return versionResource({ ...row, content_html: await sanitizeHtml(row.content_html) });
 }
-readApi.openapi(routes.getItem, async (c) => {
-  const detail = await itemDetail(c.env.DB, c.req.param("id"));
-  if (!detail) return c.json({ error: "not found" }, 404);
+const getItemOperation = async (context: OperationContext, input: OperationInput) => {
+  const detail = await itemDetail(context.env.DB, input.path.id);
+  if (!detail) return failure('not-found', { error: "not found" });
   // The change classifier's studio-private record rides on the owner's view of
   // each version (migration 0030); protocol.ts never reads it.
-  const classes = await changeClassesFor(c.env.DB, detail.item.id, detail.item.version);
+  const classes = await changeClassesFor(context.env.DB, detail.item.id, detail.item.version);
   const withClass = async (row: Parameters<typeof versionResource>[0]) => {
     const cls = classes.get(row.version);
     return { ...(await presentVersion(row)), change_class: cls ? { category: cls.category, model: cls.model, probability: cls.probability, classified_at: cls.classified_at, overridden: cls.overridden === 1 } : null };
   };
-  return c.json({ ...itemResource(detail.item), authored_kind: detail.kind, media: detail.media.map(mediaResource), published_media: detail.publishedMedia.map(mediaResource), versions: await Promise.all(detail.versions.map(withClass)), published: detail.published ? await withClass(detail.published) : null });
-});
-readApi.openapi(routes.getSettings, async (c) => c.json(settingsResource(await getSettings(c.env.DB))));
-readApi.openapi(routes.listSubscriptions, async (c) => {
-  const page = await collection<SubscriptionRow>(c.env.DB, c.req.query(), "SELECT * FROM subscriptions ORDER BY created ASC, id ASC", "SELECT COUNT(*) AS total FROM subscriptions");
-  return c.json({ ...page, items: page.items.map(subscriptionResource) });
-});
-readApi.openapi(routes.getSubscription, async (c) => {
-  const sub = await getSubscription(c.env.DB, c.req.param("id"));
-  return sub ? c.json(subscriptionResource(sub)) : c.json({ error: "not found" }, 404);
-});
-readApi.openapi(routes.listHoppers, async (c) => {
-  const page = await collection<HopperRow>(c.env.DB, c.req.query(), "SELECT * FROM hoppers ORDER BY created ASC, id ASC", "SELECT COUNT(*) AS total FROM hoppers");
-  return c.json({ ...page, items: page.items.map(hopperResource) });
-});
-readApi.openapi(routes.getHopper, async (c) => {
-  const hopper = await getHopper(c.env.DB, c.req.param("id"));
-  if (!hopper) return c.json({ error: "not found" }, 404);
-  const preview = c.req.query("preview") === "true";
+  return success({ ...itemResource(detail.item), authored_kind: detail.kind, media: detail.media.map(mediaResource), published_media: detail.publishedMedia.map(mediaResource), versions: await Promise.all(detail.versions.map(withClass)), published: detail.published ? await withClass(detail.published) : null });
+};
+const getSettingsOperation = async (context: OperationContext, input: OperationInput) => success(settingsResource(await getSettings(context.env.DB)));
+const listSubscriptionsOperation = async (context: OperationContext, input: OperationInput) => {
+  const page = await collection<SubscriptionRow>(context.env.DB, input.query, "SELECT * FROM subscriptions ORDER BY created ASC, id ASC", "SELECT COUNT(*) AS total FROM subscriptions");
+  return success({ ...page, items: page.items.map(subscriptionResource) });
+};
+const getSubscriptionOperation = async (context: OperationContext, input: OperationInput) => {
+  const sub = await getSubscription(context.env.DB, input.path.id);
+  return sub ? success(subscriptionResource(sub)) : failure('not-found', { error: "not found" });
+};
+const listHoppersOperation = async (context: OperationContext, input: OperationInput) => {
+  const page = await collection<HopperRow>(context.env.DB, input.query, "SELECT * FROM hoppers ORDER BY created ASC, id ASC", "SELECT COUNT(*) AS total FROM hoppers");
+  return success({ ...page, items: page.items.map(hopperResource) });
+};
+const getHopperOperation = async (context: OperationContext, input: OperationInput) => {
+  const hopper = await getHopper(context.env.DB, input.path.id);
+  if (!hopper) return failure('not-found', { error: "not found" });
+  const preview = input.query.preview === "true";
   const limit = preview ? " LIMIT 3" : "";
-  const memberships = (await c.env.DB.prepare(`SELECT * FROM hopper_items WHERE hopper_id = ? ORDER BY added_at DESC, subscription_id, remote_id${limit}`).bind(hopper.id).all<import("./types.ts").HopperItemRow>()).results;
-  const counts = await c.env.DB.prepare("SELECT COUNT(*) AS total, COUNT(DISTINCT CASE WHEN subscription_id <> '~own' THEN subscription_id END) AS source_count FROM hopper_items WHERE hopper_id = ?").bind(hopper.id).first<{ total: number; source_count: number }>();
-  const rows = await c.env.DB.prepare(`SELECT ii.* FROM hopper_items hi JOIN imported_items ii
+  const memberships = (await context.env.DB.prepare(`SELECT * FROM hopper_items WHERE hopper_id = ? ORDER BY added_at DESC, subscription_id, remote_id${limit}`).bind(hopper.id).all<import("./types.ts").HopperItemRow>()).results;
+  const counts = await context.env.DB.prepare("SELECT COUNT(*) AS total, COUNT(DISTINCT CASE WHEN subscription_id <> '~own' THEN subscription_id END) AS source_count FROM hopper_items WHERE hopper_id = ?").bind(hopper.id).first<{ total: number; source_count: number }>();
+  const rows = await context.env.DB.prepare(`SELECT ii.* FROM hopper_items hi JOIN imported_items ii
     ON ii.subscription_id = hi.subscription_id AND ii.remote_id = hi.remote_id
     WHERE hi.hopper_id = ? ORDER BY hi.added_at DESC, hi.subscription_id, hi.remote_id${limit}`).bind(hopper.id).all<ImportedItemRow>();
   const items = await Promise.all(rows.results.map(async (r) => importedResource({ ...r, content_html: await sanitizeHtml(r.content_html) })));
-  return c.json({ hopper: hopperResource(hopper), memberships, items, total: counts?.total ?? 0, source_count: counts?.source_count ?? 0 });
-});
-readApi.openapi(routes.listSignals, async (c) => c.json(await collection<SignalRow>(c.env.DB, c.req.query(), "SELECT * FROM signals ORDER BY at DESC, subscription_id, remote_id", "SELECT COUNT(*) AS total FROM signals")));
-readApi.openapi(routes.listMentions, async (c) => {
-  const direction = c.req.query("direction") ?? "inbound";
+  return success({ hopper: hopperResource(hopper), memberships, items, total: counts?.total ?? 0, source_count: counts?.source_count ?? 0 });
+};
+const listSignalsOperation = async (context: OperationContext, input: OperationInput) => success(await collection<SignalRow>(context.env.DB, input.query, "SELECT * FROM signals ORDER BY at DESC, subscription_id, remote_id", "SELECT COUNT(*) AS total FROM signals"));
+const listMentionsOperation = async (context: OperationContext, input: OperationInput) => {
+  const direction = input.query.direction ?? "inbound";
   const where = "WHERE status IN ('verified','gone')";
-  if (direction === "outbound") return c.json({ ...await collection<MentionOutRow>(c.env.DB, c.req.query(), "SELECT * FROM mentions_out ORDER BY created DESC, id ASC", "SELECT COUNT(*) AS total FROM mentions_out"), direction });
-  const page = await collection<MentionInRow>(c.env.DB, c.req.query(), `SELECT * FROM mentions_in ${where} ORDER BY verified_at DESC, last_seen DESC, id ASC`, `SELECT COUNT(*) AS total FROM mentions_in ${where}`);
-  return c.json({ ...page, items: page.items.map(mentionResource), direction });
-});
-readApi.openapi(routes.listInteractions, async (c) => {
-  const offset = Math.max(0, Number(c.req.query("offset") ?? 0) || 0);
-  const limit = Math.min(100, Math.max(1, Number(c.req.query("limit") ?? 50) || 50));
-  const raw = c.req.query("kind");
+  if (direction === "outbound") return success({ ...await collection<MentionOutRow>(context.env.DB, input.query, "SELECT * FROM mentions_out ORDER BY created DESC, id ASC", "SELECT COUNT(*) AS total FROM mentions_out"), direction });
+  const page = await collection<MentionInRow>(context.env.DB, input.query, `SELECT * FROM mentions_in ${where} ORDER BY verified_at DESC, last_seen DESC, id ASC`, `SELECT COUNT(*) AS total FROM mentions_in ${where}`);
+  return success({ ...page, items: page.items.map(mentionResource), direction });
+};
+const listInteractionsOperation = async (context: OperationContext, input: OperationInput) => {
+  const offset = Math.max(0, Number(input.query.offset ?? 0) || 0);
+  const limit = Math.min(100, Math.max(1, Number(input.query.limit ?? 50) || 50));
+  const raw = input.query.kind;
   const kind = INTERACTION_KINDS.includes(raw as InteractionKind) ? (raw as InteractionKind) : undefined;
-  return c.json({ ...(await listInteractions(c.env.DB, offset, limit, kind)), offset, limit });
-});
-readApi.openapi(routes.getAiModels, async (c) => {
-  const configured = configuredProviders(c.env);
-  return c.json({
+  return success({ ...(await listInteractions(context.env.DB, offset, limit, kind)), offset, limit });
+};
+const getAiModelsOperation = async (context: OperationContext, input: OperationInput) => {
+  const configured = configuredProviders(context.env);
+  return success({
     // Names only: never a key's value, a base_url (it may be a private
     // endpoint) or request params.
     providers: Object.entries(MODELS.providers).map(([id, p]) => ({
@@ -126,101 +133,101 @@ readApi.openapi(routes.getAiModels, async (c) => {
     models: MODELS.models.map(({ id, provider, label, note }) => ({ id, provider, label, ...(note ? { note } : {}), ...(isDecisionModel(id) ? { kind: "decision" as const } : {}) })),
     local: MODELS.local,
   });
-});
-readApi.openapi(routes.listThumbs, async (c) => c.json({ items: await listThumbs(c.env.DB) }));
+};
+const listThumbsOperation = async (context: OperationContext, input: OperationInput) => success({ items: await listThumbs(context.env.DB) });
 // `read_state: true` advertises that imported entries carry the owner's
 // readVersion, so a client can tell "unread" from "this server keeps none".
-readApi.openapi(routes.listReading, async (c) => c.json({ ...await readingData(c.env.DB, Number(c.req.query("offset") ?? 0), Number(c.req.query("limit") ?? 25), c.req.query("sub"), readingKind(c.req.query("kind")), c.req.query("background") === "true"), read_state: true as const, read_state_clear: true as const }));
+const listReadingOperation = async (context: OperationContext, input: OperationInput) => success({ ...await readingData(context.env.DB, Number(input.query.offset ?? 0), Number(input.query.limit ?? 25), input.query.sub, readingKind(input.query.kind), input.query.background === "true"), read_state: true as const, read_state_clear: true as const });
 // Imported items only, keyset-paged, for clients that author from what they read (studio#11).
-readApi.openapi(routes.listImportedReading, async (c) => {
-  return c.json(await importedReading(c.env.DB, c.req.query("cursor"), Number(c.req.query("limit") ?? IMPORTED_READING_DEFAULT)));
-});
+const listImportedReadingOperation = async (context: OperationContext, input: OperationInput) => {
+  return success(await importedReading(context.env.DB, input.query.cursor, Number(input.query.limit ?? IMPORTED_READING_DEFAULT)));
+};
 function readingKind(raw: string | undefined): "thread" | "fragment" | undefined {
   return raw === "thread" || raw === "fragment" ? raw : undefined;
 }
-readApi.openapi(routes.getImportedItem, async (c) => {
-  const row = await getImportedItem(c.env.DB, c.req.param("sub"), c.req.param("id"));
-  return row ? c.json(importedResource({ ...row, content_html: await sanitizeHtml(row.content_html) })) : c.json({ error: "not found" }, 404);
-});
+const getImportedItemOperation = async (context: OperationContext, input: OperationInput) => {
+  const row = await getImportedItem(context.env.DB, input.path.sub, input.path.id);
+  return row ? success(importedResource({ ...row, content_html: await sanitizeHtml(row.content_html) })) : failure('not-found', { error: "not found" });
+};
 // History of an imported item (#40), read from its origin on demand. Blyg
 // subscriptions only: an L0 feed has no item documents and no versions.
 async function blygSubscription(db: D1Database, id: string) {
   const sub = await getSubscription(db, id);
   return sub && sub.kind === "blyg" ? sub : null;
 }
-readApi.openapi(routes.getImportedHistory, async (c) => {
-  const sub = await blygSubscription(c.env.DB, c.req.param("sub"));
-  if (!sub) return c.json({ error: "not a blyg subscription" }, 404);
-  const got = await fetchImportedHistory(platformFetchFor(c.env), sub, c.req.param("id"));
-  return got.ok ? c.json(got.value) : c.json({ error: got.error }, got.status);
-});
-readApi.openapi(routes.getImportedVersion, async (c) => {
-  const sub = await blygSubscription(c.env.DB, c.req.param("sub"));
-  if (!sub) return c.json({ error: "not a blyg subscription" }, 404);
-  const got = await fetchPublicVersion(platformFetchFor(c.env), sub, c.req.param("id"), Number(c.req.param("v")));
-  return got.ok ? c.json(got.value) : c.json({ error: got.error }, got.status);
-});
+const getImportedHistoryOperation = async (context: OperationContext, input: OperationInput) => {
+  const sub = await blygSubscription(context.env.DB, input.path.sub);
+  if (!sub) return failure('not-found', { error: "not a blyg subscription" });
+  const got = await fetchImportedHistory(platformFetchFor(context.env), sub, input.path.id);
+  return got.ok ? success(got.value) : modelFailure({ error: got.error }, got.status);
+};
+const getImportedVersionOperation = async (context: OperationContext, input: OperationInput) => {
+  const sub = await blygSubscription(context.env.DB, input.path.sub);
+  if (!sub) return failure('not-found', { error: "not a blyg subscription" });
+  const got = await fetchPublicVersion(platformFetchFor(context.env), sub, input.path.id, Number(input.path.v));
+  return got.ok ? success(got.value) : modelFailure({ error: got.error }, got.status);
+};
 // Following links out of an entry (0.49.0). `peekItem` reads one item from its own blyg
 // without subscribing; `classifyLinks` says which of an entry's links name blyg items.
-readApi.openapi(routes.peekItem, async (c) => {
-  const got = await peekItem(c.env.DB, platformFetchFor(c.env), c.req.query("origin") ?? "", c.req.query("id") ?? "");
-  return got.ok ? c.json(got.value) : c.json({ error: got.error }, got.status);
-});
-readApi.openapi(routes.classifyLinks, async (c) => {
-  const { urls } = await readJson<{ urls: string[] }>(c);
-  const settings = await getSettings(c.env.DB);
-  const ourOrigin = siteOrigin(settings, c.req.url, normalizeMount(c.env.MOUNT));
-  return c.json({ links: await classifyLinks(c.env.DB, platformFetchFor(c.env), urls, ourOrigin, new Date().toISOString()) });
-});
-readApi.openapi(routes.listBrowse, async (c) => {
-  const offset = Math.max(0, Number(c.req.query("offset") ?? 0) || 0);
-  const limit = Math.min(100, Math.max(1, Number(c.req.query("limit") ?? 50) || 50));
-  return c.json({ ...(await listBrowse(c.env.DB, offset, limit, c.req.query("trail"))), offset, limit });
-});
-readApi.openapi(routes.logBrowse, async (c) => {
-  const b = await readJson<{ trail: string; parent_id?: number | null; origin: string; remote_id: string; version?: number | null; via: BrowseVia; title?: string | null }>(c);
-  const id = await recordBrowse(c.env.DB, { trail: b.trail, parentId: b.parent_id, origin: b.origin, remoteId: b.remote_id, version: b.version, via: b.via, title: b.title, at: new Date().toISOString() });
-  return c.json({ id }, 201);
-});
-readApi.openapi(routes.clearBrowse, async (c) => {
-  await clearBrowse(c.env.DB, c.req.query("trail"));
-  return c.json({ ok: true });
-});
-readApi.openapi(routes.getUpdateState, async (c) => {
-  const [settings, map] = await Promise.all([getSettings(c.env.DB), getSettingsMap(c.env.DB)]);
-  c.executionCtx.waitUntil(maybeCheckForUpdate(c.env.DB, settings, map, Date.now()).catch(() => {}));
-  return c.json(Object.fromEntries(Object.entries(map).filter(([key]) => key.startsWith("update_"))));
-});
-readApi.openapi(routes.getMentionSource, async (c) => {
-  const row = await getInbound(c.env.DB, c.req.param("id"));
-  if (!row) return c.json({ error: "not found" }, 404);
-  const holder = await c.env.DB.prepare("SELECT s.id AS id FROM imported_items ii JOIN subscriptions s ON s.id = ii.subscription_id WHERE ii.remote_id = ? AND s.origin = ? LIMIT 1").bind(row.source_id, row.source_origin).first<{ id: string }>();
-  const subscription = (await listSubscriptions(c.env.DB)).find((s) => s.origin === row.source_origin) ?? null;
-  return c.json({ holder: holder?.id ?? null, subscription: subscription ? subscriptionResource(subscription) : null });
-});
-readApi.openapi(routes.getForkOptions, async (c) => {
-  const settings = await getSettings(c.env.DB), mount = normalizeMount(c.env.MOUNT);
-  const ourOrigin = siteOrigin(settings, c.req.url, mount);
-  const sub = c.req.query("sub");
-  const fromSub = sub ? (await listSubscriptions(c.env.DB)).find((s) => s.id === sub)?.origin : undefined;
-  const origin = normalizeOrigin(fromSub ?? c.req.query("origin")) ?? ourOrigin;
-  const result = await forkablePins(c.env.DB, origin, c.req.query("id") ?? "", ourOrigin, mentionFetchFor(c.env));
-  return c.json({ ...result, origin, ourOrigin });
-});
-readApi.openapi(routes.preview, async (c) => {
-  const mount = normalizeMount(c.env.MOUNT);
-  const body = await readJson<{ content_md?: string }>(c);
-  if ((body as { kind?: string }).kind === "thread") return threadPreview(c);
+const peekItemOperation = async (context: OperationContext, input: OperationInput) => {
+  const got = await peekItem(context.env.DB, platformFetchFor(context.env), input.query.origin ?? "", input.query.id ?? "");
+  return got.ok ? success(got.value) : modelFailure({ error: got.error }, got.status);
+};
+const classifyLinksOperation = async (context: OperationContext, input: OperationInput) => {
+  const { urls } = (input.body as { urls: string[] });
+  const settings = await getSettings(context.env.DB);
+  const ourOrigin = siteOrigin(settings, context.url, normalizeMount(context.env.MOUNT));
+  return success({ links: await classifyLinks(context.env.DB, platformFetchFor(context.env), urls, ourOrigin, new Date().toISOString()) });
+};
+const listBrowseOperation = async (context: OperationContext, input: OperationInput) => {
+  const offset = Math.max(0, Number(input.query.offset ?? 0) || 0);
+  const limit = Math.min(100, Math.max(1, Number(input.query.limit ?? 50) || 50));
+  return success({ ...(await listBrowse(context.env.DB, offset, limit, input.query.trail)), offset, limit });
+};
+const logBrowseOperation = async (context: OperationContext, input: OperationInput) => {
+  const b = (input.body as { trail: string; parent_id?: number | null; origin: string; remote_id: string; version?: number | null; via: BrowseVia; title?: string | null });
+  const id = await recordBrowse(context.env.DB, { trail: b.trail, parentId: b.parent_id, origin: b.origin, remoteId: b.remote_id, version: b.version, via: b.via, title: b.title, at: new Date().toISOString() });
+  return created({ id });
+};
+const clearBrowseOperation = async (context: OperationContext, input: OperationInput) => {
+  await clearBrowse(context.env.DB, input.query.trail);
+  return success({ ok: true });
+};
+const getUpdateStateOperation = async (context: OperationContext, input: OperationInput) => {
+  const [settings, map] = await Promise.all([getSettings(context.env.DB), getSettingsMap(context.env.DB)]);
+  context.defer(maybeCheckForUpdate(context.env.DB, settings, map, Date.now()).catch(() => {}));
+  return success(Object.fromEntries(Object.entries(map).filter(([key]) => key.startsWith("update_"))));
+};
+const getMentionSourceOperation = async (context: OperationContext, input: OperationInput) => {
+  const row = await getInbound(context.env.DB, input.path.id);
+  if (!row) return failure('not-found', { error: "not found" });
+  const holder = await context.env.DB.prepare("SELECT s.id AS id FROM imported_items ii JOIN subscriptions s ON s.id = ii.subscription_id WHERE ii.remote_id = ? AND s.origin = ? LIMIT 1").bind(row.source_id, row.source_origin).first<{ id: string }>();
+  const subscription = (await listSubscriptions(context.env.DB)).find((s) => s.origin === row.source_origin) ?? null;
+  return success({ holder: holder?.id ?? null, subscription: subscription ? subscriptionResource(subscription) : null });
+};
+const getForkOptionsOperation = async (context: OperationContext, input: OperationInput) => {
+  const settings = await getSettings(context.env.DB), mount = normalizeMount(context.env.MOUNT);
+  const ourOrigin = siteOrigin(settings, context.url, mount);
+  const sub = input.query.sub;
+  const fromSub = sub ? (await listSubscriptions(context.env.DB)).find((s) => s.id === sub)?.origin : undefined;
+  const origin = normalizeOrigin(fromSub ?? input.query.origin) ?? ourOrigin;
+  const result = await forkablePins(context.env.DB, origin, input.query.id ?? "", ourOrigin, mentionFetchFor(context.env));
+  return success({ ...result, origin, ourOrigin });
+};
+const previewOperation = async (context: OperationContext, input: OperationInput) => {
+  const mount = normalizeMount(context.env.MOUNT);
+  const body = (input.body as { content_md?: string });
+  if ((body as { kind?: string }).kind === "thread") return threadPreview(context, input);
   const tk = annotateTkPreview(body.content_md ?? "");
   // `[[id]]` resolves in the preview too, so an unresolvable link is visible
   // before publish rejects it — same contract as an unresolvable directive.
-  const origin = siteOrigin(await getSettings(c.env.DB), c.req.url, mount);
-  const links = await previewInternalLinks(c.env.DB, tk.text, origin);
+  const origin = siteOrigin(await getSettings(context.env.DB), context.url, mount);
+  const links = await previewInternalLinks(context.env.DB, tk.text, origin);
   // Links inside generated blocks resolve here too, as at publish (studio#14).
-  const blocks = await resolveBlockLinks(tk, (md) => previewInternalLinks(c.env.DB, md, origin));
+  const blocks = await resolveBlockLinks(tk, (md) => previewInternalLinks(context.env.DB, md, origin));
   const html = [links, ...blocks.docs].reduce((acc, doc) => applyInternalLinks(acc, doc), tk.finish(renderMarkdown(links.text)));
-  return c.json({ html, scopes: await scopeSummariesWithSources(c.env.DB, tk.scopes), link_errors: [...links.errors, ...blocks.errors] });
-});
+  return success({ html, scopes: await scopeSummariesWithSources(context.env.DB, tk.scopes), link_errors: [...links.errors, ...blocks.errors] });
+};
 
 /**
  * Read one past version for the editor's history viewer. Studio-only: the
@@ -228,14 +235,14 @@ readApi.openapi(routes.preview, async (c) => {
  * `items/{id}/vN.json` surface, which serves pinned versions only (§2.8).
  * Reading history locally is not the same act as promising it publicly.
  */
-readApi.openapi(routes.getVersion, async (c) => {
-  const item = await getItem(c.env.DB, c.req.param("id"));
-  if (!item) return c.json({ error: "not found" }, 404);
-  const version = Number(c.req.param("v"));
-  const row = await getVersion(c.env.DB, item.id, version);
-  if (!row) return c.json({ error: "version not found" }, 404);
-  return c.json(await presentVersion(row));
-});
+const getVersionOperation = async (context: OperationContext, input: OperationInput) => {
+  const item = await getItem(context.env.DB, input.path.id);
+  if (!item) return failure('not-found', { error: "not found" });
+  const version = Number(input.path.v);
+  const row = await getVersion(context.env.DB, item.id, version);
+  if (!row) return failure('not-found', { error: "version not found" });
+  return success(await presentVersion(row));
+};
 
 /**
  * The bracket palette's candidate list (§3.2). Searches everything v0.3 lets a
@@ -251,15 +258,15 @@ readApi.openapi(routes.getVersion, async (c) => {
  */
 const SEARCH_PAGE = 20;
 
-readApi.openapi(routes.search, async (c) => {
-  const source = c.req.query("source") === "mine" || c.req.query("source") === "imported" ? c.req.query("source") : "all";
-  const sub = c.req.query("sub") || undefined;
-  const order = c.req.query("sort") === "oldest" ? "ASC" : "DESC";
+const searchOperation = async (context: OperationContext, input: OperationInput) => {
+  const source = input.query.source === "mine" || input.query.source === "imported" ? input.query.source : "all";
+  const sub = input.query.sub || undefined;
+  const order = input.query.sort === "oldest" ? "ASC" : "DESC";
   // Every word must appear somewhere in the item's text or id, in any order.
   // lower() folds ASCII only; that is the "rudimentary" in rudimentary
   // search, and FTS5 is the upgrade if it ever matters. instr, not LIKE: D1
   // caps LIKE patterns at 50 bytes, so a pasted URL as a search word threw.
-  const words = (c.req.query("q") ?? "").trim().split(/\s+/).filter(Boolean).slice(0, 8);
+  const words = (input.query.q ?? "").trim().split(/\s+/).filter(Boolean).slice(0, 8);
   const textMatch = (text: string, id: string) => words.map(() => `(instr(lower(${text}), lower(?)) > 0 OR instr(lower(${id}), lower(?)) > 0)`).join(" AND ");
   const wordBinds = words.flatMap((w) => [w, w]);
   const parts: string[] = [];
@@ -282,13 +289,13 @@ readApi.openapi(routes.search, async (c) => {
     if (sub) binds.push(sub);
     binds.push(...wordBinds);
   }
-  const offset = Math.max(0, Number(c.req.query("offset") ?? 0) || 0);
-  const limit = Math.min(100, Math.max(1, Number(c.req.query("limit") ?? SEARCH_PAGE) || SEARCH_PAGE));
-  if (!parts.length) return c.json({ items: [], total: 0, offset, limit });
+  const offset = Math.max(0, Number(input.query.offset ?? 0) || 0);
+  const limit = Math.min(100, Math.max(1, Number(input.query.limit ?? SEARCH_PAGE) || SEARCH_PAGE));
+  if (!parts.length) return success({ items: [], total: 0, offset, limit });
   const union = parts.join(" UNION ALL ");
-  const [rows, count] = await c.env.DB.batch([
-    c.env.DB.prepare(`SELECT * FROM (${union}) ORDER BY updated ${order}, id ${order} LIMIT ? OFFSET ?`).bind(...binds, limit, offset),
-    c.env.DB.prepare(`SELECT COUNT(*) AS n FROM (${union})`).bind(...binds),
+  const [rows, count] = await context.env.DB.batch([
+    context.env.DB.prepare(`SELECT * FROM (${union}) ORDER BY updated ${order}, id ${order} LIMIT ? OFFSET ?`).bind(...binds, limit, offset),
+    context.env.DB.prepare(`SELECT COUNT(*) AS n FROM (${union})`).bind(...binds),
   ]);
   type Row = { source: "mine" | "imported"; id: string; html: string | null; version: number; updated: string; kind: string; subscription_id: string | null; source_title: string | null; origin: string | null };
   const items = (rows.results as Row[]).map((r) => {
@@ -311,25 +318,25 @@ readApi.openapi(routes.search, async (c) => {
       source_title: sourceTitle,
     };
   });
-  return c.json({ items, total: (count.results[0] as { n: number }).n, offset, limit });
-});
+  return success({ items, total: (count.results[0] as { n: number }).n, offset, limit });
+};
 
 
-async function threadPreview(c: Context<{ Bindings: Env }>) {
-  const body = await readJson<{ content_md?: string; item_id?: string }>(c);
+async function threadPreview(context: OperationContext, input: OperationInput) {
+  const body = (input.body as { content_md?: string; item_id?: string });
   const tk = annotateTkPreview(body.content_md ?? "");
   // item_id is the thread being edited — the DAG check needs it, so the
   // preview rejects a circular quote at exactly the point publish would.
-  const mount = normalizeMount(c.env.MOUNT);
-  const origin = siteOrigin(await getSettings(c.env.DB), c.req.url, mount);
-  const links = await previewInternalLinks(c.env.DB, tk.text, origin);
-  const blocks = await resolveBlockLinks(tk, (md) => previewInternalLinks(c.env.DB, md, origin));
-  const resolved = await previewTransclusions(c.env.DB, links.text, body.item_id);
-  return c.json({
+  const mount = normalizeMount(context.env.MOUNT);
+  const origin = siteOrigin(await getSettings(context.env.DB), context.url, mount);
+  const links = await previewInternalLinks(context.env.DB, tk.text, origin);
+  const blocks = await resolveBlockLinks(tk, (md) => previewInternalLinks(context.env.DB, md, origin));
+  const resolved = await previewTransclusions(context.env.DB, links.text, body.item_id);
+  return success({
     html: [links, ...blocks.docs].reduce((acc, doc) => applyInternalLinks(acc, doc), tk.finish(resolved.html)),
     errors: [...resolved.errors, ...links.errors, ...blocks.errors],
     transclusions: resolved.transclusions,
-    scopes: await scopeSummariesWithSources(c.env.DB, tk.scopes),
+    scopes: await scopeSummariesWithSources(context.env.DB, tk.scopes),
   });
 }
 async function forkablePins(
@@ -344,7 +351,7 @@ async function forkablePins(
     const rows = await listVersions(db, id);
     return {
       versions: rows
-        .filter((v) => v.pinned === 1 && v.content_md)
+        .filter((v) => v.pinned === 1 && versionState(v) !== 'withdrawn')
         .map((v) => ({ version: v.version, at: v.published_at, note: v.note })),
     };
   }
@@ -363,3 +370,36 @@ async function forkablePins(
     return { versions: [], error: "that origin's item document could not be parsed" };
   }
 }
+
+export const readOperations = {
+  getCapabilities: getCapabilitiesOperation,
+  getChanges: getChangesOperation,
+  listItems: listItemsOperation,
+  getItem: getItemOperation,
+  getSettings: getSettingsOperation,
+  listSubscriptions: listSubscriptionsOperation,
+  getSubscription: getSubscriptionOperation,
+  listHoppers: listHoppersOperation,
+  getHopper: getHopperOperation,
+  listSignals: listSignalsOperation,
+  listMentions: listMentionsOperation,
+  listInteractions: listInteractionsOperation,
+  getAiModels: getAiModelsOperation,
+  listThumbs: listThumbsOperation,
+  listReading: listReadingOperation,
+  listImportedReading: listImportedReadingOperation,
+  getImportedItem: getImportedItemOperation,
+  getImportedHistory: getImportedHistoryOperation,
+  getImportedVersion: getImportedVersionOperation,
+  peekItem: peekItemOperation,
+  classifyLinks: classifyLinksOperation,
+  listBrowse: listBrowseOperation,
+  logBrowse: logBrowseOperation,
+  clearBrowse: clearBrowseOperation,
+  getUpdateState: getUpdateStateOperation,
+  getMentionSource: getMentionSourceOperation,
+  getForkOptions: getForkOptionsOperation,
+  preview: previewOperation,
+  getVersion: getVersionOperation,
+  search: searchOperation,
+};

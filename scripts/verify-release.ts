@@ -7,8 +7,8 @@ import { join, resolve } from "node:path";
 import { pathToFileURL } from "node:url";
 import { verifySdkConsumer } from "./verify-sdk-consumer.ts";
 import { verifyPersistence } from "./verify-persistence.ts";
-import { Miniflare } from "miniflare";
-import { readD1Migrations } from "@cloudflare/vitest-pool-workers";
+import { Miniflare, convertV4MiniflareOptions } from "miniflare";
+import { readD1Migrations } from "@cloudflare/vitest-plugin";
 
 const output = "build/release";
 const manifest = JSON.parse(readFileSync(join(output, "release.json"), "utf8"));
@@ -29,7 +29,7 @@ try {
   assert.match(config, /"no_bundle": true/);
   assert.match(config, /FILL-ME-run-npm-run-init/);
   assert.match(config, /"PublicHtml": \{ "type": "worker", "cache": \{ "enabled": true \} \}/);
-  mf = new Miniflare({ modules: [{ type: "ESModule", path: "worker.mjs", contents: readFileSync(join(worker, "worker.js"), "utf8") }], compatibilityDate: "2026-07-01", compatibilityFlags: ["nodejs_compat"], bindings: { MOUNT: "", OWNER_PASSWORD: "test", COOKIE_SECRET: "release-smoke-test-secret" }, d1Databases: ["DB"], r2Buckets: ["MEDIA"] });
+  mf = new Miniflare(convertV4MiniflareOptions({ modules: [{ type: "ESModule", path: "worker.mjs", contents: readFileSync(join(worker, "worker.js"), "utf8") }], compatibilityDate: "2026-07-01", compatibilityFlags: ["nodejs_compat"], bindings: { MOUNT: "", OWNER_PASSWORD: "test", COOKIE_SECRET: "release-smoke-test-secret" }, d1Databases: ["DB"], r2Buckets: ["MEDIA"] }));
   assert.equal((await mf.dispatchFetch("http://localhost/api/openapi.json")).status, 401);
   const browser = await mf.dispatchFetch("http://localhost/studio/app.js");
   assert.equal(browser.status, 200);

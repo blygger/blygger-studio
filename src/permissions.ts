@@ -1,33 +1,24 @@
+import type { RouteConfig } from '@hono/zod-openapi';
 import { routes } from './contract/routes.ts';
+import { requiredScopes, type ScopeInput, type OperationPolicy } from './operation-policy.ts';
 
 import type { OwnerScope } from './auth-scopes.ts';
 export { OWNER_SCOPES, SCOPE_DESCRIPTIONS } from './auth-scopes.ts';
 export interface OwnerAccess { scope: string[]; clientId: string; userId: string; grantId?: string }
-const draft = new Set(['createItem', 'updateItem', 'deleteItem', 'restoreItem', 'uploadMedia', 'generateItem', 'draftNote', 'classifyChange', 'preview']);
-const publish = new Set(['publishItem', 'withdrawItem', 'pinItem', 'refreshItem', 'deleteMedia']);
-// Read state is low-stakes, reversible bookkeeping: a sync-only reader app should not
-// need the grant that can also delete subscriptions (studio#45, session 43).
-const readState = new Set(['markRead', 'markUnread', 'markReadBatch', 'markUnreadBatch', 'logBrowse', 'clearBrowse']);
-// A POST that only looks things up: reading another blyg's pages needs no more than reading.
-const lookup = new Set(['classifyLinks']);
-export function operationScopes(operation: string): OwnerScope[] {
+export function operationScopes(operation: string, input?: ScopeInput): OwnerScope[] {
   const route = routes[operation as keyof typeof routes];
   if (!route) throw new Error(`Unknown operation: ${operation}`);
-  if (route.method === 'get' || lookup.has(operation)) return ['owner:read'];
-  if (draft.has(operation)) return ['owner:draft'];
-  if (publish.has(operation)) return ['owner:publish'];
-  if (readState.has(operation)) return ['reading:state'];
-  return ['owner:manage'];
+  return requiredScopes(route.policy, input);
 }
 // Use the route patterns Hono actually matched, not a second URL router.
 const registeredOperations = new Map(Object.entries(routes).map(([id, route]) => [
   `${route.method.toUpperCase()} /api${route.path.replace(/\{(\w+)\}/g, ':$1')}`,
   [id, route] as const,
 ]));
-export function matchOperation(method: string, paths: Iterable<string>) {
+export function matchOperation(method: string, paths: Iterable<string>, registered: Map<string, readonly [string, RouteConfig & { policy: OperationPolicy }]> = registeredOperations) {
   const verb = method === 'HEAD' ? 'GET' : method.toUpperCase();
   for (const path of paths) {
-    const operation = registeredOperations.get(`${verb} ${path}`);
+    const operation = registered.get(`${verb} ${path}`);
     if (operation) return operation;
   }
 }

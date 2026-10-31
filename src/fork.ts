@@ -1,3 +1,4 @@
+import { authoredVersionKind } from './version-state.ts';
 // Fork lineage — v0.3-plan §2.4, the Phase B half of the shape 0.1 §5.6
 // reserved. A fork takes a **pinned** version as its starting text and says so
 // permanently: `forked_from: {origin, id, version}`, origin REQUIRED, matching
@@ -64,14 +65,14 @@ async function resolveOwnFork(
 ): Promise<ForkResolve> {
   const row = await db
     .prepare(
-      `SELECT v.content_md AS content_md, v.content_html AS content_html, v.transclusions AS transclusions, v.pinned AS pinned, v.generated_json AS generated_json
+      `SELECT v.kind AS kind, v.content_md AS content_md, v.content_html AS content_html, v.transclusions AS transclusions, v.pinned AS pinned, v.generated_json AS generated_json
        FROM versions v WHERE v.item_id = ? AND v.version = ?`,
     )
     .bind(ref.id, ref.version)
-    .first<{ content_md: string; content_html: string; transclusions: string | null; pinned: number; generated_json: string | null }>();
+    .first<{ kind: "fragment" | "thread" | "withdrawn" | null; content_md: string; content_html: string; transclusions: string | null; pinned: number; generated_json: string | null }>();
   if (!row) return { ok: false, reason: `no v${ref.version} of ${ref.id} on this blyg` };
   if (row.pinned !== 1) return { ok: false, reason: `v${ref.version} is not pinned — only pinned versions can be forked` };
-  const kind = row.transclusions !== null ? "thread" : "fragment";
+  const kind = authoredVersionKind(row);
   return {
     ok: true,
     source: {
@@ -113,8 +114,8 @@ async function resolveRemoteFork(db: D1Database, ref: ForkedFrom, fetchFn: Fetch
   if (!doc) return { ok: false, reason: `${url} is not a blyg pinned-version document` };
   if (doc.id !== ref.id || doc.version !== ref.version) return { ok: false, reason: `${url} describes a different item or version` };
   if (doc.pinned !== true) return { ok: false, reason: `${ref.origin} does not declare that version pinned` };
-  const contentMd = typeof doc.content_md === "string" ? doc.content_md : "";
-  if (!contentMd) return { ok: false, reason: "that version has no content to fork" };
+  if (typeof doc.content_md !== 'string' || doc.kind === 'withdrawn') return { ok: false, reason: "that version has no content to fork" };
+  const contentMd = doc.content_md;
   const sub = await db
     .prepare("SELECT title FROM subscriptions WHERE origin = ?")
     .bind(ref.origin)

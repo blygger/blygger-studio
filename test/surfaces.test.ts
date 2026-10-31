@@ -89,6 +89,7 @@ describe("CORS + timestamps", () => {
 
   it("public routes carry cache headers", async () => {
     const res = await getPublic("/blyg/blyg.json");
-    expect(res.headers.get("cache-control")).toBe("public, max-age=60");
+    expect(res.headers.get("cache-control")).toBe("no-cache");
+    expect(res.headers.get("etag")).toBeTruthy();
   });
 });

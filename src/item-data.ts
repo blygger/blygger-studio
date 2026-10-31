@@ -1,3 +1,4 @@
+import { authoredVersionKind } from './version-state.ts';
 import { ItemRowSchema, MediaRowSchema, VersionRowSchema } from "./contract/schemas.ts";
 
 // Column names come only from row contracts. Native result columns avoid both
@@ -23,6 +24,7 @@ export async function itemDetail(db: D1Database, id: string) {
   // What the live version lists (migration 0031), detached rows included.
   const publishedMedia = results.filter((row) => row.type === "published_media").map((row) => MediaRowSchema.parse(row));
   const published = versions.find((v) => v.version === item.version) ?? null;
-  const kind = item.kind === "thread" || (item.kind === "withdrawn" && versions.find((v) => v.version === item.version - 1)?.transclusions) ? "thread" : "fragment";
+  const previous = versions.find((v) => v.version === item.version - 1);
+  const kind = item.kind === 'withdrawn' ? authoredVersionKind(previous, Boolean(previous?.transclusions)) : item.kind;
   return { item, kind, media, versions, published, publishedMedia };
 }

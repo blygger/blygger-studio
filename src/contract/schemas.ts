@@ -19,6 +19,7 @@ export const ItemRowSchema = z.object({
 }).openapi("ItemRow");
 
 export const VersionRowSchema = z.object({
+  kind: z.enum(["fragment", "thread", "withdrawn"]).nullable(),
   item_id: z.string(),
   version: z.number(),
   content_md: z.string(),

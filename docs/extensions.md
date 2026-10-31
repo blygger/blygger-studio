@@ -83,10 +83,11 @@ extensions/
    };
    // server.ts
    import type { ServerExtension } from '../../src/extensions/server.ts';
+   import { success } from '../../src/operation-types.ts';
    import { routes } from './contract.ts';
    export const server: ServerExtension = {
      name: 'my-thing',
-     routes: (router) => router.get(routes.extMyThingSummary, async (c) => c.json({ count: 0 }, 200)),
+     routes: (router) => router.get(routes.extMyThingSummary, async () => success({ count: 0 })),
    };
    ```
 
@@ -145,3 +146,10 @@ Turning an extension off removes its slots, its page and its routes immediately.
 - Extension routes are reads only. They are registered under the extension's own prefix, or not at all.
 - "Reads only" is a property of an extension's *server routes*, not of its UI. In the browser an extension gets the SDK client carrying the owner's session, so its code can call any owner operation, writes included: publish, discard, mint tokens. Nothing at run time stops it. What makes that acceptable is the first two points: an extension is reviewed code the operator chose to compile in. Review an extension's UI as you would any Studio screen that writes.
 - An extension's UI sees a narrow context and imports only the extension surface. Any URL an extension takes from someone else's document and turns into an `href` must pass `isFollowableUrl` (http, https or mailto), the same rule the Studio applies. Lineage-glyph does this on its server.
+
+Server read handlers receive `(context, input)`. The context supplies the node
+environment, verified access, deployment URL, compiled extensions, and a `defer`
+function for background work. Input has validated `path`, `query`, and `body`
+fields. Return `success(value)` or a typed `failure(kind, details)`. Handlers do
+not receive Hono contexts or return HTTP responses. REST and MCP invoke the same
+operation runner, which owns scopes, live feature checks, and work admission.

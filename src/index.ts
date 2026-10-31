@@ -1,3 +1,4 @@
+import { authoredVersionKind } from './version-state.ts';
 import { WorkerEntrypoint } from 'cloudflare:workers';
 import { conditionalHtmlResponse, htmlCacheResponse, publicHtmlKey, publicHtmlRequest, publicHtmlRevision } from './html-cache.ts';
 import { readChanges } from './changes.ts';
@@ -10,6 +11,7 @@ import { studioSpa } from "./spa.ts";
 import { authorizationApi } from './authorization-api.ts';
 import { oauthRoutes } from './oauth-routes.ts';
 import { serveMcp } from './mcp.ts';
+import { conditionalResponse, EXPOSED_RESPONSE_HEADERS, setResponseHeaders, validatedResponse } from './http-response.ts';
 import { ownerApi } from "./owner-api.ts";
 // Studio is mounted at {mount}/studio and its assets share that range.
 // The owner API remains host-rooted at /api. Register both before the public
@@ -67,8 +69,8 @@ export function makeApp(mount: string) {
     if (c.req.header('authorization') || c.req.method === 'OPTIONS') {
       c.header('Access-Control-Allow-Origin', '*');
       c.header('Access-Control-Allow-Methods', 'GET, HEAD, POST, PATCH, PUT, DELETE, OPTIONS');
-      c.header('Access-Control-Allow-Headers', 'Authorization, Content-Type');
-      c.header('Access-Control-Expose-Headers', 'WWW-Authenticate, Location');
+      c.header('Access-Control-Allow-Headers', 'Authorization, Content-Type, If-None-Match');
+      c.header('Access-Control-Expose-Headers', EXPOSED_RESPONSE_HEADERS);
       if (c.req.method === 'OPTIONS') return c.body(null, 204);
     }
     await next();
@@ -82,10 +84,36 @@ export function makeApp(mount: string) {
 
   const pub = new Hono<{ Bindings: Env }>({ strict: false });
 
+  // Wire resources are readable by browser clients on other origins, including
+  // errors and explicit conditional requests. This excludes owner UI and MCP.
+  const wireRead = (path: string) => /\.(?:json|xml|opml)$/.test(path) || path.startsWith(mount + '/media/');
+  pub.use('*', async (c, next) => {
+    if (c.req.method === 'OPTIONS' && wireRead(c.req.path)) {
+      return c.body(null, 204, {
+        'Access-Control-Allow-Origin': '*',
+        'Access-Control-Allow-Methods': 'GET, HEAD, OPTIONS',
+        'Access-Control-Allow-Headers': 'Authorization, If-None-Match',
+        'Access-Control-Expose-Headers': EXPOSED_RESPONSE_HEADERS,
+        'Cache-Control': 'no-store',
+      });
+    }
+    await next();
+    if (wireRead(c.req.path)) setResponseHeaders(c, {
+      'Access-Control-Allow-Origin': '*',
+      'Access-Control-Expose-Headers': EXPOSED_RESPONSE_HEADERS,
+    });
+  });
   pub.use("*", async (c, next) => {
     await next();
-    if (c.res.ok && !c.res.headers.has("Cache-Control")) {
-      c.res.headers.set("Cache-Control", "public, max-age=60");
+    if (!c.res.headers.has('Cache-Control')) {
+      c.header('Cache-Control', c.res.ok ? 'public, max-age=60' : 'no-store');
+    }
+    const type = c.res.headers.get('Content-Type')?.split(';')[0].trim().toLowerCase();
+    const text = type === 'application/json' || type === 'application/rss+xml' ||
+      type === 'text/x-opml' || type === 'text/css';
+    if (c.res.status === 200 && text && !/\b(?:private|no-store)\b/i.test(c.res.headers.get('Cache-Control') ?? '')) {
+      c.header('Cache-Control', 'no-cache');
+      c.res = await validatedResponse(c.req.raw, c.res);
     }
   });
 
@@ -240,6 +268,12 @@ export function makeApp(mount: string) {
     c.executionCtx.waitUntil(verifyMention(c.env.DB, mentionId, source, itemId, origin, mentionFetchFor(c.env)).catch(() => {}));
     return c.json({ ok: true, status: "accepted, pending verification" }, 202);
   });
+  pub.all('/webmention', async c => {
+    c.header('Cache-Control', 'no-store');
+    if (!(await getSettings(c.env.DB)).accept_mentions) return c.notFound();
+    c.header('Allow', 'POST');
+    return c.json({ error: 'method not allowed' }, 405);
+  });
 
   /** W3C discovery also allows the endpoint in a Link header, so item pages carry both. */
   const webmentionLink = (c: Context<{ Bindings: Env }>, settings: Settings) => {
@@ -261,7 +295,7 @@ export function makeApp(mount: string) {
   // 404 unless that exact version is pinned; 200 forever once it is,
   // surviving withdrawal. The authored kind of the *pinned version* decides
   // which route serves it (a withdrawn item's kind is 'withdrawn', but its
-  // pinned v1 was authored as fragment or thread — transclusions tells us).
+  // pinned v1 retains its authored kind, with a legacy transclusions fallback).
   const pinnedPage = (wantThread: boolean) => async (c: Context<{ Bindings: Env }>) => {
     const m = /^v(\d+)$/.exec(c.req.param("vseg") ?? "");
     if (!m) return c.notFound();
@@ -269,7 +303,7 @@ export function makeApp(mount: string) {
     if (!item || item.status === "draft") return c.notFound();
     const row = await getVersion(c.env.DB, item.id, Number(m[1]));
     if (!row || row.pinned !== 1) return c.notFound();
-    const isThread = row.transclusions !== null;
+    const isThread = authoredVersionKind(row) === "thread";
     if (isThread !== wantThread) return c.notFound();
     const settings = await getSettings(c.env.DB);
     return c.html(await pinnedVersionPage(c.env.DB, settings, item, row, isThread, mount, siteOrigin(settings, c.req.url, mount)));
@@ -327,14 +361,18 @@ export function makeApp(mount: string) {
     }
     const object = await c.env.MEDIA.get(media.r2_key);
     if (!object) return c.notFound();
-    return c.body(object.body as ReadableStream, 200, {
+    const response = c.body(object.body as ReadableStream, 200, {
       "Content-Type": media.mime,
       // Uploaded SVG can be opened as a document. Keep it inert and give it an
       // opaque origin so delegated uploads cannot inherit an owner's authority.
       "Content-Security-Policy": "sandbox; script-src 'none'",
-      "Cache-Control": publicUse ? "public, max-age=31536000, immutable" : "no-store",
+      // Legacy URLs contain a random id. Hash-addressed uploads can opt into
+      // immutable caching separately; these stable URLs always revalidate.
+      "Cache-Control": publicUse ? "public, no-cache" : "no-store",
+      "ETag": object.httpEtag,
       "X-Content-Type-Options": "nosniff",
     });
+    return conditionalResponse(c.req.raw, response);
   });
 
   if (mount === "") {

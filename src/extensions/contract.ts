@@ -8,6 +8,7 @@
 import type { z } from "@hono/zod-openapi";
 import { route } from "../contract/route.ts";
 import { EXTENSION_NAME } from "./names.ts";
+import { readOperation } from '../operation-policy.ts';
 const pascal = (text: string) => text.split(/[-_]/).filter(Boolean).map((part) => part[0].toUpperCase() + part.slice(1)).join("");
 
 export function extensionOperationId(extension: string, operation: string) {
@@ -18,6 +19,6 @@ export function extensionOperationId(extension: string, operation: string) {
 export function extensionRoute<E extends string, P extends string>(extension: E, operation: string, path: P, response: z.ZodType, query?: z.ZodObject) {
   if (!EXTENSION_NAME.test(extension)) throw new Error(`invalid extension name: ${extension}`);
   if (!/^(\/[\w{}-]+)+$/.test(path)) throw new Error(`invalid extension path: ${path}`);
-  const config = route(extensionOperationId(extension, operation), "get", `/ext/${extension}${path}` as `/ext/${E}${P}`, response, undefined, 200, query);
+  const config = route(extensionOperationId(extension, operation), { ...readOperation(), extension }, "get", `/ext/${extension}${path}` as `/ext/${E}${P}`, response, undefined, 200, query);
   return { ...config, tags: ["extension", `extension:${extension}`], description: `Extension "${extension}". Answers only on a node that compiles the extension in and has enabled it in Settings; otherwise 404.` };
 }

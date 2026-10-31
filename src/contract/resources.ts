@@ -1,3 +1,4 @@
+import { versionState } from '../version-state.ts';
 import { z } from "@hono/zod-openapi";
 import { CHANGE_CATEGORIES } from "../change-category.ts";
 import { ItemRowSchema, VersionRowSchema, MediaRowSchema, SubscriptionRowSchema, HopperRowSchema, ImportedItemRowSchema, MentionInRowSchema } from "./schemas.ts";
@@ -16,7 +17,7 @@ export const ItemSchema = z.object(ItemRowSchema.omit({ show_responses: true, re
 }).openapi("Item");
 /** The change classifier's record of one own version (migration 0030). Studio-private: never on the wire (#19 / TN-1, #77). */
 export const ChangeClassSchema = z.object({ category: z.enum(CHANGE_CATEGORIES).nullable(), model: z.string().nullable().describe("Null for refresh (decided locally) and for a category the author set by hand."), probability: z.number().nullable(), classified_at: z.string(), overridden: z.boolean().describe("The author changed or cleared the classifier's category before publishing.") }).openapi("ChangeClass");
-export const VersionSchema = z.object(VersionRowSchema.omit({ pinned: true, transclusions: true, generated_json: true, stub_of: true, stub_cite: true, note_generated: true }).shape).extend({
+export const VersionSchema = z.object(VersionRowSchema.omit({ kind: true, pinned: true, transclusions: true, generated_json: true, stub_of: true, stub_cite: true, note_generated: true }).shape).extend({
   kind: z.enum(["fragment", "thread", "withdrawn"]), pinned: z.boolean(), note_generated: z.boolean(), transclusions: z.array(TransclusionSchema), generated: z.array(ProvenanceSchema),
   stub_of: z.union([StubSchema, z.null()]), stub_cite: z.union([CitationSchema, z.null()]),
   change_class: ChangeClassSchema.nullable().optional().describe("The change classifier's studio-private record of this version, in an item's versions; absent elsewhere. Never on the wire."),
@@ -38,7 +39,7 @@ function stored<T>(value: string | null, schema: z.ZodType<T>, fallback: T): T {
 const provenance = z.array(z.union([ProvenanceSchema, z.null()]));
 const overrideMode = (value: number | null | undefined) => (value === null || value === undefined ? "default" : value === 1 ? "show" : "hide");
 export const itemResource = (row: ItemRow) => ItemSchema.parse({ ...row, dirty: row.dirty === 1, responses: row.responses_override === null ? "default" : row.responses_override === 1 ? "show" : "hide", highlight: overrideMode(row.highlight_override), provenance: stored(row.tk_provenance_json, provenance, []), stub_of: stored(row.stub_of, StubSchema.nullable(), null), forked_from: stored(row.forked_from, VersionReferenceSchema.nullable(), null), fork_cite: stored(row.fork_cite, CitationSchema.nullable(), null) });
-export const versionResource = (row: VersionRow) => VersionSchema.parse({ ...row, kind: !row.content_md ? "withdrawn" : row.transclusions === null ? "fragment" : "thread", pinned: row.pinned === 1, note_generated: row.note_generated === 1, transclusions: stored(row.transclusions, z.array(TransclusionSchema), []), generated: stored(row.generated_json, z.array(ProvenanceSchema), []), stub_of: stored(row.stub_of, StubSchema.nullable(), null), stub_cite: stored(row.stub_cite, CitationSchema.nullable(), null) });
+export const versionResource = (row: VersionRow) => VersionSchema.parse({ ...row, kind: versionState(row), pinned: row.pinned === 1, note_generated: row.note_generated === 1, transclusions: stored(row.transclusions, z.array(TransclusionSchema), []), generated: stored(row.generated_json, z.array(ProvenanceSchema), []), stub_of: stored(row.stub_of, StubSchema.nullable(), null), stub_cite: stored(row.stub_cite, CitationSchema.nullable(), null) });
 export const mediaResource = (row: MediaRow) => MediaSchema.parse({ ...row, url: row.r2_key });
 export const subscriptionResource = (row: SubscriptionRow) => SubscriptionSchema.parse({ ...row, title_follows_source: row.title_auto !== 0, in_blogroll: row.in_blogroll === 1, flags: stored(row.flags, SubscriptionSchema.shape.flags, []) });
 export const hopperResource = (row: HopperRow) => HopperSchema.parse({ ...row, public: row.public === 1, slug_frozen: row.slug_frozen === 1 });

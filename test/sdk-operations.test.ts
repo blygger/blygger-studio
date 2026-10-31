@@ -20,6 +20,7 @@ it("exercises every declared operation through its named SDK method, including a
   type Case = [keyof typeof routes, number, (client: BlyggerClient) => Result];
   const id = draft.id, member = { id: hopper.id, sub: sub.id, remoteId: "remote" }, signal = { sub: sub.id, remoteId: "remote" };
   const cases: Case[] = [
+    ['getCapabilities', 200, client => api.getCapabilities({ client })],
     ['getChanges', 200, client => api.getChanges({ client })],
     ["createItem", 201, client => api.createItem({ client, body: { mode: "response", source: { subscription_id: sub.id, remote_id: "remote" } } })],
     ["updateItem", 200, client => api.updateItem({ client, path: { id }, body: { content_md: "matrix changed", responses: "hide" } })],

@@ -23,13 +23,13 @@ import { makeApp } from '../src/index.ts';
 
 // Real owner login, real grant, real mounted MCP and canonical multipart REST.
 // Expected MIME/size policy is stated independently from production constants.
-async function driver() {
+async function driver(bindings = env) {
   const base = 'https://mcp-media.example.test', app = makeApp('/blyg');
   const edgeIP = '2001:db8:' + crypto.randomUUID().replaceAll('-', '').match(/.{4}/g)!.slice(0, 6).join(':');
   const fetch = async (path: string, init?: RequestInit) => {
     const request = new Request(base + path, init), ctx = createExecutionContext();
     request.headers.set('CF-Connecting-IP', edgeIP);
-    const response = await app.fetch(request, env, ctx); await waitOnExecutionContext(ctx); return response;
+    const response = await app.fetch(request, bindings, ctx); await waitOnExecutionContext(ctx); return response;
   };
   const login = await fetch('/blyg/studio/login', { method: 'POST', body: new URLSearchParams({ password: env.OWNER_PASSWORD }) });
   expect(login.status).toBe(302);
@@ -151,4 +151,23 @@ describe('MCP multipart media transport parity', () => {
     expect(denied.headers.get('www-authenticate')).toContain('error="insufficient_scope"');
     expect(await storedCount()).toEqual(before);
   });
+});
+
+it.each(['image/PNG', 'IMAGE/PNG', 'image/pNg'])('normalizes upload MIME like multipart File: %s', async contentType => {
+  const d = await driver(), token = await d.credential(['owner:draft']);
+  const rest = await d.restUpload(new Uint8Array([1, 2, 3]), contentType);
+  expect(rest.status).toBe(201);
+  const expected = await rest.json() as any;
+  const uploaded = await result(await d.upload(token, { file: { filename: 'case.png', contentType, dataBase64: 'AQID' } }));
+  expect(uploaded.error).toBe(false);
+  expect(uploaded.value.mime).toBe('image/png');
+  expect(uploaded.value.mime).toBe(expected.mime);
+});
+it('keeps the documented MCP envelope limit separate from the REST body cap', async () => {
+  const d = await driver({ ...env, API_BODY_LIMIT: '128' }), token = await d.credential(['owner:draft']);
+  const body = { content_md: 'x'.repeat(200) };
+  expect((await d.owner('/api/items', body)).status).toBe(413);
+  const value = await result(await d.mcp(token, 'tools/call', { name: 'createItem', arguments: { body } }));
+  expect(value.error).toBe(false);
+  expect(value.value.content_md).toBe(body.content_md);
 });

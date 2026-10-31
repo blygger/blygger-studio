@@ -9,18 +9,27 @@ import { authorizationServer, ownerHeaders, authLocations, credentialVersion, re
 import { OAuthStorage } from './oauth-storage.ts';
 import { OWNER_SCOPES, SCOPE_DESCRIPTIONS } from './permissions.ts';
 import { escapeHtml } from './util.ts';
+import { EXPOSED_RESPONSE_HEADERS, setResponseHeaders, validatedResponse } from './http-response.ts';
 
 export function oauthRoutes() {
   const app = new Hono<{ Bindings: Env }>({ strict: false });
-app.use('*', (c, next) => bodyLimit({ maxSize: 1024 * 1024, onError: c => c.json({ error: 'request body exceeds byte limit' }, 413) })(c, next));
   app.use('*', async (c, next) => {
     c.header('Cache-Control', 'no-store');
     // RFC 9700 forbids CORS at the authorization endpoint, including preflight.
-    const authorization = new URL(c.req.url).pathname.endsWith('/oauth2/authorize');
-    if (!authorization) c.header('Access-Control-Allow-Origin', '*');
+    const path = new URL(c.req.url).pathname.replace(/\/+$/, '');
+    const authorization = path.endsWith('/oauth2/authorize');
     await next();
-    if (authorization) c.res.headers.delete('Access-Control-Allow-Origin');
+    const metadata = c.res.status === 200 && (path.endsWith('/.well-known/openid-configuration') ||
+      path.endsWith('/.well-known/oauth-authorization-server') || path.endsWith('/jwks'));
+    setResponseHeaders(c, {
+      'Cache-Control': metadata ? c.res.headers.get('Cache-Control') ?? 'public, no-cache' : 'no-store',
+      'Access-Control-Allow-Origin': authorization ? null : '*',
+      'Access-Control-Expose-Headers': authorization ? null : EXPOSED_RESPONSE_HEADERS,
+      ...(authorization ? { 'Access-Control-Allow-Methods': null, 'Access-Control-Allow-Headers': null, 'Access-Control-Allow-Credentials': null } : {}),
+    });
+    if (metadata) c.res = await validatedResponse(c.req.raw, c.res);
   });
+  app.use('*', (c, next) => bodyLimit({ maxSize: 1024 * 1024, onError: c => c.json({ error: 'request body exceeds byte limit' }, 413) })(c, next));
   app.onError((error, c) => {
     console.error('OAuth request failed', requestError(error, c));
     return c.json({ error: 'internal server error' }, 500);
@@ -32,7 +41,7 @@ app.use('*', (c, next) => bodyLimit({ maxSize: 1024 * 1024, onError: c => c.json
     return c.json({ resource: locations[resource], authorization_servers: [locations.issuer], scopes_supported: OWNER_SCOPES, bearer_methods_supported: ['header'] });
   });
   app.options('*', c => {
-    c.header('Access-Control-Allow-Methods', 'GET, POST, OPTIONS'); c.header('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+    c.header('Access-Control-Allow-Methods', 'GET, HEAD, POST, OPTIONS'); c.header('Access-Control-Allow-Headers', 'Content-Type, Authorization, If-None-Match');
     return c.body(null, 204);
   });
   const invalidAuthorization = async (c: Context<{ Bindings: Env }>, params: URLSearchParams) => {
@@ -212,6 +221,12 @@ app.use('*', (c, next) => bodyLimit({ maxSize: 1024 * 1024, onError: c => c.json
   });
   // Forward only protocol endpoints. Native account and client-management APIs
   // remain unreachable; Studio's cookie-only /api/authorizations owns those.
-  for (const path of ['/.well-known/openid-configuration', '/.well-known/oauth-authorization-server', '/jwks', '/oauth2/revoke']) app.all(path, async c => (await authorizationServer(c.req.url, c.env)).handler(c.req.raw));
+  for (const path of ['/.well-known/openid-configuration', '/.well-known/oauth-authorization-server', '/jwks', '/oauth2/revoke']) app.all(path, async c => {
+    // The native provider does not map HEAD to GET for metadata. Render the
+    // same representation so the outer policy can validate and omit its body.
+    const request = c.req.method === 'HEAD' && path !== '/oauth2/revoke'
+      ? new Request(c.req.raw, { method: 'GET' }) : c.req.raw;
+    return (await authorizationServer(c.req.url, c.env)).handler(request);
+  });
   return app;
 }

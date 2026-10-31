@@ -217,6 +217,8 @@ export interface ScopeProvenance {
 }
 
 export interface VersionRow {
+  /** NULL only for legacy versions whose intent was not established (0034). */
+  kind: 'fragment' | 'thread' | 'withdrawn' | null;
   item_id: string;
   version: number;
   content_md: string;

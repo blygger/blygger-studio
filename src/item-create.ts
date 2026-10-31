@@ -1,6 +1,4 @@
-import type { Context } from "hono";
-import { HTTPException } from "hono/http-exception";
-import type { Env } from "./types.ts";
+import { OperationError, type OperationContext } from "./operation-types.ts";
 import { createDraft, getItem, getSettings, getVersion } from "./model.ts";
 import { parseStubOf } from "./stub.ts";
 import { normalizeSelection, quoteLines } from "./markdown.ts";
@@ -35,15 +33,15 @@ import { normalizeMount, nowIso } from "./util.ts";
  * Both are prefill only. The body remains entirely the author's to change, and
  * `stub_of` is set the same way in every case.
  */
-export async function createResponseDraft(c: Context<{ Bindings: Env }>, body: { subscription_id: string; remote_id: string; selection?: string }) {
+export async function createResponseDraft(context: OperationContext, body: { subscription_id: string; remote_id: string; selection?: string }) {
   const subId = body.subscription_id;
   const remoteId = body.remote_id;
-  if (!subId || !remoteId) throw new HTTPException(400, { message: "subscription_id and remote_id required" });
-  if (subId === OWN_SUBSCRIPTION) return createOwnResponseDraft(c, remoteId, body.selection);
-  const sub = await getSubscription(c.env.DB, subId);
-  if (!sub) throw new HTTPException(404, { message: "subscription not found" });
-  const row = await getImportedItem(c.env.DB, subId, remoteId);
-  if (!row) throw new HTTPException(404, { message: "imported item not found" });
+  if (!subId || !remoteId) throw new OperationError('invalid-input', "subscription_id and remote_id required");
+  if (subId === OWN_SUBSCRIPTION) return createOwnResponseDraft(context, remoteId, body.selection);
+  const sub = await getSubscription(context.env.DB, subId);
+  if (!sub) throw new OperationError('not-found', "subscription not found");
+  const row = await getImportedItem(context.env.DB, subId, remoteId);
+  if (!row) throw new OperationError('not-found', "imported item not found");
 
   let contentMd: string;
   let stubInput: unknown;
@@ -72,7 +70,7 @@ export async function createResponseDraft(c: Context<{ Bindings: Env }>, body: {
       // alternative — prefill it and find out later — hands the author a draft
       // that cannot be published and no hint as to which part is wrong.
       if (!selection || !locateSelection(row.content_html, selection)) {
-        throw new HTTPException(400, { message: "that passage is not in the version we hold of this item" });
+        throw new OperationError('invalid-input', "that passage is not in the version we hold of this item");
       }
       contentMd = `![[${remoteId}]]\n${quoteLines(selection)}\n\n`;
     } else {
@@ -82,8 +80,8 @@ export async function createResponseDraft(c: Context<{ Bindings: Env }>, body: {
   }
 
   const parsed = parseStubOf(stubInput);
-  if (!parsed.ok) throw new HTTPException(400, { message: parsed.reason });
-  return createDraft(c.env.DB, contentMd, "thread", parsed.stub);
+  if (!parsed.ok) throw new OperationError('invalid-input', parsed.reason);
+  return createDraft(context.env.DB, contentMd, "thread", parsed.stub);
 }
 
 /**
@@ -93,17 +91,17 @@ export async function createResponseDraft(c: Context<{ Bindings: Env }>, body: {
  * which sends no mention (§15.2). A withdrawn item has no bytes to quote, so
  * the citation stands alone, as for an unretained tombstone.
  */
-async function createOwnResponseDraft(c: Context<{ Bindings: Env }>, id: string, selection?: string) {
-  const item = await getItem(c.env.DB, id);
-  if (!item || item.version === 0) throw new HTTPException(404, { message: "published item not found" });
-  const origin = siteOrigin(await getSettings(c.env.DB), c.req.url, normalizeMount(c.env.MOUNT));
+async function createOwnResponseDraft(context: OperationContext, id: string, selection?: string) {
+  const item = await getItem(context.env.DB, id);
+  if (!item || item.version === 0) throw new OperationError('not-found', "published item not found");
+  const origin = siteOrigin(await getSettings(context.env.DB), context.url, normalizeMount(context.env.MOUNT));
   let contentMd = "";
   if (item.status === "public") {
     if (typeof selection === "string" && selection.trim()) {
-      const version = await getVersion(c.env.DB, id, item.version);
+      const version = await getVersion(context.env.DB, id, item.version);
       const normalized = normalizeSelection(selection);
       if (!version || !normalized || !locateSelection(version.content_html ?? "", normalized)) {
-        throw new HTTPException(400, { message: "that passage is not in the published version of this item" });
+        throw new OperationError('invalid-input', "that passage is not in the published version of this item");
       }
       contentMd = `![[${id}]]\n${quoteLines(normalized)}\n\n`;
     } else {
@@ -111,6 +109,6 @@ async function createOwnResponseDraft(c: Context<{ Bindings: Env }>, id: string,
     }
   }
   const parsed = parseStubOf({ origin, id, version: item.version });
-  if (!parsed.ok) throw new HTTPException(400, { message: parsed.reason });
-  return createDraft(c.env.DB, contentMd, "thread", parsed.stub);
+  if (!parsed.ok) throw new OperationError('invalid-input', parsed.reason);
+  return createDraft(context.env.DB, contentMd, "thread", parsed.stub);
 }
