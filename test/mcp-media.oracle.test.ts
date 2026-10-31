@@ -38,13 +38,13 @@ async function driver(bindings = env) {
   const owner = async (path: string, body: unknown) => fetch(path, { method: 'POST', headers: { cookie, 'Content-Type': 'application/json' }, body: JSON.stringify(await testRevisionBody('POST', path, body)) });
   const credential = async (scope: string[]) => {
     const response = await owner('/blyg/api/authorizations', { name: 'MCP media oracle', scope, resource: 'mcp' });
-    expect(response.status).toBe(200); return (await response.json() as any).access_token as string;
+    expect(response.status).toBe(200); return (await response.json() as any).accessToken as string;
   };
   const mcp = (token: string, method: string, params: Record<string, unknown>) => fetch('/blyg/studio/mcp', { method: 'POST', headers: { Authorization: 'Bearer ' + token, 'Content-Type': 'application/json', Accept: 'application/json, text/event-stream', 'mcp-protocol-version': '2026-07-28', 'mcp-method': method, ...(typeof params.name === 'string' ? { 'mcp-name': params.name } : {}) }, body: JSON.stringify({ jsonrpc: '2.0', id: 1, method, params: { ...params, _meta: { 'io.modelcontextprotocol/protocolVersion': '2026-07-28', 'io.modelcontextprotocol/clientCapabilities': {} } } }) });
   const upload = (token: string, body: unknown) => mcp(token, 'tools/call', { name: 'uploadMedia', arguments: { body } });
   const restUpload = async (bytes: Uint8Array, type: string, extra: Record<string, string> = {}) => {
     const form = new FormData(); form.set('file', new File([bytes], 'same-file.dat', { type }));
-    if (extra.item_id) form.set('expectedRevision', String(await testItemRevision(extra.item_id)));
+    if (extra.itemId) form.set('expectedRevision', String(await testItemRevision(extra.itemId)));
     for (const [name, value] of Object.entries(extra)) form.set(name, value);
     return fetch('/blyg/api/media', { method: 'POST', headers: { cookie }, body: form });
   };
@@ -67,19 +67,19 @@ async function storedCount() {
 describe('MCP multipart media transport parity', () => {
   it('cannot use the draft upload tool to change published attachments', async () => {
     const d = await driver(), token = await d.credential(['owner:draft']);
-    const item = await (await d.owner('/blyg/api/items', { content_md: 'Published MCP boundary' })).json() as { id: string };
+    const item = await (await d.owner('/blyg/api/items', { contentMd: 'Published MCP boundary' })).json() as { id: string };
     expect((await d.owner('/blyg/api/items/' + item.id + '/publish', {})).status).toBe(200);
     const before = await (await d.fetch('/blyg/items/' + item.id + '.json')).json();
-    const denied = await result(await d.upload(token, { file: { filename: 'boundary.png', contentType: 'image/png', dataBase64: 'aW1hZ2U=' }, item_id: item.id, expectedRevision: await testItemRevision(item.id) }));
+    const denied = await result(await d.upload(token, { file: { filename: 'boundary.png', contentType: 'image/png', dataBase64: 'aW1hZ2U=' }, itemId: item.id, expectedRevision: await testItemRevision(item.id) }));
     expect(denied.error, 'MCP drafting cannot publish an attachment').toBe(true);
     expect(await (await d.fetch('/blyg/items/' + item.id + '.json')).json()).toEqual(before);
     expect(await storedCount()).toEqual({ r2: 0, rows: 0 });
     const permitted = await d.credential(['owner:draft', 'owner:publish']);
-    const attached = await result(await d.upload(permitted, { file: { filename: 'boundary.png', contentType: 'image/png', dataBase64: 'aW1hZ2U=' }, item_id: item.id, expectedRevision: await testItemRevision(item.id) }));
+    const attached = await result(await d.upload(permitted, { file: { filename: 'boundary.png', contentType: 'image/png', dataBase64: 'aW1hZ2U=' }, itemId: item.id, expectedRevision: await testItemRevision(item.id) }));
     expect(attached.error).toBe(false);
     // The same file again under draft scope is the attached row (studio#7): returned, nothing written.
     const stored = await storedCount(), after = await (await d.fetch('/blyg/items/' + item.id + '.json')).json();
-    const again = await result(await d.upload(token, { file: { filename: 'boundary.png', contentType: 'image/png', dataBase64: 'aW1hZ2U=' }, item_id: item.id, expectedRevision: await testItemRevision(item.id) }));
+    const again = await result(await d.upload(token, { file: { filename: 'boundary.png', contentType: 'image/png', dataBase64: 'aW1hZ2U=' }, itemId: item.id, expectedRevision: await testItemRevision(item.id) }));
     expect(again.error).toBe(false); expect(again.value).toEqual({ ...attached.value, duplicate: true });
     expect(await storedCount()).toEqual(stored);
     expect(await (await d.fetch('/blyg/items/' + item.id + '.json')).json()).toEqual(after);
@@ -95,19 +95,19 @@ describe('MCP multipart media transport parity', () => {
     const d = await driver(), token = await d.credential(['owner:draft']);
     // One item per transport: the same file sent twice to one item is a
     // duplicate (studio#7) and would not exercise MCP's own write.
-    const restItem = await (await d.owner('/blyg/api/items', { content_md: 'media parity (REST)' })).json() as any;
-    const mcpItem = await (await d.owner('/blyg/api/items', { content_md: 'media parity (MCP)' })).json() as any;
+    const restItem = await (await d.owner('/blyg/api/items', { contentMd: 'media parity (REST)' })).json() as any;
+    const mcpItem = await (await d.owner('/blyg/api/items', { contentMd: 'media parity (MCP)' })).json() as any;
     const bytes = new Uint8Array([0x89, 0x50, 0x4e, 0x47, 1, 2, 3]);
     for (const contentType of ['image/png', 'image/jpeg', 'image/gif', 'image/webp', 'image/svg+xml']) {
       const extra = { alt: 'a diagram', inline: 'true' };
-      const rest = await d.restUpload(bytes, contentType, { item_id: restItem.id, ...extra }); expect(rest.status).toBe(201);
+      const rest = await d.restUpload(bytes, contentType, { itemId: restItem.id, ...extra }); expect(rest.status).toBe(201);
       const expected = await rest.json() as any;
-      const observed = await result(await d.upload(token, { file: { filename: 'same-file.dat', contentType, dataBase64: base64(bytes) }, item_id: mcpItem.id, expectedRevision: await testItemRevision(mcpItem.id), ...extra }));
+      const observed = await result(await d.upload(token, { file: { filename: 'same-file.dat', contentType, dataBase64: base64(bytes) }, itemId: mcpItem.id, expectedRevision: await testItemRevision(mcpItem.id), ...extra }));
       expect(observed.error).toBe(false); expect(observed.value.mime).toBe(expected.mime); expect(observed.value.duplicate).toBeUndefined();
       expect(observed.value.url.split('.').pop()).toBe(expected.url.split('.').pop());
       for (const [value, item] of [[expected, restItem], [observed.value, mcpItem]]) {
-        expect((await d.fetch('/blyg/' + value.url)).status).toBe(404);
-        const publicBytes = await d.fetch('/blyg/' + value.url, { headers: { cookie: d.cookie } }); expect(publicBytes.status).toBe(200);
+        expect((await d.fetch(new URL(value.url).pathname)).status).toBe(404);
+        const publicBytes = await d.fetch(new URL(value.url).pathname, { headers: { cookie: d.cookie } }); expect(publicBytes.status).toBe(200);
         expect(publicBytes.headers.get('content-type')).toBe(contentType);
         expect(new Uint8Array(await publicBytes.arrayBuffer())).toEqual(bytes);
         expect(await env.DB.prepare('SELECT item_id, mime, alt, inline FROM media WHERE id = ?').bind(value.id).first()).toEqual({ item_id: item.id, mime: contentType, alt: 'a diagram', inline: 1 });
@@ -120,7 +120,7 @@ describe('MCP multipart media transport parity', () => {
     const rest = await d.restUpload(bytes, 'image/png'); expect(rest.status).toBe(201);
     const observed = await result(await d.upload(token, { file: { filename: 'big.png', contentType: 'image/png', dataBase64: base64(bytes) } }));
     expect(observed.error).toBe(false);
-    const observedBytes = await (await d.fetch('/blyg/' + observed.value.url, { headers: { cookie: d.cookie } })).arrayBuffer();
+    const observedBytes = await (await d.fetch(new URL(observed.value.url).pathname, { headers: { cookie: d.cookie } })).arrayBuffer();
     expect(observedBytes.byteLength).toBe(bytes.byteLength);
     expect(new Uint8Array(await crypto.subtle.digest('SHA-256', observedBytes))).toEqual(new Uint8Array(await crypto.subtle.digest('SHA-256', bytes)));
   });
@@ -167,9 +167,9 @@ it.each(['image/PNG', 'IMAGE/PNG', 'image/pNg'])('normalizes upload MIME like mu
 });
 it('keeps the documented MCP envelope limit separate from the REST body cap', async () => {
   const d = await driver({ ...env, API_BODY_LIMIT: '128' }), token = await d.credential(['owner:draft']);
-  const body = { content_md: 'x'.repeat(200) };
+  const body = { contentMd: 'x'.repeat(200) };
   expect((await d.owner('/blyg/api/items', body)).status).toBe(413);
   const value = await result(await d.mcp(token, 'tools/call', { name: 'createItem', arguments: { body } }));
   expect(value.error).toBe(false);
-  expect(value.value.content_md).toBe(body.content_md);
+  expect(value.value.contentMd).toBe(body.contentMd);
 });

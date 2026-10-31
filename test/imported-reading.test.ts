@@ -159,7 +159,7 @@ describe("GET /reading/imported", () => {
     for (const bad of forged) {
       const r = await apiJson(cookie, "GET", `/blyg/api/reading/imported?cursor=${encodeURIComponent(bad)}`);
       expect(r.status, bad.slice(0, 40)).toBe(400);
-      expect(r.json.error).toMatch(/cursor/);
+      expect(r.json.message).toMatch(/cursor/);
     }
     for (const limit of ["0", "-3", "101", "x"]) expect((await apiJson(cookie, "GET", `/blyg/api/reading/imported?limit=${limit}`)).status, limit).toBe(400);
   });
@@ -197,6 +197,6 @@ describe("GET /reading/imported", () => {
     expect(reading.status).toBe(200);
     expect(reading.json).toHaveProperty("counts");
     // A subscription named "imported" still routes to the read-state write.
-    expect((await apiJson(cookie, "PUT", "/blyg/api/reading/imported/x/read", { version: 1 })).json).toEqual({ ok: true, stored: false, read_version: null });
+    expect((await apiJson(cookie, "PUT", "/blyg/api/reading/imported/x/read", { version: 1 })).json).toEqual({ ok: true, stored: false, readVersion: null });
   });
 });

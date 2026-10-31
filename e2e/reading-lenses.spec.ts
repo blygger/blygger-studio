@@ -17,9 +17,9 @@ const api = (page: Page, method: string, path: string, body?: unknown) =>
 test('lenses filter by kind, keep themselves across screens, keep withdrawn posts to Background, and show the Smart Feed placeholder', async ({ page }) => {
   await login(page);
   const stamp = Date.now();
-  const frag = (await api(page, 'POST', '/items', { content_md: `Lens fragment ${stamp}` })).json.id;
+  const frag = (await api(page, 'POST', '/items', { contentMd: `Lens fragment ${stamp}` })).json.id;
   await api(page, 'POST', `/items/${frag}/publish`, {});
-  const thread = (await api(page, 'POST', '/items', { content_md: `# Lens thread ${stamp}\n\n![[${frag}]]`, kind: 'thread' })).json.id;
+  const thread = (await api(page, 'POST', '/items', { contentMd: `# Lens thread ${stamp}\n\n![[${frag}]]`, kind: 'thread' })).json.id;
   await api(page, 'POST', `/items/${thread}/publish`, {});
 
   await page.goto('/studio/reading?view=sources');
@@ -92,30 +92,30 @@ test('settings: a model per AI function from the manifest, other…, a reserved 
     await expect(page.locator('.provider-keys li')).toHaveCount(5);
     // Workers AI (studio#8) is a binding, not a key; the e2e server binds none.
     await expect(page.locator('.provider-keys li').nth(3)).toContainText('Cloudflare Workers AI no binding (AI)');
-    await page.locator('#ai_model_tk').selectOption('claude-sonnet-5-5');
-    await page.locator('#ai_model_feed').selectOption('__other__');
+    await page.locator('#aiModelTk').selectOption('claude-sonnet-5-5');
+    await page.locator('#aiModelFeed').selectOption('__other__');
     await page.getByLabel('feed scoring model id').fill('gemini-9-future');
     await expect(page.locator('#ai_model_authoring')).toBeDisabled();
-    await page.locator('#feed_prompt').fill('Prioritize tech news.');
+    await page.locator('#feedPrompt').fill('Prioritize tech news.');
     await page.locator('#settings-form button[type=submit]').first().click();
     await expect.poll(async () => (await api(page, 'GET', '/settings')).json).toMatchObject({
-      ai_model_tk: 'claude-sonnet-5-5',
-      ai_model_feed: 'gemini-9-future',
-      feed_prompt: 'Prioritize tech news.',
+      aiModelTk: 'claude-sonnet-5-5',
+      aiModelFeed: 'gemini-9-future',
+      feedPrompt: 'Prioritize tech news.',
     });
     // An unlisted saved model reopens as other…, with its id shown.
     await page.reload();
-    await expect(page.locator('#ai_model_feed')).toHaveValue('__other__');
+    await expect(page.locator('#aiModelFeed')).toHaveValue('__other__');
     await expect(page.getByLabel('feed scoring model id')).toHaveValue('gemini-9-future');
   } finally {
-    await api(page, 'PATCH', '/settings', { ai_model_tk: before.ai_model_tk, ai_model_changelog: before.ai_model_changelog, ai_model_feed: before.ai_model_feed, feed_prompt: before.feed_prompt });
+    await api(page, 'PATCH', '/settings', { aiModelTk: before.aiModelTk, aiModelChangelog: before.aiModelChangelog, aiModelFeed: before.aiModelFeed, feedPrompt: before.feedPrompt });
   }
 });
 
 test('own items in the reading feed: stub ↗ opens a quoting stub, and fork is offered', async ({ page }) => {
   await login(page);
   const stamp = Date.now();
-  const own = (await api(page, 'POST', '/items', { content_md: `Own feed item ${stamp}` })).json.id;
+  const own = (await api(page, 'POST', '/items', { contentMd: `Own feed item ${stamp}` })).json.id;
   await api(page, 'POST', `/items/${own}/publish`, {});
   await page.goto('/studio/reading?sub=all');
   const entry = page.locator('.reading-entry').filter({ hasText: `Own feed item ${stamp}` });
@@ -128,6 +128,6 @@ test('own items in the reading feed: stub ↗ opens a quoting stub, and fork is 
   await entry.locator(`[data-action="stub"][data-remote="${own}"]`).click();
   const response = await created;
   expect(response.status()).toBe(201);
-  expect(response.request().postDataJSON()).toMatchObject({ mode: 'response', source: { subscription_id: '~own', remote_id: own } });
+  expect(response.request().postDataJSON()).toMatchObject({ mode: 'response', source: { subscriptionId: '~own', remoteId: own } });
   await expect(page.locator('#md-input')).toHaveValue(`![[${own}]]\n\n`);
 });

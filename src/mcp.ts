@@ -1,3 +1,4 @@
+import { apiError, statusError } from './api-error.ts';
 import { admitMcp } from './security-budgets.ts';
 import { createMcpHandler, McpServer, requireScopes, type Tool } from '@modelcontextprotocol/server';
 import { z } from 'zod';
@@ -20,7 +21,7 @@ import type { ServerExtension } from './extensions/server.ts';
 
 /** Decode canonical padded RFC4648 Base64 without allowing atob's whitespace tolerance. */
 function mediaInput(body: unknown): MediaInput {
-  const { file, ...extra } = body as { file: { filename: string; contentType: string; dataBase64: string }; item_id?: string; expectedRevision?: number; alt?: string; inline?: string };
+  const { file, ...extra } = body as { file: { filename: string; contentType: string; dataBase64: string }; itemId?: string; expectedRevision?: number; alt?: string; inline?: string };
   const data = file.dataBase64, alphabet = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/';
   if (data.length % 4 !== 0 || !/^[A-Za-z0-9+/]*={0,2}$/.test(data) ||
       data.endsWith('==') && (alphabet.indexOf(data.at(-3)!) & 15) !== 0 ||
@@ -29,7 +30,7 @@ function mediaInput(body: unknown): MediaInput {
   }
   const decoded = atob(data), bytes = new Uint8Array(decoded.length);
   for (let i = 0; i < decoded.length; i++) bytes[i] = decoded.charCodeAt(i);
-  return { file: { bytes, mime: /^[\x20-\x7e]*$/.test(file.contentType) ? file.contentType.toLowerCase() : '', name: file.filename }, itemId: extra.item_id, expectedRevision: extra.expectedRevision, alt: extra.alt, inline: extra.inline === 'true' };
+  return { file: { bytes, mime: /^[\x20-\x7e]*$/.test(file.contentType) ? file.contentType.toLowerCase() : '', name: file.filename }, itemId: extra.itemId, expectedRevision: extra.expectedRevision, alt: extra.alt, inline: extra.inline === 'true' };
 }
 
 // Only immutable schema metadata is shared. Servers, handlers and access stay
@@ -40,7 +41,7 @@ const toolDefinitions = Object.entries(routes).map(([name, definition]) => {
   const fields: Record<string, z.ZodType> = {};
   if (route.request?.params) fields.path = route.request.params as z.ZodType;
   if (route.request?.query) fields.query = (route.request.query as z.ZodObject).optional();
-  if (name === 'uploadMedia') fields.body = z.object({ file: z.object({ filename: z.string(), contentType: z.string(), dataBase64: z.string().describe('Canonical padded Base64. Decoded image file limit: 5 MiB.') }).strict(), item_id: z.string().optional(), expectedRevision: ItemRevisionSchema.optional(), alt: z.string().optional(), inline: z.enum(['true', 'false']).optional() }).strict();
+  if (name === 'uploadMedia') fields.body = z.object({ file: z.object({ filename: z.string(), contentType: z.string(), dataBase64: z.string().describe('Canonical padded Base64. Decoded image file limit: 5 MiB.') }).strict(), itemId: z.string().optional(), expectedRevision: ItemRevisionSchema.optional(), alt: z.string().optional(), inline: z.enum(['true', 'false']).optional() }).strict();
   else if (body) fields.body = route.request!.body!.required ? body : body.optional();
   const inputSchema = z.object(fields).strict();
   const description = `${route.method.toUpperCase()} {api}${route.path}. Required scopes: ${operationScopes(name).join(', ') || 'any authenticated identity'}.${route.policy.conditionalScopes ? ' ' + route.policy.conditionalScopes.description : ''}${route.policy.scopeNotes ? ' ' + route.policy.scopeNotes : ''}${name === 'createItem' || name === 'updateItem' ? ' For generated text, record provenance alongside TK scopes; provenance is client-asserted.' : ''}`;
@@ -51,10 +52,10 @@ const toolDefinitions = Object.entries(routes).map(([name, definition]) => {
 /** MCP supplies decoded arguments to the same operation runner as REST. */
 export async function serveMcp(request: Request, env: Env, ctx: Context['executionCtx']) {
   const origin = request.headers.get('origin');
-  if (origin && origin !== new URL(request.url).origin) return Response.json({ error: 'cross-origin MCP request denied' }, { status: 403, headers: { 'Cache-Control': 'no-store' } });
+  if (origin && origin !== new URL(request.url).origin) return Response.json(statusError(403, 'cross-origin MCP request denied'), { status: 403, headers: { 'Cache-Control': 'no-store' } });
   const access = await verifyBearer(request, env, 'mcp');
-  if (!access) return Response.json({ error: 'unauthorized' }, { status: 401, headers: { 'WWW-Authenticate': bearerChallenge(request.url, env, 'mcp'), 'Cache-Control': 'no-store' } });
-  if (!await admitMcp(env, access)) return Response.json({ error: 'MCP request budget exceeded' }, { status: 429, headers: { 'Retry-After': '60', 'Cache-Control': 'no-store' } });
+  if (!access) return Response.json(statusError(401, 'unauthorized'), { status: 401, headers: { 'WWW-Authenticate': bearerChallenge(request.url, env, 'mcp'), 'Cache-Control': 'no-store' } });
+  if (!await admitMcp(env, access)) return Response.json(statusError(429, 'MCP request budget exceeded'), { status: 429, headers: { 'Retry-After': '60', 'Cache-Control': 'no-store' } });
   return serveAuthorizedMcp(request, env, ctx, access);
 }
 
@@ -75,7 +76,7 @@ export async function serveAuthorizedMcp(request: Request, env: Env, ctx: Contex
         let media: MediaInput | undefined;
         if (name === 'uploadMedia') {
           try { media = mediaInput(args.body); } catch (error) {
-            return { content: [{ type: 'text' as const, text: JSON.stringify({ error: (error as Error).message }) }], isError: true };
+            return { content: [{ type: 'text' as const, text: JSON.stringify(apiError('invalid-input', (error as Error).message)) }], isError: true };
           }
         }
         const definition = definitions.get(name) ?? { route, handler: async () => failure('not-found', { error: 'not found' }) };

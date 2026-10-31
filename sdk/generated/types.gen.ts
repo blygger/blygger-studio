@@ -16,20 +16,26 @@ export type Authorization = {
 };
 
 export type ApiError = {
-    error: string;
-    errors?: Array<{
-        reason?: string;
-        at?: number;
-        id?: string;
-        directive?: string;
+    code: 'invalid-input' | 'unauthorized' | 'forbidden' | 'not-found' | 'method-not-allowed' | 'conflict' | 'revision-conflict' | 'too-large' | 'unsupported-media' | 'unprocessable' | 'rate-limit' | 'internal' | 'bad-gateway';
+    message: string;
+    details?: {
+        issues?: Array<{
+            path: Array<string | number>;
+            message: string;
+        }>;
+        errors?: Array<{
+            reason?: string;
+            at?: number;
+            id?: string;
+            directive?: string;
+            [key: string]: unknown;
+        }>;
+        tried?: Array<string>;
+        itemId?: string;
+        mediaId?: string;
+        expectedRevision?: number;
         [key: string]: unknown;
-    }>;
-    tried?: Array<string>;
-    issues?: Array<{
-        path: Array<string | number>;
-        message: string;
-    }>;
-    [key: string]: unknown;
+    };
 };
 
 export type Capabilities = {
@@ -70,22 +76,37 @@ export type ChangeState = {
 export type Item = {
     id: string;
     revision: number;
-    kind: 'fragment' | 'thread' | 'withdrawn';
+    kind: 'fragment' | 'thread';
     status: 'draft' | 'public' | 'withdrawn';
     created: string;
     updated: string;
     version: number;
-    content_md: string;
+    contentMd: string;
     dirty: boolean;
-    responses: 'default' | 'show' | 'hide';
-    highlight: 'default' | 'show' | 'hide';
-    provenance: Array<GenerationProvenance | null>;
-    stub_of: VersionReference | {
+    stubOf: VersionReference | {
         url: string;
         cited?: Citation;
     } | null;
-    forked_from: VersionReference | null;
-    fork_cite: Citation | null;
+    forkedFrom: VersionReference | null;
+    forkCite: Citation | null;
+    provenance: Array<GenerationProvenance | null>;
+    responses: 'default' | 'show' | 'hide';
+    highlight: 'default' | 'show' | 'hide';
+};
+
+export type VersionReference = {
+    origin: string;
+    id: string;
+    version: number;
+    cited?: Citation;
+};
+
+export type Citation = {
+    source: string;
+    author?: string;
+    excerpt?: string;
+    url: string;
+    retrieved: string;
 };
 
 export type GenerationProvenance = {
@@ -105,107 +126,92 @@ export type GenerationSource = {
     cited?: Citation;
 };
 
-export type Citation = {
-    source: string;
-    author?: string;
-    excerpt?: string;
-    url: string;
-    retrieved: string;
-};
-
-export type VersionReference = {
-    origin: string;
-    id: string;
-    version: number;
-    cited?: Citation;
-};
-
 export type Settings = {
-    site_title: string;
+    siteTitle: string;
     theme: string;
-    custom_theme: CustomTheme;
-    custom_theme_dark: CustomTheme;
-    custom_theme_name: string;
+    customTheme: CustomTheme | null;
+    customThemeDark: CustomTheme | null;
+    customThemeName: string;
     font: string;
-    author_name: string;
-    author_url: string;
-    author_bio: string;
-    author_links: Array<{
+    authorName: string;
+    authorUrl: string;
+    authorBio: string;
+    authorLinks: Array<{
         label: string;
         url: string;
     }>;
-    site_url: string;
+    siteUrl: string;
     timezone: string;
-    avatar_media_id: string;
-    ai_model: string;
-    ai_model_tk: string;
-    ai_model_changelog: string;
-    ai_model_feed: string;
+    avatarMediaId: string;
+    aiModel: string;
+    aiModelTk: string;
+    aiModelChangelog: string;
+    aiModelFeed: string;
     /**
      * The change classifier's decision model (Clef, Jev); empty, the default, is off. Studio-private: a category reaches readers only as words in a changelog note the author confirms.
      */
-    ai_model_classify: string;
+    aiModelClassify: string;
     /**
-     * Lead the changelog note with the classifier's category, in the publish dialog where the author sees it. Matters only while ai_model_classify is set.
+     * Lead the changelog note with the classifier's category, in the publish dialog where the author sees it. Matters only while aiModelClassify is set.
      */
-    change_category_in_note: boolean;
-    feed_prompt: string;
-    ai_style_prompt: string;
-    accept_mentions: boolean;
-    update_check: boolean;
-    show_responses_default: boolean;
-    highlight_generated_default: boolean;
-    auto_change_notes: boolean;
-    picker_typing: 'auto' | 'editor' | 'panel';
+    changeCategoryInNote: boolean;
+    feedPrompt: string;
+    aiStylePrompt: string;
+    acceptMentions: boolean;
+    updateCheck: boolean;
+    showResponsesDefault: boolean;
+    highlightGeneratedDefault: boolean;
+    autoChangeNotes: boolean;
+    pickerTyping: 'auto' | 'editor' | 'panel';
     /**
-     * The public home page order: an id from feed_orders. pace-layered (the default) and reverse-chronological are core; extensions add orders named <extension>/<id>.
+     * The public home page order: an id from feedOrders. pace-layered (the default) and reverse-chronological are core; extensions add orders named <extension>/<id>.
      */
-    feed_order: string;
+    feedOrder: string;
     /**
      * A published thread's id shown at the mount root instead of the latest items; empty for the latest items. A front page later withdrawn or deleted falls back to the latest items.
      */
-    front_page: string;
+    frontPage: string;
     /**
-     * Where the latest items live: {mount}/{posts_path}/, served whether or not a front page is set. Lowercase letters, digits and hyphens; names the blyg already uses are refused.
+     * Where the latest items live: {mount}/{postsPath}/, served whether or not a front page is set. Lowercase letters, digits and hyphens; names the blyg already uses are refused.
      */
-    posts_path: string;
+    postsPath: string;
     /**
      * Where the links section (main menu) sits on public pages: left (the default) or right is a sidebar on wide screens and a Menu button under the masthead on narrow ones; bottom puts it below the content at every width.
      */
-    links_position: 'bottom' | 'left' | 'right';
+    linksPosition: 'bottom' | 'left' | 'right';
     /**
      * Published threads listed first in the links section, in order. A thread later withdrawn is left out.
      */
-    links_threads: Array<string>;
+    linksThreads: Array<string>;
     /**
      * The owner's own links in the links section.
      */
-    links_external: Array<{
+    linksExternal: Array<{
         label: string;
         url: string;
     }>;
     /**
      * List public collections in the links section.
      */
-    links_collections: boolean;
+    linksCollections: boolean;
     /**
      * Link the blogroll's OPML file in the links section, when the blogroll is not empty.
      */
-    links_opml: boolean;
+    linksOpml: boolean;
     /**
      * Link blygger.org in the links section.
      */
-    links_blygger_org: boolean;
+    linksBlyggerOrg: boolean;
     /**
      * Link blygger.com, the directory of blygs, in the links section.
      */
-    links_blygger_com: boolean;
+    linksBlyggerCom: boolean;
     /**
      * The setup wizard: pending on a fresh install, notice on a node that published before it existed, done once finished or dismissed.
      */
     setup: 'pending' | 'notice' | 'done';
     /**
-     * Read-only: what each setting reads as with nothing stored, for "reset to default". site_title's default is the title derived from the address; store "" to keep it derived.
+     * Read-only: what each setting reads as with nothing stored, for "reset to default". siteTitle's default is the title derived from the address; store "" to keep it derived.
      */
     defaults?: {
         [key: string]: unknown;
@@ -213,13 +219,13 @@ export type Settings = {
     /**
      * Read-only: the home page orders this node can use now (core, plus enabled extensions').
      */
-    feed_orders?: Array<{
+    feedOrders?: Array<{
         id: string;
         title: string;
         description: string;
     }>;
-    update_feed_url: string;
-    update_notice_ack: boolean;
+    updateFeedUrl: string;
+    updateNoticeAck: boolean;
     /**
      * Studio extensions enabled on this node (docs/extensions.md). Only names compiled into this build are accepted; every extension starts disabled.
      */
@@ -236,26 +242,26 @@ export type CustomTheme = {
     pencil: string;
     genBg: string;
     genRule: string;
-} | null;
+};
 
 export type Subscription = {
     id: string;
     kind: 'blyg' | 'rss';
     origin: string;
-    feed_url: string;
+    feedUrl: string;
     title: string;
     status: 'active' | 'paused' | 'degraded';
-    last_poll_at: string | null;
-    fail_count: number;
-    last_index_sync_at: string | null;
-    created: string;
-    title_follows_source: boolean;
-    in_blogroll: boolean;
+    lastPollAt: string | null;
+    failCount: number;
+    lastIndexSyncAt: string | null;
+    inBlogroll: boolean;
     flags: Array<{
         type: string;
         at: string;
         detail?: string;
     }>;
+    created: string;
+    titleFollowsSource: boolean;
 };
 
 export type Hopper = {
@@ -264,55 +270,40 @@ export type Hopper = {
     slug: string | null;
     public: boolean;
     created: string;
-    slug_frozen: boolean;
+    slugFrozen: boolean;
     description: string | null;
 };
 
 export type Media = {
     id: string;
-    item_id: string | null;
+    itemId: string | null;
     mime: string;
     alt: string | null;
     created: string;
-    inline: number;
+    inline: boolean;
     url: string;
 };
 
 export type Version = {
-    item_id: string;
-    version: number;
-    content_md: string;
-    content_html: string;
-    content_hash: string;
-    published_at: string;
-    note: string | null;
-    pinned_at: string | null;
     kind: 'fragment' | 'thread' | 'withdrawn';
-    pinned: boolean;
-    note_generated: boolean;
+    itemId: string;
+    version: number;
+    contentMd: string;
+    contentHtml: string;
+    contentHash: string;
+    publishedAt: string;
+    note: string | null;
     transclusions: Array<Transclusion>;
-    generated: Array<GenerationProvenance>;
-    stub_of: VersionReference | {
+    pinned: boolean;
+    pinnedAt: string | null;
+    stubOf: VersionReference | {
         url: string;
         cited?: Citation;
     } | null;
-    stub_cite: Citation | null;
-    /**
-     * The change classifier's studio-private record of this version, in an item's versions; absent elsewhere. Never on the wire.
-     */
-    change_class?: {
-        category: 'refresh' | 'typo' | 'minor' | 'major' | null;
-        /**
-         * Null for refresh (decided locally) and for a category the author set by hand.
-         */
-        model: string | null;
-        probability: number | null;
-        classified_at: string;
-        /**
-         * The author changed or cleared the classifier's category before publishing.
-         */
-        overridden: boolean;
-    } | null;
+    stubCite: Citation | null;
+    noteGenerated: boolean;
+    generated: Array<GenerationProvenance>;
+    changeClass?: ChangeClass | null;
 };
 
 export type Transclusion = {
@@ -327,42 +318,53 @@ export type Transclusion = {
     };
 };
 
-export type HopperItemRow = {
-    hopper_id: string;
-    subscription_id: string;
-    remote_id: string;
-    added_at: string;
+export type ChangeClass = {
+    category: 'refresh' | 'typo' | 'minor' | 'major' | null;
+    model: string | null;
+    probability: number | null;
+    classifiedAt: string;
+    overridden: boolean;
+};
+
+export type HopperMembership = {
+    hopperId: string;
+    subscriptionId: string;
+    remoteId: string;
+    addedAt: string;
 };
 
 export type ImportedItem = {
-    subscription_id: string;
-    remote_id: string;
+    subscriptionId: string;
+    remoteId: string;
     kind: 'fragment' | 'thread';
     state: 'current' | 'tombstone';
     version: number;
     created: string | null;
     updated: string | null;
-    observed_at: string;
-    content_md: string;
-    content_html: string;
-    content_hash: string | null;
-    author_json: string | null;
-    media_json: string | null;
-    transclusions_json: string | null;
+    observedAt: string;
+    contentMd: string;
+    contentHtml: string;
+    contentHash: string | null;
     l0: boolean;
-    pinned_version_retained: number | null;
+    pinnedVersionRetained: number | null;
     page: string | null;
-    stub_of_json: string | null;
-    forked_from_json: string | null;
-    /**
-     * The origin's `generated` array as published (0.4 adds remote sources); null when it discloses none.
-     */
-    generated_json: string | null;
+    author: {
+        [key: string]: unknown;
+    } | null;
+    media: Array<unknown> | null;
+    transclusions: Array<unknown> | null;
+    stubOf: {
+        [key: string]: unknown;
+    } | null;
+    forkedFrom: {
+        [key: string]: unknown;
+    } | null;
+    generated: Array<unknown> | null;
 };
 
-export type SignalRow = {
-    subscription_id: string;
-    remote_id: string;
+export type Signal = {
+    subscriptionId: string;
+    remoteId: string;
     thumb: 1 | -1;
     at: string;
 };
@@ -372,14 +374,14 @@ export type Interaction = {
     at: string;
     kind: 'thumb_up' | 'thumb_down' | 'thumb_clear' | 'hopper_add' | 'hopper_remove' | 'stub' | 'fork' | 'quote';
     origin: string;
-    remote_id: string;
+    remoteId: string;
     version: number | null;
-    own_item_id: string | null;
-    own_version: number | null;
-    hopper_id: string | null;
-    hopper_name: string | null;
-    backfilled: number;
-    subscription_id: string | null;
+    ownItemId: string | null;
+    ownVersion: number | null;
+    hopperId: string | null;
+    hopperName: string | null;
+    backfilled: boolean;
+    subscriptionId: string | null;
     label: string | null;
 };
 
@@ -387,8 +389,8 @@ export type Thumb = {
     thumb: 1 | -1;
     at: string;
     origin: string;
-    remote_id: string;
-    subscription_id: string | null;
+    remoteId: string;
+    subscriptionId: string | null;
     label: string | null;
 };
 
@@ -399,7 +401,7 @@ export type AiModels = {
         /**
          * The Worker secret holding this provider's key. Absent for a Workers AI provider (it uses `binding`) and for a keyless OpenAI-compatible endpoint.
          */
-        key_secret?: string;
+        keySecret?: string;
         /**
          * Workers AI only: the Worker binding the provider calls (studio#8).
          */
@@ -426,34 +428,36 @@ export type Mention = {
     id: string;
     source: string;
     target: string;
-    target_item_id: string;
+    targetItemId: string;
     status: 'pending' | 'verified' | 'failed' | 'gone';
     relation: 'stub' | 'transclusion' | 'fork' | 'source' | null;
-    source_origin: string | null;
-    source_id: string | null;
-    source_kind: string | null;
-    source_version: number | null;
-    source_author_json: string | null;
-    source_page: string | null;
-    first_seen: string;
-    last_seen: string;
-    verified_at: string | null;
+    sourceOrigin: string | null;
+    sourceId: string | null;
+    sourceKind: string | null;
+    sourceVersion: number | null;
+    sourcePage: string | null;
+    firstSeen: string;
+    lastSeen: string;
+    verifiedAt: string | null;
     attempts: number;
     error: string | null;
     hidden: boolean;
+    sourceAuthor: {
+        [key: string]: unknown;
+    } | null;
 };
 
-export type MentionOutRow = {
+export type OutboundMention = {
     id: string;
-    item_id: string;
+    itemId: string;
     version: number;
-    target_version: number | null;
+    targetVersion: number | null;
     target: string;
     endpoint: string | null;
     status: 'pending' | 'sent' | 'failed' | 'no_endpoint';
     attempts: number;
-    next_attempt_at: string | null;
-    last_error: string | null;
+    nextAttemptAt: string | null;
+    lastError: string | null;
     created: string;
 };
 
@@ -567,24 +571,24 @@ export type PeekItem = {
     /**
      * Sanitized, as a subscribed item's is.
      */
-    content_html: string;
+    contentHtml: string;
     page: string | null;
     url: string;
-    stub_of?: unknown;
-    forked_from?: unknown;
+    stubOf?: unknown;
+    forkedFrom?: unknown;
     /**
      * The subscription holding this origin, when there is one: open the held copy at /reading/{sub}/{id}.
      */
-    subscription_id: string | null;
+    subscriptionId: string | null;
 };
 
 export type BrowseStep = {
     id: number;
     at: string;
     trail: string;
-    parent_id: number | null;
+    parentId: number | null;
     origin: string;
-    remote_id: string;
+    remoteId: string;
     version: number | null;
     via: 'start' | 'stub' | 'quote' | 'link' | 'back';
     title: string | null;
@@ -809,9 +813,9 @@ export type CreateAuthorizationResponses = {
      */
     200: {
         authorization: Authorization;
-        access_token: string;
-        token_type: 'Bearer';
-        expires_in: number;
+        accessToken: string;
+        tokenType: 'Bearer';
+        expiresIn: number;
     };
 };
 
@@ -1093,9 +1097,9 @@ export type ListItemsResponse = ListItemsResponses[keyof ListItemsResponses];
 export type CreateItemData = {
     body?: {
         provenance?: Array<GenerationProvenance | null>;
-        content_md?: string;
+        contentMd?: string;
         kind?: 'fragment' | 'thread';
-        stub_of?: VersionReference | {
+        stubOf?: VersionReference | {
             url: string;
             cited?: Citation;
         } | null;
@@ -1106,8 +1110,8 @@ export type CreateItemData = {
     } | {
         mode: 'response';
         source: {
-            subscription_id: string;
-            remote_id: string;
+            subscriptionId: string;
+            remoteId: string;
         };
         selection?: string;
     };
@@ -1323,23 +1327,22 @@ export type GetItemResponses = {
     200: {
         id: string;
         revision: number;
-        kind: 'fragment' | 'thread' | 'withdrawn';
+        kind: 'fragment' | 'thread';
         status: 'draft' | 'public' | 'withdrawn';
         created: string;
         updated: string;
         version: number;
-        content_md: string;
+        contentMd: string;
         dirty: boolean;
-        responses: 'default' | 'show' | 'hide';
-        highlight: 'default' | 'show' | 'hide';
-        provenance: Array<GenerationProvenance | null>;
-        stub_of: VersionReference | {
+        stubOf: VersionReference | {
             url: string;
             cited?: Citation;
         } | null;
-        forked_from: VersionReference | null;
-        fork_cite: Citation | null;
-        authored_kind: 'fragment' | 'thread';
+        forkedFrom: VersionReference | null;
+        forkCite: Citation | null;
+        provenance: Array<GenerationProvenance | null>;
+        responses: 'default' | 'show' | 'hide';
+        highlight: 'default' | 'show' | 'hide';
         /**
          * The working copy's attachments: what the next version lists.
          */
@@ -1347,7 +1350,7 @@ export type GetItemResponses = {
         /**
          * What the live version lists, including attachments removed from the working copy since (studio#7).
          */
-        published_media: Array<Media>;
+        publishedMedia: Array<Media>;
         versions: Array<Version>;
         published: Version | null;
     };
@@ -1358,9 +1361,9 @@ export type GetItemResponse = GetItemResponses[keyof GetItemResponses];
 export type UpdateItemData = {
     body: {
         provenance?: Array<GenerationProvenance | null>;
-        content_md?: string;
+        contentMd?: string;
         kind?: 'fragment' | 'thread';
-        stub_of?: VersionReference | {
+        stubOf?: VersionReference | {
             url: string;
             cited?: Citation;
         } | null;
@@ -1441,11 +1444,11 @@ export type PublishItemData = {
     body: {
         expectedRevision: number;
         note?: string;
-        note_generated?: boolean;
+        noteGenerated?: boolean;
         /**
          * The change category the author confirmed in the publish dialog: kept with the version in studio-private storage (never on the wire). Omitted: a classification made for these words stands; null: cleared.
          */
-        change_category?: 'refresh' | 'typo' | 'minor' | 'major' | null;
+        changeCategory?: 'refresh' | 'typo' | 'minor' | 'major' | null;
     };
     path: {
         id: string;
@@ -1684,7 +1687,7 @@ export type DraftNoteResponses = {
     200: {
         note: string;
         model: string;
-        pinned_prior: boolean;
+        pinnedPrior: boolean;
         revision: number;
     };
 };
@@ -1763,7 +1766,7 @@ export type GenerateItemResponses = {
     200: {
         text: string;
         model: string;
-        content_md: string;
+        contentMd: string;
         revision: number;
     };
 };
@@ -2009,7 +2012,7 @@ export type RestoreItemResponse = RestoreItemResponses[keyof RestoreItemResponse
 export type UploadMediaData = {
     body: {
         file: Blob | File;
-        item_id?: string;
+        itemId?: string;
         expectedRevision?: number;
         alt?: string;
         inline?: 'true' | 'false';
@@ -2244,102 +2247,91 @@ export type GetSettingsResponse = GetSettingsResponses[keyof GetSettingsResponse
 
 export type UpdateSettingsData = {
     body: {
-        site_title?: string;
+        siteTitle?: string;
         theme?: string;
-        custom_theme?: CustomTheme;
-        custom_theme_dark?: CustomTheme;
-        custom_theme_name?: string;
+        customTheme?: CustomTheme | null;
+        customThemeDark?: CustomTheme | null;
+        customThemeName?: string;
         font?: string;
-        author_name?: string;
-        author_url?: string;
-        author_bio?: string;
-        author_links?: Array<{
+        authorName?: string;
+        authorUrl?: string;
+        authorBio?: string;
+        authorLinks?: Array<{
             label: string;
             url: string;
         }>;
-        site_url?: string;
+        siteUrl?: string;
         timezone?: string;
-        avatar_media_id?: string;
-        ai_model?: string;
-        ai_model_tk?: string;
-        ai_model_changelog?: string;
-        ai_model_feed?: string;
+        avatarMediaId?: string;
+        aiModel?: string;
+        aiModelTk?: string;
+        aiModelChangelog?: string;
+        aiModelFeed?: string;
         /**
          * The change classifier's decision model (Clef, Jev); empty, the default, is off. Studio-private: a category reaches readers only as words in a changelog note the author confirms.
          */
-        ai_model_classify?: string;
-        change_category_in_note?: boolean;
-        feed_prompt?: string;
-        ai_style_prompt?: string;
-        accept_mentions?: boolean;
-        update_check?: boolean;
-        show_responses_default?: boolean;
-        highlight_generated_default?: boolean;
-        auto_change_notes?: boolean;
-        picker_typing?: 'auto' | 'editor' | 'panel';
+        aiModelClassify?: string;
         /**
-         * The public home page order: an id from feed_orders. pace-layered (the default) and reverse-chronological are core; extensions add orders named <extension>/<id>.
+         * Lead the changelog note with the classifier's category, in the publish dialog where the author sees it. Matters only while aiModelClassify is set.
          */
-        feed_order?: string;
+        changeCategoryInNote?: boolean;
+        feedPrompt?: string;
+        aiStylePrompt?: string;
+        acceptMentions?: boolean;
+        updateCheck?: boolean;
+        showResponsesDefault?: boolean;
+        highlightGeneratedDefault?: boolean;
+        autoChangeNotes?: boolean;
+        pickerTyping?: 'auto' | 'editor' | 'panel';
+        /**
+         * The public home page order: an id from feedOrders. pace-layered (the default) and reverse-chronological are core; extensions add orders named <extension>/<id>.
+         */
+        feedOrder?: string;
         /**
          * A published thread's id shown at the mount root instead of the latest items; empty for the latest items. A front page later withdrawn or deleted falls back to the latest items.
          */
-        front_page?: string;
+        frontPage?: string;
         /**
-         * Where the latest items live: {mount}/{posts_path}/, served whether or not a front page is set. Lowercase letters, digits and hyphens; names the blyg already uses are refused.
+         * Where the latest items live: {mount}/{postsPath}/, served whether or not a front page is set. Lowercase letters, digits and hyphens; names the blyg already uses are refused.
          */
-        posts_path?: string;
+        postsPath?: string;
         /**
          * Where the links section (main menu) sits on public pages: left (the default) or right is a sidebar on wide screens and a Menu button under the masthead on narrow ones; bottom puts it below the content at every width.
          */
-        links_position?: 'bottom' | 'left' | 'right';
+        linksPosition?: 'bottom' | 'left' | 'right';
         /**
          * Published threads listed first in the links section, in order. A thread later withdrawn is left out.
          */
-        links_threads?: Array<string>;
+        linksThreads?: Array<string>;
         /**
          * The owner's own links in the links section.
          */
-        links_external?: Array<{
+        linksExternal?: Array<{
             label: string;
             url: string;
         }>;
         /**
          * List public collections in the links section.
          */
-        links_collections?: boolean;
+        linksCollections?: boolean;
         /**
          * Link the blogroll's OPML file in the links section, when the blogroll is not empty.
          */
-        links_opml?: boolean;
+        linksOpml?: boolean;
         /**
          * Link blygger.org in the links section.
          */
-        links_blygger_org?: boolean;
+        linksBlyggerOrg?: boolean;
         /**
          * Link blygger.com, the directory of blygs, in the links section.
          */
-        links_blygger_com?: boolean;
+        linksBlyggerCom?: boolean;
         /**
          * The setup wizard: pending on a fresh install, notice on a node that published before it existed, done once finished or dismissed.
          */
         setup?: 'pending' | 'notice' | 'done';
-        /**
-         * Read-only: what each setting reads as with nothing stored, for "reset to default". site_title's default is the title derived from the address; store "" to keep it derived.
-         */
-        defaults?: {
-            [key: string]: unknown;
-        };
-        /**
-         * Read-only: the home page orders this node can use now (core, plus enabled extensions').
-         */
-        feed_orders?: Array<{
-            id: string;
-            title: string;
-            description: string;
-        }>;
-        update_feed_url?: string;
-        update_notice_ack?: boolean;
+        updateFeedUrl?: string;
+        updateNoticeAck?: boolean;
         /**
          * Studio extensions enabled on this node (docs/extensions.md). Only names compiled into this build are accepted; every extension starts disabled.
          */
@@ -2726,7 +2718,7 @@ export type GetSubscriptionResponse = GetSubscriptionResponses[keyof GetSubscrip
 
 export type UpdateSubscriptionData = {
     body: {
-        in_blogroll?: boolean;
+        inBlogroll?: boolean;
         /**
          * A name of your own; null hands the name back to the source, refreshed while polling.
          */
@@ -3238,10 +3230,10 @@ export type GetHopperResponses = {
      */
     200: {
         hopper: Hopper;
-        memberships: Array<HopperItemRow>;
+        memberships: Array<HopperMembership>;
         items: Array<ImportedItem>;
         total: number;
-        source_count: number;
+        sourceCount: number;
     };
 };
 
@@ -3692,7 +3684,7 @@ export type MarkUnreadResponses = {
     200: {
         ok: boolean;
         stored: false;
-        read_version: null;
+        readVersion: null;
     };
 };
 
@@ -3704,7 +3696,7 @@ export type MarkReadData = {
         /**
          * When the client read it (ISO-8601). A read earlier than the row's latest clear is ignored; omitted, the read always applies.
          */
-        read_at?: string;
+        readAt?: string;
     };
     path: {
         sub: string;
@@ -3774,7 +3766,7 @@ export type MarkReadResponses = {
     200: {
         ok: boolean;
         stored: boolean;
-        read_version: number | null;
+        readVersion: number | null;
     };
 };
 
@@ -3784,12 +3776,12 @@ export type MarkReadBatchData = {
     body: {
         items: Array<{
             sub: string;
-            remote_id: string;
+            remoteId: string;
             version: number;
             /**
              * When the client read it (ISO-8601). A read earlier than the row's latest clear is ignored; omitted, the read always applies.
              */
-            read_at?: string;
+            readAt?: string;
         }>;
     };
     path?: never;
@@ -3866,7 +3858,7 @@ export type MarkUnreadBatchData = {
     body: {
         items: Array<{
             sub: string;
-            remote_id: string;
+            remoteId: string;
         }>;
     };
     path?: never;
@@ -4083,7 +4075,7 @@ export type ListSignalsResponses = {
      * Success
      */
     200: {
-        items: Array<SignalRow>;
+        items: Array<Signal>;
         total: number;
         offset: number;
         limit: number;
@@ -4379,7 +4371,7 @@ export type ListMentionsResponses = {
      * Success
      */
     200: {
-        items: Array<Mention | MentionOutRow>;
+        items: Array<Mention | OutboundMention>;
         total: number;
         offset: number;
         limit: number;
@@ -4391,8 +4383,8 @@ export type ListMentionsResponse = ListMentionsResponses[keyof ListMentionsRespo
 
 export type PreviewData = {
     body: {
-        content_md?: string;
-        item_id?: string;
+        contentMd?: string;
+        itemId?: string;
         kind?: 'fragment' | 'thread';
     };
     path?: never;
@@ -4484,7 +4476,7 @@ export type PreviewResponses = {
                 reason?: string;
             }>;
         }>;
-        link_errors?: Array<{
+        linkErrors?: Array<{
             id?: string;
             directive?: string;
             reason?: string;
@@ -4586,8 +4578,8 @@ export type SearchResponses = {
             badge: string;
             source: 'mine' | 'imported';
             kind: 'fragment' | 'thread';
-            subscription_id: string | null;
-            source_title: string | null;
+            subscriptionId: string | null;
+            sourceTitle: string | null;
         }>;
         total: number;
         offset: number;
@@ -4758,11 +4750,11 @@ export type ListReadingResponses = {
         /**
          * This server stores read state: each imported entry's readVersion is meaningful.
          */
-        read_state: true;
+        readState: true;
         /**
          * Read state can be cleared: DELETE /reading/{sub}/{remoteId}/read, POST /reading/unread, and read_at on reads.
          */
-        read_state_clear: true;
+        readStateClear: true;
     };
 };
 
@@ -5074,7 +5066,7 @@ export type GetImportedVersionResponses = {
      */
     200: {
         version: number;
-        content_md: string;
+        contentMd: string;
         note: string | null;
         pinned: boolean;
     };
@@ -5387,9 +5379,9 @@ export type ListBrowseResponse = ListBrowseResponses[keyof ListBrowseResponses];
 export type LogBrowseData = {
     body: {
         trail: string;
-        parent_id?: number | null;
+        parentId?: number | null;
         origin: string;
-        remote_id: string;
+        remoteId: string;
         version?: number | null;
         via: 'start' | 'stub' | 'quote' | 'link' | 'back';
         title?: string | null;
@@ -5528,7 +5520,8 @@ export type GetUpdateStateResponses = {
      * Success
      */
     200: {
-        [key: string]: string;
+        updateCheckedAt?: string;
+        updateLatestSeen?: string;
     };
 };
 

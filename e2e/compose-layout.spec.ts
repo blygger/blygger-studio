@@ -72,7 +72,7 @@ test('the composer: icon tools keep their names and titles, compact actions, fol
 
 test('the editor: one row of tools that fits, its own items named as before', async ({ page }) => {
   await login(page);
-  const { json } = await api(page, 'POST', '/items', { content_md: 'Layout draft.', kind: 'thread' });
+  const { json } = await api(page, 'POST', '/items', { contentMd: 'Layout draft.', kind: 'thread' });
   try {
     await page.goto(`/studio/edit/${json.id}`);
     await expect(page.locator('#md-input')).toBeVisible();

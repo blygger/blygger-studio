@@ -104,12 +104,12 @@ const createSubscriptionOperation = async (context: OperationContext, input: Ope
 const updateSubscriptionOperation = async (context: OperationContext, input: OperationInput) => {
   const sub = await getSubscription(context.env.DB, input.path.id);
   if (!sub) return failure('not-found', { error: "not found" });
-  const body = (input.body as { in_blogroll?: boolean; title?: string | null; paused?: boolean });
+  const body = (input.body as { inBlogroll?: boolean; title?: string | null; paused?: boolean });
   const assignments: string[] = [], values: (string | number)[] = [];
   // A name of the owner's own stops the refresh; null hands it back to the source.
   if (typeof body.title === "string") { assignments.push("title = ?", "title_auto = 0"); values.push(body.title); }
   if (body.title === null) assignments.push("title_auto = 1", "last_index_sync_at = NULL");
-  if (body.in_blogroll !== undefined) { assignments.push("in_blogroll = ?"); values.push(body.in_blogroll ? 1 : 0); }
+  if (body.inBlogroll !== undefined) { assignments.push("in_blogroll = ?"); values.push(body.inBlogroll ? 1 : 0); }
   if (body.paused !== undefined) { assignments.push("status = ?"); values.push(body.paused ? "paused" : "active"); }
   if (!assignments.length) return success(subscriptionResource(sub));
   const fresh = await context.env.DB.prepare(`UPDATE subscriptions SET ${assignments.join(", ")} WHERE id = ? RETURNING *`).bind(...values, sub.id).first<SubscriptionRow>();
@@ -232,15 +232,16 @@ const deleteSignalOperation = async (context: OperationContext, input: Operation
 const markReadOperation = async (context: OperationContext, input: OperationInput) => {
   const sub = input.path.sub, remoteId = input.path.remoteId;
   if (sub.length > READ_ID_MAX || remoteId.length > READ_ID_MAX) return failure('invalid-input', { error: "id too long" });
-  const { version, read_at } = (input.body as { version: number; read_at?: string });
-  const result = await markRead(context.env.DB, sub, remoteId, version, read_at);
-  return success({ ok: true, ...result });
+  const { version, readAt } = (input.body as { version: number; readAt?: string });
+  const result = await markRead(context.env.DB, sub, remoteId, version, readAt);
+  return success({ ok: true, stored: result.stored, readVersion: result.read_version });
 };
 
 // The whole list is validated before anything is written, and the writes are
 // one batch: one request, one transaction, one unit of the write budget.
 const markReadBatchOperation = async (context: OperationContext, input: OperationInput) => {
-  const { items } = (input.body as { items: ReadMark[] });
+  const { items: entries } = input.body as { items: { sub: string; remoteId: string; version: number; readAt?: string }[] };
+  const items: ReadMark[] = entries.map(row => ({ sub: row.sub, remote_id: row.remoteId, version: row.version, read_at: row.readAt }));
   await markReadBatch(context.env.DB, items);
   return success({ ok: true, received: items.length });
 };
@@ -251,12 +252,13 @@ const markUnreadOperation = async (context: OperationContext, input: OperationIn
   const sub = input.path.sub, remoteId = input.path.remoteId;
   if (sub.length > READ_ID_MAX || remoteId.length > READ_ID_MAX) return failure('invalid-input', { error: "id too long" });
   await markUnread(context.env.DB, sub, remoteId);
-  return success({ ok: true, stored: false as const, read_version: null });
+  return success({ ok: true, stored: false as const, readVersion: null });
 };
 
 // Same validation and budget shape as the read batch.
 const markUnreadBatchOperation = async (context: OperationContext, input: OperationInput) => {
-  const { items } = (input.body as { items: UnreadMark[] });
+  const { items: entries } = input.body as { items: { sub: string; remoteId: string }[] };
+  const items: UnreadMark[] = entries.map(row => ({ sub: row.sub, remote_id: row.remoteId }));
   await markUnreadBatch(context.env.DB, items);
   return success({ ok: true, received: items.length });
 };

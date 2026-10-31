@@ -14,14 +14,14 @@ describe("subscription API (§4.2)", () => {
     const cookie = await login();
     const { status, json } = await apiJson(cookie, "POST", "/blyg/api/subscriptions", {});
     expect(status).toBe(400);
-    expect(json.error).toMatch(/url/);
+    expect(json.message).toMatch(/url/);
   });
 
   it("422s with the probe trail for an unresolvable URL", async () => {
     const cookie = await login();
     const { status, json } = await apiJson(cookie, "POST", "/blyg/api/subscriptions", { url: "not a url" });
     expect(status).toBe(422);
-    expect(json.tried).toEqual([]);
+    expect(json.details.tried).toEqual([]);
   });
 
   it("requires auth", async () => {
@@ -36,7 +36,7 @@ describe("subscription API (§4.2)", () => {
   it("PUT toggles the blogroll flag and title override on an existing subscription", async () => {
     const cookie = await login();
     const sub = await createSubscription(env.DB, { kind: "blyg", origin: "https://a.example/", feedUrl: "https://a.example/feed.xml", title: "A" });
-    const put = await apiJson(cookie, "PATCH", `/blyg/api/subscriptions/${sub.id}`, { in_blogroll: true, title: "Renamed" });
+    const put = await apiJson(cookie, "PATCH", `/blyg/api/subscriptions/${sub.id}`, { inBlogroll: true, title: "Renamed" });
     expect(put.status).toBe(200);
     const after = await getSubscription(env.DB, sub.id);
     expect(after).toMatchObject({ in_blogroll: 1, title: "Renamed" });
@@ -191,13 +191,13 @@ describe("the stub action (§3.1, decision #27 — absorbs `respond`)", () => {
       contentHash: "hash-l0",
     });
 
-    const created = await apiJson(cookie, "POST", "/blyg/api/items", { mode: "response", source: { subscription_id: sub.id, remote_id: "l0-xyz" } });
+    const created = await apiJson(cookie, "POST", "/blyg/api/items", { mode: "response", source: { subscriptionId: sub.id, remoteId: "l0-xyz" } });
     expect(created.status).toBe(201);
     const detail = await apiJson(cookie, "GET", `/blyg/api/items/${created.json.id}`);
     expect(detail.status).toBe(200);
-    expect(detail.json.content_md).toBe("[Our Eukaryotic Moment](https://blog.example/p/euk)\n\n");
-    expect(detail.json.content_md).not.toContain("secret body prose");
-    expect(detail.json.stub_of).toMatchObject({ url: "https://blog.example/p/euk" });
+    expect(detail.json.contentMd).toBe("[Our Eukaryotic Moment](https://blog.example/p/euk)\n\n");
+    expect(detail.json.contentMd).not.toContain("secret body prose");
+    expect(detail.json.stubOf).toMatchObject({ url: "https://blog.example/p/euk" });
   });
 
   it("stubs a blyg entry with the transclusion directive and a citation", async () => {
@@ -209,7 +209,7 @@ describe("the stub action (§3.1, decision #27 — absorbs `respond`)", () => {
     });
     await env.DB.prepare("UPDATE imported_items SET l0 = 0 WHERE subscription_id = ? AND remote_id = ?").bind(sub.id, "abc123").run();
 
-    const created = await apiJson(cookie, "POST", "/blyg/api/items", { mode: "response", source: { subscription_id: sub.id, remote_id: "abc123" } });
+    const created = await apiJson(cookie, "POST", "/blyg/api/items", { mode: "response", source: { subscriptionId: sub.id, remoteId: "abc123" } });
     expect(created.status).toBe(201);
     const row = await env.DB.prepare("SELECT kind, content_md, stub_of FROM items WHERE id = ?").bind(created.json.id).first<any>();
     expect(row.kind).toBe("thread");
@@ -218,12 +218,12 @@ describe("the stub action (§3.1, decision #27 — absorbs `respond`)", () => {
 
     const detail = await apiJson(cookie, "GET", `/blyg/api/items/${created.json.id}`);
     expect(detail.status).toBe(200);
-    expect(detail.json.stub_of).toMatchObject({ origin: "https://friend.example/blyg/", id: "abc123", version: 3 });
+    expect(detail.json.stubOf).toMatchObject({ origin: "https://friend.example/blyg/", id: "abc123", version: 3 });
   });
 
   it("404s for an unknown subscription or item, and 400s with no target", async () => {
     const cookie = await login();
     expect((await apiJson(cookie, "POST", "/blyg/api/items", { mode: "response", source: {} })).status).toBe(400);
-    expect((await apiJson(cookie, "POST", "/blyg/api/items", { mode: "response", source: { subscription_id: "nope", remote_id: "x" } })).status).toBe(404);
+    expect((await apiJson(cookie, "POST", "/blyg/api/items", { mode: "response", source: { subscriptionId: "nope", remoteId: "x" } })).status).toBe(404);
   });
 });

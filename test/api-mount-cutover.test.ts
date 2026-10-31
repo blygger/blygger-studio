@@ -17,14 +17,14 @@ it.each(['', '/blyg', '/notes/b'])('uses one API address at mount %s', async mou
   const login = await fetch(origin + mount + '/studio/login', { method: 'POST', body: new URLSearchParams({ password: env.OWNER_PASSWORD }) });
   const cookie = login.headers.get('set-cookie')!.split(';')[0];
   const client = createBlyggerClient({ baseUrl: api, headers: { cookie }, fetch });
-  const draft = await unwrap(BlyggerApi.createItem({ client, body: { content_md: 'mounted SDK' } }));
-  expect((await unwrap(BlyggerApi.getItem({ client, path: { id: draft.id } }))).content_md).toBe('mounted SDK');
+  const draft = await unwrap(BlyggerApi.createItem({ client, body: { contentMd: 'mounted SDK' } }));
+  expect((await unwrap(BlyggerApi.getItem({ client, path: { id: draft.id } }))).contentMd).toBe('mounted SDK');
   const created = await fetch(api + '/items', { method: 'POST', headers: { cookie } });
   expect(created.status).toBe(201);
   expect(created.headers.get('location')).toBe(mount + '/api/items/' + (await created.json<{ id: string }>()).id);
   const caps = await unwrap(BlyggerApi.getCapabilities({ client }));
   expect(caps.endpoints.api).toBe(api);
-  expect(caps.contractVersion).toBe('3.0.0');
+  expect(caps.contractVersion).toBe('4.0.0');
   const document = await (await fetch(api + '/openapi.json', { headers: { cookie } })).json<any>();
   expect(document.servers).toEqual([{ url: api }]);
   expect(document.paths['/items/{id}']).toBeTruthy();

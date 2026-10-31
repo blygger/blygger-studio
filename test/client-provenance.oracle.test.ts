@@ -29,11 +29,11 @@ it('keeps client claims aligned to generated spans and rejects a partial patch a
   const source = { sources: [], model: 'oracle-agent', at: '2026-10-04T00:00:00Z' };
   const text = '[TK]first[=]First generated sentence.[/TK]\n\n[TK]second[=]Second generated sentence.[/TK]';
   const request = async (path: string, method = 'GET', body?: unknown) => { body = await testRevisionBody(method, path, body); return SELF.fetch(BASE + path, { method, headers: { cookie, 'cf-connecting-ip': ip, ...(body === undefined ? {} : { 'Content-Type': 'application/json' }) }, ...(body === undefined ? {} : { body: JSON.stringify(body) }) }); };
-  const creation = await request('/blyg/api/items', 'POST', { content_md: text, provenance: [source, null] });
+  const creation = await request('/blyg/api/items', 'POST', { contentMd: text, provenance: [source, null] });
   atCheckpoint('client provenance creation', () => expect(creation.status).toBe(201));
   const draft = await creation.json() as { id: string };
   const before = await (await request('/blyg/api/items/' + draft.id)).json();
-  const invalid = await request('/blyg/api/items/' + draft.id, 'PATCH', { content_md: text + '\nMust not persist.', provenance: [source] });
+  const invalid = await request('/blyg/api/items/' + draft.id, 'PATCH', { contentMd: text + '\nMust not persist.', provenance: [source] });
   atCheckpoint('client provenance alignment rejection', () => expect(invalid.status).toBe(400));
   const after = await (await request('/blyg/api/items/' + draft.id)).json();
   atCheckpoint('client provenance atomic rejection', () => expect(after).toEqual(before));

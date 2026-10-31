@@ -51,7 +51,7 @@ describe("the embed script ships where item HTML renders publicly", () => {
     const href = `https://www.youtube.com/watch?v=${ID}`;
     const fragment = await createAndPublish(cookie, `A talk:\n\n${href}`);
     await apiJson(cookie, "PUT", `/blyg/api/items/${fragment}/versions/1/pin`);
-    const thread = (await apiJson(cookie, "POST", "/blyg/api/items", { content_md: `A thread.\n\n${href}`, kind: "thread" })).json.id as string;
+    const thread = (await apiJson(cookie, "POST", "/blyg/api/items", { contentMd: `A thread.\n\n${href}`, kind: "thread" })).json.id as string;
     await apiJson(cookie, "POST", `/blyg/api/items/${thread}/publish`, {});
 
     for (const path of ["/blyg/", `/blyg/f/${fragment}/`, `/blyg/t/${thread}/`, `/blyg/f/${fragment}/v1/`]) {

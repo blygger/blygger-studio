@@ -546,3 +546,58 @@ I14 is disposed as a known, accepted upgrade limit with documented operator
 guidance. The final ledger has18 rows:12 fixed,five duplicates and one deferred
 mixed-version compatibility requirement. No open design decision. Parts6–8
 retain their planned scope.
+
+Part5 is published as [PR98](https://github.com/blygger/blygger-studio/pull/98),
+head `15ba930`, stacked on PR97. CI is running and review/comment lists are
+empty. Part6 continues on `codex/api-private-resources`.
+
+PR98's randomized authorization campaign found a stale publish probe that omitted
+the required revision. Seed -1957230746 and its exact shrink path reproduced
+400 instead of the intended missing-resource404. The same replay and all six
+authorization cases pass with expectedRevision:1. Repair0e65c59 is pushed and
+fast-forwarded into part6. Receipts and CI98-01 are preserved in
+`/tmp/blygger-api-review-evaluation`.
+
+Part6 now uses explicit camelCase private resource schemas and shallow, named
+storage adapters. Imported metadata is decoded per column, retains unknown
+nested members, and uses null for damaged data. Media URLs are absolute at the
+deployment's canonical public base. Private errors use code/message/details;
+OAuth and public protocol payloads keep their native forms. Receiving fixtures
+and browser checks are still in progress. Review found old client adapters for
+release checks, OPML errors, relative media references, and outer private errors.
+Each is recorded before repair in the part6 review ledger. No plan change.
+
+Part6 review repairs now cover the actual receiving paths: release-update state
+adapts into the existing storage helper, OPML uses the server message, relative
+media markdown still prevents removal, and outer private HTTPS/exception failures
+share the declared error envelope. Focused probes demonstrated each old failure
+and pass after the repair. All134 UI tests and both TypeScript projects pass.
+
+The fixture audit caught two tests that could pass for the wrong reason after a
+hard representation cutover. Numeric-content and missing-revision probes must
+send a valid new field name before testing their intended error. A successful
+SDK response-schema test must also demand its expected200 status, rather than
+accept a well-formed validation error. These assertions now name the intended
+issue paths/status. SDK wrapper.error remains a transport member, and successful
+preview diagnostics remain top-level errors. Only failed private operations use
+code/message/details.
+
+Absolute private media URLs, relative public protocol URLs, and R2 keys are
+distinct values. Receiving fixtures now derive a public/R2 key explicitly where
+that is their subject and fetch canonical private URLs directly. Public formats
+and stored snapshot assertions keep their existing spellings. Two renamed
+mutation anchors were updated; all82 anchors match, and the two changed security
+mutants are caught at their original semantic checkpoints. The full Worker and
+desktop/mobile browser runs remain in progress.
+
+The published stack through PR98 is now green at all current heads:90/91/93/95/
+96/97/98, with nine successful jobs each. PR98's final head is0e65c59. Complete
+review submissions and inline threads are empty. The completed CI heartbeat is
+paused until the next PR publishes. Raw final audit: stack-green.json in the
+shared review-evaluation directory.
+
+Part6's complete Worker run passed1958 tests with five skipped. Final review
+then reproduced an old multipart field being silently ignored, which could
+create unattached media. Strict multipart field validation now matches the
+JSON cutover. Its focused positive/negative receiving checks are in progress;
+this does not change the agreed design or the public protocol.

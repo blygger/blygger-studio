@@ -191,7 +191,7 @@ describe('trigger revision oracle', () => {
     const cleared = await call('GET', '/blyg/api/reading'), clearedChanges = await changes(cookie);
     expect(cleared).not.toEqual(after);
     atCheckpoint('trigger exact domain effects', () => expect(changedDomains(changed, clearedChanges)).toEqual(['reading']));
-    await call('PUT', '/blyg/api/reading/read-source/r/read', { version: 2, read_at: '2000-01-01T00:00:00Z' });
+    await call('PUT', '/blyg/api/reading/read-source/r/read', { version: 2, readAt: '2000-01-01T00:00:00Z' });
     expect(await call('GET', '/blyg/api/reading')).toEqual(cleared);
     expect(await changes(cookie)).toEqual(clearedChanges);
   });

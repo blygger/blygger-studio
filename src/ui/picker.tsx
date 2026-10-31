@@ -74,7 +74,7 @@ export function BracketPicker({
   const [error, setError] = useState<unknown>();
   const [source, setSource] = useState<Source>(() => stored('blyg.picker.source', ['all', 'mine', 'imported'] as const, 'all'));
   const [sort, setSort] = useState<Sort>(() => stored('blyg.picker.sort', ['newest', 'oldest'] as const, 'newest'));
-  const setting = useSettings()?.picker_typing ?? 'auto';
+  const setting = useSettings()?.pickerTyping ?? 'auto';
   const focusMode: Focus = setting === 'auto' ? (touch() ? 'panel' : 'editor') : setting;
   const [sub, setSub] = useState('');
   const [subs, setSubs] = useState<{ id: string; title: string }[]>([]);
@@ -324,7 +324,7 @@ export function BracketPicker({
           >
             <span className="picker-excerpt">{hit.excerpt}</span>
             <span className="picker-meta">
-              {hit.source === 'mine' ? <span className="picker-mine">mine</span> : <span>{hit.source_title}</span>} · {hit.kind} · {ago(hit.updated)} · v{hit.version}
+              {hit.source === 'mine' ? <span className="picker-mine">mine</span> : <span>{hit.sourceTitle}</span>} · {hit.kind} · {ago(hit.updated)} · v{hit.version}
             </span>
           </li>
         ))}

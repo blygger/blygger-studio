@@ -47,7 +47,7 @@ const histories = fc.record({ kind: fc.constantFrom("fragment" as const, "thread
 
 async function run(kind: Model["kind"], actions?: Action[], instructions?: { choice: number; version: number; text: number }[]) {
   const client = createBlyggerClient({ baseUrl: BASE + '/blyg/api', headers: { cookie: await login() }, fetch: (input, init) => SELF.fetch(input instanceof Request ? input : new Request(input, init)) });
-  const created = await unwrap(BlyggerApi.createItem({ client, body: { kind, content_md: "initial" } }));
+  const created = await unwrap(BlyggerApi.createItem({ client, body: { kind, contentMd: "initial" } }));
   const id = created.id, model: Model = { revision: 1, content: "initial", status: "draft", dirty: true, kind, versions: [] };
   const pinnedSnapshots = new Map<number, string>();
   // Observe all promised views at the same settled-action boundary. Checking only
@@ -57,8 +57,8 @@ async function run(kind: Model["kind"], actions?: Action[], instructions?: { cho
   async function compare() {
     const owner = await unwrap(BlyggerApi.getItem({ client, path: { id } }));
     atCheckpoint("lifecycle private revision", () => expect(owner.revision).toBe(model.revision));
-    atCheckpoint("lifecycle owner working copy", () => expect({ content: owner.content_md, status: owner.status, dirty: owner.dirty, version: owner.version, kind: owner.authored_kind }).toEqual({ content: model.content, status: model.status, dirty: model.dirty, version: model.versions.length, kind }));
-    atCheckpoint("lifecycle immutable history", () => expect(owner.versions.map(v => ({ content: v.content_md, pinned: v.pinned, kind: v.kind }))).toEqual(model.versions));
+    atCheckpoint("lifecycle owner working copy", () => expect({ content: owner.contentMd, status: owner.status, dirty: owner.dirty, version: owner.version, kind: owner.kind }).toEqual({ content: model.content, status: model.status, dirty: model.dirty, version: model.versions.length, kind }));
+    atCheckpoint("lifecycle immutable history", () => expect(owner.versions.map(v => ({ content: v.contentMd, pinned: v.pinned, kind: v.kind }))).toEqual(model.versions));
     const current = await SELF.fetch(`${BASE}/blyg/items/${id}.json`);
     atCheckpoint("lifecycle public visibility", () => expect(current.status).toBe(model.versions.length ? 200 : 404));
     if (model.versions.length) {
@@ -91,7 +91,7 @@ async function run(kind: Model["kind"], actions?: Action[], instructions?: { cho
     const token = instructions?.[index];
     const action = supplied ?? { op: legal[token!.choice % legal.length], value: token!.text % 4 === 0 ? "" : `text ${token!.text}`, version: restorable[token!.version % restorable.length] };
     if (!legal.includes(action.op)) throw new Error("Illegal lifecycle history");
-    if (action.op === "edit") await unwrap(BlyggerApi.updateItem({ client, path: { id }, body: { ...({ content_md: action.value }), expectedRevision: model.revision } }));
+    if (action.op === "edit") await unwrap(BlyggerApi.updateItem({ client, path: { id }, body: { ...({ contentMd: action.value }), expectedRevision: model.revision } }));
     if (action.op === "publish") await unwrap(BlyggerApi.publishItem({ client, path: { id } , body: { expectedRevision: model.revision } }));
     if (action.op === "withdraw") await unwrap(BlyggerApi.withdrawItem({ client, path: { id } , body: { expectedRevision: model.revision } }));
     if (action.op === "restore") await unwrap(BlyggerApi.restoreItem({ client, path: { id }, body: { ...({ version: action.version! }), expectedRevision: model.revision } }));

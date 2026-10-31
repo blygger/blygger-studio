@@ -31,7 +31,7 @@ function aboutSheet(context: EntryContext) {
 function ExamplePage({ context }: { context: StudioContext }) {
   const [title, setTitle] = useState<string>();
   useEffect(() => {
-    void context.run(async () => setTitle((await unwrap(BlyggerApi.getSettings({ client: context.client }))).site_title));
+    void context.run(async () => setTitle((await unwrap(BlyggerApi.getSettings({ client: context.client }))).siteTitle));
   }, []);
   return <p data-extension-page="example">This page belongs to the example extension. Site title, read through the SDK: {title ?? '…'}</p>;
 }

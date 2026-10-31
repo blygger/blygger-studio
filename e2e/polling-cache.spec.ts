@@ -5,7 +5,7 @@ test('unchanged Studio polls check revisions without refetching collections, the
   await page.clock.install();
   await page.goto('/studio/login'); await page.locator('[name=password]').fill('test-password');
   await page.getByRole('button', { name: 'log in', exact: true }).click(); await expect(page.locator('#composer-text')).toBeVisible();
-  await page.evaluate(() => fetch('/api/settings', { method: 'PATCH', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ update_check: false, site_title: `Poll settings ${crypto.randomUUID()}` }) }));
+  await page.evaluate(() => fetch('/api/settings', { method: 'PATCH', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ updateCheck: false, siteTitle: `Poll settings ${crypto.randomUUID()}` }) }));
   await page.clock.pauseAt(new Date(Date.now() + 10_000));
   async function tick(paths: string[]) {
     const seen = new Set<unknown>();
@@ -25,7 +25,7 @@ test('unchanged Studio polls check revisions without refetching collections, the
   expect(requests.sort()).toEqual(['/api/changes', '/api/update-state']);
   requests.length = 0;
   const marker = `Other client ${Date.now()}`;
-  await page.evaluate(content_md => fetch('/api/items', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ content_md }) }), marker);
+  await page.evaluate(content_md => fetch('/api/items', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ contentMd: content_md }) }), marker);
   await tick(['/api/changes', '/api/items', '/api/update-state']);
   expect(requests).toContain('/api/items');
   await expect(page.getByText(marker, { exact: false }).first()).toBeVisible();
@@ -37,7 +37,7 @@ test('a failed initial Reading page recovers through the existing retry control'
   await page.getByRole('button', { name: 'log in', exact: true }).click(); await expect(page.locator('#composer-text')).toBeVisible();
   let fail = true;
   await page.route('**/api/reading?*', route => {
-    if (fail) { fail = false; return route.fulfill({ status: 503, json: { error: 'controlled initial read failure' } }); }
+    if (fail) { fail = false; return route.fulfill({ status: 503, json: { code: 'internal', message: 'controlled initial read failure' } }); }
     return route.continue();
   });
   await page.goto('/studio/reading?sub=all'); await expect(page.getByRole('alert')).toContainText('controlled initial read failure');
@@ -52,7 +52,7 @@ test('a buffered query response keeps its pre-fetch revision and receives a late
   await page.goto('/studio/login'); await page.locator('[name=password]').fill('test-password');
   await page.getByRole('button', { name: 'log in', exact: true }).click(); await expect(page.locator('#composer-text')).toBeVisible();
   const firstMarker = `First buffered client ${Date.now()}`;
-  await page.evaluate(content_md => fetch('/api/items', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ content_md }) }), firstMarker);
+  await page.evaluate(content_md => fetch('/api/items', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ contentMd: content_md }) }), firstMarker);
   await page.clock.pauseAt(new Date(Date.now() + 10_000));
   let release!: () => void, captured!: () => void;
   const gate = new Promise<void>(done => { release = done; }), ready = new Promise<void>(done => { captured = done; });
@@ -65,12 +65,12 @@ test('a buffered query response keeps its pre-fetch revision and receives a late
   try {
     await page.clock.runFor(15_000); await ready;
     const marker = `Buffered client ${Date.now()}`;
-    expect(await page.evaluate(async content_md => (await fetch('/api/items', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ content_md }) })).ok, marker)).toBe(true);
+    expect(await page.evaluate(async content_md => (await fetch('/api/items', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ contentMd: content_md }) })).ok, marker)).toBe(true);
     const old = page.waitForResponse(response => new URL(response.url()).pathname === '/api/items' && response.request().method() === 'GET');
     release(); await (await old).finished(); await page.clock.runFor(1_000);
     // The first response can be one page of a larger collection load.
     await expect(page.getByText(firstMarker, { exact: false }).first()).toBeVisible();
-    const fresh = page.waitForResponse(async response => new URL(response.url()).pathname === '/api/items' && response.request().method() === 'GET' && (await response.json()).items.some((item: { content_md: string }) => item.content_md === marker));
+    const fresh = page.waitForResponse(async response => new URL(response.url()).pathname === '/api/items' && response.request().method() === 'GET' && (await response.json()).items.some((item: { contentMd: string }) => item.contentMd === marker));
     await page.clock.runFor(15_000); await (await fresh).finished(); await page.clock.runFor(1_000);
     await expect(page.getByText(marker, { exact: false }).first()).toBeVisible();
   } finally { release(); }
@@ -87,7 +87,7 @@ test('a newly verified mention reaches the open mentions view in one poll, and a
   await page.getByRole('button', { name: 'log in', exact: true }).click(); await expect(page.locator('#composer-text')).toBeVisible();
   const marker = `Live mention target ${crypto.randomUUID()}`;
   const item = await page.evaluate(async content_md => {
-    const created = await (await fetch('/api/items', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ content_md, kind: 'thread' }) })).json() as { id: string; revision: number };
+    const created = await (await fetch('/api/items', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ contentMd: content_md, kind: 'thread' }) })).json() as { id: string; revision: number };
     await fetch(`/api/items/${created.id}/publish`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ expectedRevision: created.revision }) });
     return created.id;
   }, marker);

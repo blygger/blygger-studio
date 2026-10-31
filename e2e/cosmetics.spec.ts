@@ -77,13 +77,13 @@ test('a draft that only quotes or links shows what it quotes, not "(empty draft)
   await login(page);
   const words = `${info.project.name} quoted target words`;
   const id = await page.evaluate(async (content_md) => {
-    const item = await (await fetch('/api/items', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ content_md }) })).json();
+    const item = await (await fetch('/api/items', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ contentMd: content_md }) })).json();
     await fetch(`/api/items/${item.id}/publish`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ expectedRevision: item.revision }) });
     return item.id as string;
   }, words);
   for (const [kind, content_md] of [['thread', `![[${id}]]`], ['fragment', `[[${id}]]`]] as const) {
     await page.evaluate(async ([kind, content_md]) => {
-      await fetch('/api/items', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ kind, content_md }) });
+      await fetch('/api/items', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ kind, contentMd: content_md }) });
     }, [kind, content_md]);
   }
   await page.reload();

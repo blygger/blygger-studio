@@ -65,7 +65,7 @@ describe("root mount", () => {
     const created = await app.request(`${HOST}/api/items`, {
       method: "POST",
       headers: { cookie, "content-type": "application/json" },
-      body: JSON.stringify({ content_md: "root-mounted pin" }),
+      body: JSON.stringify({ contentMd: "root-mounted pin" }),
     }, appEnv());
     const { id, revision } = (await created.json()) as { id: string; revision: number };
     await app.request(`${HOST}/api/items/${id}/publish`, { method: "POST", headers: { cookie, "content-type": "application/json" }, body: JSON.stringify({ expectedRevision: revision }) }, appEnv());

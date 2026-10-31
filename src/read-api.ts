@@ -1,5 +1,5 @@
 import { success, created, failure, modelFailure, type OperationContext, type OperationInput } from './operation-types.ts';
-import { itemResource, versionResource, mediaResource, subscriptionResource, hopperResource, importedResource, mentionResource } from "./contract/resources.ts";
+import { itemResource, versionResource, mediaResource, subscriptionResource, hopperResource, importedResource, mentionResource, membershipResource, signalResource, outboundMentionResource, interactionResource, thumbResource, browseResource } from "./contract/resources.ts";
 import { settingsResource } from "./settings-resource.ts";
 import { fetchOnSurface, itemUrl } from "./surface.ts";
 import { annotateTkPreview, scopeSummariesWithSources } from "./authoring.ts";
@@ -28,6 +28,7 @@ import { classifyLinks, peekItem } from "./peek.ts";
 import { fetchImportedHistory, fetchPublicVersion } from "./imported-history.ts";
 import { readChanges } from './changes.ts';
 import { linkLabel } from "./link-label.ts";
+import { authoredItemKindSql } from './version-state.ts';
 import { versionState } from './version-state.ts';
 import { operationAvailability } from './operation-availability.ts';
 import { API_CONTRACT_VERSION } from './operation-policy.ts';
@@ -50,12 +51,12 @@ async function collection<T>(db: D1Database, query: Record<string, string>, sql:
 const listItemsOperation = async (context: OperationContext, input: OperationInput) => {
   const offset = Number(input.query.offset ?? 0), limit = Number(input.query.limit ?? 100);
   const [rows, count] = await Promise.all([
-    context.env.DB.prepare("SELECT * FROM items ORDER BY updated DESC, rowid DESC LIMIT ? OFFSET ?").bind(limit, offset).all<ItemRow>(),
+    context.env.DB.prepare(`SELECT i.*, ${authoredItemKindSql('p')} AS authored_kind FROM items i LEFT JOIN versions p ON p.item_id=i.id AND p.version=i.version-1 ORDER BY i.updated DESC, i.rowid DESC LIMIT ? OFFSET ?`).bind(limit, offset).all<ItemRow & { authored_kind: "fragment" | "thread" }>(),
     context.env.DB.prepare("SELECT COUNT(*) AS total FROM items").first<{ total: number }>(),
   ]);
   // Return frozen version links without loading history bodies into the index.
   const pins = rows.results.length ? (await context.env.DB.prepare(`SELECT item_id, version, CASE WHEN kind IN ('fragment','thread') THEN kind WHEN transclusions IS NULL THEN 'fragment' ELSE 'thread' END AS kind FROM versions WHERE pinned = 1 AND item_id IN (${rows.results.map(() => '?').join(',')}) ORDER BY version`).bind(...rows.results.map(row => row.id)).all<{ item_id: string; version: number; kind: 'fragment' | 'thread' }>()).results : [];
-  return success({ items: rows.results.map(row => ({ ...itemResource(row), pins: pins.filter(pin => pin.item_id === row.id).map(({ version, kind }) => ({ version, kind })) })), total: count?.total ?? 0, offset, limit });
+  return success({ items: rows.results.map(row => ({ ...itemResource(row, row.authored_kind), pins: pins.filter(pin => pin.item_id === row.id).map(({ version, kind }) => ({ version, kind })) })), total: count?.total ?? 0, offset, limit });
 };
 // Owner DTOs feed HTML previews. Sanitize copies, not immutable version rows or
 // public protocol snapshots, so legacy bakes cannot regain browser authority.
@@ -70,9 +71,16 @@ const getItemOperation = async (context: OperationContext, input: OperationInput
   const classes = await changeClassesFor(context.env.DB, detail.item.id, detail.item.version);
   const withClass = async (row: Parameters<typeof versionResource>[0]) => {
     const cls = classes.get(row.version);
-    return { ...(await presentVersion(row)), change_class: cls ? { category: cls.category, model: cls.model, probability: cls.probability, classified_at: cls.classified_at, overridden: cls.overridden === 1 } : null };
+    return { ...(await presentVersion(row)), changeClass: cls ? { category: cls.category, model: cls.model, probability: cls.probability, classifiedAt: cls.classified_at, overridden: cls.overridden === 1 } : null };
   };
-  return success({ ...itemResource(detail.item), authored_kind: detail.kind, media: detail.media.map(mediaResource), published_media: detail.publishedMedia.map(mediaResource), versions: await Promise.all(detail.versions.map(withClass)), published: detail.published ? await withClass(detail.published) : null });
+  const publicBase = deploymentUrls(context.url, context.env).publicBase;
+  return success({
+    ...itemResource(detail.item, detail.kind),
+    media: detail.media.map(row => mediaResource(row, publicBase)),
+    publishedMedia: detail.publishedMedia.map(row => mediaResource(row, publicBase)),
+    versions: await Promise.all(detail.versions.map(withClass)),
+    published: detail.published ? await withClass(detail.published) : null,
+  });
 };
 const getSettingsOperation = async (context: OperationContext, input: OperationInput) => success(settingsResource(await getSettings(context.env.DB)));
 const listSubscriptionsOperation = async (context: OperationContext, input: OperationInput) => {
@@ -98,13 +106,19 @@ const getHopperOperation = async (context: OperationContext, input: OperationInp
     ON ii.subscription_id = hi.subscription_id AND ii.remote_id = hi.remote_id
     WHERE hi.hopper_id = ? ORDER BY hi.added_at DESC, hi.subscription_id, hi.remote_id${limit}`).bind(hopper.id).all<ImportedItemRow>();
   const items = await Promise.all(rows.results.map(async (r) => importedResource({ ...r, content_html: await sanitizeHtml(r.content_html) })));
-  return success({ hopper: hopperResource(hopper), memberships, items, total: counts?.total ?? 0, source_count: counts?.source_count ?? 0 });
+  return success({ hopper: hopperResource(hopper), memberships: memberships.map(membershipResource), items, total: counts?.total ?? 0, sourceCount: counts?.source_count ?? 0 });
 };
-const listSignalsOperation = async (context: OperationContext, input: OperationInput) => success(await collection<SignalRow>(context.env.DB, input.query, "SELECT * FROM signals ORDER BY at DESC, subscription_id, remote_id", "SELECT COUNT(*) AS total FROM signals"));
+const listSignalsOperation = async (context: OperationContext, input: OperationInput) => {
+  const page = await collection<SignalRow>(context.env.DB, input.query, "SELECT * FROM signals ORDER BY at DESC, subscription_id, remote_id", "SELECT COUNT(*) AS total FROM signals");
+  return success({ ...page, items: page.items.map(signalResource) });
+};
 const listMentionsOperation = async (context: OperationContext, input: OperationInput) => {
   const direction = input.query.direction ?? "inbound";
   const where = "WHERE status IN ('verified','gone')";
-  if (direction === "outbound") return success({ ...await collection<MentionOutRow>(context.env.DB, input.query, "SELECT * FROM mentions_out ORDER BY created DESC, id ASC", "SELECT COUNT(*) AS total FROM mentions_out"), direction });
+  if (direction === "outbound") {
+    const page = await collection<MentionOutRow>(context.env.DB, input.query, "SELECT * FROM mentions_out ORDER BY created DESC, id ASC", "SELECT COUNT(*) AS total FROM mentions_out");
+    return success({ ...page, items: page.items.map(outboundMentionResource), direction });
+  }
   const page = await collection<MentionInRow>(context.env.DB, input.query, `SELECT * FROM mentions_in ${where} ORDER BY verified_at DESC, last_seen DESC, id ASC`, `SELECT COUNT(*) AS total FROM mentions_in ${where}`);
   return success({ ...page, items: page.items.map(mentionResource), direction });
 };
@@ -113,7 +127,8 @@ const listInteractionsOperation = async (context: OperationContext, input: Opera
   const limit = Math.min(100, Math.max(1, Number(input.query.limit ?? 50) || 50));
   const raw = input.query.kind;
   const kind = INTERACTION_KINDS.includes(raw as InteractionKind) ? (raw as InteractionKind) : undefined;
-  return success({ ...(await listInteractions(context.env.DB, offset, limit, kind)), offset, limit });
+  const page = await listInteractions(context.env.DB, offset, limit, kind);
+  return success({ ...page, items: page.items.map(interactionResource), offset, limit });
 };
 const getAiModelsOperation = async (context: OperationContext, input: OperationInput) => {
   const configured = configuredProviders(context.env);
@@ -123,7 +138,7 @@ const getAiModelsOperation = async (context: OperationContext, input: OperationI
     providers: Object.entries(MODELS.providers).map(([id, p]) => ({
       id,
       label: p.label,
-      ...(p.key_secret ? { key_secret: p.key_secret } : {}),
+      ...(p.key_secret ? { keySecret: p.key_secret } : {}),
       ...(p.api === "workers-ai" ? { binding: bindingName(p) } : {}),
       configured: configured[id] ?? false,
     })),
@@ -132,10 +147,10 @@ const getAiModelsOperation = async (context: OperationContext, input: OperationI
     local: MODELS.local,
   });
 };
-const listThumbsOperation = async (context: OperationContext, input: OperationInput) => success({ items: await listThumbs(context.env.DB) });
+const listThumbsOperation = async (context: OperationContext, input: OperationInput) => success({ items: (await listThumbs(context.env.DB)).map(thumbResource) });
 // `read_state: true` advertises that imported entries carry the owner's
 // readVersion, so a client can tell "unread" from "this server keeps none".
-const listReadingOperation = async (context: OperationContext, input: OperationInput) => success({ ...await readingData(context.env.DB, Number(input.query.offset ?? 0), Number(input.query.limit ?? 25), input.query.sub, readingKind(input.query.kind), input.query.background === "true"), read_state: true as const, read_state_clear: true as const });
+const listReadingOperation = async (context: OperationContext, input: OperationInput) => success({ ...await readingData(context.env.DB, Number(input.query.offset ?? 0), Number(input.query.limit ?? 25), input.query.sub, readingKind(input.query.kind), input.query.background === "true"), readState: true as const, readStateClear: true as const });
 // Imported items only, keyset-paged, for clients that author from what they read (studio#11).
 const listImportedReadingOperation = async (context: OperationContext, input: OperationInput) => {
   return success(await importedReading(context.env.DB, input.query.cursor, Number(input.query.limit ?? IMPORTED_READING_DEFAULT)));
@@ -163,13 +178,13 @@ const getImportedVersionOperation = async (context: OperationContext, input: Ope
   const sub = await blygSubscription(context.env.DB, input.path.sub);
   if (!sub) return failure('not-found', { error: "not a blyg subscription" });
   const got = await fetchPublicVersion(platformFetchFor(context.env), sub, input.path.id, Number(input.path.v));
-  return got.ok ? success(got.value) : modelFailure({ error: got.error }, got.status);
+  return got.ok ? success({ version: got.value.version, contentMd: got.value.content_md, note: got.value.note, pinned: got.value.pinned }) : modelFailure({ error: got.error }, got.status);
 };
 // Following links out of an entry (0.49.0). `peekItem` reads one item from its own blyg
 // without subscribing; `classifyLinks` says which of an entry's links name blyg items.
 const peekItemOperation = async (context: OperationContext, input: OperationInput) => {
   const got = await peekItem(context.env.DB, platformFetchFor(context.env), input.query.origin ?? "", input.query.id ?? "");
-  return got.ok ? success(got.value) : modelFailure({ error: got.error }, got.status);
+  return got.ok ? success({ origin: got.value.origin, id: got.value.id, kind: got.value.kind, version: got.value.version, contentHtml: got.value.content_html, page: got.value.page, url: got.value.url, stubOf: got.value.stub_of, forkedFrom: got.value.forked_from, subscriptionId: got.value.subscription_id }) : modelFailure({ error: got.error }, got.status);
 };
 const classifyLinksOperation = async (context: OperationContext, input: OperationInput) => {
   const { urls } = (input.body as { urls: string[] });
@@ -180,11 +195,12 @@ const classifyLinksOperation = async (context: OperationContext, input: Operatio
 const listBrowseOperation = async (context: OperationContext, input: OperationInput) => {
   const offset = Math.max(0, Number(input.query.offset ?? 0) || 0);
   const limit = Math.min(100, Math.max(1, Number(input.query.limit ?? 50) || 50));
-  return success({ ...(await listBrowse(context.env.DB, offset, limit, input.query.trail)), offset, limit });
+  const page = await listBrowse(context.env.DB, offset, limit, input.query.trail);
+  return success({ ...page, items: page.items.map(browseResource), offset, limit });
 };
 const logBrowseOperation = async (context: OperationContext, input: OperationInput) => {
-  const b = (input.body as { trail: string; parent_id?: number | null; origin: string; remote_id: string; version?: number | null; via: BrowseVia; title?: string | null });
-  const id = await recordBrowse(context.env.DB, { trail: b.trail, parentId: b.parent_id, origin: b.origin, remoteId: b.remote_id, version: b.version, via: b.via, title: b.title, at: new Date().toISOString() });
+  const b = (input.body as { trail: string; parentId?: number | null; origin: string; remoteId: string; version?: number | null; via: BrowseVia; title?: string | null });
+  const id = await recordBrowse(context.env.DB, { trail: b.trail, parentId: b.parentId, origin: b.origin, remoteId: b.remoteId, version: b.version, via: b.via, title: b.title, at: new Date().toISOString() });
   return created({ id });
 };
 const clearBrowseOperation = async (context: OperationContext, input: OperationInput) => {
@@ -194,7 +210,7 @@ const clearBrowseOperation = async (context: OperationContext, input: OperationI
 const getUpdateStateOperation = async (context: OperationContext, input: OperationInput) => {
   const [settings, map] = await Promise.all([getSettings(context.env.DB), getSettingsMap(context.env.DB)]);
   context.defer(maybeCheckForUpdate(context.env.DB, settings, map, Date.now()).catch(() => {}));
-  return success(Object.fromEntries(Object.entries(map).filter(([key]) => key.startsWith("update_"))));
+  return success({ ...(map.update_checked_at ? { updateCheckedAt: map.update_checked_at } : {}), ...(map.update_latest_seen ? { updateLatestSeen: map.update_latest_seen } : {}) });
 };
 const getMentionSourceOperation = async (context: OperationContext, input: OperationInput) => {
   const row = await getInbound(context.env.DB, input.path.id);
@@ -214,9 +230,9 @@ const getForkOptionsOperation = async (context: OperationContext, input: Operati
 };
 const previewOperation = async (context: OperationContext, input: OperationInput) => {
   const mount = normalizeMount(context.env.MOUNT);
-  const body = (input.body as { content_md?: string });
+  const body = (input.body as { contentMd?: string });
   if ((body as { kind?: string }).kind === "thread") return threadPreview(context, input);
-  const tk = annotateTkPreview(body.content_md ?? "");
+  const tk = annotateTkPreview(body.contentMd ?? "");
   // `[[id]]` resolves in the preview too, so an unresolvable link is visible
   // before publish rejects it — same contract as an unresolvable directive.
   const origin = siteOrigin(await getSettings(context.env.DB), context.url, mount);
@@ -224,7 +240,7 @@ const previewOperation = async (context: OperationContext, input: OperationInput
   // Links inside generated blocks resolve here too, as at publish (studio#14).
   const blocks = await resolveBlockLinks(tk, (md) => previewInternalLinks(context.env.DB, md, origin));
   const html = [links, ...blocks.docs].reduce((acc, doc) => applyInternalLinks(acc, doc), tk.finish(renderMarkdown(links.text)));
-  return success({ html, scopes: await scopeSummariesWithSources(context.env.DB, tk.scopes), link_errors: [...links.errors, ...blocks.errors] });
+  return success({ html, scopes: await scopeSummariesWithSources(context.env.DB, tk.scopes), linkErrors: [...links.errors, ...blocks.errors] });
 };
 
 /**
@@ -312,8 +328,8 @@ const searchOperation = async (context: OperationContext, input: OperationInput)
       badge: r.source === "mine" ? r.kind : (sourceTitle ?? ""),
       source: r.source,
       kind: r.kind === "thread" ? ("thread" as const) : ("fragment" as const),
-      subscription_id: r.subscription_id,
-      source_title: sourceTitle,
+      subscriptionId: r.subscription_id,
+      sourceTitle: sourceTitle,
     };
   });
   return success({ items, total: (count.results[0] as { n: number }).n, offset, limit });
@@ -321,15 +337,15 @@ const searchOperation = async (context: OperationContext, input: OperationInput)
 
 
 async function threadPreview(context: OperationContext, input: OperationInput) {
-  const body = (input.body as { content_md?: string; item_id?: string });
-  const tk = annotateTkPreview(body.content_md ?? "");
+  const body = (input.body as { contentMd?: string; itemId?: string });
+  const tk = annotateTkPreview(body.contentMd ?? "");
   // item_id is the thread being edited — the DAG check needs it, so the
   // preview rejects a circular quote at exactly the point publish would.
   const mount = normalizeMount(context.env.MOUNT);
   const origin = siteOrigin(await getSettings(context.env.DB), context.url, mount);
   const links = await previewInternalLinks(context.env.DB, tk.text, origin);
   const blocks = await resolveBlockLinks(tk, (md) => previewInternalLinks(context.env.DB, md, origin));
-  const resolved = await previewTransclusions(context.env.DB, links.text, body.item_id);
+  const resolved = await previewTransclusions(context.env.DB, links.text, body.itemId);
   return success({
     html: [links, ...blocks.docs].reduce((acc, doc) => applyInternalLinks(acc, doc), tk.finish(resolved.html)),
     errors: [...resolved.errors, ...links.errors, ...blocks.errors],

@@ -287,13 +287,13 @@ function HistoryPane({ open, onClose }: { open: boolean; onClose: () => void }) 
               </p>
               <ul className="trail-list">
                 {steps.map((s) => {
-                  const d = s.parent_id != null && depth.has(s.parent_id) ? depth.get(s.parent_id)! + 1 : 0;
+                  const d = s.parentId != null && depth.has(s.parentId) ? depth.get(s.parentId)! + 1 : 0;
                   depth.set(s.id, s.via === 'back' ? Math.max(0, d - 1) : d);
                   return (
                     <li key={s.id} style={{ paddingLeft: `${Math.min(depth.get(s.id)!, 8) * 12}px` }} data-via={s.via}>
                       <span className="trail-via">{s.via === 'back' ? '↩' : '↳'}</span>{' '}
-                      <ReaderLink origin={s.origin} id={s.remote_id} via="link" onFollow={onClose}>
-                        {s.title || s.remote_id.slice(0, 8)}
+                      <ReaderLink origin={s.origin} id={s.remoteId} via="link" onFollow={onClose}>
+                        {s.title || s.remoteId.slice(0, 8)}
                       </ReaderLink>{' '}
                       <span className="trail-note">{viaWord(s.via)}</span>
                     </li>

@@ -18,6 +18,22 @@ not have its own repo until session 26.
 
 ---
 
+## 0.49.9 — Explicit private resources
+
+The private API and SDK use camelCase fields and explicit resources. Imported
+metadata contains structured values, retains unknown remote members, and falls
+back per damaged stored column. Item kind stays fragment or thread after
+withdrawal, with publication state in status. Media URLs are absolute and
+include the deployment mount. Private errors use code, message, and optional
+details. Studio and SDK0.5.0 use private contract4.0.0 together.
+
+This is a hard private API cutover. Update clients with the server. Storage and
+public Blygger protocol formats stay intact, including legacy media URLs.
+Finish pending writes and generation before upgrading, and avoid edits until
+deployment finishes.
+
+**Migrations:** none in this release. Earlier stack releases include0035.
+
 ## 0.49.8 — Conditional item writes
 
 Item reads and creation return a private revision. Item commands require

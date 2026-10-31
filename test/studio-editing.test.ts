@@ -5,7 +5,7 @@ import { apiJson, BASE, createAndPublish, login } from "./helpers.ts";
   it("discarding changes restores the published text without publishing anything", async () => {
     const cookie = await login();
     const id = await createAndPublish(cookie, "the published wording");
-    await apiJson(cookie, "PATCH", `/blyg/api/items/${id}`, { content_md: "a draft that will be thrown away" });
+    await apiJson(cookie, "PATCH", `/blyg/api/items/${id}`, { contentMd: "a draft that will be thrown away" });
     const restored = await apiJson(cookie, "POST", `/blyg/api/items/${id}/restore`, { version: 1 });
     expect(restored.status).toBe(200);
     // Still v1 in public: nothing was published and no version was rewound.

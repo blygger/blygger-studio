@@ -12,7 +12,7 @@ const ID = "7c9wk2n4h6q1x8v0z3m5rjy2ke";
 const OURS = "https://example.com/blyg/";
 
 async function publish(cookie: string, md: string, kind: "fragment" | "thread" = "thread") {
-  const id = (await apiJson(cookie, "POST", "/blyg/api/items", { content_md: md, kind })).json.id as string;
+  const id = (await apiJson(cookie, "POST", "/blyg/api/items", { contentMd: md, kind })).json.id as string;
   const res = await apiJson(cookie, "POST", `/blyg/api/items/${id}/publish`, {});
   const doc = res.status === 200 ? await (await getPublic(`/blyg/items/${id}.json`)).json<any>() : null;
   return { id, res, doc };
@@ -24,7 +24,7 @@ const anchorText = (html: string, target: string) =>
 describe("a label inside block TK output is escaped once, as in the body", () => {
   it("block-scope anchor text equals body anchor text for the same label", async () => {
     const cookie = await login();
-    await apiJson(cookie, "PATCH", "/blyg/api/settings", { site_url: OURS });
+    await apiJson(cookie, "PATCH", "/blyg/api/settings", { siteUrl: OURS });
     const target = await createAndPublish(cookie, "# Target\n\nBody.");
     const lbl = "a <b> & x *em*";
     const body = await publish(cookie, `Body [[${target} | ${lbl}]] here.`);
@@ -36,7 +36,7 @@ describe("a label inside block TK output is escaped once, as in the body", () =>
     const inline = await publish(cookie, `Intro [TK]impyrt=one [[${target} | ${lbl}]] two[/TK] outro.`);
     // The preview lifts every block scope, `[=]` included.
     const preview = await apiJson(cookie, "POST", "/blyg/api/preview", {
-      content_md: `[TK]write[=]One [[${target} | ${lbl}]].\n\nTwo.[/TK]`,
+      contentMd: `[TK]write[=]One [[${target} | ${lbl}]].\n\nTwo.[/TK]`,
       kind: "thread",
     });
     expect(body.res.status, JSON.stringify(body.res.json)).toBe(200);
@@ -53,7 +53,7 @@ describe("a label inside block TK output is escaped once, as in the body", () =>
 describe("a backtick inside a label does not make a later link inert", () => {
   it("the second link on the line still renders as a link", async () => {
     const cookie = await login();
-    await apiJson(cookie, "PATCH", "/blyg/api/settings", { site_url: OURS });
+    await apiJson(cookie, "PATCH", "/blyg/api/settings", { siteUrl: OURS });
     const a = await createAndPublish(cookie, "# Alpha\n\nBody.");
     const b = await createAndPublish(cookie, "# Beta\n\nBody.");
     const { res, doc } = await publish(cookie, `See [[${a} | it\`s]] and [[${b}]] then \`code\`.`, "fragment");
@@ -65,7 +65,7 @@ describe("a backtick inside a label does not make a later link inert", () => {
 
   it("a code span opened before a link still wins where it closes inside the label", async () => {
     const cookie = await login();
-    await apiJson(cookie, "PATCH", "/blyg/api/settings", { site_url: OURS });
+    await apiJson(cookie, "PATCH", "/blyg/api/settings", { siteUrl: OURS });
     const a = await createAndPublish(cookie, "# Alpha\n\nBody.");
     const { res, doc } = await publish(cookie, `See \`x [[${a} | y\`]] after.`, "fragment");
     expect(res.status, JSON.stringify(res.json)).toBe(200);
@@ -87,7 +87,7 @@ describe("linkSource -> parse round-trips a label holding runs of ]", () => {
 describe("an autolinked URL holding a labelled link escapes & in its href", () => {
   it("the href attribute carries &amp;, never a raw &", async () => {
     const cookie = await login();
-    await apiJson(cookie, "PATCH", "/blyg/api/settings", { site_url: OURS });
+    await apiJson(cookie, "PATCH", "/blyg/api/settings", { siteUrl: OURS });
     const target = await createAndPublish(cookie, "# Target\n\nBody.");
     for (const md of [`<https://x.test/[[${target}|a&copy]]>`, `https://x.test/[[${target}|a&copy]]`]) {
       const { res, doc } = await publish(cookie, md, "fragment");

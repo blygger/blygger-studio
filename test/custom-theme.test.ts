@@ -25,12 +25,12 @@ describe("custom theme: settings API", () => {
   it("starts with no palette", async () => {
     const cookie = await login();
     const { json } = await apiJson(cookie, "GET", "/blyg/api/settings");
-    expect(json.custom_theme).toBeNull();
+    expect(json.customTheme).toBeNull();
   });
 
   it("refuses theme=custom while no palette is set", async () => {
     const cookie = await login();
-    await settings(cookie, { custom_theme: null, theme: "auto" });
+    await settings(cookie, { customTheme: null, theme: "auto" });
     const res = await settings(cookie, { theme: "custom" });
     expect(res.status).toBe(400);
     expect((await apiJson(cookie, "GET", "/blyg/api/settings")).json.theme).toBe("auto");
@@ -38,10 +38,10 @@ describe("custom theme: settings API", () => {
 
   it("stores a palette (lower-cased) and paints style.css with it", async () => {
     const cookie = await login();
-    const res = await settings(cookie, { custom_theme: PALETTE, theme: "custom" });
+    const res = await settings(cookie, { customTheme: PALETTE, theme: "custom" });
     expect(res.status).toBe(200);
     expect(res.json.theme).toBe("custom");
-    expect(res.json.custom_theme.page).toBe("#f4efe6");
+    expect(res.json.customTheme.page).toBe("#f4efe6");
     const sheet = await css();
     expect(sheet).toContain("/* theme: Custom");
     expect(sheet).toContain("--page: #f4efe6;");
@@ -53,7 +53,7 @@ describe("custom theme: settings API", () => {
 
   it("refuses anything that is not a #rrggbb colour, and stores nothing", async () => {
     const cookie = await login();
-    await settings(cookie, { custom_theme: PALETTE, theme: "custom" });
+    await settings(cookie, { customTheme: PALETTE, theme: "custom" });
     for (const bad of [
       { ...PALETTE, ink: "red" },
       { ...PALETTE, ink: "#123" },
@@ -61,26 +61,26 @@ describe("custom theme: settings API", () => {
       { ...PALETTE, extra: "#000000" },
       { ...PALETTE, dark: "yes" },
     ]) {
-      const res = await settings(cookie, { custom_theme: bad });
+      const res = await settings(cookie, { customTheme: bad });
       expect(res.status).toBe(400);
     }
-    expect((await apiJson(cookie, "GET", "/blyg/api/settings")).json.custom_theme.ink).toBe("#1f2a2e");
+    expect((await apiJson(cookie, "GET", "/blyg/api/settings")).json.customTheme.ink).toBe("#1f2a2e");
     expect(await css()).not.toContain("display:none");
   });
 
   it("can't clear the palette while it's the theme in use; can after switching away", async () => {
     const cookie = await login();
-    await settings(cookie, { custom_theme: PALETTE, theme: "custom" });
-    expect((await settings(cookie, { custom_theme: null })).status).toBe(400);
-    const res = await settings(cookie, { theme: "nord", custom_theme: null });
+    await settings(cookie, { customTheme: PALETTE, theme: "custom" });
+    expect((await settings(cookie, { customTheme: null })).status).toBe(400);
+    const res = await settings(cookie, { theme: "nord", customTheme: null });
     expect(res.status).toBe(200);
-    expect(res.json.custom_theme).toBeNull();
+    expect(res.json.customTheme).toBeNull();
     expect(await css()).toContain("/* theme: Nord");
   });
 
   it("keeps the palette when switching to a preset, so switching back restores it", async () => {
     const cookie = await login();
-    await settings(cookie, { custom_theme: PALETTE, theme: "custom" });
+    await settings(cookie, { customTheme: PALETTE, theme: "custom" });
     await settings(cookie, { theme: "cream" });
     expect(await css()).toContain("/* theme: Cream");
     const back = await settings(cookie, { theme: "custom" });
@@ -147,9 +147,9 @@ const DARK = {
 describe("custom theme: light/dark pair", () => {
   it("a pair follows the reader's preference: light in the base, dark in the media block", async () => {
     const cookie = await login();
-    const res = await settings(cookie, { custom_theme: PALETTE, custom_theme_dark: DARK, theme: "custom" });
+    const res = await settings(cookie, { customTheme: PALETTE, customThemeDark: DARK, theme: "custom" });
     expect(res.status).toBe(200);
-    expect(res.json.custom_theme_dark.paper).toBe("#1a1f27");
+    expect(res.json.customThemeDark.paper).toBe("#1a1f27");
     const sheet = await css();
     expect(sheet).toContain("/* theme: Custom (light and dark)");
     const override = sheet.slice(sheet.indexOf("/* theme: Custom (light and dark)"));
@@ -159,26 +159,26 @@ describe("custom theme: light/dark pair", () => {
     expect(media).toContain("--paper: #1a1f27;");
     expect(media).toContain("color-scheme: dark;");
     expect(base).not.toContain("#1a1f27");
-    await settings(cookie, { theme: "auto", custom_theme_dark: null });
+    await settings(cookie, { theme: "auto", customThemeDark: null });
   });
 
   it("refuses an incoherent pair, and a companion with nothing to pair with", async () => {
     const cookie = await login();
-    await settings(cookie, { theme: "auto", custom_theme_dark: null, custom_theme: null });
-    expect((await settings(cookie, { custom_theme_dark: DARK })).status).toBe(400);
-    expect((await settings(cookie, { custom_theme: PALETTE, custom_theme_dark: PALETTE })).status).toBe(400);
-    expect((await settings(cookie, { custom_theme: DARK, custom_theme_dark: DARK })).status).toBe(400);
-    const ok = await settings(cookie, { custom_theme: PALETTE, custom_theme_dark: DARK });
+    await settings(cookie, { theme: "auto", customThemeDark: null, customTheme: null });
+    expect((await settings(cookie, { customThemeDark: DARK })).status).toBe(400);
+    expect((await settings(cookie, { customTheme: PALETTE, customThemeDark: PALETTE })).status).toBe(400);
+    expect((await settings(cookie, { customTheme: DARK, customThemeDark: DARK })).status).toBe(400);
+    const ok = await settings(cookie, { customTheme: PALETTE, customThemeDark: DARK });
     expect(ok.status).toBe(200);
     // Clearing the light half while the dark one remains would orphan it.
-    expect((await settings(cookie, { custom_theme: null })).status).toBe(400);
-    expect((await settings(cookie, { custom_theme: null, custom_theme_dark: null })).status).toBe(200);
+    expect((await settings(cookie, { customTheme: null })).status).toBe(400);
+    expect((await settings(cookie, { customTheme: null, customThemeDark: null })).status).toBe(200);
   });
 
   it("dropping the companion returns to a single, author-fixed palette", async () => {
     const cookie = await login();
-    await settings(cookie, { custom_theme: PALETTE, custom_theme_dark: DARK, theme: "custom" });
-    await settings(cookie, { custom_theme_dark: null });
+    await settings(cookie, { customTheme: PALETTE, customThemeDark: DARK, theme: "custom" });
+    await settings(cookie, { customThemeDark: null });
     const sheet = await css();
     expect(sheet).toContain("/* theme: Custom —");
     expect(sheet.match(/--paper: #fffdf8;/g)?.length).toBe(2);
@@ -198,9 +198,9 @@ describe("custom theme: light/dark pair", () => {
 describe("custom theme: a name for sharing", () => {
   it("stores a trimmed name and keeps it out of the stylesheet", async () => {
     const cookie = await login();
-    const res = await settings(cookie, { custom_theme: PALETTE, theme: "custom", custom_theme_name: "  Pink Quill  " });
+    const res = await settings(cookie, { customTheme: PALETTE, theme: "custom", customThemeName: "  Pink Quill  " });
     expect(res.status).toBe(200);
-    expect(res.json.custom_theme_name).toBe("Pink Quill");
+    expect(res.json.customThemeName).toBe("Pink Quill");
     const sheet = await css();
     expect(sheet).toContain("/* theme: Custom");
     expect(sheet).not.toContain("Pink Quill");
@@ -210,8 +210,8 @@ describe("custom theme: a name for sharing", () => {
   it("refuses long or multi-line names, including a stylesheet-breaking one", async () => {
     const cookie = await login();
     for (const bad of ["x".repeat(41), "Pink\nQuill", "*/ body { display:none } /*\u0000"]) {
-      expect((await settings(cookie, { custom_theme_name: bad })).status).toBe(400);
+      expect((await settings(cookie, { customThemeName: bad })).status).toBe(400);
     }
-    expect((await apiJson(cookie, "GET", "/blyg/api/settings")).json.custom_theme_name).not.toContain("display");
+    expect((await apiJson(cookie, "GET", "/blyg/api/settings")).json.customThemeName).not.toContain("display");
   });
 });

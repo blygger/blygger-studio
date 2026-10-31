@@ -27,7 +27,7 @@ const B = "0000000000000000000000000b";
 const C = "0000000000000000000000000c";
 
 async function publishThread(cookie: string, md: string): Promise<string> {
-  const id = (await apiJson(cookie, "POST", "/blyg/api/items", { content_md: md, kind: "thread" })).json.id as string;
+  const id = (await apiJson(cookie, "POST", "/blyg/api/items", { contentMd: md, kind: "thread" })).json.id as string;
   expect((await apiJson(cookie, "POST", `/blyg/api/items/${id}/publish`, {})).status).toBe(200);
   return id;
 }
@@ -193,7 +193,7 @@ describe("the extension switched off", () => {
     try {
       for (const got of [await lineage(cookie, "id=x"), await summaries(cookie, ["own:x"])]) {
         expect(got.status).toBe(404);
-        expect(got.json.error).toBe("extension lineage-glyph is not enabled");
+        expect(got.json.message).toBe("extension lineage-glyph is not enabled");
       }
     } finally {
       await putSettings(env.DB, { extensions: JSON.stringify(["lineage-glyph"]) });

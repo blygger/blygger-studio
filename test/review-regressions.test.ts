@@ -17,7 +17,7 @@ const request = (cookie: string, path: string) => SELF.fetch(BASE + path, { head
 describe("external review regressions", () => {
   it("R01 links an empty pinned thread to a live thread snapshot", async () => {
     const cookie = await login();
-    const { json: item } = await apiJson(cookie, "POST", "/blyg/api/items", { kind: "thread", content_md: "No quotes" });
+    const { json: item } = await apiJson(cookie, "POST", "/blyg/api/items", { kind: "thread", contentMd: "No quotes" });
     await apiJson(cookie, "POST", `/blyg/api/items/${item.id}/publish`);
     await apiJson(cookie, "PUT", `/blyg/api/items/${item.id}/versions/1/pin`);
     const resource = await apiJson(cookie, 'GET', `/blyg/api/items/${item.id}`);
@@ -46,7 +46,7 @@ describe("external review regressions", () => {
     await env.DB.prepare("INSERT INTO versions (item_id, version, content_md, content_html, content_hash, published_at, pinned) VALUES (?, 2, ?, ?, 'hash', '2026-09-30T00:00:00Z', 0)").bind(draft.id, quoted, quoted).run();
     const response = await request(cookie, `/blyg/api/items/${draft.id}`);
     expect(response.status).toBe(200);
-    expect((await response.json<any>()).versions[1].content_md).toBe(quoted);
+    expect((await response.json<any>()).versions[1].contentMd).toBe(quoted);
   });
 
   it("R04 pages past both historical mention caps", async () => {
@@ -64,21 +64,21 @@ describe("external review regressions", () => {
     await env.DB.prepare("UPDATE items SET tk_provenance_json = '{', stub_of = '{', forked_from = '{', fork_cite = '{' WHERE id = ?").bind(draft.id).run();
     const list = await request(cookie, "/blyg/api/items");
     expect(list.status).toBe(200);
-    expect((await list.json<any>()).items.find((row: any) => row.id === draft.id)).toMatchObject({ provenance: [], stub_of: null, forked_from: null, fork_cite: null });
+    expect((await list.json<any>()).items.find((row: any) => row.id === draft.id)).toMatchObject({ provenance: [], stubOf: null, forkedFrom: null, forkCite: null });
     expect((await request(cookie, STUDIO)).status).toBe(200);
     expect((await getItem(env.DB, draft.id))!.tk_provenance_json).toBe("{");
   });
 
   it("R06 distinguishes assigning a citation from switching a cited draft to fragment", async () => {
     const cookie = await login(), draft = await createDraft(env.DB, "Fragment");
-    const result = await apiJson(cookie, "PATCH", `/blyg/api/items/${draft.id}`, { stub_of: { url: "https://example.org/post" } });
-    expect(result.status).toBe(400); expect(result.json.error).toBe("only threads can be stubs");
+    const result = await apiJson(cookie, "PATCH", `/blyg/api/items/${draft.id}`, { stubOf: { url: "https://example.org/post" } });
+    expect(result.status).toBe(400); expect(result.json.message).toBe("only threads can be stubs");
   });
 
   it("R07/R08 rejects invalid pagination and old write forms by the approved contract", async () => {
     const cookie = await login();
     for (const offset of ["-5", "abc"]) expect((await request(cookie, `/blyg/api/search?offset=${offset}`)).status).toBe(400);
-    expect((await apiJson(cookie, "PATCH", "/blyg/api/settings", { accept_mentions: "off" })).status).toBe(400);
+    expect((await apiJson(cookie, "PATCH", "/blyg/api/settings", { acceptMentions: "off" })).status).toBe(400);
     const response = await SELF.fetch(BASE + "/blyg/api/items", { method: "POST", headers: { cookie, "content-type": "text/plain" }, body: "{}" });
     expect(response.status).toBe(415);
   });
@@ -101,11 +101,11 @@ describe("external review regressions", () => {
     const row = await createDraft(env.DB, "Resource");
     row.tk_provenance_json = JSON.stringify([{ sources: [], model: "test", extension: { future: true } }]);
     row.show_responses = 1;
-    const mapped = itemResource(row);
+    const mapped = itemResource(row, "fragment");
     expect(mapped.provenance[0]?.extension).toEqual({ future: true });
     const settings = await getSettings(env.DB);
     expect(mapped.responses === "default" ? settings.show_responses_default : mapped.responses === "show").toBe(itemShowsResponses(row, settings));
-    expect(() => itemResource({ ...row, id: 42 } as never)).toThrow();
+    expect(() => itemResource({ ...row, id: 42 } as never, "fragment")).toThrow();
   });
 
   it("R13 OpenAPI Hono rejects non-JSON without our duplicate gate", async () => {
@@ -113,7 +113,7 @@ describe("external review regressions", () => {
     app.openapi({ ...routes.createItem, middleware: undefined }, async (c) => c.json({ validated: await readJson(c) }));
     const response = await app.request("/items", { method: "POST", headers: { "content-type": "text/plain" }, body: "{}" });
     expect(response.status).toBe(415);
-    expect(await response.json()).toEqual({ error: "Unsupported Media Type" });
+    expect(await response.json()).toEqual({ code: "unsupported-media", message: "Unsupported Media Type" });
   });
 
   it("R11 loads only three imported bodies for a hopper index preview", async () => {

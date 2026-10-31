@@ -2,7 +2,7 @@
   "openapi": "3.1.0",
   "info": {
     "title": "Blygger Studio API",
-    "version": "3.0.0",
+    "version": "4.0.0",
     "description": "Private authoring and reading API. Protocol files remain a separate public interface."
   },
   "servers": [
@@ -79,69 +79,104 @@
       "ApiError": {
         "type": "object",
         "properties": {
-          "error": {
+          "code": {
+            "type": "string",
+            "enum": [
+              "invalid-input",
+              "unauthorized",
+              "forbidden",
+              "not-found",
+              "method-not-allowed",
+              "conflict",
+              "revision-conflict",
+              "too-large",
+              "unsupported-media",
+              "unprocessable",
+              "rate-limit",
+              "internal",
+              "bad-gateway"
+            ]
+          },
+          "message": {
             "type": "string"
           },
-          "errors": {
-            "type": "array",
-            "items": {
-              "type": "object",
-              "properties": {
-                "reason": {
-                  "type": "string"
-                },
-                "at": {
-                  "type": "number"
-                },
-                "id": {
-                  "type": "string"
-                },
-                "directive": {
-                  "type": "string"
-                }
-              },
-              "additionalProperties": {}
-            }
-          },
-          "tried": {
-            "type": "array",
-            "items": {
-              "type": "string"
-            }
-          },
-          "issues": {
-            "type": "array",
-            "items": {
-              "type": "object",
-              "properties": {
-                "path": {
-                  "type": "array",
-                  "items": {
-                    "anyOf": [
-                      {
-                        "type": "string"
-                      },
-                      {
-                        "type": "number"
+          "details": {
+            "type": "object",
+            "properties": {
+              "issues": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "path": {
+                      "type": "array",
+                      "items": {
+                        "anyOf": [
+                          {
+                            "type": "string"
+                          },
+                          {
+                            "type": "number"
+                          }
+                        ]
                       }
-                    ]
-                  }
-                },
-                "message": {
+                    },
+                    "message": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "path",
+                    "message"
+                  ]
+                }
+              },
+              "errors": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "reason": {
+                      "type": "string"
+                    },
+                    "at": {
+                      "type": "number"
+                    },
+                    "id": {
+                      "type": "string"
+                    },
+                    "directive": {
+                      "type": "string"
+                    }
+                  },
+                  "additionalProperties": {}
+                }
+              },
+              "tried": {
+                "type": "array",
+                "items": {
                   "type": "string"
                 }
               },
-              "required": [
-                "path",
-                "message"
-              ]
-            }
+              "itemId": {
+                "type": "string"
+              },
+              "mediaId": {
+                "type": "string"
+              },
+              "expectedRevision": {
+                "type": "integer",
+                "exclusiveMinimum": 0
+              }
+            },
+            "additionalProperties": {}
           }
         },
         "required": [
-          "error"
+          "code",
+          "message"
         ],
-        "additionalProperties": {}
+        "additionalProperties": false
       },
       "Capabilities": {
         "type": "object",
@@ -313,8 +348,7 @@
             "type": "string",
             "enum": [
               "fragment",
-              "thread",
-              "withdrawn"
+              "thread"
             ]
           },
           "status": {
@@ -334,42 +368,13 @@
           "version": {
             "type": "number"
           },
-          "content_md": {
+          "contentMd": {
             "type": "string"
           },
           "dirty": {
             "type": "boolean"
           },
-          "responses": {
-            "type": "string",
-            "enum": [
-              "default",
-              "show",
-              "hide"
-            ]
-          },
-          "highlight": {
-            "type": "string",
-            "enum": [
-              "default",
-              "show",
-              "hide"
-            ]
-          },
-          "provenance": {
-            "type": "array",
-            "items": {
-              "anyOf": [
-                {
-                  "$ref": "#/components/schemas/GenerationProvenance"
-                },
-                {
-                  "type": "null"
-                }
-              ]
-            }
-          },
-          "stub_of": {
+          "stubOf": {
             "anyOf": [
               {
                 "$ref": "#/components/schemas/VersionReference"
@@ -395,7 +400,7 @@
               }
             ]
           },
-          "forked_from": {
+          "forkedFrom": {
             "anyOf": [
               {
                 "$ref": "#/components/schemas/VersionReference"
@@ -405,7 +410,7 @@
               }
             ]
           },
-          "fork_cite": {
+          "forkCite": {
             "anyOf": [
               {
                 "$ref": "#/components/schemas/Citation"
@@ -413,6 +418,35 @@
               {
                 "type": "null"
               }
+            ]
+          },
+          "provenance": {
+            "type": "array",
+            "items": {
+              "anyOf": [
+                {
+                  "$ref": "#/components/schemas/GenerationProvenance"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          },
+          "responses": {
+            "type": "string",
+            "enum": [
+              "default",
+              "show",
+              "hide"
+            ]
+          },
+          "highlight": {
+            "type": "string",
+            "enum": [
+              "default",
+              "show",
+              "hide"
             ]
           }
         },
@@ -424,14 +458,65 @@
           "created",
           "updated",
           "version",
-          "content_md",
+          "contentMd",
           "dirty",
-          "responses",
-          "highlight",
+          "stubOf",
+          "forkedFrom",
+          "forkCite",
           "provenance",
-          "stub_of",
-          "forked_from",
-          "fork_cite"
+          "responses",
+          "highlight"
+        ]
+      },
+      "VersionReference": {
+        "type": "object",
+        "properties": {
+          "origin": {
+            "type": "string",
+            "format": "uri"
+          },
+          "id": {
+            "type": "string",
+            "minLength": 1
+          },
+          "version": {
+            "type": "integer",
+            "exclusiveMinimum": 0
+          },
+          "cited": {
+            "$ref": "#/components/schemas/Citation"
+          }
+        },
+        "required": [
+          "origin",
+          "id",
+          "version"
+        ],
+        "additionalProperties": false
+      },
+      "Citation": {
+        "type": "object",
+        "properties": {
+          "source": {
+            "type": "string"
+          },
+          "author": {
+            "type": "string"
+          },
+          "excerpt": {
+            "type": "string"
+          },
+          "url": {
+            "type": "string"
+          },
+          "retrieved": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "source",
+          "url",
+          "retrieved"
         ]
       },
       "GenerationProvenance": {
@@ -478,88 +563,51 @@
           "version"
         ]
       },
-      "Citation": {
-        "type": "object",
-        "properties": {
-          "source": {
-            "type": "string"
-          },
-          "author": {
-            "type": "string"
-          },
-          "excerpt": {
-            "type": "string"
-          },
-          "url": {
-            "type": "string"
-          },
-          "retrieved": {
-            "type": "string"
-          }
-        },
-        "required": [
-          "source",
-          "url",
-          "retrieved"
-        ]
-      },
-      "VersionReference": {
-        "type": "object",
-        "properties": {
-          "origin": {
-            "type": "string",
-            "format": "uri"
-          },
-          "id": {
-            "type": "string",
-            "minLength": 1
-          },
-          "version": {
-            "type": "integer",
-            "exclusiveMinimum": 0
-          },
-          "cited": {
-            "$ref": "#/components/schemas/Citation"
-          }
-        },
-        "required": [
-          "origin",
-          "id",
-          "version"
-        ],
-        "additionalProperties": false
-      },
       "Settings": {
         "type": "object",
         "properties": {
-          "site_title": {
+          "siteTitle": {
             "type": "string"
           },
           "theme": {
             "type": "string"
           },
-          "custom_theme": {
-            "$ref": "#/components/schemas/CustomTheme"
+          "customTheme": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/CustomTheme"
+              },
+              {
+                "type": "null"
+              }
+            ]
           },
-          "custom_theme_dark": {
-            "$ref": "#/components/schemas/CustomTheme"
+          "customThemeDark": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/CustomTheme"
+              },
+              {
+                "type": "null"
+              }
+            ]
           },
-          "custom_theme_name": {
+          "customThemeName": {
             "type": "string"
           },
           "font": {
             "type": "string"
           },
-          "author_name": {
+          "authorName": {
             "type": "string"
           },
-          "author_url": {
+          "authorUrl": {
             "type": "string"
           },
-          "author_bio": {
+          "authorBio": {
             "type": "string"
           },
-          "author_links": {
+          "authorLinks": {
             "type": "array",
             "items": {
               "type": "object",
@@ -577,57 +625,57 @@
               ]
             }
           },
-          "site_url": {
+          "siteUrl": {
             "type": "string"
           },
           "timezone": {
             "type": "string"
           },
-          "avatar_media_id": {
+          "avatarMediaId": {
             "type": "string"
           },
-          "ai_model": {
+          "aiModel": {
             "type": "string"
           },
-          "ai_model_tk": {
+          "aiModelTk": {
             "type": "string"
           },
-          "ai_model_changelog": {
+          "aiModelChangelog": {
             "type": "string"
           },
-          "ai_model_feed": {
+          "aiModelFeed": {
             "type": "string"
           },
-          "ai_model_classify": {
+          "aiModelClassify": {
             "type": "string",
             "description": "The change classifier's decision model (Clef, Jev); empty, the default, is off. Studio-private: a category reaches readers only as words in a changelog note the author confirms."
           },
-          "change_category_in_note": {
+          "changeCategoryInNote": {
             "type": "boolean",
-            "description": "Lead the changelog note with the classifier's category, in the publish dialog where the author sees it. Matters only while ai_model_classify is set."
+            "description": "Lead the changelog note with the classifier's category, in the publish dialog where the author sees it. Matters only while aiModelClassify is set."
           },
-          "feed_prompt": {
+          "feedPrompt": {
             "type": "string"
           },
-          "ai_style_prompt": {
+          "aiStylePrompt": {
             "type": "string"
           },
-          "accept_mentions": {
+          "acceptMentions": {
             "type": "boolean"
           },
-          "update_check": {
+          "updateCheck": {
             "type": "boolean"
           },
-          "show_responses_default": {
+          "showResponsesDefault": {
             "type": "boolean"
           },
-          "highlight_generated_default": {
+          "highlightGeneratedDefault": {
             "type": "boolean"
           },
-          "auto_change_notes": {
+          "autoChangeNotes": {
             "type": "boolean"
           },
-          "picker_typing": {
+          "pickerTyping": {
             "type": "string",
             "enum": [
               "auto",
@@ -635,19 +683,19 @@
               "panel"
             ]
           },
-          "feed_order": {
+          "feedOrder": {
             "type": "string",
-            "description": "The public home page order: an id from feed_orders. pace-layered (the default) and reverse-chronological are core; extensions add orders named <extension>/<id>."
+            "description": "The public home page order: an id from feedOrders. pace-layered (the default) and reverse-chronological are core; extensions add orders named <extension>/<id>."
           },
-          "front_page": {
+          "frontPage": {
             "type": "string",
             "description": "A published thread's id shown at the mount root instead of the latest items; empty for the latest items. A front page later withdrawn or deleted falls back to the latest items."
           },
-          "posts_path": {
+          "postsPath": {
             "type": "string",
-            "description": "Where the latest items live: {mount}/{posts_path}/, served whether or not a front page is set. Lowercase letters, digits and hyphens; names the blyg already uses are refused."
+            "description": "Where the latest items live: {mount}/{postsPath}/, served whether or not a front page is set. Lowercase letters, digits and hyphens; names the blyg already uses are refused."
           },
-          "links_position": {
+          "linksPosition": {
             "type": "string",
             "enum": [
               "bottom",
@@ -656,14 +704,14 @@
             ],
             "description": "Where the links section (main menu) sits on public pages: left (the default) or right is a sidebar on wide screens and a Menu button under the masthead on narrow ones; bottom puts it below the content at every width."
           },
-          "links_threads": {
+          "linksThreads": {
             "type": "array",
             "items": {
               "type": "string"
             },
             "description": "Published threads listed first in the links section, in order. A thread later withdrawn is left out."
           },
-          "links_external": {
+          "linksExternal": {
             "type": "array",
             "items": {
               "type": "object",
@@ -682,19 +730,19 @@
             },
             "description": "The owner's own links in the links section."
           },
-          "links_collections": {
+          "linksCollections": {
             "type": "boolean",
             "description": "List public collections in the links section."
           },
-          "links_opml": {
+          "linksOpml": {
             "type": "boolean",
             "description": "Link the blogroll's OPML file in the links section, when the blogroll is not empty."
           },
-          "links_blygger_org": {
+          "linksBlyggerOrg": {
             "type": "boolean",
             "description": "Link blygger.org in the links section."
           },
-          "links_blygger_com": {
+          "linksBlyggerCom": {
             "type": "boolean",
             "description": "Link blygger.com, the directory of blygs, in the links section."
           },
@@ -710,9 +758,9 @@
           "defaults": {
             "type": "object",
             "additionalProperties": {},
-            "description": "Read-only: what each setting reads as with nothing stored, for \"reset to default\". site_title's default is the title derived from the address; store \"\" to keep it derived."
+            "description": "Read-only: what each setting reads as with nothing stored, for \"reset to default\". siteTitle's default is the title derived from the address; store \"\" to keep it derived."
           },
-          "feed_orders": {
+          "feedOrders": {
             "type": "array",
             "items": {
               "type": "object",
@@ -735,10 +783,10 @@
             },
             "description": "Read-only: the home page orders this node can use now (core, plus enabled extensions')."
           },
-          "update_feed_url": {
+          "updateFeedUrl": {
             "type": "string"
           },
-          "update_notice_ack": {
+          "updateNoticeAck": {
             "type": "boolean"
           },
           "extensions": {
@@ -750,54 +798,51 @@
           }
         },
         "required": [
-          "site_title",
+          "siteTitle",
           "theme",
-          "custom_theme",
-          "custom_theme_dark",
-          "custom_theme_name",
+          "customTheme",
+          "customThemeDark",
+          "customThemeName",
           "font",
-          "author_name",
-          "author_url",
-          "author_bio",
-          "author_links",
-          "site_url",
+          "authorName",
+          "authorUrl",
+          "authorBio",
+          "authorLinks",
+          "siteUrl",
           "timezone",
-          "avatar_media_id",
-          "ai_model",
-          "ai_model_tk",
-          "ai_model_changelog",
-          "ai_model_feed",
-          "ai_model_classify",
-          "change_category_in_note",
-          "feed_prompt",
-          "ai_style_prompt",
-          "accept_mentions",
-          "update_check",
-          "show_responses_default",
-          "highlight_generated_default",
-          "auto_change_notes",
-          "picker_typing",
-          "feed_order",
-          "front_page",
-          "posts_path",
-          "links_position",
-          "links_threads",
-          "links_external",
-          "links_collections",
-          "links_opml",
-          "links_blygger_org",
-          "links_blygger_com",
+          "avatarMediaId",
+          "aiModel",
+          "aiModelTk",
+          "aiModelChangelog",
+          "aiModelFeed",
+          "aiModelClassify",
+          "changeCategoryInNote",
+          "feedPrompt",
+          "aiStylePrompt",
+          "acceptMentions",
+          "updateCheck",
+          "showResponsesDefault",
+          "highlightGeneratedDefault",
+          "autoChangeNotes",
+          "pickerTyping",
+          "feedOrder",
+          "frontPage",
+          "postsPath",
+          "linksPosition",
+          "linksThreads",
+          "linksExternal",
+          "linksCollections",
+          "linksOpml",
+          "linksBlyggerOrg",
+          "linksBlyggerCom",
           "setup",
-          "update_feed_url",
-          "update_notice_ack",
+          "updateFeedUrl",
+          "updateNoticeAck",
           "extensions"
         ]
       },
       "CustomTheme": {
-        "type": [
-          "object",
-          "null"
-        ],
+        "type": "object",
         "properties": {
           "dark": {
             "type": "boolean"
@@ -864,7 +909,7 @@
           "origin": {
             "type": "string"
           },
-          "feed_url": {
+          "feedUrl": {
             "type": "string"
           },
           "title": {
@@ -878,28 +923,22 @@
               "degraded"
             ]
           },
-          "last_poll_at": {
+          "lastPollAt": {
             "type": [
               "string",
               "null"
             ]
           },
-          "fail_count": {
+          "failCount": {
             "type": "number"
           },
-          "last_index_sync_at": {
+          "lastIndexSyncAt": {
             "type": [
               "string",
               "null"
             ]
           },
-          "created": {
-            "type": "string"
-          },
-          "title_follows_source": {
-            "type": "boolean"
-          },
-          "in_blogroll": {
+          "inBlogroll": {
             "type": "boolean"
           },
           "flags": {
@@ -922,22 +961,28 @@
                 "at"
               ]
             }
+          },
+          "created": {
+            "type": "string"
+          },
+          "titleFollowsSource": {
+            "type": "boolean"
           }
         },
         "required": [
           "id",
           "kind",
           "origin",
-          "feed_url",
+          "feedUrl",
           "title",
           "status",
-          "last_poll_at",
-          "fail_count",
-          "last_index_sync_at",
+          "lastPollAt",
+          "failCount",
+          "lastIndexSyncAt",
+          "inBlogroll",
+          "flags",
           "created",
-          "title_follows_source",
-          "in_blogroll",
-          "flags"
+          "titleFollowsSource"
         ]
       },
       "Hopper": {
@@ -961,7 +1006,7 @@
           "created": {
             "type": "string"
           },
-          "slug_frozen": {
+          "slugFrozen": {
             "type": "boolean"
           },
           "description": {
@@ -977,7 +1022,7 @@
           "slug",
           "public",
           "created",
-          "slug_frozen",
+          "slugFrozen",
           "description"
         ]
       },
@@ -987,7 +1032,7 @@
           "id": {
             "type": "string"
           },
-          "item_id": {
+          "itemId": {
             "type": [
               "string",
               "null"
@@ -1006,15 +1051,16 @@
             "type": "string"
           },
           "inline": {
-            "type": "number"
+            "type": "boolean"
           },
           "url": {
-            "type": "string"
+            "type": "string",
+            "format": "uri"
           }
         },
         "required": [
           "id",
-          "item_id",
+          "itemId",
           "mime",
           "alt",
           "created",
@@ -1025,36 +1071,6 @@
       "Version": {
         "type": "object",
         "properties": {
-          "item_id": {
-            "type": "string"
-          },
-          "version": {
-            "type": "number"
-          },
-          "content_md": {
-            "type": "string"
-          },
-          "content_html": {
-            "type": "string"
-          },
-          "content_hash": {
-            "type": "string"
-          },
-          "published_at": {
-            "type": "string"
-          },
-          "note": {
-            "type": [
-              "string",
-              "null"
-            ]
-          },
-          "pinned_at": {
-            "type": [
-              "string",
-              "null"
-            ]
-          },
           "kind": {
             "type": "string",
             "enum": [
@@ -1063,11 +1079,29 @@
               "withdrawn"
             ]
           },
-          "pinned": {
-            "type": "boolean"
+          "itemId": {
+            "type": "string"
           },
-          "note_generated": {
-            "type": "boolean"
+          "version": {
+            "type": "number"
+          },
+          "contentMd": {
+            "type": "string"
+          },
+          "contentHtml": {
+            "type": "string"
+          },
+          "contentHash": {
+            "type": "string"
+          },
+          "publishedAt": {
+            "type": "string"
+          },
+          "note": {
+            "type": [
+              "string",
+              "null"
+            ]
           },
           "transclusions": {
             "type": "array",
@@ -1075,13 +1109,16 @@
               "$ref": "#/components/schemas/Transclusion"
             }
           },
-          "generated": {
-            "type": "array",
-            "items": {
-              "$ref": "#/components/schemas/GenerationProvenance"
-            }
+          "pinned": {
+            "type": "boolean"
           },
-          "stub_of": {
+          "pinnedAt": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "stubOf": {
             "anyOf": [
               {
                 "$ref": "#/components/schemas/VersionReference"
@@ -1107,7 +1144,7 @@
               }
             ]
           },
-          "stub_cite": {
+          "stubCite": {
             "anyOf": [
               {
                 "$ref": "#/components/schemas/Citation"
@@ -1117,72 +1154,42 @@
               }
             ]
           },
-          "change_class": {
-            "type": [
-              "object",
-              "null"
-            ],
-            "properties": {
-              "category": {
-                "type": [
-                  "string",
-                  "null"
-                ],
-                "enum": [
-                  "refresh",
-                  "typo",
-                  "minor",
-                  "major",
-                  null
-                ]
+          "noteGenerated": {
+            "type": "boolean"
+          },
+          "generated": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/GenerationProvenance"
+            }
+          },
+          "changeClass": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ChangeClass"
               },
-              "model": {
-                "type": [
-                  "string",
-                  "null"
-                ],
-                "description": "Null for refresh (decided locally) and for a category the author set by hand."
-              },
-              "probability": {
-                "type": [
-                  "number",
-                  "null"
-                ]
-              },
-              "classified_at": {
-                "type": "string"
-              },
-              "overridden": {
-                "type": "boolean",
-                "description": "The author changed or cleared the classifier's category before publishing."
+              {
+                "type": "null"
               }
-            },
-            "required": [
-              "category",
-              "model",
-              "probability",
-              "classified_at",
-              "overridden"
-            ],
-            "description": "The change classifier's studio-private record of this version, in an item's versions; absent elsewhere. Never on the wire."
+            ]
           }
         },
         "required": [
-          "item_id",
-          "version",
-          "content_md",
-          "content_html",
-          "content_hash",
-          "published_at",
-          "note",
-          "pinned_at",
           "kind",
-          "pinned",
-          "note_generated",
+          "itemId",
+          "version",
+          "contentMd",
+          "contentHtml",
+          "contentHash",
+          "publishedAt",
+          "note",
           "transclusions",
-          "generated",
-          "stub_of",
-          "stub_cite"
+          "pinned",
+          "pinnedAt",
+          "stubOf",
+          "stubCite",
+          "noteGenerated",
+          "generated"
         ]
       },
       "Transclusion": {
@@ -1224,36 +1231,79 @@
           "version"
         ]
       },
-      "HopperItemRow": {
+      "ChangeClass": {
         "type": "object",
         "properties": {
-          "hopper_id": {
+          "category": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "enum": [
+              "refresh",
+              "typo",
+              "minor",
+              "major",
+              null
+            ]
+          },
+          "model": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "probability": {
+            "type": [
+              "number",
+              "null"
+            ]
+          },
+          "classifiedAt": {
             "type": "string"
           },
-          "subscription_id": {
+          "overridden": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "category",
+          "model",
+          "probability",
+          "classifiedAt",
+          "overridden"
+        ]
+      },
+      "HopperMembership": {
+        "type": "object",
+        "properties": {
+          "hopperId": {
             "type": "string"
           },
-          "remote_id": {
+          "subscriptionId": {
             "type": "string"
           },
-          "added_at": {
+          "remoteId": {
+            "type": "string"
+          },
+          "addedAt": {
             "type": "string"
           }
         },
         "required": [
-          "hopper_id",
-          "subscription_id",
-          "remote_id",
-          "added_at"
+          "hopperId",
+          "subscriptionId",
+          "remoteId",
+          "addedAt"
         ]
       },
       "ImportedItem": {
         "type": "object",
         "properties": {
-          "subscription_id": {
+          "subscriptionId": {
             "type": "string"
           },
-          "remote_id": {
+          "remoteId": {
             "type": "string"
           },
           "kind": {
@@ -1285,34 +1335,16 @@
               "null"
             ]
           },
-          "observed_at": {
+          "observedAt": {
             "type": "string"
           },
-          "content_md": {
+          "contentMd": {
             "type": "string"
           },
-          "content_html": {
+          "contentHtml": {
             "type": "string"
           },
-          "content_hash": {
-            "type": [
-              "string",
-              "null"
-            ]
-          },
-          "author_json": {
-            "type": [
-              "string",
-              "null"
-            ]
-          },
-          "media_json": {
-            "type": [
-              "string",
-              "null"
-            ]
-          },
-          "transclusions_json": {
+          "contentHash": {
             "type": [
               "string",
               "null"
@@ -1321,7 +1353,7 @@
           "l0": {
             "type": "boolean"
           },
-          "pinned_version_retained": {
+          "pinnedVersionRetained": {
             "type": [
               "number",
               "null"
@@ -1333,56 +1365,91 @@
               "null"
             ]
           },
-          "stub_of_json": {
-            "type": [
-              "string",
-              "null"
+          "author": {
+            "anyOf": [
+              {
+                "type": "object",
+                "additionalProperties": {}
+              },
+              {
+                "type": "null"
+              }
             ]
           },
-          "forked_from_json": {
+          "media": {
             "type": [
-              "string",
-              "null"
-            ]
-          },
-          "generated_json": {
-            "type": [
-              "string",
+              "array",
               "null"
             ],
-            "description": "The origin's `generated` array as published (0.4 adds remote sources); null when it discloses none."
+            "items": {}
+          },
+          "transclusions": {
+            "type": [
+              "array",
+              "null"
+            ],
+            "items": {}
+          },
+          "stubOf": {
+            "anyOf": [
+              {
+                "type": "object",
+                "additionalProperties": {}
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "forkedFrom": {
+            "anyOf": [
+              {
+                "type": "object",
+                "additionalProperties": {}
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "generated": {
+            "type": [
+              "array",
+              "null"
+            ],
+            "items": {}
           }
         },
         "required": [
-          "subscription_id",
-          "remote_id",
+          "subscriptionId",
+          "remoteId",
           "kind",
           "state",
           "version",
           "created",
           "updated",
-          "observed_at",
-          "content_md",
-          "content_html",
-          "content_hash",
-          "author_json",
-          "media_json",
-          "transclusions_json",
+          "observedAt",
+          "contentMd",
+          "contentHtml",
+          "contentHash",
           "l0",
-          "pinned_version_retained",
+          "pinnedVersionRetained",
           "page",
-          "stub_of_json",
-          "forked_from_json",
-          "generated_json"
+          "author",
+          "media",
+          "transclusions",
+          "stubOf",
+          "forkedFrom",
+          "generated"
         ]
       },
-      "SignalRow": {
+      "Signal": {
         "type": "object",
         "properties": {
-          "subscription_id": {
+          "subscriptionId": {
             "type": "string"
           },
-          "remote_id": {
+          "remoteId": {
             "type": "string"
           },
           "thumb": {
@@ -1406,8 +1473,8 @@
           }
         },
         "required": [
-          "subscription_id",
-          "remote_id",
+          "subscriptionId",
+          "remoteId",
           "thumb",
           "at"
         ]
@@ -1437,7 +1504,7 @@
           "origin": {
             "type": "string"
           },
-          "remote_id": {
+          "remoteId": {
             "type": "string"
           },
           "version": {
@@ -1446,34 +1513,34 @@
               "null"
             ]
           },
-          "own_item_id": {
+          "ownItemId": {
             "type": [
               "string",
               "null"
             ]
           },
-          "own_version": {
+          "ownVersion": {
             "type": [
               "integer",
               "null"
             ]
           },
-          "hopper_id": {
+          "hopperId": {
             "type": [
               "string",
               "null"
             ]
           },
-          "hopper_name": {
+          "hopperName": {
             "type": [
               "string",
               "null"
             ]
           },
           "backfilled": {
-            "type": "integer"
+            "type": "boolean"
           },
-          "subscription_id": {
+          "subscriptionId": {
             "type": [
               "string",
               "null"
@@ -1491,14 +1558,14 @@
           "at",
           "kind",
           "origin",
-          "remote_id",
+          "remoteId",
           "version",
-          "own_item_id",
-          "own_version",
-          "hopper_id",
-          "hopper_name",
+          "ownItemId",
+          "ownVersion",
+          "hopperId",
+          "hopperName",
           "backfilled",
-          "subscription_id",
+          "subscriptionId",
           "label"
         ]
       },
@@ -1527,10 +1594,10 @@
           "origin": {
             "type": "string"
           },
-          "remote_id": {
+          "remoteId": {
             "type": "string"
           },
-          "subscription_id": {
+          "subscriptionId": {
             "type": [
               "string",
               "null"
@@ -1547,8 +1614,8 @@
           "thumb",
           "at",
           "origin",
-          "remote_id",
-          "subscription_id",
+          "remoteId",
+          "subscriptionId",
           "label"
         ]
       },
@@ -1566,7 +1633,7 @@
                 "label": {
                   "type": "string"
                 },
-                "key_secret": {
+                "keySecret": {
                   "type": "string",
                   "description": "The Worker secret holding this provider's key. Absent for a Workers AI provider (it uses `binding`) and for a keyless OpenAI-compatible endpoint."
                 },
@@ -1640,7 +1707,7 @@
           "target": {
             "type": "string"
           },
-          "target_item_id": {
+          "targetItemId": {
             "type": "string"
           },
           "status": {
@@ -1665,49 +1732,43 @@
               null
             ]
           },
-          "source_origin": {
+          "sourceOrigin": {
             "type": [
               "string",
               "null"
             ]
           },
-          "source_id": {
+          "sourceId": {
             "type": [
               "string",
               "null"
             ]
           },
-          "source_kind": {
+          "sourceKind": {
             "type": [
               "string",
               "null"
             ]
           },
-          "source_version": {
+          "sourceVersion": {
             "type": [
               "number",
               "null"
             ]
           },
-          "source_author_json": {
+          "sourcePage": {
             "type": [
               "string",
               "null"
             ]
           },
-          "source_page": {
-            "type": [
-              "string",
-              "null"
-            ]
-          },
-          "first_seen": {
+          "firstSeen": {
             "type": "string"
           },
-          "last_seen": {
+          "lastSeen": {
             "type": "string"
           },
-          "verified_at": {
+          "verifiedAt": {
             "type": [
               "string",
               "null"
@@ -1724,42 +1785,53 @@
           },
           "hidden": {
             "type": "boolean"
+          },
+          "sourceAuthor": {
+            "anyOf": [
+              {
+                "type": "object",
+                "additionalProperties": {}
+              },
+              {
+                "type": "null"
+              }
+            ]
           }
         },
         "required": [
           "id",
           "source",
           "target",
-          "target_item_id",
+          "targetItemId",
           "status",
           "relation",
-          "source_origin",
-          "source_id",
-          "source_kind",
-          "source_version",
-          "source_author_json",
-          "source_page",
-          "first_seen",
-          "last_seen",
-          "verified_at",
+          "sourceOrigin",
+          "sourceId",
+          "sourceKind",
+          "sourceVersion",
+          "sourcePage",
+          "firstSeen",
+          "lastSeen",
+          "verifiedAt",
           "attempts",
           "error",
-          "hidden"
+          "hidden",
+          "sourceAuthor"
         ]
       },
-      "MentionOutRow": {
+      "OutboundMention": {
         "type": "object",
         "properties": {
           "id": {
             "type": "string"
           },
-          "item_id": {
+          "itemId": {
             "type": "string"
           },
           "version": {
             "type": "number"
           },
-          "target_version": {
+          "targetVersion": {
             "type": [
               "number",
               "null"
@@ -1786,13 +1858,13 @@
           "attempts": {
             "type": "number"
           },
-          "next_attempt_at": {
+          "nextAttemptAt": {
             "type": [
               "string",
               "null"
             ]
           },
-          "last_error": {
+          "lastError": {
             "type": [
               "string",
               "null"
@@ -1804,15 +1876,15 @@
         },
         "required": [
           "id",
-          "item_id",
+          "itemId",
           "version",
-          "target_version",
+          "targetVersion",
           "target",
           "endpoint",
           "status",
           "attempts",
-          "next_attempt_at",
-          "last_error",
+          "nextAttemptAt",
+          "lastError",
           "created"
         ]
       },
@@ -2179,7 +2251,7 @@
             "type": "integer",
             "exclusiveMinimum": 0
           },
-          "content_html": {
+          "contentHtml": {
             "type": "string",
             "description": "Sanitized, as a subscribed item's is."
           },
@@ -2192,9 +2264,9 @@
           "url": {
             "type": "string"
           },
-          "stub_of": {},
-          "forked_from": {},
-          "subscription_id": {
+          "stubOf": {},
+          "forkedFrom": {},
+          "subscriptionId": {
             "type": [
               "string",
               "null"
@@ -2207,10 +2279,10 @@
           "id",
           "kind",
           "version",
-          "content_html",
+          "contentHtml",
           "page",
           "url",
-          "subscription_id"
+          "subscriptionId"
         ]
       },
       "BrowseStep": {
@@ -2225,7 +2297,7 @@
           "trail": {
             "type": "string"
           },
-          "parent_id": {
+          "parentId": {
             "type": [
               "integer",
               "null"
@@ -2234,7 +2306,7 @@
           "origin": {
             "type": "string"
           },
-          "remote_id": {
+          "remoteId": {
             "type": "string"
           },
           "version": {
@@ -2264,9 +2336,9 @@
           "id",
           "at",
           "trail",
-          "parent_id",
+          "parentId",
           "origin",
-          "remote_id",
+          "remoteId",
           "version",
           "via",
           "title"
@@ -2808,24 +2880,24 @@
                     "authorization": {
                       "$ref": "#/components/schemas/Authorization"
                     },
-                    "access_token": {
+                    "accessToken": {
                       "type": "string"
                     },
-                    "token_type": {
+                    "tokenType": {
                       "type": "string",
                       "enum": [
                         "Bearer"
                       ]
                     },
-                    "expires_in": {
+                    "expiresIn": {
                       "type": "number"
                     }
                   },
                   "required": [
                     "authorization",
-                    "access_token",
-                    "token_type",
-                    "expires_in"
+                    "accessToken",
+                    "tokenType",
+                    "expiresIn"
                   ]
                 }
               }
@@ -3455,7 +3527,7 @@
                           ]
                         }
                       },
-                      "content_md": {
+                      "contentMd": {
                         "type": "string"
                       },
                       "kind": {
@@ -3465,7 +3537,7 @@
                           "thread"
                         ]
                       },
-                      "stub_of": {
+                      "stubOf": {
                         "anyOf": [
                           {
                             "$ref": "#/components/schemas/VersionReference"
@@ -3531,18 +3603,18 @@
                       "source": {
                         "type": "object",
                         "properties": {
-                          "subscription_id": {
+                          "subscriptionId": {
                             "type": "string",
                             "minLength": 1
                           },
-                          "remote_id": {
+                          "remoteId": {
                             "type": "string",
                             "minLength": 1
                           }
                         },
                         "required": [
-                          "subscription_id",
-                          "remote_id"
+                          "subscriptionId",
+                          "remoteId"
                         ],
                         "additionalProperties": false
                       },
@@ -3970,7 +4042,7 @@
                       ]
                     }
                   },
-                  "content_md": {
+                  "contentMd": {
                     "type": "string"
                   },
                   "kind": {
@@ -3980,7 +4052,7 @@
                       "thread"
                     ]
                   },
-                  "stub_of": {
+                  "stubOf": {
                     "anyOf": [
                       {
                         "$ref": "#/components/schemas/VersionReference"
@@ -4410,8 +4482,7 @@
                       "type": "string",
                       "enum": [
                         "fragment",
-                        "thread",
-                        "withdrawn"
+                        "thread"
                       ]
                     },
                     "status": {
@@ -4431,42 +4502,13 @@
                     "version": {
                       "type": "number"
                     },
-                    "content_md": {
+                    "contentMd": {
                       "type": "string"
                     },
                     "dirty": {
                       "type": "boolean"
                     },
-                    "responses": {
-                      "type": "string",
-                      "enum": [
-                        "default",
-                        "show",
-                        "hide"
-                      ]
-                    },
-                    "highlight": {
-                      "type": "string",
-                      "enum": [
-                        "default",
-                        "show",
-                        "hide"
-                      ]
-                    },
-                    "provenance": {
-                      "type": "array",
-                      "items": {
-                        "anyOf": [
-                          {
-                            "$ref": "#/components/schemas/GenerationProvenance"
-                          },
-                          {
-                            "type": "null"
-                          }
-                        ]
-                      }
-                    },
-                    "stub_of": {
+                    "stubOf": {
                       "anyOf": [
                         {
                           "$ref": "#/components/schemas/VersionReference"
@@ -4492,7 +4534,7 @@
                         }
                       ]
                     },
-                    "forked_from": {
+                    "forkedFrom": {
                       "anyOf": [
                         {
                           "$ref": "#/components/schemas/VersionReference"
@@ -4502,7 +4544,7 @@
                         }
                       ]
                     },
-                    "fork_cite": {
+                    "forkCite": {
                       "anyOf": [
                         {
                           "$ref": "#/components/schemas/Citation"
@@ -4512,11 +4554,33 @@
                         }
                       ]
                     },
-                    "authored_kind": {
+                    "provenance": {
+                      "type": "array",
+                      "items": {
+                        "anyOf": [
+                          {
+                            "$ref": "#/components/schemas/GenerationProvenance"
+                          },
+                          {
+                            "type": "null"
+                          }
+                        ]
+                      }
+                    },
+                    "responses": {
                       "type": "string",
                       "enum": [
-                        "fragment",
-                        "thread"
+                        "default",
+                        "show",
+                        "hide"
+                      ]
+                    },
+                    "highlight": {
+                      "type": "string",
+                      "enum": [
+                        "default",
+                        "show",
+                        "hide"
                       ]
                     },
                     "media": {
@@ -4526,7 +4590,7 @@
                       },
                       "description": "The working copy's attachments: what the next version lists."
                     },
-                    "published_media": {
+                    "publishedMedia": {
                       "type": "array",
                       "items": {
                         "$ref": "#/components/schemas/Media"
@@ -4558,17 +4622,16 @@
                     "created",
                     "updated",
                     "version",
-                    "content_md",
+                    "contentMd",
                     "dirty",
+                    "stubOf",
+                    "forkedFrom",
+                    "forkCite",
+                    "provenance",
                     "responses",
                     "highlight",
-                    "provenance",
-                    "stub_of",
-                    "forked_from",
-                    "fork_cite",
-                    "authored_kind",
                     "media",
-                    "published_media",
+                    "publishedMedia",
                     "versions",
                     "published"
                   ]
@@ -4741,10 +4804,10 @@
                   "note": {
                     "type": "string"
                   },
-                  "note_generated": {
+                  "noteGenerated": {
                     "type": "boolean"
                   },
-                  "change_category": {
+                  "changeCategory": {
                     "type": [
                       "string",
                       "null"
@@ -5215,7 +5278,7 @@
                     "model": {
                       "type": "string"
                     },
-                    "pinned_prior": {
+                    "pinnedPrior": {
                       "type": "boolean"
                     },
                     "revision": {
@@ -5227,7 +5290,7 @@
                   "required": [
                     "note",
                     "model",
-                    "pinned_prior",
+                    "pinnedPrior",
                     "revision"
                   ]
                 }
@@ -5424,7 +5487,7 @@
                     "model": {
                       "type": "string"
                     },
-                    "content_md": {
+                    "contentMd": {
                       "type": "string"
                     },
                     "revision": {
@@ -5436,7 +5499,7 @@
                   "required": [
                     "text",
                     "model",
-                    "content_md",
+                    "contentMd",
                     "revision"
                   ]
                 }
@@ -6219,7 +6282,7 @@
                     "type": "string",
                     "format": "binary"
                   },
-                  "item_id": {
+                  "itemId": {
                     "type": "string"
                   },
                   "expectedRevision": {
@@ -6238,7 +6301,8 @@
                 },
                 "required": [
                   "file"
-                ]
+                ],
+                "additionalProperties": false
               }
             }
           }
@@ -6652,7 +6716,7 @@
             ]
           }
         ],
-        "description": "Choosing avatar_media_id also requires owner:publish because the avatar publishes those bytes.",
+        "description": "Choosing avatarMediaId also requires owner:publish because the avatar publishes those bytes.",
         "requestBody": {
           "required": true,
           "content": {
@@ -6660,34 +6724,48 @@
               "schema": {
                 "type": "object",
                 "properties": {
-                  "site_title": {
+                  "siteTitle": {
                     "type": "string"
                   },
                   "theme": {
                     "type": "string"
                   },
-                  "custom_theme": {
-                    "$ref": "#/components/schemas/CustomTheme"
+                  "customTheme": {
+                    "anyOf": [
+                      {
+                        "$ref": "#/components/schemas/CustomTheme"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
                   },
-                  "custom_theme_dark": {
-                    "$ref": "#/components/schemas/CustomTheme"
+                  "customThemeDark": {
+                    "anyOf": [
+                      {
+                        "$ref": "#/components/schemas/CustomTheme"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
                   },
-                  "custom_theme_name": {
+                  "customThemeName": {
                     "type": "string"
                   },
                   "font": {
                     "type": "string"
                   },
-                  "author_name": {
+                  "authorName": {
                     "type": "string"
                   },
-                  "author_url": {
+                  "authorUrl": {
                     "type": "string"
                   },
-                  "author_bio": {
+                  "authorBio": {
                     "type": "string"
                   },
-                  "author_links": {
+                  "authorLinks": {
                     "type": "array",
                     "items": {
                       "type": "object",
@@ -6705,56 +6783,57 @@
                       ]
                     }
                   },
-                  "site_url": {
+                  "siteUrl": {
                     "type": "string"
                   },
                   "timezone": {
                     "type": "string"
                   },
-                  "avatar_media_id": {
+                  "avatarMediaId": {
                     "type": "string"
                   },
-                  "ai_model": {
+                  "aiModel": {
                     "type": "string"
                   },
-                  "ai_model_tk": {
+                  "aiModelTk": {
                     "type": "string"
                   },
-                  "ai_model_changelog": {
+                  "aiModelChangelog": {
                     "type": "string"
                   },
-                  "ai_model_feed": {
+                  "aiModelFeed": {
                     "type": "string"
                   },
-                  "ai_model_classify": {
+                  "aiModelClassify": {
                     "type": "string",
                     "description": "The change classifier's decision model (Clef, Jev); empty, the default, is off. Studio-private: a category reaches readers only as words in a changelog note the author confirms."
                   },
-                  "change_category_in_note": {
-                    "type": "boolean"
+                  "changeCategoryInNote": {
+                    "type": "boolean",
+                    "description": "Lead the changelog note with the classifier's category, in the publish dialog where the author sees it. Matters only while aiModelClassify is set."
                   },
-                  "feed_prompt": {
+                  "feedPrompt": {
                     "type": "string"
                   },
-                  "ai_style_prompt": {
+                  "aiStylePrompt": {
                     "type": "string"
                   },
-                  "accept_mentions": {
+                  "acceptMentions": {
                     "type": "boolean"
                   },
-                  "update_check": {
+                  "updateCheck": {
                     "type": "boolean"
                   },
-                  "show_responses_default": {
+                  "showResponsesDefault": {
                     "type": "boolean"
                   },
-                  "highlight_generated_default": {
+                  "highlightGeneratedDefault": {
                     "type": "boolean"
                   },
-                  "auto_change_notes": {
+                  "autoChangeNotes": {
                     "type": "boolean"
                   },
-                  "picker_typing": {
+                  "pickerTyping": {
                     "type": "string",
                     "enum": [
                       "auto",
@@ -6762,19 +6841,19 @@
                       "panel"
                     ]
                   },
-                  "feed_order": {
+                  "feedOrder": {
                     "type": "string",
-                    "description": "The public home page order: an id from feed_orders. pace-layered (the default) and reverse-chronological are core; extensions add orders named <extension>/<id>."
+                    "description": "The public home page order: an id from feedOrders. pace-layered (the default) and reverse-chronological are core; extensions add orders named <extension>/<id>."
                   },
-                  "front_page": {
+                  "frontPage": {
                     "type": "string",
                     "description": "A published thread's id shown at the mount root instead of the latest items; empty for the latest items. A front page later withdrawn or deleted falls back to the latest items."
                   },
-                  "posts_path": {
+                  "postsPath": {
                     "type": "string",
-                    "description": "Where the latest items live: {mount}/{posts_path}/, served whether or not a front page is set. Lowercase letters, digits and hyphens; names the blyg already uses are refused."
+                    "description": "Where the latest items live: {mount}/{postsPath}/, served whether or not a front page is set. Lowercase letters, digits and hyphens; names the blyg already uses are refused."
                   },
-                  "links_position": {
+                  "linksPosition": {
                     "type": "string",
                     "enum": [
                       "bottom",
@@ -6783,14 +6862,14 @@
                     ],
                     "description": "Where the links section (main menu) sits on public pages: left (the default) or right is a sidebar on wide screens and a Menu button under the masthead on narrow ones; bottom puts it below the content at every width."
                   },
-                  "links_threads": {
+                  "linksThreads": {
                     "type": "array",
                     "items": {
                       "type": "string"
                     },
                     "description": "Published threads listed first in the links section, in order. A thread later withdrawn is left out."
                   },
-                  "links_external": {
+                  "linksExternal": {
                     "type": "array",
                     "items": {
                       "type": "object",
@@ -6809,19 +6888,19 @@
                     },
                     "description": "The owner's own links in the links section."
                   },
-                  "links_collections": {
+                  "linksCollections": {
                     "type": "boolean",
                     "description": "List public collections in the links section."
                   },
-                  "links_opml": {
+                  "linksOpml": {
                     "type": "boolean",
                     "description": "Link the blogroll's OPML file in the links section, when the blogroll is not empty."
                   },
-                  "links_blygger_org": {
+                  "linksBlyggerOrg": {
                     "type": "boolean",
                     "description": "Link blygger.org in the links section."
                   },
-                  "links_blygger_com": {
+                  "linksBlyggerCom": {
                     "type": "boolean",
                     "description": "Link blygger.com, the directory of blygs, in the links section."
                   },
@@ -6834,38 +6913,10 @@
                     ],
                     "description": "The setup wizard: pending on a fresh install, notice on a node that published before it existed, done once finished or dismissed."
                   },
-                  "defaults": {
-                    "type": "object",
-                    "additionalProperties": {},
-                    "description": "Read-only: what each setting reads as with nothing stored, for \"reset to default\". site_title's default is the title derived from the address; store \"\" to keep it derived."
-                  },
-                  "feed_orders": {
-                    "type": "array",
-                    "items": {
-                      "type": "object",
-                      "properties": {
-                        "id": {
-                          "type": "string"
-                        },
-                        "title": {
-                          "type": "string"
-                        },
-                        "description": {
-                          "type": "string"
-                        }
-                      },
-                      "required": [
-                        "id",
-                        "title",
-                        "description"
-                      ]
-                    },
-                    "description": "Read-only: the home page orders this node can use now (core, plus enabled extensions')."
-                  },
-                  "update_feed_url": {
+                  "updateFeedUrl": {
                     "type": "string"
                   },
-                  "update_notice_ack": {
+                  "updateNoticeAck": {
                     "type": "boolean"
                   },
                   "extensions": {
@@ -7628,7 +7679,7 @@
               "schema": {
                 "type": "object",
                 "properties": {
-                  "in_blogroll": {
+                  "inBlogroll": {
                     "type": "boolean"
                   },
                   "title": {
@@ -9209,7 +9260,7 @@
                     "memberships": {
                       "type": "array",
                       "items": {
-                        "$ref": "#/components/schemas/HopperItemRow"
+                        "$ref": "#/components/schemas/HopperMembership"
                       }
                     },
                     "items": {
@@ -9222,7 +9273,7 @@
                       "type": "integer",
                       "minimum": 0
                     },
-                    "source_count": {
+                    "sourceCount": {
                       "type": "integer",
                       "minimum": 0
                     }
@@ -9232,7 +9283,7 @@
                     "memberships",
                     "items",
                     "total",
-                    "source_count"
+                    "sourceCount"
                   ]
                 }
               }
@@ -10167,7 +10218,7 @@
                     "minimum": 1,
                     "maximum": 4294967295
                   },
-                  "read_at": {
+                  "readAt": {
                     "type": "string",
                     "format": "date-time",
                     "description": "When the client read it (ISO-8601). A read earlier than the row's latest clear is ignored; omitted, the read always applies."
@@ -10195,7 +10246,7 @@
                     "stored": {
                       "type": "boolean"
                     },
-                    "read_version": {
+                    "readVersion": {
                       "type": [
                         "integer",
                         "null"
@@ -10205,7 +10256,7 @@
                   "required": [
                     "ok",
                     "stored",
-                    "read_version"
+                    "readVersion"
                   ]
                 }
               }
@@ -10385,14 +10436,14 @@
                         false
                       ]
                     },
-                    "read_version": {
+                    "readVersion": {
                       "type": "null"
                     }
                   },
                   "required": [
                     "ok",
                     "stored",
-                    "read_version"
+                    "readVersion"
                   ]
                 }
               }
@@ -10554,7 +10605,7 @@
                           "minLength": 1,
                           "maxLength": 1024
                         },
-                        "remote_id": {
+                        "remoteId": {
                           "type": "string",
                           "minLength": 1,
                           "maxLength": 1024
@@ -10564,7 +10615,7 @@
                           "minimum": 1,
                           "maximum": 4294967295
                         },
-                        "read_at": {
+                        "readAt": {
                           "type": "string",
                           "format": "date-time",
                           "description": "When the client read it (ISO-8601). A read earlier than the row's latest clear is ignored; omitted, the read always applies."
@@ -10572,7 +10623,7 @@
                       },
                       "required": [
                         "sub",
-                        "remote_id",
+                        "remoteId",
                         "version"
                       ],
                       "additionalProperties": false
@@ -10768,7 +10819,7 @@
                           "minLength": 1,
                           "maxLength": 1024
                         },
-                        "remote_id": {
+                        "remoteId": {
                           "type": "string",
                           "minLength": 1,
                           "maxLength": 1024
@@ -10776,7 +10827,7 @@
                       },
                       "required": [
                         "sub",
-                        "remote_id"
+                        "remoteId"
                       ],
                       "additionalProperties": false
                     },
@@ -11181,7 +11232,7 @@
                     "items": {
                       "type": "array",
                       "items": {
-                        "$ref": "#/components/schemas/SignalRow"
+                        "$ref": "#/components/schemas/Signal"
                       }
                     },
                     "total": {
@@ -11927,7 +11978,7 @@
                             "$ref": "#/components/schemas/Mention"
                           },
                           {
-                            "$ref": "#/components/schemas/MentionOutRow"
+                            "$ref": "#/components/schemas/OutboundMention"
                           }
                         ]
                       }
@@ -12109,10 +12160,10 @@
               "schema": {
                 "type": "object",
                 "properties": {
-                  "content_md": {
+                  "contentMd": {
                     "type": "string"
                   },
-                  "item_id": {
+                  "itemId": {
                     "type": "string"
                   },
                   "kind": {
@@ -12210,7 +12261,7 @@
                         ]
                       }
                     },
-                    "link_errors": {
+                    "linkErrors": {
                       "type": "array",
                       "items": {
                         "type": "object",
@@ -12511,13 +12562,13 @@
                               "thread"
                             ]
                           },
-                          "subscription_id": {
+                          "subscriptionId": {
                             "type": [
                               "string",
                               "null"
                             ]
                           },
-                          "source_title": {
+                          "sourceTitle": {
                             "type": [
                               "string",
                               "null"
@@ -12533,8 +12584,8 @@
                           "badge",
                           "source",
                           "kind",
-                          "subscription_id",
-                          "source_title"
+                          "subscriptionId",
+                          "sourceTitle"
                         ]
                       }
                     },
@@ -12972,14 +13023,14 @@
                     "selected": {
                       "type": "string"
                     },
-                    "read_state": {
+                    "readState": {
                       "type": "boolean",
                       "enum": [
                         true
                       ],
                       "description": "This server stores read state: each imported entry's readVersion is meaningful."
                     },
-                    "read_state_clear": {
+                    "readStateClear": {
                       "type": "boolean",
                       "enum": [
                         true
@@ -12994,8 +13045,8 @@
                     "offset",
                     "limit",
                     "selected",
-                    "read_state",
-                    "read_state_clear"
+                    "readState",
+                    "readStateClear"
                   ]
                 }
               }
@@ -13763,7 +13814,7 @@
                     "version": {
                       "type": "integer"
                     },
-                    "content_md": {
+                    "contentMd": {
                       "type": "string"
                     },
                     "note": {
@@ -13778,7 +13829,7 @@
                   },
                   "required": [
                     "version",
-                    "content_md",
+                    "contentMd",
                     "note",
                     "pinned"
                   ]
@@ -14527,7 +14578,7 @@
                     "minLength": 8,
                     "maxLength": 64
                   },
-                  "parent_id": {
+                  "parentId": {
                     "type": [
                       "integer",
                       "null"
@@ -14538,7 +14589,7 @@
                     "minLength": 1,
                     "maxLength": 2048
                   },
-                  "remote_id": {
+                  "remoteId": {
                     "type": "string",
                     "minLength": 1,
                     "maxLength": 256
@@ -14571,7 +14622,7 @@
                 "required": [
                   "trail",
                   "origin",
-                  "remote_id",
+                  "remoteId",
                   "via"
                 ],
                 "additionalProperties": false
@@ -14910,8 +14961,13 @@
               "application/json": {
                 "schema": {
                   "type": "object",
-                  "additionalProperties": {
-                    "type": "string"
+                  "properties": {
+                    "updateCheckedAt": {
+                      "type": "string"
+                    },
+                    "updateLatestSeen": {
+                      "type": "string"
+                    }
                   }
                 }
               }

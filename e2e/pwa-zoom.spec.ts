@@ -89,7 +89,7 @@ test('every field on the main screens is at least 16px', async ({ page }) => {
 
 test('every field in the editor and in sheets is at least 16px', async ({ page }) => {
   await login(page);
-  const { json } = await api(page, 'POST', '/items', { content_md: 'Zoom audit draft.', kind: 'fragment' });
+  const { json } = await api(page, 'POST', '/items', { contentMd: 'Zoom audit draft.', kind: 'fragment' });
   try {
     await page.goto(`/studio/edit/${json.id}`);
     await expect(page.locator('#md-input')).toBeVisible();

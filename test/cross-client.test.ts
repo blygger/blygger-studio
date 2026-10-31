@@ -14,7 +14,7 @@ import { newId } from "../src/util.ts";
 const ORIGIN = "https://friend.example/blyg/";
 
 async function createThread(cookie: string, contentMd: string): Promise<string> {
-  const created = await apiJson(cookie, "POST", "/blyg/api/items", { content_md: contentMd, kind: "thread" });
+  const created = await apiJson(cookie, "POST", "/blyg/api/items", { contentMd: contentMd, kind: "thread" });
   expect(created.status).toBe(201);
   return created.json.id as string;
 }
@@ -133,8 +133,8 @@ describe("cross-client resolution failures (§2.1)", () => {
     const threadId = await createThread(cookie, `![[${id}]]`);
     const pub = await publishThread(cookie, threadId);
     expect(pub.status).toBe(400);
-    expect(pub.json.errors.length).toBe(1);
-    return pub.json.errors[0].reason as string;
+    expect(pub.json.details.errors.length).toBe(1);
+    return pub.json.details.errors[0].reason as string;
   }
 
   it("rejects an unretained tombstone as withdrawn by its origin", async () => {
@@ -172,10 +172,10 @@ describe("cross-client resolution failures (§2.1)", () => {
     const cookie = await login();
     const threadId = await createThread(cookie, "seed");
     expect((await publishThread(cookie, threadId)).status).toBe(200);
-    await apiJson(cookie, "PATCH", `/blyg/api/items/${threadId}`, { content_md: `me again\n\n![[${threadId}]]` });
+    await apiJson(cookie, "PATCH", `/blyg/api/items/${threadId}`, { contentMd: `me again\n\n![[${threadId}]]` });
     const pub = await publishThread(cookie, threadId);
     expect(pub.status).toBe(400);
-    expect(pub.json.errors[0].reason).toMatch(/cannot transclude itself/);
+    expect(pub.json.details.errors[0].reason).toMatch(/cannot transclude itself/);
   });
 
   it("rejects a cycle through a local thread's transitive closure", async () => {
@@ -187,10 +187,10 @@ describe("cross-client resolution failures (§2.1)", () => {
     const c = await createThread(cookie, `thread C\n\n![[${b}]]`);
     expect((await publishThread(cookie, c)).status).toBe(200);
     // A now tries to quote C, which transitively already quotes A.
-    await apiJson(cookie, "PATCH", `/blyg/api/items/${a}`, { content_md: `thread A\n\n![[${c}]]` });
+    await apiJson(cookie, "PATCH", `/blyg/api/items/${a}`, { contentMd: `thread A\n\n![[${c}]]` });
     const pub = await publishThread(cookie, a);
     expect(pub.status).toBe(400);
-    expect(pub.json.errors[0].reason).toMatch(/circular/);
+    expect(pub.json.details.errors[0].reason).toMatch(/circular/);
   });
 
   it("a remote thread quoting us is not a cycle — remote closures aren't walked", async () => {
@@ -204,7 +204,7 @@ describe("cross-client resolution failures (§2.1)", () => {
       content_md: "their stub of me",
       content_html: `<blockquote class="blyg-transclusion" data-blyg-id="${mine}" data-blyg-version="1"><p>my thread</p></blockquote>`,
     });
-    await apiJson(cookie, "PATCH", `/blyg/api/items/${mine}`, { content_md: `my thread\n\n![[${theirs}]]` });
+    await apiJson(cookie, "PATCH", `/blyg/api/items/${mine}`, { contentMd: `my thread\n\n![[${theirs}]]` });
     expect((await publishThread(cookie, mine)).status).toBe(200);
   });
 });

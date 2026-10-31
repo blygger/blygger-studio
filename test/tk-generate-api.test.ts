@@ -21,30 +21,30 @@ describe("POST /api/items/:id/generate — route contract", () => {
     const cookie = await login();
     const { status, json } = await apiJson(cookie, "POST", "/blyg/api/items/zzzzzzzzzzzzzzzzzzzzzzzzzz/generate", { scope: 0 });
     expect(status).toBe(404);
-    expect(json.error).toMatch(/not found/);
+    expect(json.message).toMatch(/not found/);
   });
 
   it("400s without a scope index", async () => {
     const cookie = await login();
-    const created = await apiJson(cookie, "POST", "/blyg/api/items", { content_md: "[TK]x[/TK]" });
+    const created = await apiJson(cookie, "POST", "/blyg/api/items", { contentMd: "[TK]x[/TK]" });
     const { status, json } = await apiJson(cookie, "POST", `/blyg/api/items/${created.json.id}/generate`, {});
     expect(status).toBe(400);
-    expect(json.error).toMatch(/scope/);
+    expect(json.message).toMatch(/scope/);
   });
 
   it("400s on an out-of-range scope index, without touching AI_PROVIDER_KEY (unset in test env)", async () => {
     const cookie = await login();
-    const created = await apiJson(cookie, "POST", "/blyg/api/items", { content_md: "[TK]x[/TK]" });
+    const created = await apiJson(cookie, "POST", "/blyg/api/items", { contentMd: "[TK]x[/TK]" });
     const { status, json } = await apiJson(cookie, "POST", `/blyg/api/items/${created.json.id}/generate`, { scope: 3 });
     expect(status).toBe(400);
-    expect(json.error).toBe("unknown scope index");
+    expect(json.message).toBe("unknown scope index");
   });
 
   it("400s on malformed TK grammar before ever needing the provider", async () => {
     const cookie = await login();
-    const created = await apiJson(cookie, "POST", "/blyg/api/items", { content_md: "[TK]a[/TK] [TK]never closed" });
+    const created = await apiJson(cookie, "POST", "/blyg/api/items", { contentMd: "[TK]a[/TK] [TK]never closed" });
     const { status, json } = await apiJson(cookie, "POST", `/blyg/api/items/${created.json.id}/generate`, { scope: 0 });
     expect(status).toBe(400);
-    expect(json.error).toMatch(/malformed/);
+    expect(json.message).toMatch(/malformed/);
   });
 });

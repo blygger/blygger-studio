@@ -92,7 +92,7 @@ describe("forking a pinned version of our own (§2.4)", () => {
 
     const draft = await apiJson(cookie, "GET", `/blyg/api/items/${id}`);
     expect(draft.status).toBe(200);
-    expect(draft.json.content_md).toBe("the original text");
+    expect(draft.json.contentMd).toBe("the original text");
 
     expect((await apiJson(cookie, "POST", `/blyg/api/items/${id}/publish`, {})).status).toBe(200);
     const doc = await itemJson(id);
@@ -104,7 +104,7 @@ describe("forking a pinned version of our own (§2.4)", () => {
     const parent = await createAndPublish(cookie, "never pinned");
     const res = await apiJson(cookie, "POST", "/blyg/api/items", { mode: "fork", source: { origin: OURS, id: parent, version: 1 } });
     expect(res.status).toBe(400);
-    expect(res.json.error).toContain("not pinned");
+    expect(res.json.message).toContain("not pinned");
   });
 
   it("refuses a malformed reference rather than coercing one", async () => {
@@ -117,7 +117,7 @@ describe("forking a pinned version of our own (§2.4)", () => {
   it("forks a thread as a thread, flattening its quotes from the pinned document (#57)", async () => {
     const cookie = await login();
     const quoted = await createAndPublish(cookie, "a fragment to quote");
-    const created = await apiJson(cookie, "POST", "/blyg/api/items", { content_md: `intro\n\n![[${quoted}]]`, kind: "thread" });
+    const created = await apiJson(cookie, "POST", "/blyg/api/items", { contentMd: `intro\n\n![[${quoted}]]`, kind: "thread" });
     const threadId = created.json.id as string;
     expect((await apiJson(cookie, "POST", `/blyg/api/items/${threadId}/publish`, {})).status).toBe(200);
     expect((await apiJson(cookie, "PUT", `/blyg/api/items/${threadId}/versions/${1}/pin`)).status).toBe(200);
@@ -129,7 +129,7 @@ describe("forking a pinned version of our own (§2.4)", () => {
     // directive re-resolved in the forker's context, so the fork descended from
     // a composition, not from the pinned bytes. The quote is now flattened.
     const draft = await apiJson(cookie, "GET", `/blyg/api/items/${forked.json.id}`);
-    expect(draft.json.content_md).toBe(`intro\n\n> a fragment to quote\n>\n> — quoted from [example.com · v1](${OURS}f/${quoted}/)`);
+    expect(draft.json.contentMd).toBe(`intro\n\n> a fragment to quote\n>\n> — quoted from [example.com · v1](${OURS}f/${quoted}/)`);
   });
 });
 
@@ -188,7 +188,7 @@ describe("the publish-time check (§2.4)", () => {
 
     const res = await apiJson(cookie, "POST", `/blyg/api/items/${id}/publish`, {});
     expect(res.status).toBe(400);
-    expect(res.json.error).toContain("not pinned");
+    expect(res.json.message).toContain("not pinned");
   });
 
   it("does not let an unreachable origin veto the author's publish", async () => {

@@ -30,11 +30,11 @@ async function itemDoc(id: string): Promise<any> {
 describe("[[id]] links a local item, absolutely and silently", () => {
   it("renders an anchor to the target's page and records nothing on the wire", async () => {
     const cookie = await login();
-    await apiJson(cookie, "PATCH", "/blyg/api/settings", { site_url: OURS });
+    await apiJson(cookie, "PATCH", "/blyg/api/settings", { siteUrl: OURS });
     const target = await createAndPublish(cookie, "The argument I want to point back at later.");
 
     const created = await apiJson(cookie, "POST", "/blyg/api/items", {
-      content_md: `As I said in [[${target}]], the order matters.`,
+      contentMd: `As I said in [[${target}]], the order matters.`,
     });
     const id = created.json.id as string;
     expect((await apiJson(cookie, "POST", `/blyg/api/items/${id}/publish`, {})).status).toBe(200);
@@ -54,8 +54,8 @@ describe("[[id]] links a local item, absolutely and silently", () => {
 
   it("links a thread as readily as a fragment, and uses the right permalink shape", async () => {
     const cookie = await login();
-    await apiJson(cookie, "PATCH", "/blyg/api/settings", { site_url: OURS });
-    const thread = (await apiJson(cookie, "POST", "/blyg/api/items", { kind: "thread", content_md: "A thread of mine." })).json.id as string;
+    await apiJson(cookie, "PATCH", "/blyg/api/settings", { siteUrl: OURS });
+    const thread = (await apiJson(cookie, "POST", "/blyg/api/items", { kind: "thread", contentMd: "A thread of mine." })).json.id as string;
     expect((await apiJson(cookie, "POST", `/blyg/api/items/${thread}/publish`, {})).status).toBe(200);
 
     const id = await createAndPublish(cookie, `see [[${thread}]]`);
@@ -64,11 +64,11 @@ describe("[[id]] links a local item, absolutely and silently", () => {
 
   it("does not notify the target — a link asserts nothing on its behalf", async () => {
     const cookie = await login();
-    await apiJson(cookie, "PATCH", "/blyg/api/settings", { site_url: OURS });
+    await apiJson(cookie, "PATCH", "/blyg/api/settings", { siteUrl: OURS });
     const remoteId = newId();
     await importFrom(THEIRS, { id: remoteId, kind: "fragment", version: 3, content_md: "Their post about stigmergy.", page: `f/${remoteId}/` });
 
-    const created = await apiJson(cookie, "POST", "/blyg/api/items", { content_md: `worth reading: [[${remoteId}]]` });
+    const created = await apiJson(cookie, "POST", "/blyg/api/items", { contentMd: `worth reading: [[${remoteId}]]` });
     const id = created.json.id as string;
     expect((await apiJson(cookie, "POST", `/blyg/api/items/${id}/publish`, {})).status).toBe(200);
 
@@ -84,11 +84,11 @@ describe("[[id]] links a local item, absolutely and silently", () => {
 describe("[[id]] and ![[id]] are one `!` and two different acts apart", () => {
   it("a directive line still transcludes, and produces no stray link", async () => {
     const cookie = await login();
-    await apiJson(cookie, "PATCH", "/blyg/api/settings", { site_url: OURS });
+    await apiJson(cookie, "PATCH", "/blyg/api/settings", { siteUrl: OURS });
     const target = await createAndPublish(cookie, "Quoted in full.");
     const thread = (await apiJson(cookie, "POST", "/blyg/api/items", {
       kind: "thread",
-      content_md: `Before.\n\n![[${target}]]\n\nAnd separately I link [[${target}]] inline.`,
+      contentMd: `Before.\n\n![[${target}]]\n\nAnd separately I link [[${target}]] inline.`,
     })).json.id as string;
     expect((await apiJson(cookie, "POST", `/blyg/api/items/${thread}/publish`, {})).status).toBe(200);
 
@@ -102,21 +102,21 @@ describe("[[id]] and ![[id]] are one `!` and two different acts apart", () => {
 
   it("fails the publish when a link does not resolve, naming what was written", async () => {
     const cookie = await login();
-    await apiJson(cookie, "PATCH", "/blyg/api/settings", { site_url: OURS });
+    await apiJson(cookie, "PATCH", "/blyg/api/settings", { siteUrl: OURS });
     const missing = newId();
-    const draft = (await apiJson(cookie, "POST", "/blyg/api/items", { content_md: `a link to [[${missing}]]` })).json.id as string;
+    const draft = (await apiJson(cookie, "POST", "/blyg/api/items", { contentMd: `a link to [[${missing}]]` })).json.id as string;
     const res = await apiJson(cookie, "POST", `/blyg/api/items/${draft}/publish`, {});
     expect(res.status).toBe(400);
-    expect(res.json.error).toMatch(/do not resolve/);
-    expect(res.json.errors[0].directive).toBe(`[[${missing}]]`);
-    expect(res.json.errors[0].reason).toBe("unknown item");
+    expect(res.json.message).toMatch(/do not resolve/);
+    expect(res.json.details.errors[0].directive).toBe(`[[${missing}]]`);
+    expect(res.json.details.errors[0].reason).toBe("unknown item");
 
     // A draft target is unresolvable for the same reason a directive's is.
-    const unpublished = (await apiJson(cookie, "POST", "/blyg/api/items", { content_md: "still a draft" })).json.id as string;
-    const draft2 = (await apiJson(cookie, "POST", "/blyg/api/items", { content_md: `[[${unpublished}]]` })).json.id as string;
+    const unpublished = (await apiJson(cookie, "POST", "/blyg/api/items", { contentMd: "still a draft" })).json.id as string;
+    const draft2 = (await apiJson(cookie, "POST", "/blyg/api/items", { contentMd: `[[${unpublished}]]` })).json.id as string;
     const res2 = await apiJson(cookie, "POST", `/blyg/api/items/${draft2}/publish`, {});
     expect(res2.status).toBe(400);
-    expect(res2.json.errors[0].reason).toBe("item is a draft, not published");
+    expect(res2.json.details.errors[0].reason).toBe("item is a draft, not published");
   });
 
   it("shows an unresolvable link in the composer preview instead of failing it", async () => {
@@ -125,23 +125,23 @@ describe("[[id]] and ![[id]] are one `!` and two different acts apart", () => {
     const res = await SELF.fetch(`${BASE}/blyg/api/preview`, {
       method: "POST",
       headers: { cookie, "content-type": "application/json" },
-      body: JSON.stringify({ content_md: `a link to [[${missing}]]` }),
+      body: JSON.stringify({ contentMd: `a link to [[${missing}]]` }),
     });
     expect(res.status).toBe(200);
-    const body = await res.json<{ html: string; link_errors: { reason: string }[] }>();
+    const body = await res.json<{ html: string; linkErrors: { reason: string }[] }>();
     expect(body.html).toContain("⚠");
-    expect(body.link_errors[0].reason).toBe("unknown item");
+    expect(body.linkErrors[0].reason).toBe("unknown item");
   });
 });
 
 describe("[[id]] link text (roadmap row 8)", () => {
   it("takes the target's opening heading as the link text", async () => {
     const cookie = await login();
-    await apiJson(cookie, "PATCH", "/blyg/api/settings", { site_url: OURS });
-    const created = await apiJson(cookie, "POST", "/blyg/api/items", { kind: "thread", content_md: "# How protocols eat time\n\nThe body of the argument." });
+    await apiJson(cookie, "PATCH", "/blyg/api/settings", { siteUrl: OURS });
+    const created = await apiJson(cookie, "POST", "/blyg/api/items", { kind: "thread", contentMd: "# How protocols eat time\n\nThe body of the argument." });
     const target = created.json.id as string;
     expect((await apiJson(cookie, "POST", `/blyg/api/items/${target}/publish`, {})).status).toBe(200);
-    const linker = (await apiJson(cookie, "POST", "/blyg/api/items", { content_md: `See [[${target}]] for more.` })).json.id as string;
+    const linker = (await apiJson(cookie, "POST", "/blyg/api/items", { contentMd: `See [[${target}]] for more.` })).json.id as string;
     expect((await apiJson(cookie, "POST", `/blyg/api/items/${linker}/publish`, {})).status).toBe(200);
     const html = (await itemDoc(linker)).content_html as string;
     expect(html).toContain(`<a href="${OURS}t/${target}/">How protocols eat time</a>`);
@@ -149,9 +149,9 @@ describe("[[id]] link text (roadmap row 8)", () => {
 
   it("keeps the quoted excerpt when the target has no heading", async () => {
     const cookie = await login();
-    await apiJson(cookie, "PATCH", "/blyg/api/settings", { site_url: OURS });
+    await apiJson(cookie, "PATCH", "/blyg/api/settings", { siteUrl: OURS });
     const target = await createAndPublish(cookie, "A plain fragment with no heading.");
-    const linker = (await apiJson(cookie, "POST", "/blyg/api/items", { content_md: `See [[${target}]].` })).json.id as string;
+    const linker = (await apiJson(cookie, "POST", "/blyg/api/items", { contentMd: `See [[${target}]].` })).json.id as string;
     expect((await apiJson(cookie, "POST", `/blyg/api/items/${linker}/publish`, {})).status).toBe(200);
     expect((await itemDoc(linker)).content_html).toContain("“A plain fragment with no heading.”");
   });
@@ -160,13 +160,13 @@ describe("[[id]] link text (roadmap row 8)", () => {
 describe("author_url setting (roadmap row 6)", () => {
   it("defaults to the blyg's own address, can be set, and rejects non-http(s)", async () => {
     const cookie = await login();
-    await apiJson(cookie, "PATCH", "/blyg/api/settings", { site_url: OURS, author_url: "" });
-    expect((await apiJson(cookie, "PATCH", "/blyg/api/settings", { author_url: "javascript:alert(1)" })).status).toBe(400);
+    await apiJson(cookie, "PATCH", "/blyg/api/settings", { siteUrl: OURS, authorUrl: "" });
+    expect((await apiJson(cookie, "PATCH", "/blyg/api/settings", { authorUrl: "javascript:alert(1)" })).status).toBe(400);
     const id = await createAndPublish(cookie, "A post.");
     expect((await itemDoc(id)).author.url).toBe(OURS);
-    expect((await apiJson(cookie, "PATCH", "/blyg/api/settings", { author_url: "https://author.example/me" })).status).toBe(200);
+    expect((await apiJson(cookie, "PATCH", "/blyg/api/settings", { authorUrl: "https://author.example/me" })).status).toBe(200);
     const id2 = await createAndPublish(cookie, "Another post.");
     expect((await itemDoc(id2)).author.url).toBe("https://author.example/me");
-    await apiJson(cookie, "PATCH", "/blyg/api/settings", { author_url: "" });
+    await apiJson(cookie, "PATCH", "/blyg/api/settings", { authorUrl: "" });
   });
 });

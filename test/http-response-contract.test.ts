@@ -13,7 +13,7 @@ const headerTokens = (response: Response, name: string) => (response.headers.get
 
 async function publishedFixture() {
   const cookie = await login();
-  expect((await apiJson(cookie, 'PATCH', '/blyg/api/settings', { site_url: `${BASE}/blyg/` })).status).toBe(200);
+  expect((await apiJson(cookie, 'PATCH', '/blyg/api/settings', { siteUrl: `${BASE}/blyg/` })).status).toBe(200);
   const id = await createAndPublish(cookie, 'HTTP response contract body');
   return { cookie, id };
 }
@@ -59,12 +59,12 @@ describe('public HTTP response contract', () => {
     const { cookie, id } = await publishedFixture();
     const form = new FormData();
     form.set('file', new File(['fixed image bytes'], 'public.png', { type: 'image/png' }));
-    (form.set('item_id', id), form.set('expectedRevision', String(await testItemRevision(id))));
+    (form.set('itemId', id), form.set('expectedRevision', String(await testItemRevision(id))));
     const uploaded = await request('/blyg/api/media', { method: 'POST', headers: { cookie }, body: form });
     expect(uploaded.status).toBe(201);
     const media = await uploaded.json<{ url: string }>();
     expect((await apiJson(cookie, 'POST', `/blyg/api/items/${id}/publish`, {})).status).toBe(200);
-    const path = `/blyg/${media.url}`;
+    const path = new URL(media.url).pathname;
     const response = await request(path);
     expect(response.status).toBe(200);
     expect(response.headers.get('cache-control')).toBe('public, no-cache');
@@ -117,7 +117,7 @@ describe('public HTTP response contract', () => {
     expect(etag).toBeTruthy();
     const before = await first.json<{ content_md: string; content_hash: string; author: { name: string; url: string }; origin: string }>();
     expect((await apiJson(cookie, 'PATCH', '/blyg/api/settings', {
-      author_name: 'Updated HTTP Author', author_url: 'https://author.example.test/', site_url: 'https://new-origin.example.test/notes/',
+      authorName: 'Updated HTTP Author', authorUrl: 'https://author.example.test/', siteUrl: 'https://new-origin.example.test/notes/',
     })).status).toBe(200);
     const response = await request(path, { headers: { 'If-None-Match': etag } });
     expect(response.status).toBe(200);
@@ -133,7 +133,7 @@ describe('public HTTP response contract', () => {
 
   it('keeps changing public absence uncached and readable across origins', async () => {
     const { cookie, id } = await publishedFixture();
-    const draft = await apiJson(cookie, 'POST', '/blyg/api/items', { content_md: 'Private working copy' });
+    const draft = await apiJson(cookie, 'POST', '/blyg/api/items', { contentMd: 'Private working copy' });
     expect(draft.status).toBe(201);
     for (const path of [`/blyg/items/${draft.json.id}.json`, '/blyg/items/http-contract-missing.json', `/blyg/items/${id}/v1.json`, '/blyg/blogroll.opml']) {
       for (const method of ['GET', 'HEAD']) {
@@ -186,13 +186,13 @@ describe('private HTTP response contract', () => {
     const media = await uploaded.json<{ url: string }>();
     const grant = await apiJson(cookie, 'POST', '/blyg/api/authorizations', { name: 'HTTP media reader', scope: ['owner:read'], resource: 'api' });
     expect(grant.status).toBe(200);
-    const path = `/blyg/${media.url}`;
+    const path = new URL(media.url).pathname;
     const preflight = await request(path, { method: 'OPTIONS', headers: { Origin: READER, 'Access-Control-Request-Method': 'GET', 'Access-Control-Request-Headers': 'authorization' } });
     expect(preflight.status).toBe(204);
     expect(preflight.headers.get('access-control-allow-origin')).toBe('*');
     expect(headerTokens(preflight, 'access-control-allow-headers')).toContain('authorization');
     await preflight.arrayBuffer();
-    const response = await request(path, { headers: { Authorization: `Bearer ${grant.json.access_token}`, Origin: READER } });
+    const response = await request(path, { headers: { Authorization: `Bearer ${grant.json.accessToken}`, Origin: READER } });
     expect(response.status).toBe(200);
     expect(response.headers.get('cache-control')).toBe('no-store');
     expect(response.headers.get('access-control-allow-origin')).toBe('*');
@@ -229,7 +229,7 @@ describe('private HTTP response contract', () => {
       { path: '/blyg/api/authorizations', method: 'PATCH', expected: ['delete', 'get', 'head', 'post'], headers: { cookie } },
       { path: '/blyg/api/authorizations/http-contract-missing', method: 'POST', expected: ['delete'], headers: { cookie } },
       { path: '/blyg/api/openapi.json', method: 'POST', expected: ['get', 'head'], headers: { cookie } },
-      { path: `${STUDIO}/mcp`, method: 'PUT', expected: ['post'], headers: { Authorization: `Bearer ${grant.json.access_token}` } },
+      { path: `${STUDIO}/mcp`, method: 'PUT', expected: ['post'], headers: { Authorization: `Bearer ${grant.json.accessToken}` } },
     ];
     for (const { path, method, expected, headers } of cases) {
       const response = await request(path, { method, headers });

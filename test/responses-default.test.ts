@@ -34,7 +34,7 @@ async function respondTo(itemId: string, origin = "https://friend.example/blyg/"
 }
 
 const setDefault = (cookie: string, on: boolean) =>
-  apiJson(cookie, "PATCH", "/blyg/api/settings", { show_responses_default: on });
+  apiJson(cookie, "PATCH", "/blyg/api/settings", { showResponsesDefault: on });
 const setItem = (cookie: string, id: string, mode: string) =>
   apiJson(cookie, "PATCH", `/blyg/api/items/${id}`, { responses: mode });
 const page = async (id: string) => (await getPublic(`/blyg/f/${id}/`)).text();

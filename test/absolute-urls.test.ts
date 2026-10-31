@@ -21,7 +21,7 @@ const THEIRS = "https://them.example/blyg/";
 const imgs = (html: string) => [...html.matchAll(/<img[^>]*src="([^"]*)"/g)].map((m) => m[1]);
 
 async function publishThread(cookie: string, md: string): Promise<string> {
-  const id = (await apiJson(cookie, "POST", "/blyg/api/items", { content_md: md, kind: "thread" })).json.id as string;
+  const id = (await apiJson(cookie, "POST", "/blyg/api/items", { contentMd: md, kind: "thread" })).json.id as string;
   expect((await apiJson(cookie, "POST", `/blyg/api/items/${id}/publish`, {})).status).toBe(200);
   return id;
 }
@@ -29,7 +29,7 @@ async function publishThread(cookie: string, md: string): Promise<string> {
 describe("publishing", () => {
   it("writes absolute media URLs into the item document", async () => {
     const cookie = await login();
-    const id = (await apiJson(cookie, "POST", "/blyg/api/items", { content_md: "Look:\n\n![a](/blyg/media/abc.png)\n\n![b](media/def.png)" })).json.id as string;
+    const id = (await apiJson(cookie, "POST", "/blyg/api/items", { contentMd: "Look:\n\n![a](/blyg/media/abc.png)\n\n![b](media/def.png)" })).json.id as string;
     expect((await apiJson(cookie, "POST", `/blyg/api/items/${id}/publish`, {})).status).toBe(200);
     const doc = await (await getPublic(`/blyg/items/${id}.json`)).json<{ content_html: string; content_md: string }>();
     expect(imgs(doc.content_html)).toEqual(["https://example.com/blyg/media/abc.png", `${OURS}media/def.png`]);
@@ -39,7 +39,7 @@ describe("publishing", () => {
 
   it("leaves absolute, protocol-relative and fragment URLs alone", async () => {
     const cookie = await login();
-    const id = (await apiJson(cookie, "POST", "/blyg/api/items", { content_md: "[x](https://else.example/p) [y](//cdn.example/q) [z](#here)" })).json.id as string;
+    const id = (await apiJson(cookie, "POST", "/blyg/api/items", { contentMd: "[x](https://else.example/p) [y](//cdn.example/q) [z](#here)" })).json.id as string;
     await apiJson(cookie, "POST", `/blyg/api/items/${id}/publish`, {});
     const doc = await (await getPublic(`/blyg/items/${id}.json`)).json<{ content_html: string }>();
     expect(doc.content_html).toContain('href="https://else.example/p"');
@@ -82,7 +82,7 @@ describe("importing", () => {
 describe("baking a remote snapshot into a thread", () => {
   it("resolves the snapshot against ITS origin, not ours, even for a row stored before the fix", async () => {
     const cookie = await login();
-    await apiJson(cookie, "PATCH", "/blyg/api/settings", { site_url: OURS });
+    await apiJson(cookie, "PATCH", "/blyg/api/settings", { siteUrl: OURS });
     const sub = await createSubscription(env.DB, { kind: "blyg", origin: THEIRS, feedUrl: `${THEIRS}feed.xml`, title: "Them" });
     const remote = "0000000000000000000000000r";
     await env.DB.prepare("INSERT INTO imported_items (subscription_id, remote_id, kind, state, version, observed_at, content_md, content_html, l0) VALUES (?, ?, 'fragment', 'current', 1, '2026-10-01T00:00:00Z', 'x', ?, 0)")

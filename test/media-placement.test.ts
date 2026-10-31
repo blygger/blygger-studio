@@ -1,3 +1,4 @@
+import { testMediaKey } from './helpers.ts';
 import { testItemRevision } from './helpers.ts';
 // studio#24 and Venkat's report (session 32): a Studio upload is placed in the
 // text, so it is shown only where its line is — once, and gone when the line
@@ -12,7 +13,7 @@ import { apiJson, BASE, getPublic, login } from "./helpers.ts";
 async function upload(cookie: string, itemId: string, name: string, inline: boolean) {
   const form = new FormData();
   form.set("file", new File([new Uint8Array([0x89, 0x50, 0x4e, 0x47, 1, 2])], name, { type: "image/png" }));
-  (form.set("item_id", itemId), form.set('expectedRevision', String(await testItemRevision(itemId))));
+  (form.set("itemId", itemId), form.set('expectedRevision', String(await testItemRevision(itemId))));
   if (inline) form.set("inline", "true");
   const res = await SELF.fetch(`${BASE}/blyg/api/media`, { method: "POST", headers: { cookie }, body: form });
   return (await res.json()) as { id: string; url: string };
@@ -20,21 +21,21 @@ async function upload(cookie: string, itemId: string, name: string, inline: bool
 // Rendered images only — og:image in the head names the first image too, correctly.
 const count = (html: string, key: string) => [...html.matchAll(/<img[^>]*>/g)].filter((m) => m[0].includes(key)).length;
 async function publishText(cookie: string, id: string, md: string) {
-  await apiJson(cookie, "PATCH", `/blyg/api/items/${id}`, { content_md: md });
+  await apiJson(cookie, "PATCH", `/blyg/api/items/${id}`, { contentMd: md });
   expect((await apiJson(cookie, "POST", `/blyg/api/items/${id}/publish`, {})).status).toBe(200);
 }
 
 describe("placed and appended media", () => {
   it("a placed image renders once; deleting its line removes it everywhere; a tool's attachment is appended", async () => {
     const cookie = await login();
-    const id = (await apiJson(cookie, "POST", "/blyg/api/items", { content_md: "draft" })).json.id as string;
+    const id = (await apiJson(cookie, "POST", "/blyg/api/items", { contentMd: "draft" })).json.id as string;
     const placed = await upload(cookie, id, "placed.png", true);
     const tool = await upload(cookie, id, "tool.png", false);
     await publishText(cookie, id, `Look:\n\n![a picture](${placed.url})\n\nThat is all.`);
 
     let page = await (await getPublic(`/blyg/f/${id}/`)).text();
     expect(count(page, placed.url)).toBe(1);
-    expect(count(page, tool.url)).toBe(1);
+    expect(count(page, testMediaKey(tool.url))).toBe(1);
     let feed = await (await getPublic("/blyg/feed.xml")).text();
     expect(count(feed, placed.url)).toBe(1);
     expect(count(feed, tool.url)).toBe(1);
@@ -46,7 +47,7 @@ describe("placed and appended media", () => {
     feed = await (await getPublic("/blyg/feed.xml")).text();
     expect(count(feed, placed.url)).toBe(0);
     const doc = await (await getPublic(`/blyg/items/${id}.json`)).json<any>();
-    expect(doc.media.map((m: { url: string }) => m.url)).toEqual([tool.url]);
+    expect(doc.media.map((m: { url: string }) => m.url)).toEqual([testMediaKey(tool.url)]);
   });
 
   it("matches keys as paths and respects the inline flag", () => {
@@ -60,29 +61,29 @@ describe("placed and appended media", () => {
 describe("removing an attachment", () => {
   it("deletes bytes nothing published shows", async () => {
     const cookie = await login();
-    const id = (await apiJson(cookie, "POST", "/blyg/api/items", { content_md: "draft" })).json.id as string;
+    const id = (await apiJson(cookie, "POST", "/blyg/api/items", { contentMd: "draft" })).json.id as string;
     const m = await upload(cookie, id, "unused.png", false);
     const res = await apiJson(cookie, "DELETE", `/blyg/api/media/${m.id}`);
     expect(res.json).toMatchObject({ ok: true, outcome: "deleted" });
-    expect((await getPublic(`/blyg/${m.url}`)).status).toBe(404);
+    expect((await getPublic(new URL(m.url).pathname)).status).toBe(404);
     expect((await apiJson(cookie, "GET", `/blyg/api/items/${id}`)).json.media).toEqual([]);
   });
 
   it("keeps bytes a published version shows, and only detaches the row (§5.4)", async () => {
     const cookie = await login();
-    const id = (await apiJson(cookie, "POST", "/blyg/api/items", { content_md: "draft" })).json.id as string;
+    const id = (await apiJson(cookie, "POST", "/blyg/api/items", { contentMd: "draft" })).json.id as string;
     const m = await upload(cookie, id, "kept.png", true);
     await publishText(cookie, id, `![](${m.url})`);
     await publishText(cookie, id, "Image line deleted in v2.");
     const res = await apiJson(cookie, "DELETE", `/blyg/api/media/${m.id}`);
     expect(res.json).toMatchObject({ outcome: "detached" });
-    expect((await getPublic(`/blyg/${m.url}`)).status).toBe(200);
+    expect((await getPublic(new URL(m.url).pathname)).status).toBe(200);
     expect((await apiJson(cookie, "GET", `/blyg/api/items/${id}`)).json.media).toEqual([]);
   });
 
   it("refuses the avatar", async () => {
     const cookie = await login();
-    const id = (await apiJson(cookie, "POST", "/blyg/api/items", { content_md: "draft" })).json.id as string;
+    const id = (await apiJson(cookie, "POST", "/blyg/api/items", { contentMd: "draft" })).json.id as string;
     const m = await upload(cookie, id, "face.png", false);
     await env.DB.prepare("INSERT OR REPLACE INTO settings (key, value) VALUES ('avatar_media_id', ?)").bind(m.id).run();
     expect((await apiJson(cookie, "DELETE", `/blyg/api/media/${m.id}`)).status).toBe(409);

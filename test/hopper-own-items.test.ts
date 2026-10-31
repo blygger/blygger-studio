@@ -14,10 +14,10 @@ async function publicHopper(cookie: string, name: string) {
 describe("own items in hoppers", () => {
   it("are added and removed with ~own, shown publicly only while published, and kept out of the reading log", async () => {
     const cookie = await login();
-    await apiJson(cookie, "PATCH", "/blyg/api/settings", { author_name: "Ada <Writer>" });
+    await apiJson(cookie, "PATCH", "/blyg/api/settings", { authorName: "Ada <Writer>" });
     const hopper = await publicHopper(cookie, "My best");
     const post = await createAndPublish(cookie, "# Own post\n\nWritten here.");
-    const draft = (await apiJson(cookie, "POST", "/blyg/api/items", { content_md: "still a draft" })).json.id as string;
+    const draft = (await apiJson(cookie, "POST", "/blyg/api/items", { contentMd: "still a draft" })).json.id as string;
 
     const add = (id: string) => apiJson(cookie, "PUT", `/blyg/api/hoppers/${hopper.id}/items/~own/${id}`);
     expect((await add(post)).status).toBe(200);
@@ -27,8 +27,8 @@ describe("own items in hoppers", () => {
 
     const detail = (await apiJson(cookie, "GET", `/blyg/api/hoppers/${hopper.id}`)).json;
     expect(detail.total).toBe(2);
-    expect(detail.source_count).toBe(0);
-    expect(detail.memberships.map((m: { subscription_id: string }) => m.subscription_id)).toEqual(["~own", "~own"]);
+    expect(detail.sourceCount).toBe(0);
+    expect(detail.memberships.map((m: { subscriptionId: string }) => m.subscriptionId)).toEqual(["~own", "~own"]);
 
     let page = await (await getPublic(`/blyg/h/${hopper.slug}/`)).text();
     expect(page).toContain(`/blyg/f/${post}/`);
@@ -46,6 +46,6 @@ describe("own items in hoppers", () => {
     // Own items are not reading, so the interaction log gains nothing from them.
     const after = await env.DB.prepare("SELECT COUNT(*) AS n FROM interactions WHERE kind IN ('hopper_add', 'hopper_remove')").first<{ n: number }>();
     expect(after!.n).toBe(before!.n);
-    await apiJson(cookie, "PATCH", "/blyg/api/settings", { author_name: "" });
+    await apiJson(cookie, "PATCH", "/blyg/api/settings", { authorName: "" });
   });
 });

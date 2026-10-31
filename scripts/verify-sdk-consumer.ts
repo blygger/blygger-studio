@@ -17,8 +17,8 @@ export async function verifySdkConsumer(temp: string, archive: string, baseUrl: 
 import { BlyggerApi, createBlyggerClient, unwrap } from '@blygger/sdk';
 import { zItem } from '@blygger/sdk/schemas';
 const client = createBlyggerClient({baseUrl: process.env.TEST_URL, auth: scheme => scheme.in === 'cookie' ? process.env.TEST_TOKEN : undefined});
-const created = await unwrap(BlyggerApi.createItem({client, body: {content_md: 'Installed Node consumer'}}));
-assert.equal(zItem.parse(await unwrap(BlyggerApi.getItem({client, path: {id: created.id}}))).content_md, 'Installed Node consumer');
+const created = await unwrap(BlyggerApi.createItem({client, body: {contentMd: 'Installed Node consumer'}}));
+assert.equal(zItem.parse(await unwrap(BlyggerApi.getItem({client, path: {id: created.id}}))).contentMd, 'Installed Node consumer');
 assert.equal(zItem.safeParse({...created, kind: 'invalid'}).success, false);
 const media = await unwrap(BlyggerApi.uploadMedia({client, body: {file: new File(['consumer'], 'consumer.png', {type: 'image/png'})}}));
 assert.equal(media.mime, 'image/png');
@@ -31,7 +31,7 @@ console.log('Installed Node package exports/read/write/upload/auth passed');`;
 const options: BlyggerClientOptions = {baseUrl: 'https://example.org/api'};
 const client = createBlyggerClient(options);
 import { zItem } from '@blygger/sdk/schemas';
-const item = await unwrap(BlyggerApi.createItem({client, body: {content_md: 'typed'}}));
+const item = await unwrap(BlyggerApi.createItem({client, body: {contentMd: 'typed'}}));
 const id: string = item.id;
 const parsed = zItem.parse(item);
 const parsedId: string = parsed.id;
@@ -39,7 +39,7 @@ const parsedId: string = parsed.id;
 const invalidKind: typeof parsed.kind = 'invalid';
 await BlyggerApi.getItem({client, path: {id}});
 // @ts-expect-error Content must be text. An absent declaration makes this unused.
-await BlyggerApi.createItem({client, body: {content_md: 42}});
+await BlyggerApi.createItem({client, body: {contentMd: 42}});
 `);
   for (const [module, resolution, extra] of [["NodeNext", "NodeNext", []], ["ESNext", "Bundler", ["--customConditions", "browser"]]] as const) {
     execFileSync(process.execPath, [resolve("node_modules/typescript/bin/tsc"), "--noEmit", "--strict", "--target", "ES2022", "--lib", "ES2022,DOM,DOM.Iterable", "--module", module, "--moduleResolution", resolution, ...extra, "types.ts"], { cwd: consumer, stdio: "inherit" });
@@ -59,11 +59,11 @@ await BlyggerApi.createItem({client, body: {content_md: 42}});
     const result = await page.evaluate(async baseUrl => {
       const sdk = (globalThis as unknown as { consumerSdk: typeof import("../sdk/dist/browser.js") }).consumerSdk;
       const client = sdk.createBlyggerClient({ baseUrl });
-      const created = await sdk.unwrap(sdk.BlyggerApi.createItem({ client, body: { content_md: "Installed browser consumer" } }));
+      const created = await sdk.unwrap(sdk.BlyggerApi.createItem({ client, body: { contentMd: "Installed browser consumer" } }));
       const schema = (globalThis as unknown as { consumerSchema: typeof import("../sdk/dist/schemas.js").zItem }).consumerSchema;
       const item = schema.parse(await sdk.unwrap(sdk.BlyggerApi.getItem({ client, path: { id: created.id } })));
       const media = await sdk.unwrap(sdk.BlyggerApi.uploadMedia({ client, body: { file: new File(["browser"], "browser.png", { type: "image/png" }) } }));
-      return { content: item.content_md, mime: media.mime };
+      return { content: item.contentMd, mime: media.mime };
     }, baseUrl);
     assert.deepEqual(result, { content: "Installed browser consumer", mime: "image/png" });
   } finally { await browser.close(); }

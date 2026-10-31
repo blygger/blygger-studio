@@ -164,13 +164,13 @@ test('commands cannot merge or be crossed by later saves', async () => {
 
 test('generation and text saves share one queue without replacing later local text', async () => {
   const gate = deferred(), writes: string[] = [];
-  const draft = new Draft('first', async text => { writes.push(text); }, async () => { await gate.promise; writes.push('generated'); return { text: 'generated', content_md: 'generated', model: 'test' }; });
+  const draft = new Draft('first', async text => { writes.push(text); }, async () => { await gate.promise; writes.push('generated'); return { text: 'generated', contentMd: 'generated', model: 'test' }; });
   draft.edit('before generation'); await draft.save();
   const revision = draft.revision;
   const generated = draft.write({ type: 'generate', scope: 0 });
   draft.edit('typed during generation'); const saved = draft.save();
   gate.resolve(); const result = await generated;
-  if (draft.revision === revision) draft.edit(result.content_md);
+  if (draft.revision === revision) draft.edit(result.contentMd);
   expect(await saved).toBe(true);
   expect(writes).toEqual(['before generation', 'generated', 'typed during generation']);
   expect(draft.text).toBe('typed during generation'); expect(draft.dirty).toBe(false);

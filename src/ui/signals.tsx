@@ -99,10 +99,10 @@ export function SignalsPage() {
         ) : shown.length ? (
           <ul className="nav-list signals-list">
             {shown.map((t) => (
-              <li key={`${t.origin}|${t.remote_id}`}>
+              <li key={`${t.origin}|${t.remoteId}`}>
                 <div className="signal-row">
                   <span className="ml">
-                    <Target label={t.label} origin={t.origin} remoteId={t.remote_id} subscriptionId={t.subscription_id} />
+                    <Target label={t.label} origin={t.origin} remoteId={t.remoteId} subscriptionId={t.subscriptionId} />
                     <span className="md">
                       {host(t.origin)} · {when(t.at)}
                     </span>
@@ -123,15 +123,15 @@ export function SignalsPage() {
               <li key={r.id} data-kind={r.kind}>
                 <div className="signal-row">
                   <span className="ml">
-                    <Target label={r.label} origin={r.origin} remoteId={r.remote_id} subscriptionId={r.subscription_id} />
+                    <Target label={r.label} origin={r.origin} remoteId={r.remoteId} subscriptionId={r.subscriptionId} />
                     <span className="md">
                       {KIND_LABELS[r.kind]}
-                      {r.hopper_name ? ` “${r.hopper_name}”` : ''}
-                      {r.own_item_id ? (
+                      {r.hopperName ? ` “${r.hopperName}”` : ''}
+                      {r.ownItemId ? (
                         <>
                           {' '}
                           in{' '}
-                          <Link to="/edit/$id" params={{ id: r.own_item_id }}>
+                          <Link to="/edit/$id" params={{ id: r.ownItemId }}>
                             your item
                           </Link>
                         </>

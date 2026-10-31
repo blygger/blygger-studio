@@ -113,10 +113,10 @@ describe("the setting and the home page", () => {
   it("a fresh install defaults to pace-layered, and only known orders are accepted", async () => {
     const cookie = await login();
     expect(DEFAULT_FEED_ORDER).toBe("pace-layered");
-    expect((await apiJson(cookie, "GET", "/blyg/api/settings")).json.feed_order).toBe("pace-layered");
-    expect((await apiJson(cookie, "PATCH", "/blyg/api/settings", { feed_order: "made-up" })).status).toBe(400);
-    expect((await apiJson(cookie, "PATCH", "/blyg/api/settings", { feed_order: "reverse-chronological" })).status).toBe(200);
-    expect((await apiJson(cookie, "GET", "/blyg/api/settings")).json.feed_order).toBe("reverse-chronological");
+    expect((await apiJson(cookie, "GET", "/blyg/api/settings")).json.feedOrder).toBe("pace-layered");
+    expect((await apiJson(cookie, "PATCH", "/blyg/api/settings", { feedOrder: "made-up" })).status).toBe(400);
+    expect((await apiJson(cookie, "PATCH", "/blyg/api/settings", { feedOrder: "reverse-chronological" })).status).toBe(200);
+    expect((await apiJson(cookie, "GET", "/blyg/api/settings")).json.feedOrder).toBe("reverse-chronological");
   });
 
   it("the home page follows the chosen order", async () => {
@@ -125,13 +125,13 @@ describe("the setting and the home page", () => {
     await retime(a, 1, 1);
     await retime(b, 1, 2);
     await retime(c, 1, 3);
-    await apiJson(cookie, "PATCH", `/blyg/api/items/${a}`, { content_md: "first, revised" });
+    await apiJson(cookie, "PATCH", `/blyg/api/items/${a}`, { contentMd: "first, revised" });
     expect((await apiJson(cookie, "POST", `/blyg/api/items/${a}/publish`, {})).status).toBe(200);
     await retime(a, 2, 4);
 
-    await apiJson(cookie, "PATCH", "/blyg/api/settings", { feed_order: "reverse-chronological" });
+    await apiJson(cookie, "PATCH", "/blyg/api/settings", { feedOrder: "reverse-chronological" });
     expect(await homeOrder([a, b, c])).toEqual([a, c, b]);
-    await apiJson(cookie, "PATCH", "/blyg/api/settings", { feed_order: "pace-layered" });
+    await apiJson(cookie, "PATCH", "/blyg/api/settings", { feedOrder: "pace-layered" });
     expect(await homeOrder([a, b, c])).toEqual([c, a, b]);
   });
 });
@@ -165,12 +165,12 @@ describe("migration 0029", () => {
 describe("feed orders from extensions", () => {
   it("are offered only while their extension is enabled, and fall back to the default after", async () => {
     const cookie = await login();
-    const ids = async () => ((await apiJson(cookie, "GET", "/blyg/api/settings")).json.feed_orders as { id: string }[]).map((o) => o.id);
+    const ids = async () => ((await apiJson(cookie, "GET", "/blyg/api/settings")).json.feedOrders as { id: string }[]).map((o) => o.id);
     await apiJson(cookie, "PATCH", "/blyg/api/settings", { extensions: [] });
     expect(await ids()).toEqual(["pace-layered", "reverse-chronological"]);
-    expect((await apiJson(cookie, "PATCH", "/blyg/api/settings", { feed_order: "feed-example/pins-first" })).status).toBe(400);
+    expect((await apiJson(cookie, "PATCH", "/blyg/api/settings", { feedOrder: "feed-example/pins-first" })).status).toBe(400);
     // One request may enable the extension and choose its order.
-    expect((await apiJson(cookie, "PATCH", "/blyg/api/settings", { extensions: ["feed-example"], feed_order: "feed-example/pins-first" })).status).toBe(200);
+    expect((await apiJson(cookie, "PATCH", "/blyg/api/settings", { extensions: ["feed-example"], feedOrder: "feed-example/pins-first" })).status).toBe(200);
     expect(await ids()).toContain("feed-example/pins-first");
 
     const plain = await createAndPublish(cookie, "unpinned, newer");
@@ -181,14 +181,14 @@ describe("feed orders from extensions", () => {
     expect(await homeOrder([plain, pinned])).toEqual([pinned, plain]);
 
     await apiJson(cookie, "PATCH", "/blyg/api/settings", { extensions: [] });
-    expect((await apiJson(cookie, "GET", "/blyg/api/settings")).json.feed_order).toBe("feed-example/pins-first");
+    expect((await apiJson(cookie, "GET", "/blyg/api/settings")).json.feedOrder).toBe("feed-example/pins-first");
     expect((await SELF.fetch(`${BASE}/blyg/`)).status).toBe(200); // served by the default, not an error
   });
 
   it("only order: drafts, withdrawn items, repeats and unknown ids never reach the page", async () => {
     const cookie = await login();
     const shown = await createAndPublish(cookie, "published");
-    const draft = (await apiJson(cookie, "POST", "/blyg/api/items", { content_md: "a draft" })).json.id as string;
+    const draft = (await apiJson(cookie, "POST", "/blyg/api/items", { contentMd: "a draft" })).json.id as string;
     const withdrawn = await createAndPublish(cookie, "withdrawn soon");
     expect((await apiJson(cookie, "POST", `/blyg/api/items/${withdrawn}/withdraw`)).status).toBe(200);
     const rogue = { name: "rogue", routes() {}, feeds: [{ id: "rogue/all", title: "", description: "", order: () => [draft, withdrawn, "nonexistent", shown, shown] }] };

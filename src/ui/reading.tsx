@@ -23,7 +23,7 @@ import type {
   CreateItemData,
   Hopper,
   ImportedItem,
-  SignalRow,
+  Signal,
   ListReadingResponses,
   Subscription,
 } from '../../sdk/dist/browser.js';
@@ -107,12 +107,12 @@ function sourceLetter(source: Subscription) {
 }
 /** The subscription row's one-line status, in the alert colour when failing. */
 function sourceStatus(source: Subscription, timeZone: string) {
-  const polled = source.last_poll_at
-    ? `last polled ${pollTime(source.last_poll_at, timeZone)}`
+  const polled = source.lastPollAt
+    ? `last polled ${pollTime(source.lastPollAt, timeZone)}`
     : 'never polled';
   if (source.status === 'paused') return { text: 'paused', bad: false };
-  if (source.fail_count > 0)
-    return { text: `${source.fail_count} failures · ${polled}`, bad: true };
+  if (source.failCount > 0)
+    return { text: `${source.failCount} failures · ${polled}`, bad: true };
   return {
     text: `${source.kind === 'rss' ? 'legacy rss · ' : ''}${polled}`,
     bad: false,
@@ -324,9 +324,9 @@ function entryParts(entry: Reading) {
     : imported?.sourceUrl || undefined;
   // Own items are stubbed as hoppers address them, `~own` (session 50).
   const source = imported
-    ? { subscription_id: imported.subscriptionId, remote_id: imported.remoteId }
+    ? { subscriptionId: imported.subscriptionId, remoteId: imported.remoteId }
     : entry.own
-      ? { subscription_id: OWN_SUB, remote_id: entry.own.id }
+      ? { subscriptionId: OWN_SUB, remoteId: entry.own.id }
       : undefined;
   return { imported, id, url, source };
 }
@@ -417,7 +417,7 @@ function useEntryActions({
 }: {
   entry: Reading;
   actions: Actions;
-  votes: SignalRow[];
+  votes: Signal[];
   buckets: Hopper[];
   /** The owner followed the entry to its origin. */
   opened: () => void;
@@ -430,8 +430,8 @@ function useEntryActions({
   const { imported, id, url, source } = entryParts(entry);
   const signal = votes.find(
     (vote) =>
-      vote.subscription_id === imported?.subscriptionId &&
-      vote.remote_id === imported.remoteId,
+      vote.subscriptionId === imported?.subscriptionId &&
+      vote.remoteId === imported?.remoteId,
   );
   const vote = (thumb: 1 | -1) =>
     run(async () => {
@@ -446,7 +446,7 @@ function useEntryActions({
   const stub = () =>
     source ? run(() => openDraft({ mode: 'response', source })) : undefined;
   const linkPost = () =>
-    void run(() => openDraft({ content_md: `[[${id}]]\n\n`, kind: 'fragment' }));
+    void run(() => openDraft({ contentMd: `[[${id}]]\n\n`, kind: 'fragment' }));
   const forkPage = () => {
     if (imported)
       void navigate({ to: '/fork', search: { id, sub: imported.subscriptionId } });
@@ -685,7 +685,7 @@ function Entry({
 }: {
   entry: Reading;
   actions: Actions;
-  votes: SignalRow[];
+  votes: Signal[];
   buckets: Hopper[];
 }) {
   const readUi = useContext(ReadContext);
@@ -834,8 +834,8 @@ function ChangeLead({ entry }: { entry: Reading }) {
 async function ownEntry(id: string, signal?: AbortSignal): Promise<Reading> {
   const item = await unwrap(BlyggerApi.getItem({ client, path: { id }, signal }));
   const withdrawn = item.status === 'withdrawn';
-  const contentHtml = withdrawn ? '' : (item.published?.content_html ?? '');
-  const kind = item.authored_kind;
+  const contentHtml = withdrawn ? '' : (item.published?.contentHtml ?? '');
+  const kind = item.kind;
   return {
     key: `own:${id}`,
     source: 'own',
@@ -843,7 +843,7 @@ async function ownEntry(id: string, signal?: AbortSignal): Promise<Reading> {
     withdrawn,
     l0: false,
     contentHtml,
-    displayAt: item.published?.published_at ?? item.updated,
+    displayAt: item.published?.publishedAt ?? item.updated,
     rank: 0,
     own: { id, kind, withdrawn, updated: item.updated, contentHtml },
   };
@@ -1092,13 +1092,13 @@ function Inspector({
         <dt>polled</dt>
         <dd>
           {shown.status === 'paused' ? 'paused · ' : ''}
-          {shown.last_poll_at
-            ? `last polled ${pollTime(shown.last_poll_at, timeZone)}`
+          {shown.lastPollAt
+            ? `last polled ${pollTime(shown.lastPollAt, timeZone)}`
             : 'never polled'}
         </dd>
         <dt>failures</dt>
-        <dd className={shown.fail_count ? 'bad' : undefined}>
-          {shown.fail_count}
+        <dd className={shown.failCount ? 'bad' : undefined}>
+          {shown.failCount}
         </dd>
         <dt>items</dt>
         <dd>{count ?? '…'}</dd>
@@ -1106,13 +1106,13 @@ function Inspector({
       <label className="check">
         <input
           type="checkbox"
-          checked={shown.in_blogroll}
+          checked={shown.inBlogroll}
           onChange={(event) => {
             const checked = event.target.checked;
             setError(undefined);
             subscriptions
               .update(shown.id, (row) => {
-                row.in_blogroll = checked;
+                row.inBlogroll = checked;
               })
               .when('settled').then(
                 () =>
@@ -1386,7 +1386,7 @@ function HopperSource({ id, name }: { id: string; name: string }) {
             <span className="ft">{name}</span>
             {row ? (
               <span className="fs">
-                {row.source_count} source{row.source_count === 1 ? '' : 's'} ·{' '}
+                {row.sourceCount} source{row.sourceCount === 1 ? '' : 's'} ·{' '}
                 {row.hopper.public ? 'public' : 'private'}
               </span>
             ) : null}
@@ -1484,7 +1484,7 @@ function Sources() {
       <div className="list-h">
         <span>subscriptions · {sources.length}</span>
         <span className="list-h-actions">
-          {sources.filter((source) => source.in_blogroll).length} in blogroll
+          {sources.filter((source) => source.inBlogroll).length} in blogroll
           <Button className="link-btn" id="opml-open" onClick={() => setImporting(true)}>
             import OPML
           </Button>
@@ -1829,31 +1829,31 @@ function hopperEntry(
 ): Reading {
   const withdrawn = item.state === 'tombstone';
   const displayAt =
-    item.updated && Date.parse(item.updated) < Date.parse(item.observed_at)
+    item.updated && Date.parse(item.updated) < Date.parse(item.observedAt)
       ? item.updated
-      : item.observed_at;
+      : item.observedAt;
   return {
-    key: `imported:${JSON.stringify([item.subscription_id, item.remote_id])}`,
+    key: `imported:${JSON.stringify([item.subscriptionId, item.remoteId])}`,
     source: 'imported',
     kind: item.kind,
     withdrawn,
     l0: item.l0,
-    contentHtml: item.content_html,
+    contentHtml: item.contentHtml,
     displayAt,
     rank,
     imported: {
-      subscriptionId: item.subscription_id,
-      subscriptionTitle: source ? sourceName(source) : item.subscription_id,
-      remoteId: item.remote_id,
+      subscriptionId: item.subscriptionId,
+      subscriptionTitle: source ? sourceName(source) : item.subscriptionId,
+      remoteId: item.remoteId,
       kind: item.kind,
       withdrawn,
       l0: item.l0,
       updated: item.updated,
-      observedAt: item.observed_at,
-      contentHtml: item.content_html,
-      pinnedVersionRetained: item.pinned_version_retained,
+      observedAt: item.observedAt,
+      contentHtml: item.contentHtml,
+      pinnedVersionRetained: item.pinnedVersionRetained,
       sourceUrl: source
-        ? sourceTitleAndUrl({ ...item, l0: item.l0 ? 1 : 0 }, source.origin)
+        ? sourceTitleAndUrl({ l0: item.l0 ? 1 : 0, kind: item.kind, remote_id: item.remoteId, content_html: item.contentHtml, page: item.page }, source.origin)
             .url
         : null,
       version: item.version,
@@ -1890,7 +1890,7 @@ function HopperTimeline({ id, offset }: { id: string; offset: number }) {
         .map((item, i) =>
           hopperEntry(
             item,
-            sources.find((source) => source.id === item.subscription_id),
+            sources.find((source) => source.id === item.subscriptionId),
             i,
           ),
         )
@@ -2026,7 +2026,7 @@ function History({ sub, id }: { sub: string; id: string }) {
         loadVersion(sub, id, from),
         loadVersion(sub, id, to),
       ]);
-      setDiff({ from, to, ops: diffText(a.content_md, b.content_md) });
+      setDiff({ from, to, ops: diffText(a.contentMd, b.contentMd) });
     } catch (e) {
       setError(e);
     } finally {

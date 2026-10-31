@@ -72,13 +72,13 @@ async function run(instructions: Instruction[]) {
   async function mint(slot: number, mask: number, resource: Resource) {
     const response = await owner('/blyg/api/authorizations', 'POST', { name: `oracle-${slot}`, scope: scopes(mask), resource });
     atCheckpoint('authorization issuance', () => expect(response.status).toBe(200));
-    const value = await response.json() as { access_token: string; expires_in: number; authorization: { id: string; scope: string[]; resource: string } };
+    const value = await response.json() as { accessToken: string; expiresIn: number; authorization: { id: string; scope: string[]; resource: string } };
     atCheckpoint('authorization lifetime and consent', () => {
-      expect(value.expires_in).toBe(2592000);
+      expect(value.expiresIn).toBe(2592000);
       expect(value.authorization.scope).toEqual(scopes(mask));
       expect(value.authorization.resource).toBe(resource === 'api' ? base + '/blyg/api' : base + '/blyg/studio/mcp');
     });
-    tokens.set(slot, { token: value.access_token, id: value.authorization.id });
+    tokens.set(slot, { token: value.accessToken, id: value.authorization.id });
     model.mint(slot, scopes(mask), resource, 2592000);
   }
   // Every history starts with a usable credential: revocation and expiry have
@@ -99,7 +99,7 @@ async function run(instructions: Instruction[]) {
         atCheckpoint('authorization wrong audience', () => expect(response.status).toBe(401));
         continue;
       }
-      const operation = action.op === 'draft' ? { path: '/blyg/api/items', method: 'POST', body: { content_md: 'oracle draft' }, scope: 'owner:draft' as Scope, success: 201 }
+      const operation = action.op === 'draft' ? { path: '/blyg/api/items', method: 'POST', body: { contentMd: 'oracle draft' }, scope: 'owner:draft' as Scope, success: 201 }
         : action.op === 'publish' ? { path: '/blyg/api/items/missing/publish', method: 'POST', body: { expectedRevision: 1 }, scope: 'owner:publish' as Scope, success: 404 }
         : action.op === 'manage' ? { path: '/blyg/api/settings', method: 'PATCH', body: {}, scope: 'owner:manage' as Scope, success: 200 }
         : { path: '/blyg/api/settings', method: 'GET', body: undefined, scope: 'owner:read' as Scope, success: 200 };

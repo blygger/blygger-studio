@@ -55,7 +55,7 @@ export function PeekPage({ origin, id }: { origin: string; id: string }) {
       live = false;
     };
   }, [origin, id]);
-  const split = useMemo(() => (item ? splitHeading(item.content_html) : undefined), [item]);
+  const split = useMemo(() => (item ? splitHeading(item.contentHtml) : undefined), [item]);
   useEffect(() => {
     if (item && split) visit({ origin, id, version: item.version, title: split.title });
     else if (error) visit({ origin, id, version: null, title: id.slice(0, 8) });
@@ -64,7 +64,7 @@ export function PeekPage({ origin, id }: { origin: string; id: string }) {
     if (currentTrail().stack.length > 1) window.history.back();
     else void navigate({ to: '/reading' });
   };
-  const stub = item?.stub_of as { origin?: string; id?: string; url?: string } | null | undefined;
+  const stub = item?.stubOf as { origin?: string; id?: string; url?: string } | null | undefined;
   const host = (() => {
     try {
       return new URL(origin).host;
@@ -84,7 +84,7 @@ export function PeekPage({ origin, id }: { origin: string; id: string }) {
               <span className="src">{host}</span>
               <span>· v{item.version}</span>
             </p>
-            {item.subscription_id ? (
+            {item.subscriptionId ? (
               <p className="peek-note" data-peek-note>
                 You subscribe to this blyg, but have not imported this item. Read from its own blyg; nothing is saved.
               </p>

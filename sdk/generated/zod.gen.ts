@@ -14,19 +14,39 @@ export const zAuthorization = z.object({
 });
 
 export const zApiError = z.object({
-    error: z.string(),
-    errors: z.array(z.object({
-        reason: z.string().optional(),
-        at: z.number().optional(),
-        id: z.string().optional(),
-        directive: z.string().optional()
-    }).catchall(z.unknown())).optional(),
-    tried: z.array(z.string()).optional(),
-    issues: z.array(z.object({
-        path: z.array(z.union([z.string(), z.number()])),
-        message: z.string()
-    })).optional()
-}).catchall(z.unknown());
+    code: z.enum([
+        'invalid-input',
+        'unauthorized',
+        'forbidden',
+        'not-found',
+        'method-not-allowed',
+        'conflict',
+        'revision-conflict',
+        'too-large',
+        'unsupported-media',
+        'unprocessable',
+        'rate-limit',
+        'internal',
+        'bad-gateway'
+    ]),
+    message: z.string(),
+    details: z.object({
+        issues: z.array(z.object({
+            path: z.array(z.union([z.string(), z.number()])),
+            message: z.string()
+        })).optional(),
+        errors: z.array(z.object({
+            reason: z.string().optional(),
+            at: z.number().optional(),
+            id: z.string().optional(),
+            directive: z.string().optional()
+        }).catchall(z.unknown())).optional(),
+        tried: z.array(z.string()).optional(),
+        itemId: z.string().optional(),
+        mediaId: z.string().optional(),
+        expectedRevision: z.int().gt(0).optional()
+    }).catchall(z.unknown()).optional()
+}).strict();
 
 export const zCapabilities = z.object({
     contractVersion: z.string(),
@@ -71,6 +91,13 @@ export const zCitation = z.object({
     retrieved: z.string()
 });
 
+export const zVersionReference = z.object({
+    origin: z.url(),
+    id: z.string().min(1),
+    version: z.int().gt(0),
+    cited: zCitation.optional()
+}).strict();
+
 export const zGenerationSource = z.object({
     id: z.string(),
     version: z.int().gt(0),
@@ -84,21 +111,10 @@ export const zGenerationProvenance = z.object({
     at: z.string().optional()
 }).catchall(z.unknown());
 
-export const zVersionReference = z.object({
-    origin: z.url(),
-    id: z.string().min(1),
-    version: z.int().gt(0),
-    cited: zCitation.optional()
-}).strict();
-
 export const zItem = z.object({
     id: z.string(),
     revision: z.int().gt(0).lte(9007199254740991),
-    kind: z.enum([
-        'fragment',
-        'thread',
-        'withdrawn'
-    ]),
+    kind: z.enum(['fragment', 'thread']),
     status: z.enum([
         'draft',
         'public',
@@ -107,8 +123,18 @@ export const zItem = z.object({
     created: z.string(),
     updated: z.string(),
     version: z.number(),
-    content_md: z.string(),
+    contentMd: z.string(),
     dirty: z.boolean(),
+    stubOf: z.union([
+        zVersionReference,
+        z.object({
+            url: z.url(),
+            cited: zCitation.optional()
+        }).strict()
+    ]).nullable(),
+    forkedFrom: zVersionReference.nullable(),
+    forkCite: zCitation.nullable(),
+    provenance: z.array(z.union([zGenerationProvenance, z.null()])),
     responses: z.enum([
         'default',
         'show',
@@ -118,17 +144,7 @@ export const zItem = z.object({
         'default',
         'show',
         'hide'
-    ]),
-    provenance: z.array(z.union([zGenerationProvenance, z.null()])),
-    stub_of: z.union([
-        zVersionReference,
-        z.object({
-            url: z.url(),
-            cited: zCitation.optional()
-        }).strict()
-    ]).nullable(),
-    forked_from: zVersionReference.nullable(),
-    fork_cite: zCitation.nullable()
+    ])
 });
 
 export const zCustomTheme = z.object({
@@ -141,73 +157,73 @@ export const zCustomTheme = z.object({
     pencil: z.string().regex(/^#[0-9a-fA-F]{6}$/),
     genBg: z.string().regex(/^#[0-9a-fA-F]{6}$/),
     genRule: z.string().regex(/^#[0-9a-fA-F]{6}$/)
-}).strict().nullable();
+}).strict();
 
 export const zSettings = z.object({
-    site_title: z.string(),
+    siteTitle: z.string(),
     theme: z.string(),
-    custom_theme: zCustomTheme,
-    custom_theme_dark: zCustomTheme,
-    custom_theme_name: z.string(),
+    customTheme: zCustomTheme.nullable(),
+    customThemeDark: zCustomTheme.nullable(),
+    customThemeName: z.string(),
     font: z.string(),
-    author_name: z.string(),
-    author_url: z.string(),
-    author_bio: z.string(),
-    author_links: z.array(z.object({
+    authorName: z.string(),
+    authorUrl: z.string(),
+    authorBio: z.string(),
+    authorLinks: z.array(z.object({
         label: z.string(),
         url: z.string()
     })),
-    site_url: z.string(),
+    siteUrl: z.string(),
     timezone: z.string(),
-    avatar_media_id: z.string(),
-    ai_model: z.string(),
-    ai_model_tk: z.string(),
-    ai_model_changelog: z.string(),
-    ai_model_feed: z.string(),
-    ai_model_classify: z.string(),
-    change_category_in_note: z.boolean(),
-    feed_prompt: z.string(),
-    ai_style_prompt: z.string(),
-    accept_mentions: z.boolean(),
-    update_check: z.boolean(),
-    show_responses_default: z.boolean(),
-    highlight_generated_default: z.boolean(),
-    auto_change_notes: z.boolean(),
-    picker_typing: z.enum([
+    avatarMediaId: z.string(),
+    aiModel: z.string(),
+    aiModelTk: z.string(),
+    aiModelChangelog: z.string(),
+    aiModelFeed: z.string(),
+    aiModelClassify: z.string(),
+    changeCategoryInNote: z.boolean(),
+    feedPrompt: z.string(),
+    aiStylePrompt: z.string(),
+    acceptMentions: z.boolean(),
+    updateCheck: z.boolean(),
+    showResponsesDefault: z.boolean(),
+    highlightGeneratedDefault: z.boolean(),
+    autoChangeNotes: z.boolean(),
+    pickerTyping: z.enum([
         'auto',
         'editor',
         'panel'
     ]),
-    feed_order: z.string(),
-    front_page: z.string(),
-    posts_path: z.string(),
-    links_position: z.enum([
+    feedOrder: z.string(),
+    frontPage: z.string(),
+    postsPath: z.string(),
+    linksPosition: z.enum([
         'bottom',
         'left',
         'right'
     ]),
-    links_threads: z.array(z.string()),
-    links_external: z.array(z.object({
+    linksThreads: z.array(z.string()),
+    linksExternal: z.array(z.object({
         label: z.string(),
         url: z.string()
     })),
-    links_collections: z.boolean(),
-    links_opml: z.boolean(),
-    links_blygger_org: z.boolean(),
-    links_blygger_com: z.boolean(),
+    linksCollections: z.boolean(),
+    linksOpml: z.boolean(),
+    linksBlyggerOrg: z.boolean(),
+    linksBlyggerCom: z.boolean(),
     setup: z.enum([
         'pending',
         'notice',
         'done'
     ]),
     defaults: z.record(z.string(), z.unknown()).optional(),
-    feed_orders: z.array(z.object({
+    feedOrders: z.array(z.object({
         id: z.string(),
         title: z.string(),
         description: z.string()
     })).optional(),
-    update_feed_url: z.string(),
-    update_notice_ack: z.boolean(),
+    updateFeedUrl: z.string(),
+    updateNoticeAck: z.boolean(),
     extensions: z.array(z.string())
 });
 
@@ -215,24 +231,24 @@ export const zSubscription = z.object({
     id: z.string(),
     kind: z.enum(['blyg', 'rss']),
     origin: z.string(),
-    feed_url: z.string(),
+    feedUrl: z.string(),
     title: z.string(),
     status: z.enum([
         'active',
         'paused',
         'degraded'
     ]),
-    last_poll_at: z.string().nullable(),
-    fail_count: z.number(),
-    last_index_sync_at: z.string().nullable(),
-    created: z.string(),
-    title_follows_source: z.boolean(),
-    in_blogroll: z.boolean(),
+    lastPollAt: z.string().nullable(),
+    failCount: z.number(),
+    lastIndexSyncAt: z.string().nullable(),
+    inBlogroll: z.boolean(),
     flags: z.array(z.object({
         type: z.string(),
         at: z.string(),
         detail: z.string().optional()
-    }))
+    })),
+    created: z.string(),
+    titleFollowsSource: z.boolean()
 });
 
 export const zHopper = z.object({
@@ -241,18 +257,18 @@ export const zHopper = z.object({
     slug: z.string().nullable(),
     public: z.boolean(),
     created: z.string(),
-    slug_frozen: z.boolean(),
+    slugFrozen: z.boolean(),
     description: z.string().nullable()
 });
 
 export const zMedia = z.object({
     id: z.string(),
-    item_id: z.string().nullable(),
+    itemId: z.string().nullable(),
     mime: z.string(),
     alt: z.string().nullable(),
     created: z.string(),
-    inline: z.number(),
-    url: z.string()
+    inline: z.boolean(),
+    url: z.url()
 });
 
 export const zTransclusion = z.object({
@@ -267,79 +283,81 @@ export const zTransclusion = z.object({
     }).optional()
 });
 
+export const zChangeClass = z.object({
+    category: z.enum([
+        'refresh',
+        'typo',
+        'minor',
+        'major'
+    ]).nullable(),
+    model: z.string().nullable(),
+    probability: z.number().nullable(),
+    classifiedAt: z.string(),
+    overridden: z.boolean()
+});
+
 export const zVersion = z.object({
-    item_id: z.string(),
-    version: z.number(),
-    content_md: z.string(),
-    content_html: z.string(),
-    content_hash: z.string(),
-    published_at: z.string(),
-    note: z.string().nullable(),
-    pinned_at: z.string().nullable(),
     kind: z.enum([
         'fragment',
         'thread',
         'withdrawn'
     ]),
-    pinned: z.boolean(),
-    note_generated: z.boolean(),
+    itemId: z.string(),
+    version: z.number(),
+    contentMd: z.string(),
+    contentHtml: z.string(),
+    contentHash: z.string(),
+    publishedAt: z.string(),
+    note: z.string().nullable(),
     transclusions: z.array(zTransclusion),
-    generated: z.array(zGenerationProvenance),
-    stub_of: z.union([
+    pinned: z.boolean(),
+    pinnedAt: z.string().nullable(),
+    stubOf: z.union([
         zVersionReference,
         z.object({
             url: z.url(),
             cited: zCitation.optional()
         }).strict()
     ]).nullable(),
-    stub_cite: zCitation.nullable(),
-    change_class: z.object({
-        category: z.enum([
-            'refresh',
-            'typo',
-            'minor',
-            'major'
-        ]).nullable(),
-        model: z.string().nullable(),
-        probability: z.number().nullable(),
-        classified_at: z.string(),
-        overridden: z.boolean()
-    }).nullish()
+    stubCite: zCitation.nullable(),
+    noteGenerated: z.boolean(),
+    generated: z.array(zGenerationProvenance),
+    changeClass: zChangeClass.nullish()
 });
 
-export const zHopperItemRow = z.object({
-    hopper_id: z.string(),
-    subscription_id: z.string(),
-    remote_id: z.string(),
-    added_at: z.string()
+export const zHopperMembership = z.object({
+    hopperId: z.string(),
+    subscriptionId: z.string(),
+    remoteId: z.string(),
+    addedAt: z.string()
 });
 
 export const zImportedItem = z.object({
-    subscription_id: z.string(),
-    remote_id: z.string(),
+    subscriptionId: z.string(),
+    remoteId: z.string(),
     kind: z.enum(['fragment', 'thread']),
     state: z.enum(['current', 'tombstone']),
     version: z.number(),
     created: z.string().nullable(),
     updated: z.string().nullable(),
-    observed_at: z.string(),
-    content_md: z.string(),
-    content_html: z.string(),
-    content_hash: z.string().nullable(),
-    author_json: z.string().nullable(),
-    media_json: z.string().nullable(),
-    transclusions_json: z.string().nullable(),
+    observedAt: z.string(),
+    contentMd: z.string(),
+    contentHtml: z.string(),
+    contentHash: z.string().nullable(),
     l0: z.boolean(),
-    pinned_version_retained: z.number().nullable(),
+    pinnedVersionRetained: z.number().nullable(),
     page: z.string().nullable(),
-    stub_of_json: z.string().nullable(),
-    forked_from_json: z.string().nullable(),
-    generated_json: z.string().nullable()
+    author: z.record(z.string(), z.unknown()).nullable(),
+    media: z.array(z.unknown()).nullable(),
+    transclusions: z.array(z.unknown()).nullable(),
+    stubOf: z.record(z.string(), z.unknown()).nullable(),
+    forkedFrom: z.record(z.string(), z.unknown()).nullable(),
+    generated: z.array(z.unknown()).nullable()
 });
 
-export const zSignalRow = z.object({
-    subscription_id: z.string(),
-    remote_id: z.string(),
+export const zSignal = z.object({
+    subscriptionId: z.string(),
+    remoteId: z.string(),
     thumb: z.union([
         z.literal(1),
         z.literal(-1)
@@ -361,14 +379,14 @@ export const zInteraction = z.object({
         'quote'
     ]),
     origin: z.string(),
-    remote_id: z.string(),
+    remoteId: z.string(),
     version: z.int().nullable(),
-    own_item_id: z.string().nullable(),
-    own_version: z.int().nullable(),
-    hopper_id: z.string().nullable(),
-    hopper_name: z.string().nullable(),
-    backfilled: z.int(),
-    subscription_id: z.string().nullable(),
+    ownItemId: z.string().nullable(),
+    ownVersion: z.int().nullable(),
+    hopperId: z.string().nullable(),
+    hopperName: z.string().nullable(),
+    backfilled: z.boolean(),
+    subscriptionId: z.string().nullable(),
     label: z.string().nullable()
 });
 
@@ -379,8 +397,8 @@ export const zThumb = z.object({
     ]),
     at: z.string(),
     origin: z.string(),
-    remote_id: z.string(),
-    subscription_id: z.string().nullable(),
+    remoteId: z.string(),
+    subscriptionId: z.string().nullable(),
     label: z.string().nullable()
 });
 
@@ -388,7 +406,7 @@ export const zAiModels = z.object({
     providers: z.array(z.object({
         id: z.string(),
         label: z.string(),
-        key_secret: z.string().optional(),
+        keySecret: z.string().optional(),
         binding: z.string().optional(),
         configured: z.boolean()
     })),
@@ -406,7 +424,7 @@ export const zMention = z.object({
     id: z.string(),
     source: z.string(),
     target: z.string(),
-    target_item_id: z.string(),
+    targetItemId: z.string(),
     status: z.enum([
         'pending',
         'verified',
@@ -419,25 +437,25 @@ export const zMention = z.object({
         'fork',
         'source'
     ]).nullable(),
-    source_origin: z.string().nullable(),
-    source_id: z.string().nullable(),
-    source_kind: z.string().nullable(),
-    source_version: z.number().nullable(),
-    source_author_json: z.string().nullable(),
-    source_page: z.string().nullable(),
-    first_seen: z.string(),
-    last_seen: z.string(),
-    verified_at: z.string().nullable(),
+    sourceOrigin: z.string().nullable(),
+    sourceId: z.string().nullable(),
+    sourceKind: z.string().nullable(),
+    sourceVersion: z.number().nullable(),
+    sourcePage: z.string().nullable(),
+    firstSeen: z.string(),
+    lastSeen: z.string(),
+    verifiedAt: z.string().nullable(),
     attempts: z.number(),
     error: z.string().nullable(),
-    hidden: z.boolean()
+    hidden: z.boolean(),
+    sourceAuthor: z.record(z.string(), z.unknown()).nullable()
 });
 
-export const zMentionOutRow = z.object({
+export const zOutboundMention = z.object({
     id: z.string(),
-    item_id: z.string(),
+    itemId: z.string(),
     version: z.number(),
-    target_version: z.number().nullable(),
+    targetVersion: z.number().nullable(),
     target: z.string(),
     endpoint: z.string().nullable(),
     status: z.enum([
@@ -447,8 +465,8 @@ export const zMentionOutRow = z.object({
         'no_endpoint'
     ]),
     attempts: z.number(),
-    next_attempt_at: z.string().nullable(),
-    last_error: z.string().nullable(),
+    nextAttemptAt: z.string().nullable(),
+    lastError: z.string().nullable(),
     created: z.string()
 });
 
@@ -526,21 +544,21 @@ export const zPeekItem = z.object({
         'withdrawn'
     ]),
     version: z.int().gt(0),
-    content_html: z.string(),
+    contentHtml: z.string(),
     page: z.string().nullable(),
     url: z.string(),
-    stub_of: z.unknown().optional(),
-    forked_from: z.unknown().optional(),
-    subscription_id: z.string().nullable()
+    stubOf: z.unknown().optional(),
+    forkedFrom: z.unknown().optional(),
+    subscriptionId: z.string().nullable()
 });
 
 export const zBrowseStep = z.object({
     id: z.int(),
     at: z.string(),
     trail: z.string(),
-    parent_id: z.int().nullable(),
+    parentId: z.int().nullable(),
     origin: z.string(),
-    remote_id: z.string(),
+    remoteId: z.string(),
     version: z.int().nullable(),
     via: z.enum([
         'start',
@@ -661,9 +679,9 @@ export const zCreateAuthorizationBody = z.object({
  */
 export const zCreateAuthorizationResponse = z.object({
     authorization: zAuthorization,
-    access_token: z.string(),
-    token_type: z.enum(['Bearer']),
-    expires_in: z.number()
+    accessToken: z.string(),
+    tokenType: z.enum(['Bearer']),
+    expiresIn: z.number()
 });
 
 export const zRevokeAuthorizationPath = z.object({
@@ -710,9 +728,9 @@ export const zListItemsResponse = z.object({
 export const zCreateItemBody = z.union([
     z.object({
         provenance: z.array(z.union([zGenerationProvenance, z.null()])).optional(),
-        content_md: z.string().optional(),
+        contentMd: z.string().optional(),
         kind: z.enum(['fragment', 'thread']).optional(),
-        stub_of: z.union([
+        stubOf: z.union([
             zVersionReference,
             z.object({
                 url: z.url(),
@@ -728,8 +746,8 @@ export const zCreateItemBody = z.union([
     z.object({
         mode: z.enum(['response']),
         source: z.object({
-            subscription_id: z.string().min(1),
-            remote_id: z.string().min(1)
+            subscriptionId: z.string().min(1),
+            remoteId: z.string().min(1)
         }).strict(),
         selection: z.string().optional()
     }).strict()
@@ -766,11 +784,7 @@ export const zGetItemPath = z.object({
 export const zGetItemResponse = z.object({
     id: z.string(),
     revision: z.int().gt(0).lte(9007199254740991),
-    kind: z.enum([
-        'fragment',
-        'thread',
-        'withdrawn'
-    ]),
+    kind: z.enum(['fragment', 'thread']),
     status: z.enum([
         'draft',
         'public',
@@ -779,8 +793,18 @@ export const zGetItemResponse = z.object({
     created: z.string(),
     updated: z.string(),
     version: z.number(),
-    content_md: z.string(),
+    contentMd: z.string(),
     dirty: z.boolean(),
+    stubOf: z.union([
+        zVersionReference,
+        z.object({
+            url: z.url(),
+            cited: zCitation.optional()
+        }).strict()
+    ]).nullable(),
+    forkedFrom: zVersionReference.nullable(),
+    forkCite: zCitation.nullable(),
+    provenance: z.array(z.union([zGenerationProvenance, z.null()])),
     responses: z.enum([
         'default',
         'show',
@@ -791,28 +815,17 @@ export const zGetItemResponse = z.object({
         'show',
         'hide'
     ]),
-    provenance: z.array(z.union([zGenerationProvenance, z.null()])),
-    stub_of: z.union([
-        zVersionReference,
-        z.object({
-            url: z.url(),
-            cited: zCitation.optional()
-        }).strict()
-    ]).nullable(),
-    forked_from: zVersionReference.nullable(),
-    fork_cite: zCitation.nullable(),
-    authored_kind: z.enum(['fragment', 'thread']),
     media: z.array(zMedia),
-    published_media: z.array(zMedia),
+    publishedMedia: z.array(zMedia),
     versions: z.array(zVersion),
     published: zVersion.nullable()
 });
 
 export const zUpdateItemBody = z.object({
     provenance: z.array(z.union([zGenerationProvenance, z.null()])).optional(),
-    content_md: z.string().optional(),
+    contentMd: z.string().optional(),
     kind: z.enum(['fragment', 'thread']).optional(),
-    stub_of: z.union([
+    stubOf: z.union([
         zVersionReference,
         z.object({
             url: z.url(),
@@ -844,8 +857,8 @@ export const zUpdateItemResponse = zItem;
 export const zPublishItemBody = z.object({
     expectedRevision: z.int().gt(0).lte(9007199254740991),
     note: z.string().optional(),
-    note_generated: z.boolean().optional(),
-    change_category: z.enum([
+    noteGenerated: z.boolean().optional(),
+    changeCategory: z.enum([
         'refresh',
         'typo',
         'minor',
@@ -906,7 +919,7 @@ export const zDraftNotePath = z.object({
 export const zDraftNoteResponse = z.object({
     note: z.string(),
     model: z.string(),
-    pinned_prior: z.boolean(),
+    pinnedPrior: z.boolean(),
     revision: z.int().gt(0).lte(9007199254740991)
 });
 
@@ -925,7 +938,7 @@ export const zGenerateItemPath = z.object({
 export const zGenerateItemResponse = z.object({
     text: z.string(),
     model: z.string(),
-    content_md: z.string(),
+    contentMd: z.string(),
     revision: z.int().gt(0).lte(9007199254740991)
 });
 
@@ -987,11 +1000,11 @@ export const zRestoreItemResponse = z.object({
 
 export const zUploadMediaBody = z.object({
     file: z.string(),
-    item_id: z.string().optional(),
+    itemId: z.string().optional(),
     expectedRevision: z.number().optional(),
     alt: z.string().optional(),
     inline: z.enum(['true', 'false']).optional()
-});
+}).strict();
 
 export const zUploadMediaResponse = z.union([
     z.object({
@@ -1032,70 +1045,64 @@ export const zDeleteMediaResponse = z.object({
 export const zGetSettingsResponse = zSettings;
 
 export const zUpdateSettingsBody = z.object({
-    site_title: z.string().optional(),
+    siteTitle: z.string().optional(),
     theme: z.string().optional(),
-    custom_theme: zCustomTheme.optional(),
-    custom_theme_dark: zCustomTheme.optional(),
-    custom_theme_name: z.string().optional(),
+    customTheme: zCustomTheme.nullish(),
+    customThemeDark: zCustomTheme.nullish(),
+    customThemeName: z.string().optional(),
     font: z.string().optional(),
-    author_name: z.string().optional(),
-    author_url: z.string().optional(),
-    author_bio: z.string().optional(),
-    author_links: z.array(z.object({
+    authorName: z.string().optional(),
+    authorUrl: z.string().optional(),
+    authorBio: z.string().optional(),
+    authorLinks: z.array(z.object({
         label: z.string(),
         url: z.string()
     })).optional(),
-    site_url: z.string().optional(),
+    siteUrl: z.string().optional(),
     timezone: z.string().optional(),
-    avatar_media_id: z.string().optional(),
-    ai_model: z.string().optional(),
-    ai_model_tk: z.string().optional(),
-    ai_model_changelog: z.string().optional(),
-    ai_model_feed: z.string().optional(),
-    ai_model_classify: z.string().optional(),
-    change_category_in_note: z.boolean().optional(),
-    feed_prompt: z.string().optional(),
-    ai_style_prompt: z.string().optional(),
-    accept_mentions: z.boolean().optional(),
-    update_check: z.boolean().optional(),
-    show_responses_default: z.boolean().optional(),
-    highlight_generated_default: z.boolean().optional(),
-    auto_change_notes: z.boolean().optional(),
-    picker_typing: z.enum([
+    avatarMediaId: z.string().optional(),
+    aiModel: z.string().optional(),
+    aiModelTk: z.string().optional(),
+    aiModelChangelog: z.string().optional(),
+    aiModelFeed: z.string().optional(),
+    aiModelClassify: z.string().optional(),
+    changeCategoryInNote: z.boolean().optional(),
+    feedPrompt: z.string().optional(),
+    aiStylePrompt: z.string().optional(),
+    acceptMentions: z.boolean().optional(),
+    updateCheck: z.boolean().optional(),
+    showResponsesDefault: z.boolean().optional(),
+    highlightGeneratedDefault: z.boolean().optional(),
+    autoChangeNotes: z.boolean().optional(),
+    pickerTyping: z.enum([
         'auto',
         'editor',
         'panel'
     ]).optional(),
-    feed_order: z.string().optional(),
-    front_page: z.string().optional(),
-    posts_path: z.string().optional(),
-    links_position: z.enum([
+    feedOrder: z.string().optional(),
+    frontPage: z.string().optional(),
+    postsPath: z.string().optional(),
+    linksPosition: z.enum([
         'bottom',
         'left',
         'right'
     ]).optional(),
-    links_threads: z.array(z.string()).optional(),
-    links_external: z.array(z.object({
+    linksThreads: z.array(z.string()).optional(),
+    linksExternal: z.array(z.object({
         label: z.string(),
         url: z.string()
     })).optional(),
-    links_collections: z.boolean().optional(),
-    links_opml: z.boolean().optional(),
-    links_blygger_org: z.boolean().optional(),
-    links_blygger_com: z.boolean().optional(),
+    linksCollections: z.boolean().optional(),
+    linksOpml: z.boolean().optional(),
+    linksBlyggerOrg: z.boolean().optional(),
+    linksBlyggerCom: z.boolean().optional(),
     setup: z.enum([
         'pending',
         'notice',
         'done'
     ]).optional(),
-    defaults: z.record(z.string(), z.unknown()).optional(),
-    feed_orders: z.array(z.object({
-        id: z.string(),
-        title: z.string(),
-        description: z.string()
-    })).optional(),
-    update_feed_url: z.string().optional(),
-    update_notice_ack: z.boolean().optional(),
+    updateFeedUrl: z.string().optional(),
+    updateNoticeAck: z.boolean().optional(),
     extensions: z.array(z.string()).optional()
 }).strict();
 
@@ -1162,7 +1169,7 @@ export const zGetSubscriptionPath = z.object({
 export const zGetSubscriptionResponse = zSubscription;
 
 export const zUpdateSubscriptionBody = z.object({
-    in_blogroll: z.boolean().optional(),
+    inBlogroll: z.boolean().optional(),
     title: z.string().min(1).nullish(),
     paused: z.boolean().optional()
 }).strict();
@@ -1243,10 +1250,10 @@ export const zGetHopperQuery = z.object({
  */
 export const zGetHopperResponse = z.object({
     hopper: zHopper,
-    memberships: z.array(zHopperItemRow),
+    memberships: z.array(zHopperMembership),
     items: z.array(zImportedItem),
     total: z.int().gte(0),
-    source_count: z.int().gte(0)
+    sourceCount: z.int().gte(0)
 });
 
 export const zUpdateHopperBody = z.object({
@@ -1332,12 +1339,12 @@ export const zMarkUnreadPath = z.object({
 export const zMarkUnreadResponse = z.object({
     ok: z.boolean(),
     stored: z.literal(false),
-    read_version: z.null()
+    readVersion: z.null()
 });
 
 export const zMarkReadBody = z.object({
     version: z.int().gte(1).lte(4294967295),
-    read_at: z.iso.datetime().optional()
+    readAt: z.iso.datetime().optional()
 }).strict();
 
 export const zMarkReadPath = z.object({
@@ -1351,15 +1358,15 @@ export const zMarkReadPath = z.object({
 export const zMarkReadResponse = z.object({
     ok: z.boolean(),
     stored: z.boolean(),
-    read_version: z.int().nullable()
+    readVersion: z.int().nullable()
 });
 
 export const zMarkReadBatchBody = z.object({
     items: z.array(z.object({
         sub: z.string().min(1).max(1024),
-        remote_id: z.string().min(1).max(1024),
+        remoteId: z.string().min(1).max(1024),
         version: z.int().gte(1).lte(4294967295),
-        read_at: z.iso.datetime().optional()
+        readAt: z.iso.datetime().optional()
     }).strict()).max(500)
 }).strict();
 
@@ -1374,7 +1381,7 @@ export const zMarkReadBatchResponse = z.object({
 export const zMarkUnreadBatchBody = z.object({
     items: z.array(z.object({
         sub: z.string().min(1).max(1024),
-        remote_id: z.string().min(1).max(1024)
+        remoteId: z.string().min(1).max(1024)
     }).strict()).max(500)
 }).strict();
 
@@ -1411,7 +1418,7 @@ export const zListSignalsQuery = z.object({
  * Success
  */
 export const zListSignalsResponse = z.object({
-    items: z.array(zSignalRow),
+    items: z.array(zSignal),
     total: z.int().gte(0),
     offset: z.int().gte(0),
     limit: z.int().gt(0)
@@ -1464,7 +1471,7 @@ export const zListMentionsQuery = z.object({
  * Success
  */
 export const zListMentionsResponse = z.object({
-    items: z.array(z.union([zMention, zMentionOutRow])),
+    items: z.array(z.union([zMention, zOutboundMention])),
     total: z.int().gte(0),
     offset: z.int().gte(0),
     limit: z.int().gt(0),
@@ -1472,8 +1479,8 @@ export const zListMentionsResponse = z.object({
 });
 
 export const zPreviewBody = z.object({
-    content_md: z.string().optional(),
-    item_id: z.string().optional(),
+    contentMd: z.string().optional(),
+    itemId: z.string().optional(),
     kind: z.enum(['fragment', 'thread']).optional()
 }).strict();
 
@@ -1498,7 +1505,7 @@ export const zPreviewResponse = z.object({
             reason: z.string().optional()
         }))
     })),
-    link_errors: z.array(z.object({
+    linkErrors: z.array(z.object({
         id: z.string().optional(),
         directive: z.string().optional(),
         reason: z.string().optional()
@@ -1537,8 +1544,8 @@ export const zSearchResponse = z.object({
         badge: z.string(),
         source: z.enum(['mine', 'imported']),
         kind: z.enum(['fragment', 'thread']),
-        subscription_id: z.string().nullable(),
-        source_title: z.string().nullable()
+        subscriptionId: z.string().nullable(),
+        sourceTitle: z.string().nullable()
     })),
     total: z.number(),
     offset: z.number(),
@@ -1577,8 +1584,8 @@ export const zListReadingResponse = z.object({
     offset: z.number(),
     limit: z.number(),
     selected: z.string(),
-    read_state: z.literal(true),
-    read_state_clear: z.literal(true)
+    readState: z.literal(true),
+    readStateClear: z.literal(true)
 });
 
 export const zListImportedReadingQuery = z.object({
@@ -1636,7 +1643,7 @@ export const zGetImportedVersionPath = z.object({
  */
 export const zGetImportedVersionResponse = z.object({
     version: z.int(),
-    content_md: z.string(),
+    contentMd: z.string(),
     note: z.string().nullable(),
     pinned: z.boolean()
 });
@@ -1697,9 +1704,9 @@ export const zListBrowseResponse = z.object({
 
 export const zLogBrowseBody = z.object({
     trail: z.string().min(8).max(64),
-    parent_id: z.int().nullish(),
+    parentId: z.int().nullish(),
     origin: z.string().min(1).max(2048),
-    remote_id: z.string().min(1).max(256),
+    remoteId: z.string().min(1).max(256),
     version: z.int().gt(0).nullish(),
     via: z.enum([
         'start',
@@ -1721,7 +1728,10 @@ export const zLogBrowseResponse = z.object({
 /**
  * Success
  */
-export const zGetUpdateStateResponse = z.record(z.string(), z.string());
+export const zGetUpdateStateResponse = z.object({
+    updateCheckedAt: z.string().optional(),
+    updateLatestSeen: z.string().optional()
+});
 
 export const zGetMentionSourcePath = z.object({
     id: z.string().min(1)

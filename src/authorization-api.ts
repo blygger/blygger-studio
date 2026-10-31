@@ -1,3 +1,4 @@
+import { statusError } from './api-error.ts';
 import { deploymentPaths } from './util.ts';
 import { bodyLimit } from 'hono/body-limit';
 import { securityLimit, admitApi } from './security-budgets.ts';
@@ -12,11 +13,11 @@ authorizationApi.use('*', async (c, next) => {
   const prefix = deploymentPaths(c.env.MOUNT).api + '/authorizations';
   if (c.req.path !== prefix && !c.req.path.startsWith(prefix + '/')) return next();
   c.header('Cache-Control', 'no-store');
-  if (/^Bearer(?:\s|$)/i.test(c.req.header('authorization') ?? '') || !await verifySession(c.env, c.req.header('cookie'))) return c.json({ error: 'owner session required' }, 401);
+  if (/^Bearer(?:\s|$)/i.test(c.req.header('authorization') ?? '') || !await verifySession(c.env, c.req.header('cookie'))) return c.json(statusError(401, 'owner session required'), 401);
   const origin = c.req.header('origin');
-  if (origin && origin !== new URL(c.req.url).origin || c.req.header('sec-fetch-site') === 'cross-site') return c.json({ error: 'cross-origin owner request denied' }, 403);
-  if (!await admitApi(c.env, ['GET', 'HEAD'].includes(c.req.method))) return c.json({ error: 'API work budget exceeded' }, 429, { 'Retry-After': '60' });
-  return bodyLimit({ maxSize: securityLimit(c.env.API_BODY_LIMIT, 8 * 1024 * 1024), onError: c => c.json({ error: 'request body exceeds byte limit' }, 413) })(c, next);
+  if (origin && origin !== new URL(c.req.url).origin || c.req.header('sec-fetch-site') === 'cross-site') return c.json(statusError(403, 'cross-origin owner request denied'), 403);
+  if (!await admitApi(c.env, ['GET', 'HEAD'].includes(c.req.method))) return c.json(statusError(429, 'API work budget exceeded'), 429, { 'Retry-After': '60' });
+  return bodyLimit({ maxSize: securityLimit(c.env.API_BODY_LIMIT, 8 * 1024 * 1024), onError: c => c.json(statusError(413, 'request body exceeds byte limit'), 413) })(c, next);
 });
 export async function authorizationResources(env: import('./types.ts').Env) {
   const { results } = await env.DB.prepare('SELECT * FROM oauth_authorizations WHERE version=? AND expires > ? AND NOT EXISTS (SELECT 1 FROM oauth_revocations WHERE grant_id=oauth_authorizations.grant_id) ORDER BY created,grant_id').bind(await credentialVersion(env), Math.floor(Date.now() / 1000)).all<{ grant_id: string; client_id: string; name: string; manual: number; resource: string; scopes: string; created: number; expires: number }>();
@@ -33,7 +34,7 @@ authorizationApi.openapi(authRoutes.createAuthorization, async c => {
   const token = await server.api.issueManual({ headers: c.req.raw.headers, body: { clientId: client.client_id, scope: body.scope, resource: body.resource } });
   await rememberAuthorization(c.req.url, c.env, token.access_token, true);
   const authorization = (await authorizationResources(c.env)).find(value => value.clientId === client.client_id)!;
-  return c.json({ authorization, access_token: token.access_token, token_type: 'Bearer' as const, expires_in: token.expires_in });
+  return c.json({ authorization, accessToken: token.access_token, tokenType: 'Bearer' as const, expiresIn: token.expires_in });
 });
 authorizationApi.openapi(authRoutes.revokeAuthorization, async c => { await revokeGrant(c.req.url, c.env, c.req.param('id')!); return c.json({ ok: true }); });
 authorizationApi.openapi(authRoutes.revokeAllAuthorizations, async c => { await revokeAll(c.req.url, c.env); return c.json({ ok: true }); });

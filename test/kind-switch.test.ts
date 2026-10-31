@@ -16,7 +16,7 @@ import { apiJson, createAndPublish, login } from "./helpers.ts";
 const ORIGIN = "https://friend.example/blyg/";
 
 async function draft(cookie: string, kind: "fragment" | "thread", contentMd = "a draft"): Promise<string> {
-  const res = await apiJson(cookie, "POST", "/blyg/api/items", { content_md: contentMd, kind });
+  const res = await apiJson(cookie, "POST", "/blyg/api/items", { contentMd: contentMd, kind });
   expect(res.status).toBe(201);
   return res.json.id as string;
 }
@@ -31,29 +31,29 @@ describe("a never-published draft can change kind", () => {
   it("fragment to thread, keeping the text and landing in the thread editor", async () => {
     const cookie = await login();
     const id = await draft(cookie, "fragment", "words I want to keep");
-    expect((await detail(cookie, id)).authored_kind).toBe("fragment");
+    expect((await detail(cookie, id)).kind).toBe("fragment");
 
     const res = await apiJson(cookie, "PATCH", `/blyg/api/items/${id}`, { kind: "thread" });
     expect(res.status).toBe(200);
     expect(res.json.kind).toBe("thread");
 
     // The same resource keeps its text when its authored kind changes.
-    expect(await detail(cookie, id)).toMatchObject({ id, authored_kind: "thread", content_md: "words I want to keep" });
+    expect(await detail(cookie, id)).toMatchObject({ id, kind: "thread", contentMd: "words I want to keep" });
   });
 
   it("thread to fragment, the same way", async () => {
     const cookie = await login();
     const id = await draft(cookie, "thread", "words I want to keep");
     expect(await apiJson(cookie, "PATCH", `/blyg/api/items/${id}`, { kind: "fragment" })).toMatchObject({ status: 200 });
-    expect(await detail(cookie, id)).toMatchObject({ id, authored_kind: "fragment", content_md: "words I want to keep" });
+    expect(await detail(cookie, id)).toMatchObject({ id, kind: "fragment", contentMd: "words I want to keep" });
   });
 
-  it("accepts kind and content_md in one call", async () => {
+  it("accepts kind and contentMd in one call", async () => {
     const cookie = await login();
     const id = await draft(cookie, "fragment", "before");
-    const res = await apiJson(cookie, "PATCH", `/blyg/api/items/${id}`, { kind: "thread", content_md: "after" });
+    const res = await apiJson(cookie, "PATCH", `/blyg/api/items/${id}`, { kind: "thread", contentMd: "after" });
     expect(res.status).toBe(200);
-    expect(await detail(cookie, id)).toMatchObject({ id, authored_kind: "thread", content_md: "after" });
+    expect(await detail(cookie, id)).toMatchObject({ id, kind: "thread", contentMd: "after" });
   });
 });
 
@@ -63,7 +63,7 @@ describe("a published item's kind is fixed", () => {
     const id = await createAndPublish(cookie, "published, so its kind is public");
     const res = await apiJson(cookie, "PATCH", `/blyg/api/items/${id}`, { kind: "thread" });
     expect(res.status).toBe(409);
-    expect(res.json.error).toMatch(/published/);
+    expect(res.json.message).toMatch(/published/);
   });
 
   it("stays fixed after withdrawal — the endcap and the versions are both out there", async () => {
@@ -76,8 +76,8 @@ describe("a published item's kind is fixed", () => {
   it("a rejected switch does not quietly save the content sent with it", async () => {
     const cookie = await login();
     const id = await createAndPublish(cookie, "the published text");
-    await apiJson(cookie, "PATCH", `/blyg/api/items/${id}`, { kind: "thread", content_md: "sneaked in" });
-    expect(await detail(cookie, id)).toMatchObject({ authored_kind: "fragment", content_md: "the published text" });
+    await apiJson(cookie, "PATCH", `/blyg/api/items/${id}`, { kind: "thread", contentMd: "sneaked in" });
+    expect(await detail(cookie, id)).toMatchObject({ kind: "fragment", contentMd: "the published text" });
   });
 });
 
@@ -85,9 +85,9 @@ describe("a stub thread will not silently become a fragment", () => {
   it("refuses, and names clearing the stub as the way through", async () => {
     const cookie = await login();
     const created = await apiJson(cookie, "POST", "/blyg/api/items", {
-      content_md: "responding",
+      contentMd: "responding",
       kind: "thread",
-      stub_of: { origin: ORIGIN, id: "7c9wk2n4h6q1x8v0z3m5rjy2ke", version: 1 },
+      stubOf: { origin: ORIGIN, id: "7c9wk2n4h6q1x8v0z3m5rjy2ke", version: 1 },
     });
     expect(created.status).toBe(201);
     const id = created.json.id as string;
@@ -96,19 +96,19 @@ describe("a stub thread will not silently become a fragment", () => {
     // A stub is a claim the author made about what they are responding to.
     // Dropping it as a side effect of a kind switch would discard that claim.
     expect(res.status).toBe(409);
-    expect(res.json.error).toMatch(/clear the stub/);
+    expect(res.json.message).toMatch(/clear the stub/);
 
     // Clear it and the switch goes through.
-    expect((await apiJson(cookie, "PATCH", `/blyg/api/items/${id}`, { stub_of: null })).status).toBe(200);
+    expect((await apiJson(cookie, "PATCH", `/blyg/api/items/${id}`, { stubOf: null })).status).toBe(200);
     expect((await apiJson(cookie, "PATCH", `/blyg/api/items/${id}`, { kind: "fragment" })).status).toBe(200);
   });
 
   it("a stub thread may still be switched nowhere and stay a thread", async () => {
     const cookie = await login();
     const created = await apiJson(cookie, "POST", "/blyg/api/items", {
-      content_md: "responding",
+      contentMd: "responding",
       kind: "thread",
-      stub_of: { origin: ORIGIN, id: "7c9wk2n4h6q1x8v0z3m5rjy2ke", version: 1 },
+      stubOf: { origin: ORIGIN, id: "7c9wk2n4h6q1x8v0z3m5rjy2ke", version: 1 },
     });
     const id = created.json.id as string;
     expect((await apiJson(cookie, "PATCH", `/blyg/api/items/${id}`, { kind: "thread" })).status).toBe(200);

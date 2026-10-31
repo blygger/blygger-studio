@@ -16,7 +16,7 @@ The REST API is at `{mount}/api`, such as `https://example.com/blyg/api`. MCP is
 | `owner:manage` | Settings, subscriptions, signals, collections and response moderation, including their public effects |
 | `reading:state` | Marking reading entries read or unread (read state is private, reversible bookkeeping) |
 
-Scopes do not imply each other. Choose each permission the client needs. Uploading media attached to an item that has been published requires both drafting and publishing permission, including after withdrawal. Draft-only clients can upload unattached media or attach it to a never-published draft. Editing an item's `responses` field requires both drafting and publishing permission because the public page changes immediately. Choosing the avatar (`avatar_media_id`) requires both managing and publishing permission for the same reason.
+Scopes do not imply each other. Choose each permission the client needs. Uploading media attached to an item that has been published requires both drafting and publishing permission, including after withdrawal. Draft-only clients can upload unattached media or attach it to a never-published draft. Editing an item's `responses` field requires both drafting and publishing permission because the public page changes immediately. Choosing the avatar (`avatarMediaId`) requires both managing and publishing permission for the same reason.
 
 ## JavaScript clients
 

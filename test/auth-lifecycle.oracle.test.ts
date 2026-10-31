@@ -62,7 +62,7 @@ describe('native auth lifecycle receiving boundaries', () => {
     for (let i = 0; i < 4; i++) expect((await f.request(f.issuer + '/oauth2/register', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ redirect_uris: [f.redirect], token_endpoint_auth_method: 'none' }) })).status).toBe(201);
     expect((await f.request(f.issuer + '/oauth2/register', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ redirect_uris: [f.redirect], token_endpoint_auth_method: 'none' }) })).status).toBe(429);
     const manual = await f.request('/blyg/api/authorizations', { method: 'POST', headers: { cookie: f.owner, 'Content-Type': 'application/json' }, body: JSON.stringify({ name: 'authenticated API bypass', scope: ['owner:read'], resource: 'api' }) });
-    expect(manual.status).toBe(200); expect(await manual.json()).toHaveProperty('access_token');
+    expect(manual.status).toBe(200); expect(await manual.json()).toHaveProperty('accessToken');
     expect((await f.request('/blyg/api/authorizations', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}' })).status).toBe(401);
   });
 

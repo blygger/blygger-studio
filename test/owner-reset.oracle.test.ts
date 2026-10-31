@@ -30,7 +30,7 @@ it('cannot use an old owner cookie to mint fresh grants after resetting the root
   expect(loggedIn.status).toBe(302); const cookie = loggedIn.headers.get('set-cookie')!.split(';')[0];
   const changed = { ...env, OWNER_PASSWORD: env.OWNER_PASSWORD + '-reset' };
   const mint = await request('/blyg/api/authorizations', changed, { method: 'POST', headers: { cookie, 'Content-Type': 'application/json' }, body: JSON.stringify({ name: 'old browser', scope: ['owner:read'], resource: 'api' }) });
-  expect(mint.status).toBe(401); expect(await mint.json()).not.toHaveProperty('access_token');
+  expect(mint.status).toBe(401); expect(await mint.json()).not.toHaveProperty('accessToken');
   const fresh = await request('/blyg/studio/login', changed, { method: 'POST', body: new URLSearchParams({ password: changed.OWNER_PASSWORD }) });
   expect(fresh.status).toBe(302);
   expect((await request('/blyg/api/settings', changed, { headers: { cookie: fresh.headers.get('set-cookie')!.split(';')[0] } })).status).toBe(200);
@@ -49,15 +49,15 @@ it('preserves API and MCP grants after password reset and lists them for explici
     const response = await request('/blyg/studio/login', bindings, { method: 'POST', body: new URLSearchParams({ password: bindings.OWNER_PASSWORD }) });
     expect(response.status).toBe(302); return response.headers.get('set-cookie')!.split(';')[0];
   };
-  const cookie = await login(env), grants: { resource: string; access_token: string; authorization: { id: string; expiresAt: number; scope: string[] } }[] = [];
+  const cookie = await login(env), grants: { resource: string; accessToken: string; authorization: { id: string; expiresAt: number; scope: string[] } }[] = [];
   for (const resource of ['api', 'mcp']) {
     const response = await request('/blyg/api/authorizations', env, { method: 'POST', headers: { cookie, 'Content-Type': 'application/json' }, body: JSON.stringify({ name: 'reset-' + resource, scope: ['owner:read'], resource }) });
     expect(response.status).toBe(200); grants.push({ resource, ...await response.json() as Omit<typeof grants[number], 'resource'> });
   }
   const changed = { ...env, OWNER_PASSWORD: env.OWNER_PASSWORD + '-reset' };
   const read = (grant: typeof grants[number]) => request(grant.resource === 'api' ? '/blyg/api/settings' : '/blyg/studio/mcp', changed, grant.resource === 'api'
-    ? { headers: { Authorization: 'Bearer ' + grant.access_token } }
-    : { method: 'POST', headers: { Authorization: 'Bearer ' + grant.access_token, 'Content-Type': 'application/json', Accept: 'application/json, text/event-stream', 'mcp-protocol-version': '2026-07-28', 'mcp-method': 'tools/list' }, body: JSON.stringify({ jsonrpc: '2.0', id: 1, method: 'tools/list', params: { _meta: { 'io.modelcontextprotocol/protocolVersion': '2026-07-28', 'io.modelcontextprotocol/clientCapabilities': {} } } }) });
+    ? { headers: { Authorization: 'Bearer ' + grant.accessToken } }
+    : { method: 'POST', headers: { Authorization: 'Bearer ' + grant.accessToken, 'Content-Type': 'application/json', Accept: 'application/json, text/event-stream', 'mcp-protocol-version': '2026-07-28', 'mcp-method': 'tools/list' }, body: JSON.stringify({ jsonrpc: '2.0', id: 1, method: 'tools/list', params: { _meta: { 'io.modelcontextprotocol/protocolVersion': '2026-07-28', 'io.modelcontextprotocol/clientCapabilities': {} } } }) });
   for (const grant of grants) expect((await read(grant)).status, 'password reset must preserve delegated access').toBe(200);
   expect((await request('/blyg/api/authorizations', changed, { headers: { cookie } })).status).toBe(401);
   const fresh = await login(changed);

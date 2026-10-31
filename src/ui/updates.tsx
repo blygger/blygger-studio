@@ -52,7 +52,7 @@ export function UpdatesPage() {
     const row = rows.find((r) => r.id === id);
     if (!row) return id.slice(0, 8);
     const p = previewFromHtml(
-      renderMarkdown(extractDirectives(row.content_md).withoutDirectives),
+      renderMarkdown(extractDirectives(row.contentMd).withoutDirectives),
     );
     return p.title || p.body || id.slice(0, 8);
   };

@@ -288,7 +288,7 @@ export const getSettings = <ThrowOnError extends boolean = false>(options?: Opti
 });
 
 /**
- * Choosing avatar_media_id also requires owner:publish because the avatar publishes those bytes.
+ * Choosing avatarMediaId also requires owner:publish because the avatar publishes those bytes.
  */
 export const updateSettings = <ThrowOnError extends boolean = false>(options: Options<UpdateSettingsData, ThrowOnError>): RequestResult<UpdateSettingsResponses, UpdateSettingsErrors, ThrowOnError> => (options.client ?? client).patch<UpdateSettingsResponses, UpdateSettingsErrors, ThrowOnError>({
     security: [{

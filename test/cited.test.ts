@@ -43,13 +43,13 @@ async function itemDoc(id: string): Promise<any> {
 describe("cited rides all three references", () => {
   it("a remote stub carries the source, the author as they asserted it, an excerpt and a date", async () => {
     const cookie = await login();
-    await apiJson(cookie, "PATCH", "/blyg/api/settings", { site_url: OURS });
+    await apiJson(cookie, "PATCH", "/blyg/api/settings", { siteUrl: OURS });
     const remoteId = await remoteFragment({ id: newId(), content_md: "Stigmergy is what a protocol looks like from inside.", author: { name: "Their Author" } });
 
     const stub = await apiJson(cookie, "POST", "/blyg/api/items", {
       kind: "thread",
-      content_md: `![[${remoteId}]]\n\nMy answer.`,
-      stub_of: { origin: THEIRS, id: remoteId, version: 2 },
+      contentMd: `![[${remoteId}]]\n\nMy answer.`,
+      stubOf: { origin: THEIRS, id: remoteId, version: 2 },
     });
     const id = stub.json.id as string;
     expect((await apiJson(cookie, "POST", `/blyg/api/items/${id}/publish`, {})).status).toBe(200);
@@ -74,9 +74,9 @@ describe("cited rides all three references", () => {
 
   it("an own-origin transclusion carries none — a label adds nothing a fetch cannot", async () => {
     const cookie = await login();
-    await apiJson(cookie, "PATCH", "/blyg/api/settings", { site_url: OURS });
+    await apiJson(cookie, "PATCH", "/blyg/api/settings", { siteUrl: OURS });
     const mine = await createAndPublish(cookie, "My own fragment.");
-    const thread = (await apiJson(cookie, "POST", "/blyg/api/items", { kind: "thread", content_md: `![[${mine}]]` })).json.id as string;
+    const thread = (await apiJson(cookie, "POST", "/blyg/api/items", { kind: "thread", contentMd: `![[${mine}]]` })).json.id as string;
     expect((await apiJson(cookie, "POST", `/blyg/api/items/${thread}/publish`, {})).status).toBe(200);
 
     // Byte-identical to the 0.2 shape, which is what keeps every 0.2 document
@@ -86,12 +86,12 @@ describe("cited rides all three references", () => {
 
   it("rides a pinned document, which is the copy that has to outlive the link", async () => {
     const cookie = await login();
-    await apiJson(cookie, "PATCH", "/blyg/api/settings", { site_url: OURS });
+    await apiJson(cookie, "PATCH", "/blyg/api/settings", { siteUrl: OURS });
     const remoteId = await remoteFragment({ id: newId() });
     const stub = await apiJson(cookie, "POST", "/blyg/api/items", {
       kind: "thread",
-      content_md: `![[${remoteId}]]`,
-      stub_of: { origin: THEIRS, id: remoteId, version: 2 },
+      contentMd: `![[${remoteId}]]`,
+      stubOf: { origin: THEIRS, id: remoteId, version: 2 },
     });
     const id = stub.json.id as string;
     await apiJson(cookie, "POST", `/blyg/api/items/${id}/publish`, {});
@@ -104,7 +104,7 @@ describe("cited rides all three references", () => {
 
   it("rides lineage, and keeps riding it after the fork is withdrawn", async () => {
     const cookie = await login();
-    await apiJson(cookie, "PATCH", "/blyg/api/settings", { site_url: OURS, site_title: "My Blyg" });
+    await apiJson(cookie, "PATCH", "/blyg/api/settings", { siteUrl: OURS, siteTitle: "My Blyg" });
     const parent = await createAndPublish(cookie, "The parent item.");
     await apiJson(cookie, "PUT", `/blyg/api/items/${parent}/versions/${1}/pin`);
     const forked = await apiJson(cookie, "POST", "/blyg/api/items", { mode: "fork", source: { origin: OURS, id: parent, version: 1 } });
@@ -165,9 +165,9 @@ describe("cited is never authority", () => {
 
   it("a published byline stops depending on a live join — the stale-byline fix", async () => {
     const cookie = await login();
-    await apiJson(cookie, "PATCH", "/blyg/api/settings", { site_url: OURS });
+    await apiJson(cookie, "PATCH", "/blyg/api/settings", { siteUrl: OURS });
     const remoteId = await remoteFragment({ id: newId() }, "The Name At Publish Time");
-    const thread = (await apiJson(cookie, "POST", "/blyg/api/items", { kind: "thread", content_md: `![[${remoteId}]]` })).json.id as string;
+    const thread = (await apiJson(cookie, "POST", "/blyg/api/items", { kind: "thread", contentMd: `![[${remoteId}]]` })).json.id as string;
     await apiJson(cookie, "POST", `/blyg/api/items/${thread}/publish`, {});
 
     const before = await (await getPublic(`/blyg/t/${thread}/`)).text();

@@ -73,7 +73,7 @@ it.each(subsets.map(scope => [scope.join(' ') || '(none)', scope] as const))('ch
 const publicEdits = [
   ['response visibility', 'owner:draft', '/items/missing-oracle-resource', { responses: 'hide' }],
   ['generated highlighting', 'owner:draft', '/items/missing-oracle-resource', { highlight: 'hide' }],
-  ['the avatar', 'owner:manage', '/settings', { avatar_media_id: 'missing-oracle-media' }],
+  ['the avatar', 'owner:manage', '/settings', { avatarMediaId: 'missing-oracle-media' }],
 ] as const;
 it.each(publicEdits.flatMap(([what, base, path, body]) => subsets.map(scope => [what, scope.join(' ') || '(none)', base, path, body, scope] as const)))('requires publish to edit %s: %s', async (_, __, base, path, body, scope) => {
   const app = new Hono().route('/api', createOwnerApi({ scope: [...scope], clientId: 'oracle', userId: 'owner' }));

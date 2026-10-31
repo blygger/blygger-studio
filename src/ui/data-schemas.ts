@@ -13,9 +13,9 @@ import {
   zGetUpdateStateResponse,
   zAuthorization,
   zSettings,
-  zSignalRow,
-  zHopperItemRow,
-  zMentionOutRow,
+  zSignal,
+  zHopperMembership,
+  zOutboundMention,
 } from '../../sdk/dist/schemas.js';
 
 const rank = z.number().int().nonnegative();
@@ -23,25 +23,24 @@ export const sourceSchemas = {
   items: zListItemsResponse.shape.items.element,
   itemHistory: zGetItemResponse.pick({
     id: true,
-    authored_kind: true,
     media: true,
-    published_media: true,
+    publishedMedia: true,
     versions: true,
     published: true,
   }),
   settings: zSettings.extend({ key: z.literal('settings') }),
   subscriptions: zSubscription,
   hoppers: zHopper,
-  hopperStats: zGetHopperResponse.pick({ total: true, source_count: true })
+  hopperStats: zGetHopperResponse.pick({ total: true, sourceCount: true })
     .extend({ id: zHopper.shape.id }),
-  hopperEntries: z.object({ hopper_id: zHopper.shape.id, rank, item: zImportedItem }),
-  hopperMemberships: zHopperItemRow.extend({ rank }),
+  hopperEntries: z.object({ hopperId: zHopper.shape.id, rank, item: zImportedItem }),
+  hopperMemberships: zHopperMembership.extend({ rank }),
   reading: zReadingEntry.extend({ view: z.string(), rank }),
-  signals: zSignalRow,
+  signals: zSignal,
   updates: zGetUpdateStateResponse.and(z.object({ key: z.literal('updates') })),
   authorizations: zAuthorization,
   inbound: zMention,
-  outbound: zMentionOutRow,
+  outbound: zOutboundMention,
   mentionSources: zGetMentionSourceResponse.extend({ key: z.string() }),
 };
 export const readingResponseSchema = zListReadingResponse.extend({ view: z.string() });

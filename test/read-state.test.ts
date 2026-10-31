@@ -68,7 +68,7 @@ describe("read state", () => {
   it("GET /reading advertises read_state, and readVersion is null until read", async () => {
     const { status, json } = await apiJson(cookie, "GET", "/blyg/api/reading?limit=50");
     expect(status).toBe(200);
-    expect(json.read_state).toBe(true);
+    expect(json.readState).toBe(true);
     const imported = (json.items as any[]).filter((e) => e.source === "imported");
     expect(imported.length).toBeGreaterThan(0);
     for (const e of imported) expect(e.imported.readVersion).toBeNull();
@@ -76,13 +76,13 @@ describe("read state", () => {
 
   it("PUT stores, is idempotent, and never lowers", async () => {
     let r = await apiJson(cookie, "PUT", "/blyg/api/reading/rsA/a1/read", { version: 2 });
-    expect(r).toEqual({ status: 200, json: { ok: true, stored: true, read_version: 2 } });
+    expect(r).toEqual({ status: 200, json: { ok: true, stored: true, readVersion: 2 } });
     r = await apiJson(cookie, "PUT", "/blyg/api/reading/rsA/a1/read", { version: 2 });
-    expect(r.json.read_version).toBe(2);
+    expect(r.json.readVersion).toBe(2);
     r = await apiJson(cookie, "PUT", "/blyg/api/reading/rsA/a1/read", { version: 1 });
-    expect(r).toEqual({ status: 200, json: { ok: true, stored: true, read_version: 2 } });
+    expect(r).toEqual({ status: 200, json: { ok: true, stored: true, readVersion: 2 } });
     r = await apiJson(cookie, "PUT", "/blyg/api/reading/rsA/a1/read", { version: 3 });
-    expect(r.json.read_version).toBe(3);
+    expect(r.json.readVersion).toBe(3);
     expect(await readState("rsA", "a1")).toBe(3);
     expect((await readingEntry(cookie, "rsA", "a1")).readVersion).toBe(3);
     expect((await readingEntry(cookie, "rsA", "a2")).readVersion).toBeNull();
@@ -100,14 +100,14 @@ describe("read state", () => {
 
   it("PUT decodes an escaped remote id", async () => {
     const r = await apiJson(cookie, "PUT", `/blyg/api/reading/rsA/${encodeURIComponent("a/slash")}/read`, { version: 1 });
-    expect(r.json).toMatchObject({ stored: true, read_version: 1 });
+    expect(r.json).toMatchObject({ stored: true, readVersion: 1 });
     expect(await readState("rsA", "a/slash")).toBe(1);
   });
 
   it("PUT for an unknown item or subscription is acknowledged, not stored, never 404", async () => {
     for (const p of ["/blyg/api/reading/rsA/nope/read", "/blyg/api/reading/nosub/a1/read"]) {
       const r = await apiJson(cookie, "PUT", p, { version: 1 });
-      expect(r).toEqual({ status: 200, json: { ok: true, stored: false, read_version: null } });
+      expect(r).toEqual({ status: 200, json: { ok: true, stored: false, readVersion: null } });
     }
     expect(await readState("rsA", "nope")).toBeNull();
     expect(await readState("nosub", "a1")).toBeNull();
@@ -128,12 +128,12 @@ describe("read state", () => {
   it("POST batch stores the max per row, skips unknown rows, and is all-or-nothing on bad input", async () => {
     let r = await apiJson(cookie, "POST", "/blyg/api/reading/read", {
       items: [
-        { sub: "rsB", remote_id: "b1", version: 2 },
-        { sub: "rsB", remote_id: "b2", version: 1 },
-        { sub: "rsB", remote_id: "b2", version: 2 },
-        { sub: "rsB", remote_id: "b2", version: 1 },
-        { sub: "rsA", remote_id: "a1", version: 1 }, // lower than the stored value
-        { sub: "rsZ", remote_id: "zz", version: 1 }, // unknown: skipped
+        { sub: "rsB", remoteId: "b1", version: 2 },
+        { sub: "rsB", remoteId: "b2", version: 1 },
+        { sub: "rsB", remoteId: "b2", version: 2 },
+        { sub: "rsB", remoteId: "b2", version: 1 },
+        { sub: "rsA", remoteId: "a1", version: 1 }, // lower than the stored value
+        { sub: "rsZ", remoteId: "zz", version: 1 }, // unknown: skipped
       ],
     });
     expect(r).toEqual({ status: 200, json: { ok: true, received: 6 } });
@@ -144,13 +144,13 @@ describe("read state", () => {
 
     r = await apiJson(cookie, "POST", "/blyg/api/reading/read", {
       items: [
-        { sub: "rsA", remote_id: "a2", version: 1 },
-        { sub: "rsA", remote_id: "a2", version: "x" },
+        { sub: "rsA", remoteId: "a2", version: 1 },
+        { sub: "rsA", remoteId: "a2", version: "x" },
       ],
     });
     expect(r.status).toBe(400);
     // The failing entry is named by its index in the list.
-    expect(r.json.issues).toEqual([expect.objectContaining({ path: ["items", 1, "version"] })]);
+    expect(r.json.details.issues).toEqual([expect.objectContaining({ path: ["items", 1, "version"] })]);
     expect(await readState("rsA", "a2")).toBeNull();
 
     expect((await apiJson(cookie, "POST", "/blyg/api/reading/read", { items: [] })).json).toEqual({ ok: true, received: 0 });
@@ -160,14 +160,14 @@ describe("read state", () => {
 
   it("version 0 is refused on both routes: items start at version 1", async () => {
     expect((await apiJson(cookie, "PUT", "/blyg/api/reading/rsA/a2/read", { version: 0 })).status).toBe(400);
-    const r = await apiJson(cookie, "POST", "/blyg/api/reading/read", { items: [{ sub: "rsA", remote_id: "a2", version: 0 }] });
+    const r = await apiJson(cookie, "POST", "/blyg/api/reading/read", { items: [{ sub: "rsA", remoteId: "a2", version: 0 }] });
     expect(r.status).toBe(400);
-    expect(r.json.issues).toEqual([expect.objectContaining({ path: ["items", 0, "version"] })]);
+    expect(r.json.details.issues).toEqual([expect.objectContaining({ path: ["items", 0, "version"] })]);
     expect(await readState("rsA", "a2")).toBeNull();
   });
 
   it(`POST batch takes at most ${READ_BATCH_MAX} items`, async () => {
-    const items = Array.from({ length: READ_BATCH_MAX + 1 }, () => ({ sub: "rsA", remote_id: "a2", version: 1 }));
+    const items = Array.from({ length: READ_BATCH_MAX + 1 }, () => ({ sub: "rsA", remoteId: "a2", version: 1 }));
     expect((await apiJson(cookie, "POST", "/blyg/api/reading/read", { items })).status).toBe(400);
     expect(await readState("rsA", "a2")).toBeNull();
     const r = await apiJson(cookie, "POST", "/blyg/api/reading/read", { items: items.slice(0, READ_BATCH_MAX) });
@@ -218,11 +218,11 @@ describe("read state permissions and budget", () => {
       const put = await delegated(scope, "PUT", "/reading/rsScope/s1/read", { version: 1 });
       expect(put.status, scope.join(" ")).toBe(403);
       expect(put.headers.get("www-authenticate")).toContain("insufficient_scope");
-      expect((await delegated(scope, "POST", "/reading/read", { items: [{ sub: "rsScope", remote_id: "s1", version: 1 }] })).status).toBe(403);
+      expect((await delegated(scope, "POST", "/reading/read", { items: [{ sub: "rsScope", remoteId: "s1", version: 1 }] })).status).toBe(403);
     }
     expect(await readState("rsScope", "s1")).toBeNull();
     const put = await delegated(["reading:state"], "PUT", "/reading/rsScope/s1/read", { version: 1 });
-    expect(await put.json()).toEqual({ ok: true, stored: true, read_version: 1 });
+    expect(await put.json()).toEqual({ ok: true, stored: true, readVersion: 1 });
   });
 
   it(`a ${READ_BATCH_MAX}-row batch spends one unit of the write budget`, async () => {
@@ -239,7 +239,7 @@ describe("read state permissions and budget", () => {
     await db().prepare("DELETE FROM security_budgets WHERE key = 'api-write:owner'").run();
     const login = await call(STUDIO + "/login", { method: "POST", redirect: "manual", headers: { "CF-Connecting-IP": "2001:db8:5ead::1" }, body: new URLSearchParams({ password: env.OWNER_PASSWORD }) });
     const owner = login.headers.get("set-cookie")!.split(";")[0];
-    const items = Array.from({ length: READ_BATCH_MAX }, (_, i) => ({ sub: "rsBudget", remote_id: "x", version: i + 1 }));
+    const items = Array.from({ length: READ_BATCH_MAX }, (_, i) => ({ sub: "rsBudget", remoteId: "x", version: i + 1 }));
     const post = () => call("/blyg/api/reading/read", { method: "POST", headers: { cookie: owner, "Content-Type": "application/json" }, body: JSON.stringify({ items }) });
     expect([(await post()).status, (await post()).status, (await post()).status]).toEqual([200, 200, 429]);
     expect(await readState("rsBudget", "x")).toBe(READ_BATCH_MAX);

@@ -28,48 +28,48 @@ import { CLIENT } from '../client.ts';
 import { compiledExtensions } from '../../build/extensions.ui.ts';
 
 const fields = [
-  'site_title',
+  "siteTitle",
   'theme',
-  'custom_theme',
-  'custom_theme_dark',
-  'custom_theme_name',
+  "customTheme",
+  "customThemeDark",
+  "customThemeName",
   'font',
-  'author_name',
-  'author_url',
-  'author_bio',
-  'author_links',
-  'site_url',
+  "authorName",
+  "authorUrl",
+  "authorBio",
+  "authorLinks",
+  "siteUrl",
   'timezone',
-  'picker_typing',
-  'feed_order',
-  'front_page',
-  'posts_path',
-  'links_position',
-  'links_threads',
-  'links_collections',
-  'links_opml',
-  'links_blygger_org',
-  'links_blygger_com',
-  'avatar_media_id',
-  'ai_model_tk',
-  'ai_model_changelog',
-  'ai_model_feed',
-  'ai_model_classify',
-  'feed_prompt',
-  'ai_style_prompt',
-  'accept_mentions',
-  'update_check',
-  'show_responses_default',
-  'highlight_generated_default',
-  'auto_change_notes',
-  'change_category_in_note',
-  'update_feed_url',
+  "pickerTyping",
+  "feedOrder",
+  "frontPage",
+  "postsPath",
+  "linksPosition",
+  "linksThreads",
+  "linksCollections",
+  "linksOpml",
+  "linksBlyggerOrg",
+  "linksBlyggerCom",
+  "avatarMediaId",
+  "aiModelTk",
+  "aiModelChangelog",
+  "aiModelFeed",
+  "aiModelClassify",
+  "feedPrompt",
+  "aiStylePrompt",
+  "acceptMentions",
+  "updateCheck",
+  "showResponsesDefault",
+  "highlightGeneratedDefault",
+  "autoChangeNotes",
+  "changeCategoryInNote",
+  "updateFeedUrl",
   'extensions',
 ] as const;
 function editable(row: Settings): Settings {
   return Object.fromEntries(fields.map((key) => [key, row[key]])) as unknown as Settings;
 }
-export function parseLinks(text: string): Settings['author_links'] {
+export function parseLinks(text: string): Settings["authorLinks"] {
   return text
     .split('\n')
     .map((line) => line.trim())
@@ -109,13 +109,13 @@ function SettingsForm({ initial }: { initial: Settings }) {
     return copy;
   });
   const [links, setLinks] = useState(
-    initial.author_links
+    initial.authorLinks
       .map((link) => `${link.label} | ${link.url}`)
       .join('\n'),
   );
   const aiModels = useAiModels();
   const [externalLinks, setExternalLinks] = useState(
-    initial.links_external
+    initial.linksExternal
       .map((link) => `${link.label} | ${link.url}`)
       .join('\n'),
   );
@@ -133,14 +133,14 @@ function SettingsForm({ initial }: { initial: Settings }) {
   ];
   const field = (
     key:
-      | 'site_title'
-      | 'author_name'
-      | 'author_url'
-      | 'author_bio'
-      | 'site_url'
-      | 'ai_style_prompt'
-      | 'feed_prompt'
-      | 'update_feed_url',
+      | "siteTitle"
+      | "authorName"
+      | "authorUrl"
+      | "authorBio"
+      | "siteUrl"
+      | "aiStylePrompt"
+      | "feedPrompt"
+      | "updateFeedUrl",
     label: string,
     multiline = false,
     placeholder?: string,
@@ -152,7 +152,7 @@ function SettingsForm({ initial }: { initial: Settings }) {
       {multiline ? (
         <textarea
           id={key}
-          rows={key === 'feed_prompt' ? 4 : 3}
+          rows={key === "feedPrompt" ? 4 : 3}
           value={form[key]}
           placeholder={placeholder}
           onChange={(event) => change(key, event.target.value)}
@@ -160,7 +160,7 @@ function SettingsForm({ initial }: { initial: Settings }) {
       ) : (
         <input
           id={key}
-          type={key === 'site_url' || key === 'update_feed_url' ? 'url' : 'text'}
+          type={key === "siteUrl" || key === "updateFeedUrl" ? 'url' : 'text'}
           value={form[key]}
           placeholder={placeholder}
           onChange={(event) => change(key, event.target.value)}
@@ -170,16 +170,16 @@ function SettingsForm({ initial }: { initial: Settings }) {
   );
   const toggle = (
     key:
-      | 'update_check'
-      | 'show_responses_default'
-      | 'highlight_generated_default'
-      | 'accept_mentions'
-      | 'auto_change_notes'
-      | 'change_category_in_note'
-      | 'links_collections'
-      | 'links_opml'
-      | 'links_blygger_org'
-      | 'links_blygger_com',
+      | "updateCheck"
+      | "showResponsesDefault"
+      | "highlightGeneratedDefault"
+      | "acceptMentions"
+      | "autoChangeNotes"
+      | "changeCategoryInNote"
+      | "linksCollections"
+      | "linksOpml"
+      | "linksBlyggerOrg"
+      | "linksBlyggerCom",
     label: string,
     hint?: ReactNode,
   ) => (
@@ -217,7 +217,7 @@ function SettingsForm({ initial }: { initial: Settings }) {
           const author_links = parseLinks(links);
           const links_external = parseLinks(externalLinks);
           await settings.update('settings', (row) => {
-            Object.assign(row, form, { author_links, links_external });
+            Object.assign(row, form, { authorLinks: author_links, linksExternal: links_external });
           }).when('settled');
           setSaved(true);
         } catch (failure) {
@@ -237,24 +237,24 @@ function SettingsForm({ initial }: { initial: Settings }) {
       </p>
       <section className="card">
         <h3 className="card-h">profile</h3>
-        {field('site_title', 'Site title')}
-        {field('author_name', 'Author name')}
-        {field('author_url', 'Author URL', false, 'blank = this blyg\'s own address')}
-        {field('author_bio', 'Bio', true)}
+        {field("siteTitle", 'Site title')}
+        {field("authorName", 'Author name')}
+        {field("authorUrl", 'Author URL', false, 'blank = this blyg\'s own address')}
+        {field("authorBio", 'Bio', true)}
         <div className="field">
-          <label htmlFor="avatar_media_id">
+          <label htmlFor="avatarMediaId">
             <span>Avatar media ID</span>
           </label>
           <input
-            id="avatar_media_id"
+            id="avatarMediaId"
             type="text"
-            value={form.avatar_media_id}
-            onChange={(event) => change('avatar_media_id', event.target.value)}
+            value={form.avatarMediaId}
+            onChange={(event) => change("avatarMediaId", event.target.value)}
           />
         </div>
         <div className="row avatar-row">
           {avatar ? (
-            <img src={`${mount}/${avatar}`} alt="Uploaded avatar" />
+            <img src={avatar} alt="Uploaded avatar" />
           ) : null}
           <span className="spacer" />
           <Button
@@ -269,7 +269,7 @@ function SettingsForm({ initial }: { initial: Settings }) {
             type="button"
             className="btn btn-ghost btn-mini"
             onClick={() => {
-              change('avatar_media_id', '');
+              change("avatarMediaId", '');
               setAvatar('');
             }}
           >
@@ -291,7 +291,7 @@ function SettingsForm({ initial }: { initial: Settings }) {
               const media = await unwrap(
                 BlyggerApi.uploadMedia({ client, body: { file: selected } }),
               );
-              change('avatar_media_id', media.id);
+              change("avatarMediaId", media.id);
               setAvatar(media.url);
             } catch (failure) {
               setError(failure);
@@ -303,7 +303,7 @@ function SettingsForm({ initial }: { initial: Settings }) {
       </section>
       <section className="card">
         <h3 className="card-h">site</h3>
-        {field('site_url', 'Canonical site URL (blank = derive from request)')}
+        {field("siteUrl", 'Canonical site URL (blank = derive from request)')}
         <div className="field">
           <label htmlFor="timezone">
             <span>Timezone for displayed dates</span>
@@ -346,10 +346,10 @@ function SettingsForm({ initial }: { initial: Settings }) {
             <label className="check" key={value}>
               <input
                 type="radio"
-                name="picker_typing"
+                name="pickerTyping"
                 value={value}
-                checked={form.picker_typing === value}
-                onChange={() => change('picker_typing', value)}
+                checked={form.pickerTyping === value}
+                onChange={() => change("pickerTyping", value)}
               />
               <span>
                 {label} <span className="hint">{hint}</span>
@@ -361,7 +361,7 @@ function SettingsForm({ initial }: { initial: Settings }) {
       <section className="card">
         <h3 className="card-h">updates</h3>
         {toggle(
-          'update_check',
+          "updateCheck",
           'Tell me when a newer release of this client exists',
           <>
             On by default. Once a day your blyg fetches the client’s public
@@ -373,7 +373,7 @@ function SettingsForm({ initial }: { initial: Settings }) {
           </>,
         )}
         {field(
-          'update_feed_url',
+          "updateFeedUrl",
           'Release feed (blank = this client’s own)',
           false,
           'https://github.com/blygger/blygger-studio/releases.atom',
@@ -390,14 +390,14 @@ function SettingsForm({ initial }: { initial: Settings }) {
         <h3 className="card-h">home page</h3>
         <div className="field" role="radiogroup" aria-labelledby="feed_order-label">
           <span id="feed_order-label">Order of your public home page</span>
-          {(initial.feed_orders ?? FEED_ALGORITHMS).map((algorithm) => (
+          {(initial.feedOrders ?? FEED_ALGORITHMS).map((algorithm) => (
             <label className="check" key={algorithm.id}>
               <input
                 type="radio"
-                name="feed_order"
+                name="feedOrder"
                 value={algorithm.id}
-                checked={form.feed_order === algorithm.id}
-                onChange={() => change('feed_order', algorithm.id)}
+                checked={form.feedOrder === algorithm.id}
+                onChange={() => change("feedOrder", algorithm.id)}
               />
               <span>
                 {algorithm.title}
@@ -470,43 +470,43 @@ function SettingsForm({ initial }: { initial: Settings }) {
                 checked={form.theme === CUSTOM_THEME_ID}
                 onChange={() => {
                   // First time: start from whichever preset was showing.
-                  if (!form.custom_theme)
+                  if (!form.customTheme)
                     change(
-                      'custom_theme',
+                      "customTheme",
                       customFromPreset(Object.prototype.hasOwnProperty.call(THEMES, form.theme) ? form.theme : 'paper'),
                     );
                   change('theme', CUSTOM_THEME_ID);
                 }}
               />
               <span
-                className={`theme-swatch${form.custom_theme ? '' : ' theme-swatch-empty'}`}
+                className={`theme-swatch${form.customTheme ? '' : ' theme-swatch-empty'}`}
                 style={{
                   background:
-                    form.custom_theme && form.custom_theme_dark
-                      ? `linear-gradient(90deg,${form.custom_theme.page} 50%,${form.custom_theme_dark.page} 50%)`
-                      : form.custom_theme?.page,
+                    form.customTheme && form.customThemeDark
+                      ? `linear-gradient(90deg,${form.customTheme.page} 50%,${form.customThemeDark.page} 50%)`
+                      : form.customTheme?.page,
                 }}
               >
-                {form.custom_theme ? (
+                {form.customTheme ? (
                   <span
                     className="sheet-mini"
                     style={{
-                      background: form.custom_theme_dark
-                        ? `linear-gradient(90deg,${form.custom_theme.paper} 50%,${form.custom_theme_dark.paper} 50%)`
-                        : form.custom_theme.paper,
+                      background: form.customThemeDark
+                        ? `linear-gradient(90deg,${form.customTheme.paper} 50%,${form.customThemeDark.paper} 50%)`
+                        : form.customTheme.paper,
                     }}
                   >
                     <span
                       className="line"
                       style={{
-                        background: form.custom_theme_dark
-                          ? `linear-gradient(90deg,${form.custom_theme.ink} 50%,${form.custom_theme_dark.ink} 50%)`
-                          : form.custom_theme.ink,
+                        background: form.customThemeDark
+                          ? `linear-gradient(90deg,${form.customTheme.ink} 50%,${form.customThemeDark.ink} 50%)`
+                          : form.customTheme.ink,
                       }}
                     />
                     <span
                       className="line short"
-                      style={{ background: form.custom_theme.pencil }}
+                      style={{ background: form.customTheme.pencil }}
                     />
                   </span>
                 ) : (
@@ -516,21 +516,21 @@ function SettingsForm({ initial }: { initial: Settings }) {
                 )}
               </span>
               <span className="theme-name">
-                {form.custom_theme_name || 'Custom'}
+                {form.customThemeName || 'Custom'}
               </span>
             </label>
           </div>
         </div>
-        {form.theme === CUSTOM_THEME_ID && form.custom_theme ? (
+        {form.theme === CUSTOM_THEME_ID && form.customTheme ? (
           <CustomThemeFields
-            name={form.custom_theme_name}
-            light={form.custom_theme}
-            dark={form.custom_theme_dark}
+            name={form.customThemeName}
+            light={form.customTheme}
+            dark={form.customThemeDark}
             font={FONTS[form.font]?.stack}
-            onName={(name) => change('custom_theme_name', name)}
+            onName={(name) => change("customThemeName", name)}
             onChange={(light, dark) => {
-              change('custom_theme', light);
-              change('custom_theme_dark', dark);
+              change("customTheme", light);
+              change("customThemeDark", dark);
             }}
           />
         ) : null}
@@ -561,7 +561,7 @@ function SettingsForm({ initial }: { initial: Settings }) {
           </div>
         </div>
         {toggle(
-          'highlight_generated_default',
+          "highlightGeneratedDefault",
           'Highlight generated portions by default',
           <>
             Text written by <code>[TK]</code> generation shows on your public
@@ -577,11 +577,11 @@ function SettingsForm({ initial }: { initial: Settings }) {
         <h3 className="card-h">masthead menu</h3>
         <p className="hint">Links under your name at the top of every public page, such as your newsletter or other sites. They are also your <code>author.links</code> in <code>blyg.json</code>.</p>
         <div className="field">
-          <label htmlFor="author_links">
+          <label htmlFor="authorLinks">
             <span>One per line: label | url</span>
           </label>
           <textarea
-            id="author_links"
+            id="authorLinks"
             rows={3}
             value={links}
             onChange={(event) => {
@@ -609,10 +609,10 @@ function SettingsForm({ initial }: { initial: Settings }) {
             <label className="check" key={value}>
               <input
                 type="radio"
-                name="links_position"
+                name="linksPosition"
                 value={value}
-                checked={form.links_position === value}
-                onChange={() => change('links_position', value)}
+                checked={form.linksPosition === value}
+                onChange={() => change("linksPosition", value)}
               />
               <span>{label}</span>
             </label>
@@ -623,15 +623,15 @@ function SettingsForm({ initial }: { initial: Settings }) {
           </span>
         </div>
         <LinkedThreads
-          ids={form.links_threads}
-          onChange={(ids) => change('links_threads', ids)}
+          ids={form.linksThreads}
+          onChange={(ids) => change("linksThreads", ids)}
         />
         <div className="field">
-          <label htmlFor="links_external">
+          <label htmlFor="linksExternal">
             <span>Your links, one per line: label | url</span>
           </label>
           <textarea
-            id="links_external"
+            id="linksExternal"
             rows={3}
             value={externalLinks}
             placeholder="Résumé | https://example.com/resume.pdf"
@@ -641,10 +641,10 @@ function SettingsForm({ initial }: { initial: Settings }) {
             }}
           />
         </div>
-        {toggle('links_collections', 'Your public collections')}
-        {toggle('links_opml', 'Your blogroll as an OPML file, when it lists anyone')}
-        {toggle('links_blygger_org', 'Made with Blygger (blygger.org)')}
-        {toggle('links_blygger_com', 'Find more blygs (blygger.com)')}
+        {toggle("linksCollections", 'Your public collections')}
+        {toggle("linksOpml", 'Your blogroll as an OPML file, when it lists anyone')}
+        {toggle("linksBlyggerOrg", 'Made with Blygger (blygger.org)')}
+        {toggle("linksBlyggerCom", 'Find more blygs (blygger.com)')}
       </section>
       </section>
       <section className="settings-section" id="ai" aria-labelledby="ai-h">
@@ -653,18 +653,18 @@ function SettingsForm({ initial }: { initial: Settings }) {
       <ModelIntro manifest={aiModels} />
       <section className="card" id="ai-tk">
         <h3 className="card-h">TK generation</h3>
-        <ModelField fkey="ai_model_tk" label="Model" name="TK generation" manifest={aiModels} form={form} change={change} />
+        <ModelField fkey="aiModelTk" label="Model" name="TK generation" manifest={aiModels} form={form} change={change} />
         {field(
-          'ai_style_prompt',
+          "aiStylePrompt",
           'House style (optional): added to every [TK] generation request',
           true,
         )}
       </section>
       <section className="card" id="ai-changelog">
         <h3 className="card-h">change notes</h3>
-        <ModelField fkey="ai_model_changelog" label="Model" name="change notes" manifest={aiModels} form={form} change={change} />
+        <ModelField fkey="aiModelChangelog" label="Model" name="change notes" manifest={aiModels} form={form} change={change} />
         {toggle(
-          'auto_change_notes',
+          "autoChangeNotes",
           'Draft a note when I publish a new version without one',
           <>
             When a new version is published with no note, the changelog model
@@ -686,7 +686,7 @@ function SettingsForm({ initial }: { initial: Settings }) {
           of your change note.
         </p>
         <ModelField
-          fkey="ai_model_classify"
+          fkey="aiModelClassify"
           label="Model"
           name="change classifier"
           decision
@@ -694,9 +694,9 @@ function SettingsForm({ initial }: { initial: Settings }) {
           form={form}
           change={change}
         />
-        {form.ai_model_classify
+        {form.aiModelClassify
           ? toggle(
-              'change_category_in_note',
+              "changeCategoryInNote",
               'Start the change note with the label',
               <>
                 An empty note becomes the label (<code>minor</code>); a note
@@ -709,9 +709,9 @@ function SettingsForm({ initial }: { initial: Settings }) {
       </section>
       <section className="card" id="ai-feed">
         <h3 className="card-h">smart feed</h3>
-        <ModelField fkey="ai_model_feed" label="Model" name="feed scoring" hint="not used yet" manifest={aiModels} form={form} change={change} />
+        <ModelField fkey="aiModelFeed" label="Model" name="feed scoring" hint="not used yet" manifest={aiModels} form={form} change={change} />
         {field(
-          'feed_prompt',
+          "feedPrompt",
           'Scoring prompt: how the agent should score new items',
           true,
           'e.g. Prioritize tech news and significant updates to items I have interacted with or liked. Deprioritize sports content, trivial updates, and items like ones I have disliked.',
@@ -744,7 +744,7 @@ function SettingsForm({ initial }: { initial: Settings }) {
       <section className="card">
         <h3 className="card-h">responses from other blygs</h3>
         {toggle(
-          'show_responses_default',
+          "showResponsesDefault",
           'Show verified responses on my items’ public pages, by default',
           <>
             Applies to items that have not decided for themselves. An item’s
@@ -754,7 +754,7 @@ function SettingsForm({ initial }: { initial: Settings }) {
           </>,
         )}
         {toggle(
-          'accept_mentions',
+          "acceptMentions",
           'Accept Webmentions — let other blygs tell yours when they quote, respond to or fork an item',
           <>
             Unchecking this removes the public Webmention endpoint and its
@@ -882,16 +882,16 @@ function SettingsNav() {
 }
 
 const FUNCTIONS = [
-  { key: 'ai_model_tk', label: 'TK generation' },
-  { key: 'ai_model_changelog', label: 'changelog notes' },
-  { key: 'ai_model_feed', label: 'feed scoring', hint: 'for the Smart Feed; not used yet' },
+  { key: "aiModelTk", label: 'TK generation' },
+  { key: "aiModelChangelog", label: 'changelog notes' },
+  { key: "aiModelFeed", label: 'feed scoring', hint: 'for the Smart Feed; not used yet' },
 ] as const;
 const OTHER = '__other__';
 
 /** A provider's readiness in words: a key, a Workers AI binding (studio#8), or neither needed. */
 function providerStatus(p: AiModels['providers'][number]): string {
   if (p.binding) return p.configured ? 'binding set' : 'no binding';
-  if (!p.key_secret) return 'no key needed';
+  if (!p.keySecret) return 'no key needed';
   return p.configured ? 'key set' : 'no key';
 }
 
@@ -929,10 +929,10 @@ function ModelIntro({ manifest }: { manifest?: AiModels }) {
               {p.configured ? '✓' : '–'} {p.label}{' '}
               <span className="hint">
                 {providerStatus(p)}
-                {p.key_secret || p.binding ? (
+                {p.keySecret || p.binding ? (
                   <>
                     {' '}
-                    (<code>{p.key_secret ?? p.binding}</code>)
+                    (<code>{p.keySecret ?? p.binding}</code>)
                   </>
                 ) : null}
               </span>
@@ -944,7 +944,7 @@ function ModelIntro({ manifest }: { manifest?: AiModels }) {
   );
 }
 
-type ModelKey = (typeof FUNCTIONS)[number]['key'] | 'ai_model_classify';
+type ModelKey = (typeof FUNCTIONS)[number]['key'] | "aiModelClassify";
 
 /**
  * One AI function's model, chosen from the manifest or typed in (0.26.0).
@@ -1196,23 +1196,23 @@ function FrontPageFields({
     (row) => row.status === 'public' && row.kind === 'thread',
   );
   const missing =
-    form.front_page && !threads.some((row) => row.id === form.front_page);
+    form.frontPage && !threads.some((row) => row.id === form.frontPage);
   return (
     <>
       <div className="field">
         <span id="front_page-label">Front page</span>
-        <p className="front-page-choice" id="front_page" aria-labelledby="front_page-label">
+        <p className="front-page-choice" id="frontPage" aria-labelledby="front_page-label">
           <strong>
-            {!form.front_page
+            {!form.frontPage
               ? 'Your latest items'
               : missing
                 ? 'A thread that is no longer published'
-                : itemTitle(threads.find((row) => row.id === form.front_page)!.content_md) || form.front_page}
+                : itemTitle(threads.find((row) => row.id === form.frontPage)!.contentMd) || form.frontPage}
           </strong>
-          {form.front_page ? (
+          {form.frontPage ? (
             <>
               {' '}
-              <Button className="btn btn-ghost btn-mini" onClick={() => change('front_page', '')}>
+              <Button className="btn btn-ghost btn-mini" onClick={() => change("frontPage", '')}>
                 use latest items
               </Button>
             </>
@@ -1222,8 +1222,8 @@ function FrontPageFields({
           id="front_page_search"
           label="find a thread for the front page"
           placeholder="Find a thread to use as the front page…"
-          threads={threads.filter((row) => row.id !== form.front_page)}
-          onPick={(id) => change('front_page', id)}
+          threads={threads.filter((row) => row.id !== form.frontPage)}
+          onPick={(id) => change("frontPage", id)}
         />
         <span className="hint">
           Choose a published thread to greet readers at {mount || ''}/ instead
@@ -1235,18 +1235,18 @@ function FrontPageFields({
         </span>
       </div>
       <div className="field">
-        <label htmlFor="posts_path">
+        <label htmlFor="postsPath">
           <span>Address of your latest items</span>
         </label>
         <input
-          id="posts_path"
-          value={form.posts_path}
+          id="postsPath"
+          value={form.postsPath}
           onChange={(event) =>
-            change('posts_path', event.target.value.trim().toLowerCase())
+            change("postsPath", event.target.value.trim().toLowerCase())
           }
         />
         <span className="hint">
-          Your latest items are always at {mount || ''}/{form.posts_path || 'posts'}/,
+          Your latest items are always at {mount || ''}/{form.postsPath || 'posts'}/,
           and with a front page every public page links there. Lowercase
           letters, digits and hyphens.
         </span>
@@ -1270,7 +1270,7 @@ function LinkedThreads({
   );
   const title = (id: string) => {
     const row = threads.find((t) => t.id === id);
-    return row ? itemTitle(row.content_md) || id : 'a thread that is no longer published';
+    return row ? itemTitle(row.contentMd) || id : 'a thread that is no longer published';
   };
   const move = (from: number, to: number) => {
     const next = [...ids];
@@ -1331,7 +1331,7 @@ function LinkedThreads({
   );
 }
 
-type ThreadRow = { id: string; content_md: string; updated: string };
+type ThreadRow = { id: string; contentMd: string; updated: string };
 
 /**
  * Find a published thread by title or id (session 47): up to eight matches,
@@ -1355,7 +1355,7 @@ function ThreadSearch({
   const needle = query.trim().toLowerCase();
   const matches = needle
     ? threads
-        .filter((row) => (itemTitle(row.content_md) + ' ' + row.id).toLowerCase().includes(needle))
+        .filter((row) => (itemTitle(row.contentMd) + ' ' + row.id).toLowerCase().includes(needle))
         .sort((a, b) => (a.updated < b.updated ? 1 : -1))
         .slice(0, 8)
     : [];
@@ -1385,7 +1385,7 @@ function ThreadSearch({
             {matches.map((row) => (
               <li key={row.id}>
                 <button type="button" className="link" onClick={() => pick(row.id)}>
-                  {itemTitle(row.content_md) || row.id}
+                  {itemTitle(row.contentMd) || row.id}
                 </button>
               </li>
             ))}

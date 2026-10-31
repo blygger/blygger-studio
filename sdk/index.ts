@@ -9,7 +9,7 @@ export const createBlyggerClient = (options: Config = {}) => createClient({ cred
 
 export class BlyggerApiError extends Error {
   constructor(readonly statusCode: number, readonly body: unknown) {
-    super(typeof body === "object" && body !== null && "error" in body ? String(body.error) : `API request failed (${statusCode})`);
+    super(typeof body === "object" && body !== null && "message" in body ? String(body.message) : `API request failed (${statusCode})`);
     this.name = "BlyggerApiError";
   }
 }

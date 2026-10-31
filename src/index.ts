@@ -5,6 +5,7 @@ import { readChanges } from './changes.ts';
 import { verifySession } from "./auth.ts";
 import { verifyBearer } from "./oauth.ts";
 import { requestError } from './request-error.ts';
+import { statusError } from './api-error.ts';
 import { fontCss } from "./fonts.ts";
 import { listHomeItems } from "./public-feed.ts";
 import { studioSpa } from "./spa.ts";
@@ -46,11 +47,16 @@ const cors = (c: { header: (k: string, v: string) => void }) =>
 export function makeApp(mount: string) {
   const app = new Hono<{ Bindings: Env }>({ strict: false });
   const paths = deploymentPaths(mount);
+  const outerError = (path: string, status: number, message: string) => {
+    const privateRequest = path === paths.api || path.startsWith(paths.api + '/') ||
+      path.replace(/\/+$/, '') === paths.mcp;
+    return privateRequest ? statusError(status, message) : { error: message };
+  };
   app.onError((_error, c) => {
     // Authentication driver failures can contain SQL parameters and secrets.
     // Keep a bounded event rather than Hono's default raw Error/stack output.
     console.error('Worker request failed', requestError(_error, c));
-    return c.json({ error: 'internal server error' }, 500, { 'Cache-Control': 'no-store' });
+    return c.json(outerError(c.req.path, 500, 'internal server error'), 500, { 'Cache-Control': 'no-store' });
   });
   app.use('*', async (c, next) => {
     c.env = { ...c.env, MOUNT: mount };
@@ -58,7 +64,7 @@ export function makeApp(mount: string) {
     if (path === paths.api || path.startsWith(paths.api + '/') || path === studio || path.startsWith(studio + '/')) {
       const url = new URL(c.req.url);
       const loopback = ['localhost', '127.0.0.1', '[::1]'].includes(url.hostname);
-      if (url.protocol !== 'https:' && !loopback) return c.json({ error: 'HTTPS required' }, 400, { 'Cache-Control': 'no-store' });
+      if (url.protocol !== 'https:' && !loopback) return c.json(outerError(path, 400, 'HTTPS required'), 400, { 'Cache-Control': 'no-store' });
     }
     await next();
   });

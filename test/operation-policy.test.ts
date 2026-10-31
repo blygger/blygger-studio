@@ -95,8 +95,8 @@ it('validates null JSON without crashing conditional permission checks', async (
 });
 it('charges one declared API budget per REST or MCP operation', async () => {
   const access = authority(['owner:read', 'owner:draft']);
-  expect((await rest(access, '/preview', 'POST', { content_md: 'preview' })).status).toBe(200);
-  const result = await mcp(access, 'tools/call', { name: 'preview', arguments: { body: { content_md: 'preview' } } });
+  expect((await rest(access, '/preview', 'POST', { contentMd: 'preview' })).status).toBe(200);
+  const result = await mcp(access, 'tools/call', { name: 'preview', arguments: { body: { contentMd: 'preview' } } });
   expect((await result.json() as any).result.isError).not.toBe(true);
   expect((await rest(access, '/peek/links', 'POST', { urls: [] })).status).toBe(200);
   const rows = await env.DB.prepare('SELECT key, used FROM security_budgets WHERE key LIKE ? ORDER BY key').bind('%:grant:' + access.clientId).all<{ key: string; used: number }>();
@@ -104,7 +104,7 @@ it('charges one declared API budget per REST or MCP operation', async () => {
 });
 it.each([
   ['tools/list', {}, 1],
-  ['tools/call', { name: 'preview', arguments: { body: { content_md: 'text' } } }, 0],
+  ['tools/call', { name: 'preview', arguments: { body: { contentMd: 'text' } } }, 0],
   ['tools/call', { name: 'getCapabilities', arguments: {} }, 1],
   ['tools/call', { name: 'extLineageGlyphListSummaries', arguments: { query: { keys: '[]' } } }, 1],
 ] as const)('bounds extension state reads for %s %j', async (method, params, expected) => {
@@ -149,7 +149,7 @@ it.each(['admission', 'feature'])('sanitizes MCP infrastructure failures during 
   const value = await response.json() as any;
   expect(value.result.isError).toBe(true);
   expect(JSON.stringify(value)).not.toContain(sentinel);
-  expect(value.result.content[0].text).toBe(JSON.stringify({ error: 'internal server error' }));
+  expect(value.result.content[0].text).toBe(JSON.stringify({ code: 'internal', message: 'internal server error' }));
 });
 it('sanitizes MCP discovery infrastructure failures', async () => {
   const sentinel = 'disposable-discovery-error-sentinel';

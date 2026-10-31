@@ -26,7 +26,7 @@ await mf.ready;
 // Verified pointers for the mentions view; source prose remains imported-only.
 const fixtureLogin = await mf.dispatchFetch('http://localhost/studio/login', { method: 'POST', headers: { 'content-type': 'application/x-www-form-urlencoded' }, body: 'password=test-password', redirect: 'manual' });
 const fixtureCookie = fixtureLogin.headers.get('set-cookie')!.split(';')[0];
-const targetResponse = await mf.dispatchFetch('http://localhost/api/items', { method: 'POST', headers: { cookie: fixtureCookie, 'content-type': 'application/json' }, body: JSON.stringify({ content_md: 'Mention target fixture', kind: 'thread' }) });
+const targetResponse = await mf.dispatchFetch('http://localhost/api/items', { method: 'POST', headers: { cookie: fixtureCookie, 'content-type': 'application/json' }, body: JSON.stringify({ contentMd: 'Mention target fixture', kind: 'thread' }) });
 const target = await targetResponse.json() as { id: string; revision: number };
 await mf.dispatchFetch(`http://localhost/api/items/${target.id}/publish`, { method: 'POST', headers: { cookie: fixtureCookie, 'content-type': 'application/json' }, body: JSON.stringify({ expectedRevision: target.revision }) });
 for (const [id, origin, remoteId, hidden] of [['parity-held', 'https://source.example/', '00000000000000000000000001', 0], ['parity-stranger', 'https://stranger.example/', '00000000000000000000000003', 1]] as const) {

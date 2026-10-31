@@ -19,7 +19,7 @@ async function fixture() {
   const tokens: string[] = [];
   for (const name of ['delegated A', 'delegated B']) {
     const minted = await f.request('/blyg/api/authorizations', { method: 'POST', headers: { cookie: f.owner, 'Content-Type': 'application/json' }, body: JSON.stringify({ name, scope: ['owner:read'], resource: 'api' }) });
-    expect(minted.status).toBe(200); tokens.push((await minted.json() as {access_token:string}).access_token);
+    expect(minted.status).toBe(200); tokens.push((await minted.json() as {accessToken:string}).accessToken);
   }
   return { ...f, tokens };
 }
@@ -62,12 +62,12 @@ it('AI work through an MCP tool spends the grant share, not the owner reserve', 
   const { putSettings } = await import('../src/model.ts');
   await putSettings(env.DB, { ai_model_tk: 'claude-opus-5' });
   const f = await flow(), bindings = { ...env, AI_PROVIDER_KEY: 'disposable-provider-fixture', AI_DAILY_CALL_LIMIT: '3', AI_OWNER_RESERVED_CALLS: '2', AI_GRANT_DAILY_CALL_LIMIT: '3' };
-  const created = await f.request('/blyg/api/items', { method: 'POST', headers: { cookie: f.owner, 'Content-Type': 'application/json' }, body: JSON.stringify({ content_md: '[TK]write more[/TK]' }) }, bindings);
+  const created = await f.request('/blyg/api/items', { method: 'POST', headers: { cookie: f.owner, 'Content-Type': 'application/json' }, body: JSON.stringify({ contentMd: '[TK]write more[/TK]' }) }, bindings);
   expect(created.status).toBe(201);
   const { id } = await created.json() as { id: string };
   const minted = await f.request('/blyg/api/authorizations', { method: 'POST', headers: { cookie: f.owner, 'Content-Type': 'application/json' }, body: JSON.stringify({ name: 'MCP AI', scope: ['owner:draft'], resource: 'mcp' }) }, bindings);
   expect(minted.status).toBe(200);
-  const { access_token } = await minted.json() as { access_token: string };
+  const { accessToken } = await minted.json() as { accessToken: string };
   const original = globalThis.fetch;
   let calls = 0;
   const spy = vi.spyOn(globalThis, 'fetch').mockImplementation(async (input, init) => {
@@ -77,7 +77,7 @@ it('AI work through an MCP tool spends the grant share, not the owner reserve', 
   });
   try {
     const viaMcp = async () => {
-      const response = await f.request('/blyg/studio/mcp', { method: 'POST', headers: { Authorization: 'Bearer ' + access_token, 'Content-Type': 'application/json', Accept: 'application/json, text/event-stream', 'mcp-protocol-version': '2026-07-28', 'mcp-method': 'tools/call', 'mcp-name': 'generateItem' }, body: JSON.stringify({ jsonrpc: '2.0', id: 1, method: 'tools/call', params: { name: 'generateItem', arguments: { path: { id }, body: { scope: 0, expectedRevision: await testItemRevision(id) } }, _meta: { 'io.modelcontextprotocol/protocolVersion': '2026-07-28', 'io.modelcontextprotocol/clientCapabilities': {} } } }) }, bindings);
+      const response = await f.request('/blyg/studio/mcp', { method: 'POST', headers: { Authorization: 'Bearer ' + accessToken, 'Content-Type': 'application/json', Accept: 'application/json, text/event-stream', 'mcp-protocol-version': '2026-07-28', 'mcp-method': 'tools/call', 'mcp-name': 'generateItem' }, body: JSON.stringify({ jsonrpc: '2.0', id: 1, method: 'tools/call', params: { name: 'generateItem', arguments: { path: { id }, body: { scope: 0, expectedRevision: await testItemRevision(id) } }, _meta: { 'io.modelcontextprotocol/protocolVersion': '2026-07-28', 'io.modelcontextprotocol/clientCapabilities': {} } } }) }, bindings);
       expect(response.status).toBe(200);
       return (await response.json() as { result: { isError?: boolean; content: { text: string }[] } }).result;
     };

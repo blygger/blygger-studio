@@ -100,7 +100,7 @@ describe("browsing path", () => {
 
   it("is written and read through /api, for the owner only", async () => {
     const cookie = await login();
-    const body = { trail: "trail-cccc-3", origin: O, remote_id: ID, via: "start", version: 2, title: "T" };
+    const body = { trail: "trail-cccc-3", origin: O, remoteId: ID, via: "start", version: 2, title: "T" };
     const posted = await apiJson(cookie, "POST", "/blyg/api/browse", body);
     expect(posted.status).toBe(201);
     const listed = await apiJson(cookie, "GET", "/blyg/api/browse?trail=trail-cccc-3");

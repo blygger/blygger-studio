@@ -100,7 +100,7 @@ describe("resolution (R2): §10.2's order against the local snapshot", () => {
   it("our own thread is a source now, with no origin and no cite", async () => {
     const cookie = await login();
     const frag = await createAndPublish(cookie, "Quoted fragment.");
-    const thread = (await apiJson(cookie, "POST", "/blyg/api/items", { content_md: `![[${frag}]]\n\nThread words.`, kind: "thread" })).json.id as string;
+    const thread = (await apiJson(cookie, "POST", "/blyg/api/items", { contentMd: `![[${frag}]]\n\nThread words.`, kind: "thread" })).json.id as string;
     expect((await apiJson(cookie, "POST", `/blyg/api/items/${thread}/publish`, {})).status).toBe(200);
     const { result, calls, provenance } = await generateWith(`[TK]summarize ![[${thread}]][/TK]`);
     expect(result.ok).toBe(true);
@@ -267,7 +267,7 @@ describe("import (R8c, migration 0027): generated[] survives verbatim", () => {
     expect(JSON.parse((await row())!.generated_json!)).toEqual(generated);
 
     const api = await apiJson(cookie, "GET", `/blyg/api/imports/them/${R1}`);
-    expect(JSON.parse(api.json.generated_json)).toEqual(generated);
+    expect(api.json.generated).toEqual(generated);
     const feed = await apiJson(cookie, "GET", "/blyg/api/reading/imported?limit=100");
     expect(feed.json.items.find((i: { remoteId: string }) => i.remoteId === R1).generated).toEqual(generated);
 
@@ -289,7 +289,7 @@ describe("studio (R6): the preview names each scope's sources before generating"
     await seedImported("them", R1, { md: "Their words.", html: "<p>Their words.</p>" });
     const own = await createAndPublish(cookie, "Own words.");
     await seedImported("them", R2, { l0: 1 });
-    const res = await apiJson(cookie, "POST", "/blyg/api/preview", { content_md: `[TK]compare ![[${R1}]] ![[${own}]] ![[${R2}]][/TK]` });
+    const res = await apiJson(cookie, "POST", "/blyg/api/preview", { contentMd: `[TK]compare ![[${R1}]] ![[${own}]] ![[${R2}]][/TK]` });
     expect(res.status).toBe(200);
     expect(res.json.scopes[0].sources).toEqual([
       { id: R1, ok: true, from: "Friend's Blyg", remote: true, excerpt: "Their words." },

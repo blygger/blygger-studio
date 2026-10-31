@@ -52,7 +52,7 @@ const refresh = (f: Awaited<ReturnType<typeof issued>>, token: string) => f.requ
 const read = (f: Awaited<ReturnType<typeof flow>>, token: string) => f.request('/blyg/api/settings', { headers: { Authorization: 'Bearer ' + token } });
 const mcp = (f: Awaited<ReturnType<typeof issued>>, token: string, name = 'getSettings') => f.request('/blyg/studio/mcp', {
   method: 'POST', headers: { Authorization: 'Bearer ' + token, 'Content-Type': 'application/json', Accept: 'application/json, text/event-stream', 'MCP-Protocol-Version': '2026-07-28', 'MCP-Method': 'tools/call', 'MCP-Name': name },
-  body: JSON.stringify({ jsonrpc: '2.0', id: 1, method: 'tools/call', params: { name, arguments: name === 'createItem' ? { body: { content_md: 'must not write' } } : {}, _meta: { 'io.modelcontextprotocol/protocolVersion': '2026-07-28', 'io.modelcontextprotocol/clientCapabilities': {} } } }),
+  body: JSON.stringify({ jsonrpc: '2.0', id: 1, method: 'tools/call', params: { name, arguments: name === 'createItem' ? { body: { contentMd: 'must not write' } } : {}, _meta: { 'io.modelcontextprotocol/protocolVersion': '2026-07-28', 'io.modelcontextprotocol/clientCapabilities': {} } } }),
 });
 
 // Literal security laws are independent of native provider implementation.
@@ -63,7 +63,9 @@ describe('security release boundaries', () => {
     const response = await makeApp('/blyg').fetch(new Request('http://insecure.example.test' + path, { method: 'POST', headers: { 'CF-Connecting-IP': '198.51.100.251' }, body: new URLSearchParams({ password: env.OWNER_PASSWORD, grant_type: 'authorization_code' }) }), env, ctx);
     await waitOnExecutionContext(ctx);
     expect(response.status, 'cleartext protected transport must fail closed').toBe(400);
-    expect(await response.json()).toEqual({ error: 'HTTPS required' });
+    expect(await response.json()).toEqual(path === '/blyg/api/settings' || path === '/blyg/studio/mcp'
+      ? { code: 'invalid-input', message: 'HTTPS required' }
+      : { error: 'HTTPS required' });
     expect(response.headers.get('set-cookie')).toBeNull();
     expect(response.headers.get('cache-control')).toBe('no-store');
   });
@@ -204,7 +206,7 @@ describe('security release boundaries', () => {
     const substitute = await new SignJWT(payload).setProtectedHeader({ alg: 'RS256', kid: 'untrusted-key', typ: 'at+jwt' }).sign(privateKey);
     for (const token of [substitute, f.tokens.id_token]) {
       expect((await read(f, token)).status, 'wrong key or token type must deny protected reads').toBe(401);
-      expect((await f.request('/blyg/api/items', { method: 'POST', headers: { Authorization: 'Bearer ' + token, 'Content-Type': 'application/json' }, body: JSON.stringify({ content_md: 'must not write' }) })).status).toBe(401);
+      expect((await f.request('/blyg/api/items', { method: 'POST', headers: { Authorization: 'Bearer ' + token, 'Content-Type': 'application/json' }, body: JSON.stringify({ contentMd: 'must not write' }) })).status).toBe(401);
     }
   });
 
@@ -216,7 +218,7 @@ describe('security release boundaries', () => {
     const f = await issued();
     const minted = await f.request('/blyg/api/authorizations', { method: 'POST', headers: { cookie: f.owner, 'Content-Type': 'application/json' }, body: JSON.stringify({ name: 'MCP claim fixture', resource: 'mcp', scope: ['owner:read', 'owner:draft'] }) });
     expect(minted.status).toBe(200);
-    const { access_token } = await minted.json() as { access_token: string };
+    const { accessToken: access_token } = await minted.json() as { accessToken: string };
     const payload = decodeJwt(access_token), server = await authorizationServer(f.issuer, env);
     const neighbor = await server.api.signJWT({ body: { payload } });
     expect((await mcp(f, neighbor.token)).status, 'valid MCP claim neighbor must reach its tool').toBe(200);
@@ -249,7 +251,7 @@ describe('security release boundaries', () => {
     // credential or private key is read, and the HTTP endpoint stays excluded.
     const signed = await server.api.signJWT({ body: { payload: { ...payload, ...patches[axis] } } });
     expect((await read(f, signed.token)).status, 'invalid claim must deny protected reads').toBe(401);
-    expect((await f.request('/blyg/api/items', { method: 'POST', headers: { Authorization: 'Bearer ' + signed.token, 'Content-Type': 'application/json' }, body: JSON.stringify({ content_md: 'must not write' }) })).status).toBe(401);
+    expect((await f.request('/blyg/api/items', { method: 'POST', headers: { Authorization: 'Bearer ' + signed.token, 'Content-Type': 'application/json' }, body: JSON.stringify({ contentMd: 'must not write' }) })).status).toBe(401);
   });
   // RFC6749 §2.3.1 allows client identity in HTTP Basic rather than the form:
   // https://www.rfc-editor.org/rfc/rfc6749.html#section-2.3.1

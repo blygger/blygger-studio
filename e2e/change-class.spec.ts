@@ -21,12 +21,12 @@ test.describe("change classifier", () => {
     const errors: string[] = [];
     page.on("pageerror", (error) => errors.push(error.message));
     const api = apiFor(page);
-    await api("PATCH", "/settings", { ai_model_classify: CLEF });
+    await api("PATCH", "/settings", { aiModelClassify: CLEF });
     try {
       await page.route("**/classify", (route) => route.fulfill({ json: { version: 2, category: "minor", model: CLEF, probability: 0.83 } }));
       const publishes: any[] = [];
       page.on("request", (r) => { if (r.url().endsWith("/publish")) publishes.push(r.postDataJSON()); });
-      const id = (await api("POST", "/items", { content_md: `Classifier fixture ${Date.now()}` })).id;
+      const id = (await api("POST", "/items", { contentMd: `Classifier fixture ${Date.now()}` })).id;
       await api("POST", `/items/${id}/publish`, {});
       await page.goto(`/studio/edit/${id}`);
       const input = page.locator("#md-input");
@@ -50,19 +50,19 @@ test.describe("change classifier", () => {
       await expect(page.locator("#note-confirm-text")).toHaveValue("minor: Fixed a word.");
       await page.locator("#note-confirm-ok").click();
       await expect(page.locator('[data-action="view-version"]')).toHaveCount(2);
-      expect(publishes.at(-1)).toMatchObject({ note: "minor: Fixed a word.", note_generated: false, change_category: "minor" });
+      expect(publishes.at(-1)).toMatchObject({ note: "minor: Fixed a word.", noteGenerated: false, changeCategory: "minor" });
       expect(errors).toEqual([]);
     } finally {
-      await api("PATCH", "/settings", { ai_model_classify: "" });
+      await api("PATCH", "/settings", { aiModelClassify: "" });
     }
   });
 
   test("a classifier that gives no answer leaves the note alone and publishes with no category", async ({ page }) => {
     const api = apiFor(page);
-    await api("PATCH", "/settings", { ai_model_classify: CLEF });
+    await api("PATCH", "/settings", { aiModelClassify: CLEF });
     try {
       await page.route("**/classify", (route) => route.fulfill({ json: { version: 2, category: null, model: null, probability: null, reason: "upstream unavailable" } }));
-      const id = (await api("POST", "/items", { content_md: `Classifier failure fixture ${Date.now()}` })).id;
+      const id = (await api("POST", "/items", { contentMd: `Classifier failure fixture ${Date.now()}` })).id;
       await api("POST", `/items/${id}/publish`, {});
       await page.goto(`/studio/edit/${id}`);
       const input = page.locator("#md-input");
@@ -72,9 +72,9 @@ test.describe("change classifier", () => {
       await expect(page.locator("#change-category-none")).toContainText("upstream unavailable");
       await expect(page.locator("#note-confirm-text")).toHaveValue("");
       await page.locator("#note-confirm-ok").click();
-      expect((await published).postDataJSON()).toMatchObject({ note: "", note_generated: false, change_category: null });
+      expect((await published).postDataJSON()).toMatchObject({ note: "", noteGenerated: false, changeCategory: null });
     } finally {
-      await api("PATCH", "/settings", { ai_model_classify: "" });
+      await api("PATCH", "/settings", { aiModelClassify: "" });
     }
   });
 });

@@ -8,7 +8,7 @@ import { describe, expect, it } from "vitest";
 import { apiJson, BASE, createAndPublish, getPublic, login } from "./helpers.ts";
 
 async function publishEdit(cookie: string, id: string, contentMd: string, note?: string) {
-  await apiJson(cookie, "PATCH", `/blyg/api/items/${id}`, { content_md: contentMd });
+  await apiJson(cookie, "PATCH", `/blyg/api/items/${id}`, { contentMd: contentMd });
   const res = await apiJson(cookie, "POST", `/blyg/api/items/${id}/publish`, note ? { note } : {});
   expect(res.status).toBe(200);
   return res.json.version as number;
@@ -52,7 +52,7 @@ describe("restore is forward-only", () => {
     await apiJson(cookie, "POST", `/blyg/api/items/${id}/restore`, { version: 1 });
     const detail = await apiJson(cookie, "GET", `/blyg/api/items/${id}`);
     expect(detail.status).toBe(200);
-    expect(detail.json).toMatchObject({ dirty: true, version: 2, content_md: "v1 text" });
+    expect(detail.json).toMatchObject({ dirty: true, version: 2, contentMd: "v1 text" });
   });
 });
 
@@ -64,39 +64,39 @@ describe("discard changes (restoring the current version)", () => {
   it("brings back the published citation and leaves the copy clean", async () => {
     const cookie = await login();
     const stub = { url: "https://x.test/p", cited: { source: "X", url: "https://x.test/p", retrieved: "2026-10-03T00:00:00Z" } };
-    const id = (await apiJson(cookie, "POST", "/blyg/api/items", { content_md: "Re: that page", kind: "thread" })).json.id as string;
-    await apiJson(cookie, "PATCH", `/blyg/api/items/${id}`, { stub_of: stub });
+    const id = (await apiJson(cookie, "POST", "/blyg/api/items", { contentMd: "Re: that page", kind: "thread" })).json.id as string;
+    await apiJson(cookie, "PATCH", `/blyg/api/items/${id}`, { stubOf: stub });
     expect((await apiJson(cookie, "POST", `/blyg/api/items/${id}/publish`, {})).status).toBe(200);
-    const published = (await apiJson(cookie, "GET", `/blyg/api/items/${id}`)).json.stub_of;
+    const published = (await apiJson(cookie, "GET", `/blyg/api/items/${id}`)).json.stubOf;
 
-    await apiJson(cookie, "PATCH", `/blyg/api/items/${id}`, { stub_of: { ...stub, url: "https://x.test/q", cited: { ...stub.cited, url: "https://x.test/q" } } });
+    await apiJson(cookie, "PATCH", `/blyg/api/items/${id}`, { stubOf: { ...stub, url: "https://x.test/q", cited: { ...stub.cited, url: "https://x.test/q" } } });
     expect((await apiJson(cookie, "GET", `/blyg/api/items/${id}`)).json.dirty).toBe(true);
 
     await apiJson(cookie, "POST", `/blyg/api/items/${id}/restore`, { version: 1 });
-    expect((await apiJson(cookie, "GET", `/blyg/api/items/${id}`)).json).toMatchObject({ dirty: false, stub_of: published, content_md: "Re: that page" });
+    expect((await apiJson(cookie, "GET", `/blyg/api/items/${id}`)).json).toMatchObject({ dirty: false, stubOf: published, contentMd: "Re: that page" });
   });
 
   it("never arises from publish: the agreed citation is written back to the working copy", async () => {
     const cookie = await login();
-    await apiJson(cookie, "PATCH", "/blyg/api/settings", { site_url: "https://ours.example/blyg/" });
+    await apiJson(cookie, "PATCH", "/blyg/api/settings", { siteUrl: "https://ours.example/blyg/" });
     const target = await createAndPublish(cookie, "their words");
     await publishEdit(cookie, target, "their words, revised");
     const id = (await apiJson(cookie, "POST", "/blyg/api/items", {
-      content_md: `![[${target}]]\n\nMy take.`,
+      contentMd: `![[${target}]]\n\nMy take.`,
       kind: "thread",
-      stub_of: { origin: "https://ours.example/blyg/", id: target, version: 1 },
+      stubOf: { origin: "https://ours.example/blyg/", id: target, version: 1 },
     })).json.id as string;
     expect((await apiJson(cookie, "POST", `/blyg/api/items/${id}/publish`, {})).status).toBe(200);
     expect((await (await getPublic(`/blyg/items/${id}.json`)).json<any>()).stub_of.version).toBe(2);
-    expect((await apiJson(cookie, "GET", `/blyg/api/items/${id}`)).json).toMatchObject({ dirty: false, stub_of: { version: 2 } });
+    expect((await apiJson(cookie, "GET", `/blyg/api/items/${id}`)).json).toMatchObject({ dirty: false, stubOf: { version: 2 } });
   });
 
   it("clears an edit of the text", async () => {
     const cookie = await login();
     const id = await createAndPublish(cookie, "as published");
-    await apiJson(cookie, "PATCH", `/blyg/api/items/${id}`, { content_md: "an edit" });
+    await apiJson(cookie, "PATCH", `/blyg/api/items/${id}`, { contentMd: "an edit" });
     await apiJson(cookie, "POST", `/blyg/api/items/${id}/restore`, { version: 1 });
-    expect((await apiJson(cookie, "GET", `/blyg/api/items/${id}`)).json).toMatchObject({ dirty: false, content_md: "as published" });
+    expect((await apiJson(cookie, "GET", `/blyg/api/items/${id}`)).json).toMatchObject({ dirty: false, contentMd: "as published" });
   });
 
   it("keeps a version with generated text dirty: its provenance does not come back", async () => {
@@ -125,7 +125,7 @@ describe("restore rejects what it cannot restore", () => {
     const id = await createAndPublish(cookie, "x");
     const res = await apiJson(cookie, "POST", `/blyg/api/items/${id}/restore`, { version: 99 });
     expect(res.status).toBe(409);
-    expect(res.json.error).toMatch(/no version 99/);
+    expect(res.json.message).toMatch(/no version 99/);
   });
 
   it("409s a withdrawal endcap, which has no content", async () => {
@@ -134,7 +134,7 @@ describe("restore rejects what it cannot restore", () => {
     const wd = await apiJson(cookie, "POST", `/blyg/api/items/${id}/withdraw`, {});
     const res = await apiJson(cookie, "POST", `/blyg/api/items/${id}/restore`, { version: wd.json.version });
     expect(res.status).toBe(409);
-    expect(res.json.error).toMatch(/endcap/);
+    expect(res.json.message).toMatch(/endcap/);
   });
 
   it("requires auth", async () => {
@@ -181,7 +181,7 @@ describe("studio history viewer", () => {
     const v1 = await (await SELF.fetch(`${BASE}/blyg/api/items/${id}/versions/1`, { headers: { cookie } })).json<any>();
     expect(v1.version).toBe(1);
     expect(v1.pinned).toBe(false); // unpinned, yet still readable locally
-    expect(v1.content_html).toContain("<em>emphasis</em>");
+    expect(v1.contentHtml).toContain("<em>emphasis</em>");
 
     const v2 = await (await SELF.fetch(`${BASE}/blyg/api/items/${id}/versions/2`, { headers: { cookie } })).json<any>();
     expect(v2.note).toBe("changed my mind");

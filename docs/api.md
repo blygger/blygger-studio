@@ -66,6 +66,28 @@ the same. Legacy media URLs contain random IDs and revalidate. They do not
 promise immutable caching. OAuth discovery keeps its native public cache policy,
 and signing keys revalidate. Token responses use `no-store`.
 
+## Private representations
+
+Private requests and resources use camelCase fields, such as `contentMd`,
+`stubOf`, and `avatarMediaId`. Private JSON and multipart inputs reject unknown
+top-level fields, including old storage-key spellings. Upload attachment targets use `itemId`.
+Item `kind` identifies fragment or thread, while `status` identifies draft,
+public, or withdrawn state. Historical withdrawal versions retain their own
+withdrawn kind.
+
+Imported metadata fields such as `author`, `media`, `transclusions`, `stubOf`,
+`forkedFrom`, and `generated` contain structured values. Each damaged stored
+column falls back independently to null. Remote objects retain unknown nested
+members and their original member names.
+
+Media `url` values are absolute URLs at the canonical deployment mount. Use
+them directly. Media `id` remains the identifier for attachment commands.
+
+Private failures contain `code`, `message`, and optional `details`. For example,
+a stale item command returns `code: "revision-conflict"` with the rejected
+revision in `details.expectedRevision`. Input errors put issues in
+`details.issues`. Native OAuth errors retain the OAuth error fields.
+
 ## Resources and operations
 
 All paths below are relative to `{mount}/api`. OpenAPI paths are relative to its canonical API server URL; the SDK base URL includes this API path.
@@ -81,7 +103,7 @@ Consult `openapi.json` for every field and response.
 | Signals | `GET /signals` | `PUT` or `DELETE /signals/{sub}/{remoteId}` |
 | Mentions | `GET /mentions?direction=inbound` or `outbound` | `PATCH /mentions/{id}` with `hidden` |
 | Settings | `GET /settings` | `PATCH /settings` |
-| Media | Included in item detail: `media` is the working copy's attachments, `published_media` what the live version lists | `POST /media` with a multipart file (`inline=true` when the client places it in the text; the same file sent again to the same item in the same placement returns the existing row with `200` and `duplicate: true`). Attachments are per version: one added to a published item is listed from its next version on. `DELETE /media/{id}` detaches it from the working copy, so the next version goes without it while the versions that listed it keep it; the file is deleted only when no published version lists or shows it |
+| Media | Included in item detail: `media` is the working copy's attachments, `publishedMedia` what the live version lists | `POST /media` with a multipart file (`inline=true` when the client places it in the text; the same file sent again to the same item in the same placement returns the existing row with `200` and `duplicate: true`). Attachments are per version: one added to a published item is listed from its next version on. `DELETE /media/{id}` detaches it from the working copy, so the next version goes without it while the versions that listed it keep it; the file is deleted only when no published version lists or shows it |
 | Imported items | `GET /imports/{sub}/{id}`, `GET /imports/{sub}/{id}/history`, `GET /imports/{sub}/{id}/versions/{v}` (history and public versions, read from the origin) | The subscription importer manages these items |
 | Reading | `GET /reading`, `GET /reading/imported` (imported items only, cursor-paged; see below) | Read only |
 | Read state | `readVersion` on each imported Reading entry | `PUT`/`DELETE /reading/{sub}/{remoteId}/read`, `POST /reading/read`, `POST /reading/unread` |
@@ -95,18 +117,18 @@ Publication, withdrawal, restoration, and generation remain explicit operations:
 - `POST /items/{id}/restore` copies a stored version's text and attachment membership into the working copy. It does not publish. Restoring the current version discards attachment additions and restores detached attachments; historical version memberships and retained bytes stay intact.
 - `POST /items/{id}/generate` generates one TK scope.
 - `POST /subscriptions/{id}/resync` refreshes a Blyg subscription.
-- `POST /items/{id}/note-draft` drafts a changelog note from the change between the published version and the working copy. It never publishes. When the published version is unpinned, the note must not reproduce wording that only that version had; a draft that does returns 422. Send `note_generated: true` with `POST /items/{id}/publish` only when the note is that draft, unedited: it becomes `changelog[].generated` on the wire.
+- `POST /items/{id}/note-draft` drafts a changelog note from the change between the published version and the working copy. It never publishes. When the published version is unpinned, the note must not reproduce wording that only that version had; a draft that does returns 422. Send `noteGenerated: true` with `POST /items/{id}/publish` only when the note is that draft, unedited: it becomes `changelog[].generated` on the wire.
 - `POST /items/{id}/classify` asks the optional change classifier what kind of change the working copy would publish. See [Change classifier](#change-classifier).
 - `POST /items/{id}/refresh` republishes a thread to re-bake quotes whose source has a newer version. See below.
 
 ## Change classifier
 
 Optional and **off by default**: nothing below happens until Settings → AI
-names a decision model in `ai_model_classify`. A decision model (Cloudflare's
+names a decision model in `aiModelClassify`. A decision model (Cloudflare's
 Clef or Clef-flash on Workers AI, or TypeSafe's Jev) answers typed questions
 with probabilities and writes no text, so `GET /ai/models` marks it
-`kind: "decision"`, `ai_model_classify` accepts only a decision model, and the
-text functions (`ai_model_tk`, `ai_model_changelog`, `ai_model_feed`) refuse one
+`kind: "decision"`, `aiModelClassify` accepts only a decision model, and the
+text functions (`aiModelTk`, `aiModelChangelog`, `aiModelFeed`) refuse one
 (400).
 
 The category set is fixed: `refresh`, `typo`, `minor`, `major`.
@@ -133,7 +155,7 @@ publishes. It returns `{ version, category, model, probability, reason? }`:
   that does not parse. **None of these is fatal**: publish as usual.
 
 The Studio calls it from the *Version N* publish dialog, which shows the answer
-as a chip the author can change or clear. With `change_category_in_note` (on by
+as a chip the author can change or clear. With `changeCategoryInNote` (on by
 default; it matters only while the classifier is on) the dialog also writes the
 category into the note, where the author sees it before confirming:
 
@@ -141,16 +163,16 @@ category into the note, where the author sees it before confirming:
 - a note becomes `minor: <note>`;
 - a note that already starts with a category word is left alone.
 
-The server never rewrites a note. Send `note_generated: true` only when the note
+The server never rewrites a note. Send `noteGenerated: true` only when the note
 is exactly the machine's text: a drafted note led by the classifier's own
 category, or the classifier's bare word on an empty note. A category changed by
 the author, or a category prefixed to the author's own words, is not generated.
 
-`POST /items/{id}/publish` takes an optional `change_category`: the category the
+`POST /items/{id}/publish` takes an optional `changeCategory`: the category the
 author confirmed (`null` for cleared; omitted, a classification made for exactly
 these words stands). It is kept with the version in studio-private storage
 (migration 0030, `change_class`: category, model, probability, classified_at,
-overridden) and read back as `change_class` on each version in
+overridden) and read back as `changeClass` on each version in
 `GET /items/{id}`.
 
 **Nothing of this is on the wire.** Spec decision #19 / TN-1 refuses a
@@ -179,7 +201,7 @@ These examples use the generated SDK with an authenticated `client`:
 ```ts
 const blank = await unwrap(BlyggerApi.createItem({
   client,
-  body: { mode: "blank", kind: "fragment", content_md: "A new draft" },
+  body: { mode: "blank", kind: "fragment", contentMd: "A new draft" },
 }));
 
 const fork = await unwrap(BlyggerApi.createItem({
@@ -194,7 +216,7 @@ const response = await unwrap(BlyggerApi.createItem({
   client,
   body: {
     mode: "response",
-    source: { subscription_id: "subscription-id", remote_id: "source-id" },
+    source: { subscriptionId: "subscription-id", remoteId: "source-id" },
     selection: "An optional passage from the source",
   },
 }));
@@ -212,7 +234,7 @@ Subscription creation returns 200 when the owner must accept the proposed subscr
 `POST /subscriptions` takes `{ url, confirm?, title?, backfill? }`.
 Without `confirm` it resolves the URL and returns the proposal (200); with `confirm: true` it creates the subscription (201).
 A source that is already subscribed, by origin or by feed, is refused with 409.
-New subscriptions are not in the public `blogroll.opml`; `PATCH /subscriptions/{id}` with `in_blogroll: true` adds one.
+New subscriptions are not in the public `blogroll.opml`; `PATCH /subscriptions/{id}` with `inBlogroll: true` adds one.
 
 `backfill` (boolean, default `true`) applies with `confirm: true`.
 By default the server starts importing the source's archive as soon as it has answered.
@@ -236,7 +258,7 @@ Delegated clients have less room: 120 a minute per grant, and 60 a minute shared
 Item commands require the observed `expectedRevision`.
 PATCH changes only supplied edit fields.
 Omitted fields retain their values.
-Null clears only fields that explicitly allow null, such as an item's `stub_of`.
+Null clears only fields that explicitly allow null, such as an item's `stubOf`.
 Unknown JSON fields fail validation rather than disappearing silently.
 Preferences use booleans, not database integers or strings such as `"on"`.
 
@@ -244,11 +266,11 @@ Preferences use booleans, not database integers or strings such as `"on"`.
 const item = await unwrap(BlyggerApi.updateItem({
   client,
   path: { id: blank.id },
-  body: { content_md: "Revised text", responses: "hide", expectedRevision: blank.revision },
+  body: { contentMd: "Revised text", responses: "hide", expectedRevision: blank.revision },
 }));
 ```
 
-Item edits accept `content_md`, `kind`, `stub_of`, and `responses`.
+Item edits accept `contentMd`, `kind`, `stubOf`, and `responses`.
 The response policy is `default`, `show`, or `hide`.
 Kind becomes fixed after the first publication.
 Fork lineage cannot change through PATCH. Client-recorded generation provenance
@@ -294,12 +316,14 @@ Polling does not fetch remote feeds. The existing subscription cron still does t
 The planned SPA polls visible reading data every 15 seconds and pauses in hidden tabs.
 The API sanitizes imported HTML before it returns reading bodies.
 
-Item detail includes the item fields, `authored_kind`, media, versions, and the published version.
+Item detail includes item fields, media, versions, and the published version.
+The item kind is its authored fragment or thread kind, including after withdrawal.
+Publication state is a separate `status` field.
 Version resources include their kind, including threads with no transclusions.
 Item and version references use objects, and flags use booleans.
-Imported protocol metadata retains its existing serialized JSON fields.
+Imported protocol metadata is returned as structured values with its remote member names intact.
 Subscription resources omit internal HTTP cache fields.
-Hopper detail includes `total` and `source_count`.
+Hopper detail includes `total` and `sourceCount`.
 Use `?preview=true` for an index preview of three memberships and bodies.
 The default hopper detail still includes all memberships and bodies.
 
@@ -321,9 +345,9 @@ and writes from it (Blygger Desktop) needs the other shape, and
   data, unknown members included. Null means none held, or stored data that is
   malformed or of the wrong kind.
 - `readVersion` is the read-state join below: null when unread or cleared.
-- Paged by an opaque cursor over `(observed_at, subscription_id, remote_id)`.
+- Paged by an opaque cursor over `(observedAt, subscriptionId, remoteId)`.
   Pass `next` back as `cursor`; `next` is null on the last page. One poll run
-  stamps one `observed_at` on everything it imports, so ties are common and
+  stamps one `observedAt` on everything it imports, so ties are common and
   the cursor resumes inside one. Rows observed after a walk began sort ahead
   of its cursor, so a poll between two requests neither shifts nor repeats the
   walk; start a new walk from the top to collect them. A cursor this server
@@ -347,16 +371,16 @@ number: the highest version the owner has read. It is Studio-private. No public
 page, feed, item document, `blyg.json` or export reads it.
 
 - `PUT /reading/{sub}/{remoteId}/read` with `{ version }` stores the larger of
-  the held and requested values and returns `{ ok, stored, read_version }`.
+  the held and requested values and returns `{ ok, stored, readVersion }`.
   A replay or a stale client never lowers it.
-- `POST /reading/read` with `{ items: [{ sub, remote_id, version }] }` does the
+- `POST /reading/read` with `{ items: [{ sub, remoteId, version }] }` does the
   same for up to 500 rows in one transaction and returns `{ ok, received }`.
   Any malformed entry fails the whole request with 400, and nothing is written.
   The batch is one request against the write budget, however many rows it marks.
 - A row this server does not hold, by subscription or by item, is acknowledged
   with 200 and `stored: false`, never 404. Clients may read a 404 from these
   routes as "this server keeps no read state".
-- `GET /reading` returns `read_state: true`, and each imported entry carries
+- `GET /reading` returns `readState: true`, and each imported entry carries
   `readVersion`: an integer, or null when unread. A client can rely on the flag
   rather than probing the write routes. Each imported entry also carries
   `version`, the version held here: `readVersion` below it means a newer
@@ -366,23 +390,23 @@ page, feed, item document, `blyg.json` or export reads it.
 ### Marking unread
 
 - `DELETE /reading/{sub}/{remoteId}/read` clears the row and always returns
-  `{ ok: true, stored: false, read_version: null }`. It is idempotent, and an
+  `{ ok: true, stored: false, readVersion: null }`. It is idempotent, and an
   unknown subscription or item is 200 as well, never 404.
-- `POST /reading/unread` with `{ items: [{ sub, remote_id }] }` clears up to 500
+- `POST /reading/unread` with `{ items: [{ sub, remoteId }] }` clears up to 500
   rows in one transaction and returns `{ ok, received }`, validated whole like
   `POST /reading/read`.
-- `GET /reading` returns `read_state_clear: true` when the server supports both.
+- `GET /reading` returns `readStateClear: true` when the server supports both.
 
-A clear leaves a tombstone: the server records `unread_at`, its own time of
+A clear leaves a tombstone: the server records its own time of
 the clear, and `readVersion` reads null. Both read writes accept an optional
-`read_at` (ISO-8601 with `Z` or an offset; on `PUT` beside `version`, in the
+`readAt` (ISO-8601 with `Z` or an offset; on `PUT` beside `version`, in the
 batch on each item), the time the client read the post:
 
-- A read whose `read_at` is earlier than the row's latest clear is ignored.
+- A read whose `readAt` is earlier than the row's latest clear is ignored.
   `PUT` answers `stored: false` with whatever is held; the batch skips that row.
   Nothing changes, so no revision advances.
-- A read with a later `read_at`, or the same instant, applies.
-- A read with no `read_at` applies, as before clearing existed. Send `read_at`
+- A read with a later `readAt`, or the same instant, applies.
+- A read with no `readAt` applies, as before clearing existed. Send `readAt`
   from any client that queues reads offline, or a queued read can undo a later
   "mark unread" from another device.
   The Studio acts online and sends none, so its reads always apply.
@@ -392,10 +416,10 @@ rather than the larger of it and the value held before the clear. From there
 reads are monotonic again. The tombstone stays after a read applies, so a
 second stale read is still refused.
 
-`read_at` is compared as an instant (the server normalizes it to UTC) against
+`readAt` is compared as an instant (the server normalizes it to UTC) against
 the server's clock. A client whose clock runs fast can make a read look later
 than a clear that followed it; one that runs slow can have a fresh read
-ignored. Clients that cannot trust their clock may omit `read_at` and accept
+ignored. Clients that cannot trust their clock may omit `readAt` and accept
 last-write-wins.
 
 Version is an integer from 1 (items start there) to 2^32 − 1. All four writes need `reading:state`,
@@ -447,9 +471,9 @@ See [SDK usage](../sdk/README.md) for browser and server transports.
 Items have a private `revision` independent of their published `version`.
 Creation starts at1. Reads and successful commands return the current revision.
 Each command supplies `expectedRevision` from the snapshot it changes. A stale
-command returns409 with `code: "revision-conflict"`, `itemId`, and the rejected
-`expectedRevision`. A detached media conflict names `mediaId` because the owning
-attachment no longer exists.
+command returns409 with `code: "revision-conflict"`. Its `details` name `itemId`
+and the rejected `expectedRevision`. A detached media conflict names `mediaId`
+in `details` because the owning attachment no longer exists.
 
 Working text, provenance, presentation preferences, attachment membership, and
 publication transitions advance revision atomically. Generation and remote

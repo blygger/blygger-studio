@@ -1,3 +1,4 @@
+import { statusError } from '../api-error.ts';
 import { schemaError } from '../schema-error.ts';
 import { requestError } from '../request-error.ts';
 import type { Context } from "hono";
@@ -22,9 +23,9 @@ export function contractApp() {
     }
   } });
   app.onError((error, c) => {
-    if (error instanceof HTTPException) return c.json({ error: error.message }, error.status);
+    if (error instanceof HTTPException) return c.json(statusError(error.status, error.message), error.status);
     console.error('API request failed', requestError(error, c));
-    return c.json({ error: "internal server error" }, 500);
+    return c.json(statusError(500, "internal server error"), 500);
   });
   return app;
 }

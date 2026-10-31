@@ -3,6 +3,9 @@ import { success, created, failure, modelFailure, type OperationContext, type Op
 import { versionState } from './version-state.ts';
 import { isFont } from "./fonts.ts";
 import { availableFeedAlgorithms } from "./feeds/available.ts";
+import { settingsInput } from './contract/settings.ts';
+import { deploymentUrls } from './deployment-urls.ts';
+import { mediaUrl } from './contract/resources.ts';
 import { settingsResource } from "./settings-resource.ts";
 import { CUSTOM_THEME_ID, pairError, themeNameError, validateCustomTheme, type CustomTheme } from "./themes.ts";
 import { itemResource } from "./contract/resources.ts";
@@ -77,25 +80,25 @@ const createItemOperation = async (context: OperationContext, input: OperationIn
   const body = (input.body as z.infer<typeof ItemCreateSchema>);
   if (body.mode === "fork") return createForkResponse(context, body.source);
   if (body.mode === "response") {
-    const item = await createResponseDraft(context, { ...body.source, selection: body.selection });
-    return created(itemResource(item), `${deploymentPaths(context.env.MOUNT).api}/items/${item.id}`);
+    const item = await createResponseDraft(context, { subscription_id: body.source.subscriptionId, remote_id: body.source.remoteId, selection: body.selection });
+    return created(itemResource(item, await authoredKind(context.env.DB, item)), `${deploymentPaths(context.env.MOUNT).api}/items/${item.id}`);
   }
   const kind = body.kind === "thread" ? "thread" : "fragment";
   // A stub is a thread declaring one target (§2.2) — the stub action creates
   // the draft and its citation in one call.
   let stub = null;
-  if (body.stub_of != null) {
+  if (body.stubOf != null) {
     if (kind !== "thread") return failure('invalid-input', { error: "only threads can be stubs" });
-    const parsed = parseStubOf(body.stub_of);
+    const parsed = parseStubOf(body.stubOf);
     if (!parsed.ok) return failure('invalid-input', { error: parsed.reason });
     stub = parsed.stub;
   }
   if (body.provenance !== undefined) {
-    const parsed = parseScopes(body.content_md ?? '');
+    const parsed = parseScopes(body.contentMd ?? '');
     if (parsed.errors.length || parsed.scopes.length !== body.provenance.length) return failure('invalid-input', { error: 'provenance must have one entry per TK scope' });
   }
-  const item = await createDraft(context.env.DB, body.content_md ?? "", kind, stub, body.provenance);
-  return created(itemResource(item), `${deploymentPaths(context.env.MOUNT).api}/items/${item.id}`);
+  const item = await createDraft(context.env.DB, body.contentMd ?? "", kind, stub, body.provenance);
+  return created(itemResource(item, await authoredKind(context.env.DB, item)), `${deploymentPaths(context.env.MOUNT).api}/items/${item.id}`);
 };
 
 /**
@@ -132,7 +135,7 @@ async function createForkResponse(context: OperationContext, body: { origin: str
   // plain blockquotes with attribution, generated spans as impyrt.
   const flat = await flattenFork(resolved.source, { origin: parsed.ref.origin, link: (o, id) => quotedLink(context.env.DB, o, id, origin) });
   const item = await createFork(context.env.DB, flat.contentMd, resolved.source.kind, parsed.ref, resolved.source.cite);
-  return created(itemResource(item), `${deploymentPaths(context.env.MOUNT).api}/items/${item.id}`);
+  return created(itemResource(item, await authoredKind(context.env.DB, item)), `${deploymentPaths(context.env.MOUNT).api}/items/${item.id}`);
 }
 
 const updateItemOperation = async (context: OperationContext, input: OperationInput) => {
@@ -142,34 +145,34 @@ const updateItemOperation = async (context: OperationContext, input: OperationIn
   const kind = body.kind ?? await authoredKind(context.env.DB, item);
   if (body.kind !== undefined && item.version !== 0) return failure('conflict', { error: "kind is fixed once an item has been published" });
   const existingStub = parseStoredStub(item.stub_of);
-  if (kind === "fragment" && body.stub_of != null) return failure('invalid-input', { error: "only threads can be stubs" });
-  if (body.kind === "fragment" && existingStub !== null && !("stub_of" in body && body.stub_of === null)) {
+  if (kind === "fragment" && body.stubOf != null) return failure('invalid-input', { error: "only threads can be stubs" });
+  if (body.kind === "fragment" && existingStub !== null && !("stubOf" in body && body.stubOf === null)) {
     return failure('conflict', { error: "clear the stub before switching this to a fragment" });
   }
   let stubJson = item.stub_of;
-  if ("stub_of" in body) {
-    if (body.stub_of === null) stubJson = null;
+  if ("stubOf" in body) {
+    if (body.stubOf === null) stubJson = null;
     else {
       if (kind !== "thread") return failure('invalid-input', { error: "only threads can be stubs" });
-      const parsed = parseStubOf(body.stub_of);
+      const parsed = parseStubOf(body.stubOf);
       if (!parsed.ok) return failure('invalid-input', { error: parsed.reason });
       stubJson = JSON.stringify(parsed.stub);
     }
   }
   if (body.provenance !== undefined) {
-    const parsed = parseScopes(body.content_md ?? item.content_md);
+    const parsed = parseScopes(body.contentMd ?? item.content_md);
     if (parsed.errors.length || parsed.scopes.length !== body.provenance.length) return failure('invalid-input', { error: 'provenance must have one entry per TK scope' });
   }
-  const changesDraft = body.provenance !== undefined || body.content_md !== undefined || body.kind !== undefined || "stub_of" in body;
+  const changesDraft = body.provenance !== undefined || body.contentMd !== undefined || body.kind !== undefined || "stubOf" in body;
   const assignments: string[] = [], values: (string | number | null)[] = [];
   if (body.provenance !== undefined) { assignments.push("tk_provenance_json = ?"); values.push(JSON.stringify(body.provenance)); }
-  if (body.content_md !== undefined) { assignments.push("content_md = ?"); values.push(body.content_md); }
+  if (body.contentMd !== undefined) { assignments.push("content_md = ?"); values.push(body.contentMd); }
   if (body.kind !== undefined) { assignments.push("kind = ?"); values.push(body.kind); }
-  if ("stub_of" in body) { assignments.push("stub_of = ?"); values.push(stubJson); }
+  if ("stubOf" in body) { assignments.push("stub_of = ?"); values.push(stubJson); }
   if (body.responses !== undefined) { assignments.push("responses_override = ?"); values.push(body.responses === "default" ? null : Number(body.responses === "show")); }
   if (body.highlight !== undefined) { assignments.push("highlight_override = ?"); values.push(body.highlight === "default" ? null : Number(body.highlight === "show")); }
   if (changesDraft) { assignments.push("dirty = 1", "updated = CASE WHEN version = 0 THEN ? ELSE updated END"); values.push(nowIso()); }
-  if (!assignments.length) return success(itemResource(item));
+  if (!assignments.length) return success(itemResource(item, await authoredKind(context.env.DB, item)));
   // Write only requested fields. Guard the state used for validation, so a
   // concurrent publication or citation edit cannot invalidate that check.
   // A provenance-only patch also validated the stored text. When text is
@@ -178,7 +181,7 @@ const updateItemOperation = async (context: OperationContext, input: OperationIn
   const fresh = await context.env.DB.prepare(`UPDATE items SET ${assignments.join(", ")} WHERE id = ? AND revision = ? RETURNING *`)
     .bind(...values, item.id, item.revision).first<ItemRow>();
   if (!fresh) throw new ItemRevisionConflict(item.id, item.revision);
-  return success(itemResource(fresh));
+  return success(itemResource(fresh, await authoredKind(context.env.DB, fresh)));
 };
 
 /**
@@ -266,13 +269,13 @@ const publishItemOperation = async (context: OperationContext, input: OperationI
   // TK-stripped (published) length, not the raw working copy — see FragmentTooLongError.
   const item = await observedItem(context, input);
   if (!item) return failure('not-found', { error: "not found" });
-  const body = (input.body as { note?: string; note_generated?: boolean; change_category?: ChangeCategory | null });
+  const body = (input.body as { note?: string; noteGenerated?: boolean; changeCategory?: ChangeCategory | null });
   // note_generated is the studio's own assertion that the note is the drafted
   // text, unedited (#40) — self-asserted, like every provenance member.
   // change_category is studio-private (migration 0030): settled after the
   // version exists, and never part of what publish() writes to the wire.
-  const requested = "change_category" in body ? body.change_category ?? null : undefined;
-  return publishAndNotify(context, item, body.note?.trim() || null, {}, body.note_generated === true, (version) => settleChangeClass(context.env.DB, item.id, version, requested));
+  const requested = "changeCategory" in body ? body.changeCategory ?? null : undefined;
+  return publishAndNotify(context, item, body.note?.trim() || null, {}, body.noteGenerated === true, (version) => settleChangeClass(context.env.DB, item.id, version, requested));
 };
 
 /**
@@ -296,7 +299,7 @@ const draftNoteOperation = async (context: OperationContext, input: OperationInp
   const result = await draftChangeNote(context.env, item);
   if (!result.ok) return modelFailure({ error: result.error }, result.status);
   await assertCurrentRevision(context.env.DB, item);
-  return success({ revision: item.revision, note: result.note, model: result.model, pinned_prior: result.pinnedPrior });
+  return success({ revision: item.revision, note: result.note, model: result.model, pinnedPrior: result.pinnedPrior });
 };
 
 // --- Snapshot freshness (decision #33's direct check; #38: detect always,
@@ -367,7 +370,7 @@ const generateItemOperation = async (context: OperationContext, input: Operation
   const origin = siteOrigin(await getSettings(context.env.DB), context.url, normalizeMount(context.env.MOUNT));
   const result = await runGenerateScope(context.env, item, body.scope, undefined, origin);
   if (!result.ok) return modelFailure(result.body, result.status as 400 | 404 | 502);
-  return success({ text: result.text, model: result.model, content_md: result.content_md, revision: result.revision });
+  return success({ text: result.text, model: result.model, contentMd: result.content_md, revision: result.revision });
 };
 
 const withdrawItemOperation = async (context: OperationContext, input: OperationInput) => {
@@ -441,7 +444,7 @@ const uploadMediaOperation = async (context: OperationContext, input: OperationI
   if (file.bytes.byteLength > MEDIA_MAX_BYTES) return failure('too-large', { error: "file exceeds 5 MB" });
   const itemId = media?.itemId;
   const item = itemId ? await getItem(context.env.DB, itemId) : null;
-  if (itemId && !item) return failure('not-found', { error: "item_id not found" });
+  if (itemId && !item) return failure('not-found', { error: "itemId not found" });
   if (item) {
     if (media.expectedRevision === undefined) return failure('invalid-input', { error: 'expectedRevision required when attaching media' });
     assertItemRevision(item, media.expectedRevision);
@@ -455,7 +458,7 @@ const uploadMediaOperation = async (context: OperationContext, input: OperationI
   // there, store nothing.
   const sha256 = typeof itemId === "string" && itemId ? hex(new Uint8Array(await crypto.subtle.digest("SHA-256", bytes))) : null;
   const existing = sha256 ? await findDuplicateMedia(context.env.DB, itemId as string, sha256, file.mime, inline) : null;
-  if (existing) return success({ id: existing.id, url: existing.r2_key, mime: existing.mime, duplicate: true, ...(item ? { revision: item.revision } : {}) });
+  if (existing) return success({ id: existing.id, url: mediaUrl(existing.r2_key, deploymentUrls(context.url, context.env).publicBase), mime: existing.mime, duplicate: true, ...(item ? { revision: item.revision } : {}) });
   const id = newMediaId();
   const r2Key = `media/${id}.${ext}`;
   await context.env.MEDIA.put(r2Key, bytes, { httpMetadata: { contentType: file.mime } });
@@ -474,7 +477,7 @@ const uploadMediaOperation = async (context: OperationContext, input: OperationI
     await context.env.MEDIA.delete(r2Key);
     return failure('forbidden', { error: 'owner:publish required to attach media to a published item' }, ['owner:draft', 'owner:publish']);
   }
-  return created({ id: row.id, url: row.r2_key, mime: row.mime, ...(item ? { revision: item.revision + 1 } : {}) }, `${deploymentPaths(context.env.MOUNT).publicBase}/${row.r2_key}`);
+  return created({ id: row.id, url: mediaUrl(row.r2_key, deploymentUrls(context.url, context.env).publicBase), mime: row.mime, ...(item ? { revision: item.revision + 1 } : {}) }, `${deploymentPaths(context.env.MOUNT).publicBase}/${row.r2_key}`);
 };
 
 /**
@@ -542,7 +545,7 @@ const SETTINGS_KEYS = [
 ] as const;
 
 const updateSettingsOperation = async (context: OperationContext, input: OperationInput) => {
-  const body = (input.body as Record<string, unknown>);
+  const body = settingsInput(input.body as Record<string, unknown>);
   const patch: Record<string, string> = {};
   // The pre-0.26 single model: sets the two functions it used to drive,
   // unless the same request names them itself.
@@ -558,17 +561,17 @@ const updateSettingsOperation = async (context: OperationContext, input: Operati
   }
   // Decision models answer questions and write no text (src/ai/models.ts): the
   // classifier takes only a decision model, and no text function takes one.
-  if (patch.ai_model_classify?.trim() && !isDecisionModel(patch.ai_model_classify.trim())) return failure('invalid-input', { error: `ai_model_classify must be a decision model (Clef, Jev), not "${patch.ai_model_classify}"` });
-  for (const key of ["ai_model_tk", "ai_model_changelog", "ai_model_feed"] as const) {
-    if (patch[key]?.trim() && isDecisionModel(patch[key].trim())) return failure('invalid-input', { error: `${key} cannot be a decision model ("${patch[key]}"): decision models write no text` });
+  if (patch.ai_model_classify?.trim() && !isDecisionModel(patch.ai_model_classify.trim())) return failure('invalid-input', { error: `aiModelClassify must be a decision model (Clef, Jev), not "${patch.ai_model_classify}"` });
+  for (const [field, key] of [["aiModelTk", "ai_model_tk"], ["aiModelChangelog", "ai_model_changelog"], ["aiModelFeed", "ai_model_feed"]] as const) {
+    if (patch[key]?.trim() && isDecisionModel(patch[key].trim())) return failure('invalid-input', { error: `${field} cannot be a decision model ("${patch[key]}"): decision models write no text` });
   }
-  if (typeof patch.picker_typing === "string" && !["auto", "editor", "panel"].includes(patch.picker_typing)) return failure('invalid-input', { error: "picker_typing must be auto, editor or panel" });
+  if (typeof patch.picker_typing === "string" && !["auto", "editor", "panel"].includes(patch.picker_typing)) return failure('invalid-input', { error: "pickerTyping must be auto, editor or panel" });
   if (typeof patch.timezone === "string" && !isValidTimeZone(patch.timezone)) return failure('invalid-input', { error: `unknown timezone: ${patch.timezone}` });
-  if (patch.author_url && !(URL.canParse(patch.author_url) && ["http:", "https:"].includes(new URL(patch.author_url).protocol))) return failure('invalid-input', { error: "author_url must be an absolute http(s) URL" });
-  if (patch.site_url && !(URL.canParse(patch.site_url) && ["http:", "https:"].includes(new URL(patch.site_url).protocol))) return failure('invalid-input', { error: "site_url must be an absolute http(s) URL" });
+  if (patch.author_url && !(URL.canParse(patch.author_url) && ["http:", "https:"].includes(new URL(patch.author_url).protocol))) return failure('invalid-input', { error: "authorUrl must be an absolute http(s) URL" });
+  if (patch.site_url && !(URL.canParse(patch.site_url) && ["http:", "https:"].includes(new URL(patch.site_url).protocol))) return failure('invalid-input', { error: "siteUrl must be an absolute http(s) URL" });
   if (Array.isArray(body.author_links)) {
     const links = body.author_links as { label?: unknown; url?: unknown }[];
-    if (!links.every((l) => typeof l?.label === "string" && typeof l?.url === "string" && isFollowableUrl(l.url))) return failure('invalid-input', { error: "author_links need a label and an absolute http(s) or mailto url" });
+    if (!links.every((l) => typeof l?.label === "string" && typeof l?.url === "string" && isFollowableUrl(l.url))) return failure('invalid-input', { error: "authorLinks need a label and an absolute http(s) or mailto url" });
     patch.author_links = JSON.stringify(links);
   }
   if (Array.isArray(body.extensions)) {
@@ -583,29 +586,29 @@ const updateSettingsOperation = async (context: OperationContext, input: Operati
     // Against the extensions as they will be after this patch.
     const enabled = patch.extensions ? (JSON.parse(patch.extensions) as string[]) : (await getSettings(context.env.DB)).extensions;
     const ids = availableFeedAlgorithms(enabled).map((a) => a.id);
-    if (!ids.includes(patch.feed_order)) return failure('invalid-input', { error: `feed_order must be one of ${ids.join(", ")}` });
+    if (!ids.includes(patch.feed_order)) return failure('invalid-input', { error: `feedOrder must be one of ${ids.join(", ")}` });
   }
   // The settings form sends every field, so a value already stored passes even
   // if its thread has since been withdrawn; the public pages skip it themselves.
   const stored = patch.front_page || Array.isArray(body.links_threads) ? await getSettings(context.env.DB) : null;
-  if (patch.front_page && patch.front_page !== stored?.front_page && !canBeFrontPage(await getItem(context.env.DB, patch.front_page))) return failure('invalid-input', { error: "front_page must be a published thread" });
-  if (typeof patch.links_position === "string" && !["bottom", "left", "right"].includes(patch.links_position)) return failure('invalid-input', { error: "links_position must be bottom, left or right" });
+  if (patch.front_page && patch.front_page !== stored?.front_page && !canBeFrontPage(await getItem(context.env.DB, patch.front_page))) return failure('invalid-input', { error: "frontPage must be a published thread" });
+  if (typeof patch.links_position === "string" && !["bottom", "left", "right"].includes(patch.links_position)) return failure('invalid-input', { error: "linksPosition must be bottom, left or right" });
   if (Array.isArray(body.links_threads)) {
     const ids = [...new Set(body.links_threads as unknown[])];
-    if (ids.length > MAX_LINKS) return failure('invalid-input', { error: `links_threads takes at most ${MAX_LINKS} threads` });
+    if (ids.length > MAX_LINKS) return failure('invalid-input', { error: `linksThreads takes at most ${MAX_LINKS} threads` });
     const kept: string[] = [];
     for (const id of ids) {
-      if (typeof id !== "string") return failure('invalid-input', { error: "links_threads must list published threads" });
+      if (typeof id !== "string") return failure('invalid-input', { error: "linksThreads must list published threads" });
       if (canBeFrontPage(await getItem(context.env.DB, id))) kept.push(id);
       // One listed before and withdrawn since is dropped, not refused.
-      else if (!stored?.links_threads.includes(id)) return failure('invalid-input', { error: "links_threads must list published threads" });
+      else if (!stored?.links_threads.includes(id)) return failure('invalid-input', { error: "linksThreads must list published threads" });
     }
     patch.links_threads = JSON.stringify(kept);
   }
   if (Array.isArray(body.links_external)) {
     const links = body.links_external as { label?: unknown; url?: unknown }[];
-    if (links.length > MAX_LINKS) return failure('invalid-input', { error: `links_external takes at most ${MAX_LINKS} links` });
-    if (!links.every((l) => typeof l?.label === "string" && l.label.trim() !== "" && typeof l?.url === "string" && isFollowableUrl(l.url))) return failure('invalid-input', { error: "links_external need a label and an absolute http(s) or mailto url" });
+    if (links.length > MAX_LINKS) return failure('invalid-input', { error: `linksExternal takes at most ${MAX_LINKS} links` });
+    if (!links.every((l) => typeof l?.label === "string" && l.label.trim() !== "" && typeof l?.url === "string" && isFollowableUrl(l.url))) return failure('invalid-input', { error: "linksExternal need a label and an absolute http(s) or mailto url" });
     patch.links_external = JSON.stringify(links.map((l) => ({ label: (l.label as string).trim(), url: l.url })));
   }
   if (typeof patch.posts_path === "string") {
@@ -626,13 +629,13 @@ const updateSettingsOperation = async (context: OperationContext, input: Operati
     custom_theme: undefined,
     custom_theme_dark: undefined,
   };
-  for (const key of ["custom_theme", "custom_theme_dark"] as const) {
+  for (const [field, key] of [["customTheme", "custom_theme"], ["customThemeDark", "custom_theme_dark"]] as const) {
     if (body[key] === null) {
       patch[key] = "";
       palettes[key] = null;
     } else if (body[key] !== undefined) {
       const checked = validateCustomTheme(body[key]);
-      if ("error" in checked) return failure('invalid-input', { error: `${key}: ${checked.error}` });
+      if ("error" in checked) return failure('invalid-input', { error: `${field}: ${checked.error}` });
       patch[key] = JSON.stringify(checked.theme);
       palettes[key] = checked.theme;
     }
@@ -642,7 +645,7 @@ const updateSettingsOperation = async (context: OperationContext, input: Operati
     const theme = patch.theme ?? current.theme;
     const light = palettes.custom_theme !== undefined ? palettes.custom_theme : current.custom_theme;
     const dark = palettes.custom_theme_dark !== undefined ? palettes.custom_theme_dark : current.custom_theme_dark;
-    if (theme === CUSTOM_THEME_ID && !light) return failure('invalid-input', { error: "theme is custom but no custom_theme is set" });
+    if (theme === CUSTOM_THEME_ID && !light) return failure('invalid-input', { error: "theme is custom but no customTheme is set" });
     const incoherent = pairError(light, dark);
     if (incoherent) return failure('invalid-input', { error: incoherent });
   }

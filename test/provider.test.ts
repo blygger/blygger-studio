@@ -205,8 +205,8 @@ describe("settings: the pre-0.26 ai_model alias", () => {
   it("writing ai_model sets the TK and changelog models; the manifest route lists models and key status", async () => {
     const { apiJson, login } = await import("./helpers.ts");
     const cookie = await login();
-    const res = await apiJson(cookie, "PATCH", "/blyg/api/settings", { ai_model: "claude-opus-5-5", feed_prompt: "Prioritize tech news." });
-    expect(res.json).toMatchObject({ ai_model: "claude-opus-5-5", ai_model_tk: "claude-opus-5-5", ai_model_changelog: "claude-opus-5-5", ai_model_feed: "", feed_prompt: "Prioritize tech news." });
+    const res = await apiJson(cookie, "PATCH", "/blyg/api/settings", { aiModel: "claude-opus-5-5", feedPrompt: "Prioritize tech news." });
+    expect(res.json).toMatchObject({ aiModel: "claude-opus-5-5", aiModelTk: "claude-opus-5-5", aiModelChangelog: "claude-opus-5-5", aiModelFeed: "", feedPrompt: "Prioritize tech news." });
     const models = (await apiJson(cookie, "GET", "/blyg/api/ai/models")).json;
     expect(models.models.map((m: { id: string }) => m.id)).toContain("claude-sonnet-5-5");
     expect(models.providers.map((p: { id: string }) => p.id)).toEqual(["anthropic", "openai", "google", "workers-ai", "typesafe"]);

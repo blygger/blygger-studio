@@ -112,7 +112,7 @@ test('helpers: repair, decode, keys', () => {
   expect(decodeTitle('  x&#x2014;y &unknown;  ')).toBe('x—y &unknown;');
   expect(feedKey('https://WWW.Example.com/feed/')).toBe(feedKey('http://example.com/feed'));
   expect(feedKey('https://example.com/feed?a=1')).not.toBe(feedKey('https://example.com/feed?a=2'));
-  const keys = subscribedKeys([{ origin: 'https://blyg.example/', feed_url: 'https://blyg.example/feed.xml' }]);
+  const keys = subscribedKeys([{ origin: 'https://blyg.example/', feedUrl: 'https://blyg.example/feed.xml' }]);
   expect(keys.has(feedKey('https://blyg.example/feed.xml'))).toBe(true);
   expect(keys.has(feedKey('https://blyg.example'))).toBe(true);
 });

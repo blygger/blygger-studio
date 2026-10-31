@@ -28,16 +28,16 @@ export async function verifyPersistence(worker: string, temp: string) {
     const login = await fetch(`${fixture.baseUrl}/studio/login`, { method: "POST", body: new URLSearchParams({ password: "test" }), redirect: "manual" });
     const token = login.headers.get("set-cookie")?.match(/blyg_session=([^;]+)/)?.[1]; assert.ok(token);
     let client = createBlyggerClient({ baseUrl: fixture.baseUrl + "/api", auth: scheme => scheme.in === 'cookie' ? token : undefined });
-    await unwrap(BlyggerApi.updateSettings({ client, body: { site_url: "https://restart.example/" } }));
-    const draft = await unwrap(BlyggerApi.createItem({ client, body: { content_md: "Unpublished restart draft" } }));
-    const published = await unwrap(BlyggerApi.createItem({ client, body: { kind: "thread", content_md: "Frozen citation", stub_of: { url: "https://source.example/article" } } }));
+    await unwrap(BlyggerApi.updateSettings({ client, body: { siteUrl: "https://restart.example/" } }));
+    const draft = await unwrap(BlyggerApi.createItem({ client, body: { contentMd: "Unpublished restart draft" } }));
+    const published = await unwrap(BlyggerApi.createItem({ client, body: { kind: "thread", contentMd: "Frozen citation", stubOf: { url: "https://source.example/article" } } }));
     const first = await unwrap(BlyggerApi.publishItem({ client, path: { id: published.id }, body: { expectedRevision: published.revision } }));
     const pin = await unwrap(BlyggerApi.pinItem({ client, path: { id: published.id, version: 1 }, body: { expectedRevision: first.revision } }));
-    const edited = await unwrap(BlyggerApi.updateItem({ client, path: { id: published.id }, body: { content_md: "Second edition", expectedRevision: pin.revision } }));
+    const edited = await unwrap(BlyggerApi.updateItem({ client, path: { id: published.id }, body: { contentMd: "Second edition", expectedRevision: pin.revision } }));
     await unwrap(BlyggerApi.publishItem({ client, path: { id: published.id }, body: { expectedRevision: edited.revision } }));
     const before = await unwrap(BlyggerApi.getItem({ client, path: { id: published.id } }));
     assert.equal(before.versions.length, 2); assert.equal(before.versions[0].pinned, true);
-    assert.ok(before.versions[0].stub_cite, "Citation fixture must be present before restart");
+    assert.ok(before.versions[0].stubCite, "Citation fixture must be present before restart");
     const pinnedResponse = await fetch(`${fixture.baseUrl}/items/${published.id}/v1.json`);
     assert.equal(pinnedResponse.status, 200);
     const pinned = await pinnedResponse.text();
@@ -47,15 +47,15 @@ export async function verifyPersistence(worker: string, temp: string) {
     fixture = undefined;
     fixture = await start(worker, join(temp, "persistent-storage"), false);
     client = createBlyggerClient({ baseUrl: fixture.baseUrl + "/api", auth: scheme => scheme.in === 'cookie' ? token : undefined });
-    assert.equal((await unwrap(BlyggerApi.getItem({ client, path: { id: draft.id } }))).content_md, "Unpublished restart draft");
+    assert.equal((await unwrap(BlyggerApi.getItem({ client, path: { id: draft.id } }))).contentMd, "Unpublished restart draft");
     assert.deepEqual(await unwrap(BlyggerApi.getItem({ client, path: { id: published.id } })), before);
     const retainedPin = await fetch(`${fixture.baseUrl}/items/${published.id}/v1.json`);
     assert.equal(retainedPin.status, 200);
     assert.equal(await retainedPin.text(), pinned);
     // An unpublished upload is private: the owner reads its bytes, anonymous
     // readers do not, and a restart changes neither.
-    assert.equal((await fetch(`${fixture.baseUrl}/${media.url}`)).status, 404);
-    const upload = await fetch(`${fixture.baseUrl}/${media.url}`, { headers: { cookie: `blyg_session=${token}` } });
+    assert.equal((await fetch(media.url)).status, 404);
+    const upload = await fetch(media.url, { headers: { cookie: `blyg_session=${token}` } });
     assert.equal(upload.status, 200); assert.equal(upload.headers.get("content-type"), "image/png");
     assert.deepEqual(new Uint8Array(await upload.arrayBuffer()), new Uint8Array([0, 1, 255]));
     console.log("Fresh Worker process retained D1 drafts/history/pins/citations, auth cookie, and R2 upload bytes");

@@ -21,7 +21,7 @@ const paragraphs = (tag: string) =>
 async function longThreads(page: Page, tags: string[]) {
   const ids: string[] = [];
   for (const tag of tags) {
-    const { json } = await api(page, 'POST', '/items', { content_md: `# ${tag} heading\n\n${paragraphs(tag)}`, kind: 'thread' });
+    const { json } = await api(page, 'POST', '/items', { contentMd: `# ${tag} heading\n\n${paragraphs(tag)}`, kind: 'thread' });
     expect((await api(page, 'POST', `/items/${json.id}/publish`)).status).toBe(200);
     ids.push(json.id);
   }

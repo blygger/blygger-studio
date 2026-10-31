@@ -11,7 +11,7 @@ export async function multipartInput(form: FormData): Promise<MediaInput> {
   const file = form.get('file');
   return {
     ...(file instanceof File ? { file: { bytes: new Uint8Array(await file.arrayBuffer()), mime: file.type, name: file.name } } : {}),
-    ...(typeof form.get('item_id') === 'string' ? { itemId: form.get('item_id') as string } : {}),
+    ...(typeof form.get('itemId') === 'string' ? { itemId: form.get('itemId') as string } : {}),
     ...(typeof form.get('alt') === 'string' ? { alt: form.get('alt') as string } : {}),
     ...(typeof form.get('expectedRevision') === 'string' ? { expectedRevision: Number(form.get('expectedRevision')) } : {}),
     inline: form.get('inline') === 'true',

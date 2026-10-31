@@ -21,14 +21,14 @@ import { makeFixtureFetch } from "./importer/fixtures.ts";
 const THEIRS = "https://them.example/blyg/";
 
 async function publishThread(cookie: string, md: string): Promise<string> {
-  const id = (await apiJson(cookie, "POST", "/blyg/api/items", { content_md: md, kind: "thread" })).json.id as string;
+  const id = (await apiJson(cookie, "POST", "/blyg/api/items", { contentMd: md, kind: "thread" })).json.id as string;
   const pub = await apiJson(cookie, "POST", `/blyg/api/items/${id}/publish`, {});
   expect(pub.status).toBe(200);
   return id;
 }
 
 async function editAndPublish(cookie: string, id: string, md: string): Promise<void> {
-  expect((await apiJson(cookie, "PATCH", `/blyg/api/items/${id}`, { content_md: md })).status).toBe(200);
+  expect((await apiJson(cookie, "PATCH", `/blyg/api/items/${id}`, { contentMd: md })).status).toBe(200);
   expect((await apiJson(cookie, "POST", `/blyg/api/items/${id}/publish`, {})).status).toBe(200);
 }
 
@@ -178,10 +178,10 @@ describe("refreshing — a republish of the published words", () => {
     const frag = await createAndPublish(cookie, "Before.");
     const thread = await publishThread(cookie, `![[${frag}]]\n\nMy point.`);
     await editAndPublish(cookie, frag, "After.");
-    expect((await apiJson(cookie, "PATCH", `/blyg/api/items/${thread}`, { content_md: `![[${frag}]]\n\nHalf-written new point` })).status).toBe(200);
+    expect((await apiJson(cookie, "PATCH", `/blyg/api/items/${thread}`, { contentMd: `![[${frag}]]\n\nHalf-written new point` })).status).toBe(200);
     const res = await apiJson(cookie, "POST", `/blyg/api/items/${thread}/refresh`, {});
     expect(res.status).toBe(409);
-    expect(res.json.error).toMatch(/unpublished edits/);
+    expect(res.json.message).toMatch(/unpublished edits/);
     expect((await getPublic(`/blyg/items/${thread}.json`).then((r) => r.json<any>())).version).toBe(1);
   });
 
@@ -191,7 +191,7 @@ describe("refreshing — a republish of the published words", () => {
     const thread = await publishThread(cookie, `![[${frag}]]\n\nFine.`);
     const res = await apiJson(cookie, "POST", `/blyg/api/items/${thread}/refresh`, {});
     expect(res.status).toBe(409);
-    expect(res.json.error).toMatch(/already current/);
+    expect(res.json.message).toMatch(/already current/);
   });
 
   it("refuses, naming the quote, when a republish would fail", async () => {
@@ -203,7 +203,7 @@ describe("refreshing — a republish of the published words", () => {
     expect((await apiJson(cookie, "POST", `/blyg/api/items/${gone}/withdraw`, {})).status).toBe(200);
     const res = await apiJson(cookie, "POST", `/blyg/api/items/${thread}/refresh`, {});
     expect(res.status).toBe(409);
-    expect(res.json.errors).toEqual([expect.objectContaining({ id: gone })]);
+    expect(res.json.details.errors).toEqual([expect.objectContaining({ id: gone })]);
   });
 });
 
@@ -214,7 +214,7 @@ describe("what counts as the published words", () => {
     const md = `![[${frag}]]\n\nMy point.`;
     const thread = await publishThread(cookie, md);
     await editAndPublish(cookie, frag, "After.");
-    expect((await apiJson(cookie, "PATCH", `/blyg/api/items/${thread}`, { content_md: md + " Draft." })).status).toBe(200);
+    expect((await apiJson(cookie, "PATCH", `/blyg/api/items/${thread}`, { contentMd: md + " Draft." })).status).toBe(200);
     expect((await apiJson(cookie, "POST", `/blyg/api/items/${thread}/restore`, { version: 1 })).status).toBe(200);
     expect((await apiJson(cookie, "GET", `/blyg/api/items/${thread}`)).json.dirty).toBe(false);
     expect((await apiJson(cookie, "GET", `/blyg/api/items/${thread}/freshness`)).json.dirty).toBe(false);
@@ -234,6 +234,6 @@ describe("what counts as the published words", () => {
     expect((await apiJson(cookie, "POST", `/blyg/api/items/${thread}/restore`, { version: 1 })).status).toBe(200);
     const res = await apiJson(cookie, "POST", `/blyg/api/items/${thread}/refresh`, {});
     expect(res.status).toBe(409);
-    expect(res.json.error).toMatch(/unpublished edits/);
+    expect(res.json.message).toMatch(/unpublished edits/);
   });
 });

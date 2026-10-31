@@ -8,10 +8,10 @@ describe("manifest (§2.4)", () => {
   it("has the exact manifest shape", async () => {
     const cookie = await login();
     await apiJson(cookie, "PATCH", "/blyg/api/settings", {
-      site_title: "A Test Blyg",
-      author_name: "A Test Author",
-      author_bio: "test bio",
-      author_links: [{ label: "Home", url: "https://author.example/" }],
+      siteTitle: "A Test Blyg",
+      authorName: "A Test Author",
+      authorBio: "test bio",
+      authorLinks: [{ label: "Home", url: "https://author.example/" }],
     });
     const res = await getPublic("/blyg/blyg.json");
     expect(res.status).toBe(200);

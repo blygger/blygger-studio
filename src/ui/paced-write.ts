@@ -26,7 +26,7 @@ export const draftWriteSchema = z.discriminatedUnion('type', [
     kind: kind.optional(),
     highlight: z.enum(['default', 'show', 'hide']).optional(),
     responses: z.enum(['default', 'show', 'hide']).optional(),
-    stub_of: z.null().optional(),
+    stubOf: z.null().optional(),
   }) }),
 ]);
 export type DraftWrite = z.infer<typeof draftWriteSchema>;

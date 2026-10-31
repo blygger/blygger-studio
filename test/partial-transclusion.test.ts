@@ -19,7 +19,7 @@ import { SELF } from "cloudflare:test";
 import { apiJson, BASE, createAndPublish, getPublic, login } from "./helpers.ts";
 
 async function createThread(cookie: string, contentMd: string): Promise<string> {
-  const created = await apiJson(cookie, "POST", "/blyg/api/items", { content_md: contentMd, kind: "thread" });
+  const created = await apiJson(cookie, "POST", "/blyg/api/items", { contentMd: contentMd, kind: "thread" });
   expect(created.status).toBe(201);
   return created.json.id as string;
 }
@@ -120,7 +120,7 @@ describe("the check: the passage must be in the target", () => {
     const cookie = await login();
     const target = await createAndPublish(cookie, TARGET);
     // The target moves on, dropping the sentence.
-    await apiJson(cookie, "PATCH", `/blyg/api/items/${target}`, { content_md: "Rewritten entirely." });
+    await apiJson(cookie, "PATCH", `/blyg/api/items/${target}`, { contentMd: "Rewritten entirely." });
     expect((await apiJson(cookie, "POST", `/blyg/api/items/${target}/publish`, {})).status).toBe(200);
 
     const thread = await createThread(cookie, `![[${target}]]\n> ${PARA_ONE}`);
@@ -252,7 +252,7 @@ describe("staleness and the rest are unchanged", () => {
     expect((await apiJson(cookie, "POST", `/blyg/api/items/${thread}/publish`, {})).status).toBe(200);
 
     // Target moves; our snapshot and our selector both still name version 1.
-    await apiJson(cookie, "PATCH", `/blyg/api/items/${target}`, { content_md: `${TARGET}\n\nAnd more.` });
+    await apiJson(cookie, "PATCH", `/blyg/api/items/${target}`, { contentMd: `${TARGET}\n\nAnd more.` });
     expect((await apiJson(cookie, "POST", `/blyg/api/items/${target}/publish`, {})).status).toBe(200);
 
     const doc = await (await getPublic(`/blyg/items/${thread}.json`)).json<any>();
@@ -268,10 +268,10 @@ describe("staleness and the rest are unchanged", () => {
 
     // The target keeps the quoted sentence, so a republish must succeed and
     // move the snapshot to v2 — the passage is still faithfully there.
-    await apiJson(cookie, "PATCH", `/blyg/api/items/${target}`, { content_md: `${TARGET}\n\nA third paragraph.` });
+    await apiJson(cookie, "PATCH", `/blyg/api/items/${target}`, { contentMd: `${TARGET}\n\nA third paragraph.` });
     expect((await apiJson(cookie, "POST", `/blyg/api/items/${target}/publish`, {})).status).toBe(200);
     await apiJson(cookie, "PATCH", `/blyg/api/items/${thread}`, {
-      content_md: `![[${target}]]\n> ${PARA_ONE}\n\nRevisited.`,
+      contentMd: `![[${target}]]\n> ${PARA_ONE}\n\nRevisited.`,
     });
     expect((await apiJson(cookie, "POST", `/blyg/api/items/${thread}/publish`, {})).status).toBe(200);
 
@@ -290,7 +290,7 @@ describe("the editor preview matches what publish will do", () => {
     const res = await SELF.fetch(`${BASE}/blyg/api/preview`, {
       method: "POST",
       headers: { cookie, "content-type": "application/json" },
-      body: JSON.stringify({ kind: "thread", content_md: contentMd }),
+      body: JSON.stringify({ kind: "thread", contentMd: contentMd }),
     });
     expect(res.status).toBe(200);
     return (await res.json()) as any;

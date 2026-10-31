@@ -47,7 +47,7 @@ describe("createSubscription backfill flag", () => {
     const counts = network(feedUrl);
     const { status, json, waitUntil } = await subscribe({ url: feedUrl, confirm: true, backfill: false });
     expect(status).toBe(201);
-    expect(json).toMatchObject({ kind: "rss", feed_url: feedUrl, in_blogroll: false, last_poll_at: null });
+    expect(json).toMatchObject({ kind: "rss", feedUrl, inBlogroll: false, lastPollAt: null });
     // Resolution reads the feed once; nothing polls it afterwards.
     expect(counts.feed).toBe(1);
     expect(waitUntil.mock.calls.length).toBe(0);

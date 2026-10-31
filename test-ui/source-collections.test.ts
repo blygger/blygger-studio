@@ -22,10 +22,10 @@ let detailGate: Promise<void> | undefined;
 let detailEntered: (() => void) | undefined;
 const requests: { path: string; params: URLSearchParams }[] = [];
 const views: { cleanup(): Promise<void> | void }[] = [];
-const item = () => ({ id: 'a', revision: itemRevision, content_md: text, kind: 'fragment' as const, status: 'draft' as const, created: '2026-10-06', updated: '2026-10-06', version: 0, dirty: false, responses: 'default' as const, highlight: 'default' as const, provenance: [], stub_of: null, forked_from: null, fork_cite: null, pins: [] });
-const detail = (): Detail => ({ ...item(), authored_kind: 'fragment', media: [], published_media: [], versions: [], published: null });
-const hopper = { id: 'h', name: 'Hopper', public: false, slug: null, created: '2026-10-06', slug_frozen: false, description: null };
-const contents = () => ({ hopper, items: Array.from({ length: 4 }, (_, i) => ({ subscription_id: 's', remote_id: String(i), content_html: `${text} ${i}`, content_md: text, kind: 'fragment', state: 'current', version: 1, created: null, updated: null, observed_at: '2026-10-06', content_hash: null, author_json: null, media_json: null, transclusions_json: null, l0: false, pinned_version_retained: null, page: null, stub_of_json: null, forked_from_json: null, generated_json: null })), memberships: Array.from({ length: 4 }, (_, i) => ({ hopper_id: 'h', subscription_id: 's', remote_id: String(i), added_at: '2026-10-06' })), total: 4, source_count: 1 });
+const item = () => ({ id: 'a', revision: itemRevision, contentMd: text, kind: 'fragment' as const, status: 'draft' as const, created: '2026-10-06', updated: '2026-10-06', version: 0, dirty: false, responses: 'default' as const, highlight: 'default' as const, provenance: [], stubOf: null, forkedFrom: null, forkCite: null, pins: [] });
+const detail = (): Detail => ({ ...item(), kind: 'fragment', media: [], publishedMedia: [], versions: [], published: null });
+const hopper = { id: 'h', name: 'Hopper', public: false, slug: null, created: '2026-10-06', slugFrozen: false, description: null };
+const contents = () => ({ hopper, items: Array.from({ length: 4 }, (_, i) => ({ subscriptionId: 's', remoteId: String(i), contentHtml: `${text} ${i}`, contentMd: text, kind: 'fragment', state: 'current', version: 1, created: null, updated: null, observedAt: '2026-10-06', contentHash: null, author: null, media: null, transclusions: null, l0: false, pinnedVersionRetained: null, page: null, stubOf: null, forkedFrom: null, generated: null })), memberships: Array.from({ length: 4 }, (_, i) => ({ hopperId: 'h', subscriptionId: 's', remoteId: String(i), addedAt: '2026-10-06' })), total: 4, sourceCount: 1 });
 const entry = (key: string, kind = 'fragment') => ({ key, source: 'own', kind, withdrawn: false, l0: false, contentHtml: text, displayAt: '2026-10-06' });
 const json = (data: unknown, status = 200) => new Response(JSON.stringify(data), { status, headers: { 'content-type': 'application/json' } });
 
@@ -40,28 +40,28 @@ beforeAll(async () => {
     if (url.pathname === '/api/items/a' && request.method === 'PATCH') {
       const body = await request.json();
       await writeGate;
-      if (failWrite) return json({ error: 'write failed' }, 503);
-      if (body.expectedRevision !== itemRevision) return json({ error: 'item revision conflict', code: 'revision-conflict' }, 409);
-      text = body.content_md; revision++; itemRevision++;
+      if (failWrite) return json({ code: 'internal', message: 'write failed' }, 503);
+      if (body.expectedRevision !== itemRevision) return json({ code: 'revision-conflict', message: 'item revision conflict' }, 409);
+      text = body.contentMd; revision++; itemRevision++;
       return json(item());
     }
     if (url.pathname === '/api/items/a/restore' && request.method === 'POST') {
       const body = await request.json();
-      if (body.expectedRevision !== itemRevision) return json({ error: 'item revision conflict' }, 409);
+      if (body.expectedRevision !== itemRevision) return json({ code: 'revision-conflict', message: 'item revision conflict' }, 409);
       text = 'restored text'; revision++; itemRevision++;
       return json({ ok: true, restored: 1, publishesAs: 2, revision: itemRevision });
     }
     if (url.pathname === '/api/items/a') {
       detailEntered?.(); await detailGate;
-      if (failRead) return json({ error: 'read failed' }, 503);
-      return missing ? json({ error: 'not found' }, 404) : json({ ...detail(), ...(invalidItem ? { content_md: 42 } : {}) });
+      if (failRead) return json({ code: 'internal', message: 'read failed' }, 503);
+      return missing ? json({ code: 'not-found', message: 'not found' }, 404) : json({ ...detail(), ...(invalidItem ? { contentMd: 42 } : {}) });
     }
-    if (url.pathname === '/api/items') return json({ items: missing ? [] : [{ ...item(), ...(invalidItem ? { content_md: 42 } : {}) }], total: missing ? 0 : 1, offset: 0, limit: 100 });
+    if (url.pathname === '/api/items') return json({ items: missing ? [] : [{ ...item(), ...(invalidItem ? { contentMd: 42 } : {}) }], total: missing ? 0 : 1, offset: 0, limit: 100 });
     if (url.pathname === '/api/hoppers') return json({ items: [hopper], total: 1, offset: 0, limit: 100 });
     if (url.pathname === '/api/hoppers/h') {
-      if (missing) return json({ error: 'not found' }, 404);
+      if (missing) return json({ code: 'not-found', message: 'not found' }, 404);
       const result = contents();
-      if (orphanMember) result.memberships.unshift({ hopper_id: 'h', subscription_id: 's', remote_id: 'not-imported', added_at: '2026-10-06' });
+      if (orphanMember) result.memberships.unshift({ hopperId: 'h', subscriptionId: 's', remoteId: 'not-imported', addedAt: '2026-10-06' });
       return json(url.searchParams.get('preview') === 'true' ? { ...result, items: result.items.slice(0, 3), memberships: result.memberships.slice(0, 3) } : result);
     }
     if (url.pathname === '/api/reading') {
@@ -72,7 +72,7 @@ beforeAll(async () => {
       // Another feed or lens must not overwrite either position.
       const entries = offset > 0 ? [entry('next', kind)] :
         sub === 'all' ? [entry('first', kind), entry('shared', kind)] : [entry('shared', kind)];
-      return json({ items: entries, offset, limit: 25, selected: sub === 'invalid' ? 'all' : sub, read_state: true, read_state_clear: true, total: 30, counts: { all: 30, own: 30, subscriptions: {} } });
+      return json({ items: entries, offset, limit: 25, selected: sub === 'invalid' ? 'all' : sub, readState: true, readStateClear: true, total: 30, counts: { all: 30, own: 30, subscriptions: {} } });
     }
     if (url.pathname === '/api/mentions/m/source') return json({ holder: 's', subscription: null });
     if (url.pathname === '/api/mentions') return json({ items: [], total: 0, offset: 0, limit: 100, direction: url.searchParams.get('direction') });
@@ -107,7 +107,7 @@ test('editor projections share one item read on open and per changed revision', 
   text = 'fresh'; revision++;
   await db.changed('items');
   expect(requests.filter((request) => request.path === '/api/items/a')).toHaveLength(2);
-  expect(editor.toArray[0].content_md).toBe('fresh');
+  expect(editor.toArray[0].contentMd).toBe('fresh');
 });
 
 test('an open editor does not adopt a foreign revision from polling for its unsaved text', async () => {
@@ -165,7 +165,7 @@ test('hopper projections share each preview and full response per revision', asy
   expect(reads()).toHaveLength(4);
   expect(full.toArray[0].items).toHaveLength(4);
   expect(preview.toArray[0].items).toHaveLength(3);
-  expect(full.toArray[0].items[0].content_html).toBe('fresh 0');
+  expect(full.toArray[0].items[0].contentHtml).toBe('fresh 0');
 });
 
 test('shared owner reads reload after an epoch change with the same revision', async () => {
@@ -175,8 +175,8 @@ test('shared owner reads reload after an epoch change with the same revision', a
   await Promise.all([refetch('items', 'item-history'), refetch('hoppers', 'hopper-stats', 'hopper-entries', 'hopper-memberships')]);
   expect(requests.filter((request) => request.path === '/api/items/a')).toHaveLength(2);
   expect(requests.filter((request) => request.path === '/api/hoppers/h')).toHaveLength(2);
-  expect(editor.toArray[0].content_md).toBe('restored content');
-  expect(hopperView.toArray[0].items[0].content_html).toBe('restored content 0');
+  expect(editor.toArray[0].contentMd).toBe('restored content');
+  expect(hopperView.toArray[0].items[0].contentHtml).toBe('restored content 0');
 });
 
 test('invalid owner responses are not shared as successful reads and retry at the same revision', async () => {
@@ -187,30 +187,30 @@ test('invalid owner responses are not shared as successful reads and retry at th
   invalidItem = false;
   await db.queryClient.resetQueries({ predicate: (query) => query.state.status === 'error' });
   await db.preloadView(editor);
-  expect(editor.toArray[0].content_md).toBe('original');
+  expect(editor.toArray[0].contentMd).toBe('original');
 });
 
 test('editor and list share optimistic item fields and roll back together', async () => {
   const editor = db.itemDetail('a'); views.push(editor);
   await Promise.all([db.listViews.items.preload(), editor.preload()]);
-  expect(db.itemHistory.get('a')).not.toHaveProperty('content_md');
+  expect(db.itemHistory.get('a')).not.toHaveProperty("contentMd");
   writeGate = new Promise<void>((resolve) => { releaseWrite = resolve; });
-  const transaction = db.items.update('a', (row) => { row.content_md = 'draft'; });
-  await vi.waitFor(() => expect(editor.toArray[0].content_md).toBe('draft'));
-  expect(db.listViews.items.toArray[0].content_md).toBe('draft');
+  const transaction = db.items.update('a', (row) => { row.contentMd = 'draft'; });
+  await vi.waitFor(() => expect(editor.toArray[0].contentMd).toBe('draft'));
+  expect(db.listViews.items.toArray[0].contentMd).toBe('draft');
   failWrite = true; releaseWrite!();
   await expect(transaction.when('settled')).rejects.toThrow('write failed');
-  await vi.waitFor(() => expect(editor.toArray[0].content_md).toBe('original'));
-  expect(db.listViews.items.toArray[0].content_md).toBe('original');
+  await vi.waitFor(() => expect(editor.toArray[0].contentMd).toBe('original'));
+  expect(db.listViews.items.toArray[0].contentMd).toBe('original');
 });
 
 test('item writes persist through the source and removed items leave every view', async () => {
   const editor = db.itemDetail('a'); views.push(editor);
   await Promise.all([db.listViews.items.preload(), editor.preload()]);
-  const transaction = db.items.update('a', (row) => { row.content_md = 'saved'; });
+  const transaction = db.items.update('a', (row) => { row.contentMd = 'saved'; });
   await transaction.when('settled');
-  expect(editor.toArray[0].content_md).toBe('saved');
-  expect(db.listViews.items.toArray[0].content_md).toBe('saved');
+  expect(editor.toArray[0].contentMd).toBe('saved');
+  expect(db.listViews.items.toArray[0].contentMd).toBe('saved');
   missing = true; revision++;
   await db.changed('items');
   expect(editor.toArray).toEqual([]);
@@ -241,7 +241,7 @@ test('route retry restarts a failed detail graph after the Query cache recovers'
   failRead = false;
   await db.queryClient.resetQueries({ predicate: (query) => query.state.status === 'error' });
   await db.preloadView(editor);
-  expect(editor.toArray[0].content_md).toBe('original');
+  expect(editor.toArray[0].contentMd).toBe('original');
 });
 
 test('missing detail resources produce a route error while source subsets remain empty', async () => {
@@ -267,10 +267,10 @@ test('invalid synced rows retain the last good state and retry before the same r
   await db.listViews.items.preload();
   invalidItem = true; text = 'new version'; revision++;
   await expect(db.items.utils.refetch({ throwOnError: true })).rejects.toThrow('expected string');
-  expect(db.items.get('a')?.content_md).toBe('original');
+  expect(db.items.get('a')?.contentMd).toBe('original');
   invalidItem = false;
   await db.items.utils.refetch({ throwOnError: true });
-  expect(db.items.get('a')?.content_md).toBe('new version');
+  expect(db.items.get('a')?.contentMd).toBe('new version');
 });
 
 test('Zod rejects invalid local mutations before sending a write', async () => {
@@ -316,14 +316,14 @@ test('hopper previews demand three entries and detail uses the same source rows'
   expect(full.toArray[0].hopper.name).toBe('Renamed');
   text = 'fresh content'; revision++;
   await refetch('hoppers', 'hopper-stats', 'hopper-entries', 'hopper-memberships');
-  expect(preview.toArray[0].items[0].content_html).toBe('fresh content 0');
+  expect(preview.toArray[0].items[0].contentHtml).toBe('fresh content 0');
 });
 
 test('hopper memberships remain visible when an imported body is absent', async () => {
   orphanMember = true;
   const full = db.hopperDetail('h'), preview = db.hopperPreview('h'); views.push(full, preview);
   await Promise.all([full.preload(), preview.preload()]);
-  expect(full.toArray[0].memberships.map((member) => member.remote_id)).toContain('not-imported');
+  expect(full.toArray[0].memberships.map((member) => member.remoteId)).toContain('not-imported');
   expect(full.toArray[0].memberships).toHaveLength(5);
   expect(full.toArray[0].items).toHaveLength(4);
   expect(preview.toArray[0].memberships).toHaveLength(3);

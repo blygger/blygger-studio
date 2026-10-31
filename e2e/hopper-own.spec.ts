@@ -16,7 +16,7 @@ test('an own post goes in a hopper from its menu and shows in the hopper', async
   await expect(page.locator('#composer-text')).toBeVisible();
   const project = test.info().project.name;
   const hopper = (await api(page, 'POST', '/api/hoppers', { name: `Own picks ${project}` })).json as { id: string };
-  const created = await api(page, 'POST', '/api/items', { content_md: `# Own pick ${project}\n\nmine` });
+  const created = await api(page, 'POST', '/api/items', { contentMd: `# Own pick ${project}\n\nmine` });
   const id = created.json.id as string;
   expect((await api(page, 'POST', `/api/items/${id}/publish`, {})).status).toBe(200);
 

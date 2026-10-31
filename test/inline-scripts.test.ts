@@ -37,7 +37,7 @@ describe("every inline script parses", () => {
     const cookie = await login();
     const id = await createAndPublish(cookie, "an item with versions");
     await apiJson(cookie, "PUT", `/blyg/api/items/${id}/versions/${1}/pin`);
-    const thread = (await apiJson(cookie, "POST", "/blyg/api/items", { content_md: "a thread", kind: "thread" })).json
+    const thread = (await apiJson(cookie, "POST", "/blyg/api/items", { contentMd: "a thread", kind: "thread" })).json
       .id as string;
     await apiJson(cookie, "POST", `/blyg/api/items/${thread}/publish`, {});
 

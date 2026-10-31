@@ -40,8 +40,8 @@ export function useUpdateState() {
     .data?.[0];
   return row
     ? readState({
-        update_latest_seen: row.update_latest_seen || '',
-        update_checked_at: row.update_checked_at || '',
+        update_latest_seen: row.updateLatestSeen || '',
+        update_checked_at: row.updateCheckedAt || '',
       })
     : undefined;
 }
@@ -183,11 +183,11 @@ export function Layout({ children }: { children: ReactNode }) {
   const theme = settings?.theme;
   // The palettes as strings, so the effect re-runs on a changed colour but not
   // on every new settings object with the same values.
-  const customKey = settings?.custom_theme
-    ? JSON.stringify(settings.custom_theme)
+  const customKey = settings?.customTheme
+    ? JSON.stringify(settings.customTheme)
     : '';
-  const customDarkKey = settings?.custom_theme_dark
-    ? JSON.stringify(settings.custom_theme_dark)
+  const customDarkKey = settings?.customThemeDark
+    ? JSON.stringify(settings.customThemeDark)
     : '';
   useEffect(() => {
     if (theme === undefined) return;
@@ -216,15 +216,15 @@ export function Layout({ children }: { children: ReactNode }) {
     : undefined;
   const publicHref =
     editedItem?.status === 'public' ? publicPath(editedItem) : `${mount}/`;
-  const behind = !!(settings?.update_check && update?.behind);
-  const unacked = !!(settings?.update_check && !settings.update_notice_ack);
+  const behind = !!(settings?.updateCheck && update?.behind);
+  const unacked = !!(settings?.updateCheck && !settings.updateNoticeAck);
   return (
     <ChromeContext.Provider value={setChrome}>
       <header className="topbar">
         <h1 className="topbar-title">
           <Link to="/reading">
             <span aria-hidden="true">❝ </span>
-            {settings?.site_title ? `${settings.site_title} ` : ''}
+            {settings?.siteTitle ? `${settings.siteTitle} ` : ''}
             <small>blygger studio</small>
           </Link>
         </h1>

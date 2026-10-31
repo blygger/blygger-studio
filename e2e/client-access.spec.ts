@@ -42,7 +42,7 @@ test('owner mints a read-only token, copies it once, and revokes access', async 
   expect(token.length).toBeGreaterThan(30);
   const headers = { Authorization: 'Bearer ' + token };
   expect((await page.request.get('/api/settings', { headers })).status()).toBe(200);
-  expect((await page.request.post('/api/items', { headers, data: { content_md: 'must not create' } })).status()).toBe(403);
+  expect((await page.request.post('/api/items', { headers, data: { contentMd: 'must not create' } })).status()).toBe(403);
   await page.getByRole('dialog').getByRole('button', { name: 'close', exact: true }).click();
   await expect(field).toHaveCount(0);
   const row = page.locator('section').filter({ hasText: name });
@@ -138,9 +138,9 @@ test('draft-only SVG uploads render as images without borrowing owner authority'
     return { status: response.status, body: await response.json() };
   }, marker);
   expect(minted.status).toBe(200);
-  const { access_token, authorization } = minted.body;
-  const headers = { Authorization: 'Bearer ' + access_token };
-  expect((await page.request.patch('/api/settings', { headers, data: { site_title: marker } })).status()).toBe(403);
+  const { accessToken, authorization } = minted.body;
+  const headers = { Authorization: 'Bearer ' + accessToken };
+  expect((await page.request.patch('/api/settings', { headers, data: { siteTitle: marker } })).status()).toBe(403);
   const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="40" height="40"><rect width="40" height="40" fill="red"/><script>document.documentElement.setAttribute('data-script-ran','yes')</script></svg>`;
   const uploaded = await page.request.post('/api/media', { headers, multipart: { file: { name: 'authority.svg', mimeType: 'image/svg+xml', buffer: Buffer.from(svg) } } });
   expect(uploaded.status()).toBe(201);
@@ -148,11 +148,11 @@ test('draft-only SVG uploads render as images without borrowing owner authority'
   try {
     // Image display must survive the defense; blocking all SVG is not the law.
     const dimensions = await page.evaluate(async url => {
-      const image = new Image(); image.src = '/' + url;
+      const image = new Image(); image.src = url;
       await image.decode(); return [image.naturalWidth, image.naturalHeight];
     }, media.url);
     expect(dimensions).toEqual([40, 40]);
-    await page.goto('/' + media.url);
+    await page.goto(media.url);
     await page.waitForLoadState('networkidle');
     await expect(page.locator('svg')).not.toHaveAttribute('data-script-ran', 'yes');
   } finally {

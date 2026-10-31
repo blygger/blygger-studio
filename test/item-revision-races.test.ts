@@ -21,7 +21,7 @@ it('reports a typed revision conflict when the target disappears during R2 uploa
     const value = Reflect.get(target, key); return typeof value === 'function' ? value.bind(target) : value;
   } });
   const result = await runOperation(operationDefinitions([]).get('uploadMedia')!, { path: {}, query: {}, media: { itemId: item.id, expectedRevision: item.revision, file: { bytes: new TextEncoder().encode('image'), mime: 'image/png', name: 'race.png' } } }, context({ ...env, MEDIA: media }));
-  expect(result).toMatchObject({ ok: false, kind: 'conflict', value: { code: 'revision-conflict', itemId: item.id, expectedRevision: item.revision } });
+  expect(result).toMatchObject({ ok: false, kind: 'conflict', value: { code: 'revision-conflict', details: { itemId: item.id, expectedRevision: item.revision } } });
   expect(storedKey).not.toBe('');
   expect(await env.MEDIA.get(storedKey)).toBeNull();
 });
@@ -38,6 +38,6 @@ it('reports the same typed conflict for a commit-time draft deletion race', asyn
   } });
   const result = await runOperation(operationDefinitions([]).get('deleteItem')!, { path: { id: item.id }, query: {}, body: { expectedRevision: item.revision } }, context({ ...env, DB: database }));
   expect(commits).toBe(1);
-  expect(result).toMatchObject({ ok: false, kind: 'conflict', value: { code: 'revision-conflict', itemId: item.id, expectedRevision: item.revision } });
+  expect(result).toMatchObject({ ok: false, kind: 'conflict', value: { code: 'revision-conflict', details: { itemId: item.id, expectedRevision: item.revision } } });
   expect(await getItem(env.DB, item.id)).toMatchObject({ content_md: 'competing edit', revision: item.revision + 1 });
 });

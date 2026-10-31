@@ -16,17 +16,17 @@ test('a thread becomes the front page from its menu, and back', async ({ page })
   await page.getByRole('button', { name: 'log in', exact: true }).click();
   await expect(page.locator('#composer-text')).toBeVisible();
   // Both projects share one database.
-  await api(page, 'PATCH', '/api/settings', { front_page: '', posts_path: 'posts' });
+  await api(page, 'PATCH', '/api/settings', { frontPage: '', postsPath: 'posts' });
 
   const project = test.info().project.name;
-  const created = await api(page, 'POST', '/api/items', { content_md: `# Welcome (${project})\n\nThe front page, written as a thread.`, kind: 'thread' });
+  const created = await api(page, 'POST', '/api/items', { contentMd: `# Welcome (${project})\n\nThe front page, written as a thread.`, kind: 'thread' });
   const id = created.json.id as string;
   expect((await api(page, 'POST', `/api/items/${id}/publish`, {})).status).toBe(200);
 
   await page.goto(`/studio/edit/${id}`);
   await editorMenu(page, 'set as front page');
   await expect(page.getByRole('status').filter({ hasText: 'now your front page' })).toBeVisible();
-  expect((await api(page, 'GET', '/api/settings')).json.front_page).toBe(id);
+  expect((await api(page, 'GET', '/api/settings')).json.frontPage).toBe(id);
 
   await page.goto('/');
   await expect(page.locator('article')).toContainText('The front page, written as a thread.');
@@ -37,17 +37,17 @@ test('a thread becomes the front page from its menu, and back', async ({ page })
   await page.goto(`/studio/edit/${id}`);
   await editorMenu(page, 'stop using as front page');
   await expect(page.getByRole('status').filter({ hasText: 'latest items again' })).toBeVisible();
-  expect((await api(page, 'GET', '/api/settings')).json.front_page).toBe('');
+  expect((await api(page, 'GET', '/api/settings')).json.frontPage).toBe('');
 
   // Settings finds the thread by search, and can go back to the latest items.
   await page.goto('/studio/settings#feed');
   await page.getByRole('searchbox', { name: 'find a thread for the front page' }).fill(`Welcome (${project})`);
   await page.getByRole('list', { name: 'matching threads: find a thread for the front page' }).getByRole('button', { name: `Welcome (${project})` }).click();
-  await expect(page.locator('#front_page')).toContainText(`Welcome (${project})`);
+  await expect(page.locator('#frontPage')).toContainText(`Welcome (${project})`);
   await page.getByRole('button', { name: 'save settings' }).click();
-  await expect.poll(async () => (await api(page, 'GET', '/api/settings')).json.front_page).toBe(id);
+  await expect.poll(async () => (await api(page, 'GET', '/api/settings')).json.frontPage).toBe(id);
   await page.getByRole('button', { name: 'use latest items' }).click();
   await page.getByRole('button', { name: 'save settings' }).click();
-  await expect.poll(async () => (await api(page, 'GET', '/api/settings')).json.front_page).toBe('');
+  await expect.poll(async () => (await api(page, 'GET', '/api/settings')).json.frontPage).toBe('');
   expect(errors).toEqual([]);
 });

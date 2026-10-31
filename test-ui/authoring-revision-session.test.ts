@@ -72,7 +72,7 @@ function harness(component: 'ItemRow' | 'Editor') {
         if (command.type === 'restore') text = 'restored';
         observed = ++revision;
         if (holdAfterCommit) { entered?.(); await gate; }
-        return { revision, content_md: text };
+        return { revision, contentMd: text };
       });
     },
     extractDirectives: (text: string) => ({ count: 0, withoutDirectives: text }),
@@ -99,12 +99,12 @@ function harness(component: 'ItemRow' | 'Editor') {
   }
   const compiled = ts.transpileModule(code, { compilerOptions: { target: ts.ScriptTarget.ES2022, jsx: ts.JsxEmit.React, jsxFactory: 'jsx', jsxFragmentFactory: 'Fragment' } }).outputText;
   const renderComponent = new Function(...Object.keys(bindings), `${compiled}\nreturn ${component};`)(...Object.values(bindings));
-  let item = { id: 'a', content_md: text, revision, kind: 'fragment', authored_kind: 'fragment', status: 'public', version: 1, dirty: false, media: [], published_media: [], pins: [], created: '', updated: '' };
+  let item = { id: 'a', contentMd: text, revision, kind: 'fragment', status: 'public', version: 1, dirty: false, media: [], publishedMedia: [], pins: [], created: '', updated: '' };
   return {
     calls, errors,
     render() { cursor = 0; return renderComponent({ item, onPublished() {} }); },
-    poll(content: string, next: number) { text = content; revision = next; item = { ...item, content_md: content, revision: next }; },
-    lag() { item = { ...item, content_md: 'original', revision: 1 }; },
+    poll(content: string, next: number) { text = content; revision = next; item = { ...item, contentMd: content, revision: next }; },
+    lag() { item = { ...item, contentMd: 'original', revision: 1 }; },
     block: () => blocker.shouldBlockFn(), beforeUnload: () => blocker.enableBeforeUnload(),
     settle: () => Promise.all(pending.splice(0)),
     hold(afterCommit = false) {

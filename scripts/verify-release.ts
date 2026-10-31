@@ -58,17 +58,17 @@ try {
   const token = login.headers.get("set-cookie")?.match(/blyg_session=([^;]+)/)?.[1];
   assert.ok(token);
   const client = sdk.createBlyggerClient({ baseUrl: baseUrl + "/api", auth: (scheme: { in?: string }) => scheme.in === 'cookie' ? token : undefined });
-  const draft = await sdk.unwrap(sdk.BlyggerApi.createItem({ client, body: { content_md: "Packaged Node SDK" } }));
+  const draft = await sdk.unwrap(sdk.BlyggerApi.createItem({ client, body: { contentMd: "Packaged Node SDK" } }));
   const detail = await sdk.unwrap(sdk.BlyggerApi.getItem({ client, path: { id: draft.id } }));
-  assert.equal(detail.content_md, "Packaged Node SDK");
+  assert.equal(detail.contentMd, "Packaged Node SDK");
   assert.equal(draft.revision, 1);
-  const edited = await sdk.unwrap(sdk.BlyggerApi.updateItem({ client, path: { id: draft.id }, body: { content_md: "Conditional installed SDK edit", expectedRevision: draft.revision } }));
+  const edited = await sdk.unwrap(sdk.BlyggerApi.updateItem({ client, path: { id: draft.id }, body: { contentMd: "Conditional installed SDK edit", expectedRevision: draft.revision } }));
   assert.equal(edited.revision, 2);
   const stale = await sdk.BlyggerApi.publishItem({ client, path: { id: draft.id }, body: { expectedRevision: draft.revision } });
   assert.equal(stale.response.status, 409);
   assert.equal(stale.error.code, 'revision-conflict');
   const retained = await sdk.unwrap(sdk.BlyggerApi.getItem({ client, path: { id: draft.id } }));
-  assert.equal(retained.content_md, "Conditional installed SDK edit");
+  assert.equal(retained.contentMd, "Conditional installed SDK edit");
   assert.equal(retained.version, 0);
   assert.equal(retained.revision, 2);
 
@@ -76,7 +76,7 @@ try {
   assert.equal(media.mime, "image/png");
   const unauthorized = await sdk.BlyggerApi.getSettings({ client: sdk.createBlyggerClient({ baseUrl: baseUrl + "/api" }) });
   assert.equal(unauthorized.response.status, 401);
-  assert.equal(unauthorized.error.error, "unauthorized");
+  assert.equal(unauthorized.error.message, "unauthorized");
   assert.ok(readFileSync(join(temp, "package/LICENSE"), "utf8").includes("MIT"));
   assert.equal(JSON.parse(readFileSync(join(temp, "package/package.json"), "utf8")).version, manifest.sdkVersion);
   await verifySdkConsumer(temp, join(output, sdkArchive), baseUrl + "/api", token, baseUrl + "/studio");

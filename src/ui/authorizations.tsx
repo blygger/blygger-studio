@@ -35,7 +35,7 @@ export function AuthorizationsPage() {
     <h2>Create a manual token</h2><p>For tools that cannot run OAuth. Tokens expire in 30 days. The token appears once; store it in your tool’s credential store.</p>
     <form onSubmit={event => { event.preventDefault(); void run(async () => {
       const result = await unwrap(BlyggerApi.createAuthorization({ client, body: { name, scope, resource } }));
-      setToken(result.access_token); setName('');
+      setToken(result.accessToken); setName('');
     }); }}>
       <p><label>Client name <input required maxLength={100} value={name} onChange={event => setName(event.target.value)} /></label></p>
       <p><label>Resource <select value={resource} onChange={event => setResource(event.target.value as 'api' | 'mcp')}><option value="api">REST API</option><option value="mcp">MCP</option></select></label></p>

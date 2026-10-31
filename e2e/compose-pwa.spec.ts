@@ -21,7 +21,7 @@ const api = async (page: Page, method: string, path: string, data?: unknown) => 
   return result.json;
 };
 const create = async (page: Page, content_md: string, kind: 'fragment' | 'thread' = 'fragment') =>
-  (await api(page, 'POST', '/items', { content_md, kind })).id as string;
+  (await api(page, 'POST', '/items', { contentMd: content_md, kind })).id as string;
 const clipboard = (page: Page) => page.evaluate(() => navigator.clipboard.readText());
 const setClipboard = (page: Page, text: string) => page.evaluate((text) => navigator.clipboard.writeText(text), text);
 const select = (page: Page, selector: string, text: string) =>
@@ -40,7 +40,7 @@ test('the filters show drafts, unpublished changes, public and withdrawn items',
   await api(page, 'POST', `/items/${pub}/publish`, {});
   const changed = await create(page, `${tag} changed`);
   await api(page, 'POST', `/items/${changed}/publish`, {});
-  await api(page, 'PATCH', `/items/${changed}`, { content_md: `${tag} changed, edited` });
+  await api(page, 'PATCH', `/items/${changed}`, { contentMd: `${tag} changed, edited` });
   const gone = await create(page, `${tag} withdrawn`);
   await api(page, 'POST', `/items/${gone}/publish`, {});
   await api(page, 'POST', `/items/${gone}/withdraw`, {});

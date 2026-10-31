@@ -11,7 +11,7 @@ function route(method: 'get' | 'post' | 'delete', path: string, operationId: str
 }
 export const authRoutes = {
   listAuthorizations: route('get', '/authorizations', 'listAuthorizations', z.object({ items: z.array(AuthorizationSchema) })),
-  createAuthorization: route('post', '/authorizations', 'createAuthorization', z.object({ authorization: AuthorizationSchema, access_token: z.string(), token_type: z.literal('Bearer'), expires_in: z.number() }), z.object({ name: z.string().trim().min(1).max(100), scope: z.array(z.enum(OWNER_SCOPES as [typeof OWNER_SCOPES[number], ...typeof OWNER_SCOPES[number][]])).min(1), resource: z.enum(['api', 'mcp']) }).strict()),
+  createAuthorization: route('post', '/authorizations', 'createAuthorization', z.object({ authorization: AuthorizationSchema, accessToken: z.string(), tokenType: z.literal('Bearer'), expiresIn: z.number() }), z.object({ name: z.string().trim().min(1).max(100), scope: z.array(z.enum(OWNER_SCOPES as [typeof OWNER_SCOPES[number], ...typeof OWNER_SCOPES[number][]])).min(1), resource: z.enum(['api', 'mcp']) }).strict()),
   revokeAuthorization: route('delete', '/authorizations/{id}', 'revokeAuthorization', z.object({ ok: z.boolean() })),
   revokeAllAuthorizations: route('delete', '/authorizations', 'revokeAllAuthorizations', z.object({ ok: z.boolean() })),
 };

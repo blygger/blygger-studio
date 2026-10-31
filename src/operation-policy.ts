@@ -1,6 +1,6 @@
 import type { OwnerScope } from './auth-scopes.ts';
 
-export const API_CONTRACT_VERSION = '3.0.0';
+export const API_CONTRACT_VERSION = '4.0.0';
 export type WorkBudget = 'read' | 'write';
 export interface ScopeInput { body?: unknown }
 export interface OperationEffects {
@@ -53,9 +53,9 @@ export const presentationScopes: ScopeCondition = {
   },
 };
 export const avatarScopes: ScopeCondition = {
-  description: 'Choosing avatar_media_id also requires owner:publish because the avatar publishes those bytes.',
+  description: 'Choosing avatarMediaId also requires owner:publish because the avatar publishes those bytes.',
   resolve(input) {
-    return bodyRecord(input).avatar_media_id !== undefined ? ['owner:publish'] : [];
+    return bodyRecord(input).avatarMediaId !== undefined ? ['owner:publish'] : [];
   },
 };
 

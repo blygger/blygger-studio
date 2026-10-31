@@ -22,7 +22,7 @@ import { BlyggerApi, createBlyggerClient, unwrap } from "@blygger/sdk";
 
 const client = createBlyggerClient({ baseUrl: new URL("/blyg/api", window.location.origin).href });
 const draft = await unwrap(BlyggerApi.createItem({
-  client, body: { content_md: "Hello", kind: "fragment" },
+  client, body: { contentMd: "Hello", kind: "fragment" },
 }));
 await unwrap(BlyggerApi.publishItem({ client, path: { id: draft.id }, body: { expectedRevision: draft.revision } }));
 const reading = await unwrap(BlyggerApi.listReading({ client, query: { offset: 0, limit: 25 } }));

@@ -33,25 +33,25 @@ async function fixture(bindings = env) {
   const owner = async (path: string, method = 'GET', body?: unknown, headers = {}) => { body = await testRevisionBody(method, path, body); return request(path, { method, headers: { cookie, ...headers, ...(body === undefined ? {} : { 'Content-Type': 'application/json' }) }, ...(body === undefined ? {} : { body: JSON.stringify(body) }) }); };
   const mint = async (scope: string[]) => {
     const response = await owner('/blyg/api/authorizations', 'POST', { name: 'Review fixture', scope, resource: 'api' });
-    expect(response.status).toBe(200); return (await response.json() as { access_token: string }).access_token;
+    expect(response.status).toBe(200); return (await response.json() as { accessToken: string }).accessToken;
   };
   return { app, base, fetch, request, owner, cookie, mint };
 }
 
 it('draft-only attachment cannot alter published media but can attach to a draft', async () => {
   const f = await fixture(), token = await f.mint(['owner:draft']);
-  const created = await f.owner('/blyg/api/items', 'POST', { content_md: 'Published attachment boundary' });
+  const created = await f.owner('/blyg/api/items', 'POST', { contentMd: 'Published attachment boundary' });
   const { id } = await created.json() as { id: string };
   expect((await f.owner('/blyg/api/items/' + id + '/publish', 'POST')).status).toBe(200);
   const projection = () => f.request('/blyg/items/' + id + '.json').then(value => value.json());
   const before = await projection();
   const upload = async (item: string) => {
-    const form = new FormData(); (form.set('item_id', item), form.set('expectedRevision', String(await testItemRevision(item)))); form.set('file', new File(['image'], 'test.png', { type: 'image/png' }));
+    const form = new FormData(); (form.set('itemId', item), form.set('expectedRevision', String(await testItemRevision(item)))); form.set('file', new File(['image'], 'test.png', { type: 'image/png' }));
     return f.request('/blyg/api/media', { method: 'POST', headers: { Authorization: 'Bearer ' + token }, body: form });
   };
   expect((await upload(id)).status, 'draft-only upload cannot publish an attachment').toBe(403);
   expect(await projection()).toEqual(before);
-  const draft = await (await f.owner('/blyg/api/items', 'POST', { content_md: 'Draft attachment neighbor' })).json() as { id: string };
+  const draft = await (await f.owner('/blyg/api/items', 'POST', { contentMd: 'Draft attachment neighbor' })).json() as { id: string };
   expect((await upload(draft.id)).status).toBe(201);
 });
 
@@ -147,8 +147,8 @@ it('cannot attach draft-only media when publication races the R2 upload', async 
   } });
   const f = await fixture({ ...env, MEDIA: media });
   const token = await f.mint(['owner:draft']);
-  const item = await (await f.owner('/blyg/api/items', 'POST', { content_md: 'Concurrent attachment boundary' })).json() as { id: string };
-  const form = new FormData(); (form.set('item_id', item.id), form.set('expectedRevision', String(await testItemRevision(item.id)))); form.set('file', new File(['image'], 'race.png', { type: 'image/png' }));
+  const item = await (await f.owner('/blyg/api/items', 'POST', { contentMd: 'Concurrent attachment boundary' })).json() as { id: string };
+  const form = new FormData(); (form.set('itemId', item.id), form.set('expectedRevision', String(await testItemRevision(item.id)))); form.set('file', new File(['image'], 'race.png', { type: 'image/png' }));
   const upload = f.request('/blyg/api/media', { method: 'POST', headers: { Authorization: 'Bearer ' + token }, body: form });
   let before: unknown;
   try {

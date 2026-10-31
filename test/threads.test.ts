@@ -6,7 +6,7 @@ import { describe, expect, it } from "vitest";
 import { apiJson, createAndPublish, getPublic, login } from "./helpers.ts";
 
 async function createThread(cookie: string, contentMd: string): Promise<string> {
-  const created = await apiJson(cookie, "POST", "/blyg/api/items", { content_md: contentMd, kind: "thread" });
+  const created = await apiJson(cookie, "POST", "/blyg/api/items", { contentMd: contentMd, kind: "thread" });
   expect(created.status).toBe(201);
   expect(created.json.kind).toBe("thread");
   return created.json.id as string;
@@ -51,7 +51,7 @@ describe("threads & transclusion (§2.9)", () => {
   // is unchanged from 0.2.
   it("rejects unresolvable transclusions: draft, withdrawn, unknown", async () => {
     const cookie = await login();
-    const draftFrag = (await apiJson(cookie, "POST", "/blyg/api/items", { content_md: "never published" })).json.id;
+    const draftFrag = (await apiJson(cookie, "POST", "/blyg/api/items", { contentMd: "never published" })).json.id;
     const withdrawnFrag = await createAndPublish(cookie, "to be withdrawn");
     await apiJson(cookie, "POST", `/blyg/api/items/${withdrawnFrag}/withdraw`, {});
 
@@ -64,7 +64,7 @@ describe("threads & transclusion (§2.9)", () => {
       const threadId = await createThread(cookie, `bad ref\n\n![[${id}]]`);
       const pub = await apiJson(cookie, "POST", `/blyg/api/items/${threadId}/publish`, {});
       expect(pub.status, label).toBe(400);
-      expect(pub.json.errors.length, label).toBe(1);
+      expect(pub.json.details.errors.length, label).toBe(1);
     }
   });
 
@@ -74,7 +74,7 @@ describe("threads & transclusion (§2.9)", () => {
     const threadId = await createThread(cookie, `![[${f1}@v1]]`);
     const pub = await apiJson(cookie, "POST", `/blyg/api/items/${threadId}/publish`, {});
     expect(pub.status).toBe(400);
-    expect(pub.json.errors[0].reason).toMatch(/reserved/);
+    expect(pub.json.details.errors[0].reason).toMatch(/reserved/);
   });
 
   it("source edit/withdraw doesn't change the baked snapshot", async () => {
@@ -85,7 +85,7 @@ describe("threads & transclusion (§2.9)", () => {
     let item = await (await getPublic(`/blyg/items/${threadId}.json`)).json<any>();
     expect(item.content_html).toContain("original text");
 
-    await apiJson(cookie, "PATCH", `/blyg/api/items/${f1}`, { content_md: "revised text" });
+    await apiJson(cookie, "PATCH", `/blyg/api/items/${f1}`, { contentMd: "revised text" });
     await apiJson(cookie, "POST", `/blyg/api/items/${f1}/publish`, {});
     item = await (await getPublic(`/blyg/items/${threadId}.json`)).json<any>();
     expect(item.content_html).toContain("original text");
@@ -105,7 +105,7 @@ describe("threads & transclusion (§2.9)", () => {
     const f1 = await createAndPublish(cookie, "v1 text");
     const threadId = await createThread(cookie, `![[${f1}]]`);
     await apiJson(cookie, "POST", `/blyg/api/items/${threadId}/publish`, {});
-    await apiJson(cookie, "PATCH", `/blyg/api/items/${f1}`, { content_md: "v2 text" });
+    await apiJson(cookie, "PATCH", `/blyg/api/items/${f1}`, { contentMd: "v2 text" });
     await apiJson(cookie, "POST", `/blyg/api/items/${f1}/publish`, {});
 
     const rePub = await apiJson(cookie, "POST", `/blyg/api/items/${threadId}/publish`, {});

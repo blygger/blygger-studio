@@ -1,3 +1,4 @@
+import { failureBody } from './api-error.ts';
 import type { Env } from './types.ts';
 import type { OwnerAccess } from './permissions.ts';
 import type { ServerExtension } from './extensions/server.ts';
@@ -35,7 +36,7 @@ export type OperationHandler = (context: OperationContext, input: OperationInput
 export function success<T>(value: T): OperationResult<T> { return { ok: true, value, created: false }; }
 export function created<T>(value: T, location?: string): OperationResult<T> { return { ok: true, value, created: true, location }; }
 export function failure(kind: FailureKind, value: Record<string, unknown>, requiredScopes?: string[]): OperationFailure {
-  return { ok: false, kind, value, requiredScopes };
+  return { ok: false, kind, value: failureBody(kind, value), requiredScopes };
 }
 /** Preserve existing model error classifications while adapters map typed failures. */
 export function modelFailure(value: Record<string, unknown>, status: number): OperationResult<never> {

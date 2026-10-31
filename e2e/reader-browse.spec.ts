@@ -16,7 +16,7 @@ async function login(page: Page) {
 const api = (page: Page, method: string, path: string, body?: unknown) =>
   page.evaluate(fixtureJson, { method, path: `/api${path}`, body });
 async function publish(page: Page, content_md: string, kind: 'fragment' | 'thread') {
-  const { json } = await api(page, 'POST', '/items', { content_md, kind });
+  const { json } = await api(page, 'POST', '/items', { contentMd: content_md, kind });
   expect((await api(page, 'POST', `/items/${json.id}/publish`)).status).toBe(200);
   return json.id as string;
 }
@@ -66,14 +66,14 @@ test('a stack of quotes opens layer by layer in the reader, back retraces it, an
 
   // The private log kept the tree, and the pane shows it.
   // The log is written after the page has moved on, so wait for the last step.
-  const logged = async () => (await api(page, 'GET', '/browse?limit=100')).json.items as { remote_id: string; via: string; parent_id: number | null; id: number; trail: string }[];
-  await expect.poll(async () => (await logged()).filter((s) => [top, middle, leaf].includes(s.remote_id)).length).toBe(6);
-  const steps = ((await logged()) as { remote_id: string; via: string; parent_id: number | null; id: number; trail: string }[]).filter((s) => [top, middle, leaf].includes(s.remote_id)).reverse();
-  expect(steps.map((s) => [s.remote_id === top ? 'top' : s.remote_id === middle ? 'middle' : 'leaf', s.via])).toEqual([
+  const logged = async () => (await api(page, 'GET', '/browse?limit=100')).json.items as { remoteId: string; via: string; parentId: number | null; id: number; trail: string }[];
+  await expect.poll(async () => (await logged()).filter((s) => [top, middle, leaf].includes(s.remoteId)).length).toBe(6);
+  const steps = ((await logged()) as { remoteId: string; via: string; parentId: number | null; id: number; trail: string }[]).filter((s) => [top, middle, leaf].includes(s.remoteId)).reverse();
+  expect(steps.map((s) => [s.remoteId === top ? 'top' : s.remoteId === middle ? 'middle' : 'leaf', s.via])).toEqual([
     ['top', 'start'], ['middle', 'quote'], ['leaf', 'quote'], ['middle', 'back'], ['top', 'back'], ['leaf', 'link'],
   ]);
   expect(new Set(steps.map((s) => s.trail)).size).toBe(1);
-  expect(steps[5].parent_id).toBe(steps[0].id);
+  expect(steps[5].parentId).toBe(steps[0].id);
   await page.getByRole('button', { name: 'history', exact: true }).click();
   const pane = page.getByRole('dialog', { name: 'Browsing history' });
   await expect(pane).toContainText('This walk');
@@ -88,7 +88,7 @@ test('a stack of quotes opens layer by layer in the reader, back retraces it, an
   await page.goto(`/studio/reading/~own/${leaf}`);
   await expect.poll(async () => (await logged())[0]?.via).toBe('start');
   const again = (await logged())[0];
-  expect([again.remote_id, again.via]).toEqual([leaf, 'start']);
+  expect([again.remoteId, again.via]).toEqual([leaf, 'start']);
   expect(again.trail).not.toBe(steps[0].trail);
 });
 
@@ -105,7 +105,7 @@ test('opening an item of an unsubscribed blyg says so and offers to subscribe', 
   await login(page);
   const origin = 'https://stranger.example/';
   await page.route('**/api/peek*', (route) =>
-    route.fulfill({ json: { origin, id: 'x1', kind: 'fragment', version: 1, content_html: '<p>A stranger&#39;s words, <a href="https://elsewhere.example/o">a link</a>.</p>', page: null, url: `${origin}f/x1/`, stub_of: null, forked_from: null, subscription_id: null } }),
+    route.fulfill({ json: { origin, id: 'x1', kind: 'fragment', version: 1, contentHtml: '<p>A stranger&#39;s words, <a href="https://elsewhere.example/o">a link</a>.</p>', page: null, url: `${origin}f/x1/`, stubOf: null, forkedFrom: null, subscriptionId: null } }),
   );
   await page.goto(`/studio/peek?origin=${encodeURIComponent(origin)}&id=x1`);
   const alert = page.getByRole('alert');
@@ -129,8 +129,8 @@ for (const intent of ['hover', 'focus'] as const) {
       if (kind === 'peek') {
         await page.route('**/api/peek/links', route => route.fulfill({ json: { links: [{ url, target: { origin, id: leaf } }] } }));
         await page.route('**/api/peek?*', route => route.fulfill({ json: {
-          origin, id: leaf, kind: 'fragment', version: 1, content_html: '<p>Preloaded reader target.</p>',
-          page: null, url, stub_of: null, forked_from: null, subscription_id: null,
+          origin, id: leaf, kind: 'fragment', version: 1, contentHtml: '<p>Preloaded reader target.</p>',
+          page: null, url, stubOf: null, forkedFrom: null, subscriptionId: null,
         } }));
       }
       const top = await publish(page, kind === 'quote' ? `![[${leaf}]]` : `[open target](${url})`, 'thread');
@@ -146,8 +146,8 @@ for (const intent of ['hover', 'focus'] as const) {
       await loaded;
       expect(page.url()).toContain(`/reading/~own/${top}`);
       expect(reads).toHaveLength(1);
-      const visits = (await api(page, 'GET', '/browse?limit=100')).json.items as { remote_id: string }[];
-      expect(visits.some(visit => visit.remote_id === leaf)).toBe(false);
+      const visits = (await api(page, 'GET', '/browse?limit=100')).json.items as { remoteId: string }[];
+      expect(visits.some(visit => visit.remoteId === leaf)).toBe(false);
       await link.click();
       await expect(page).toHaveURL(kind === 'peek' ? /\/studio\/peek\?/ : new RegExp(`/studio/reading/~own/${leaf}$`));
       await expect(page.locator('.crumbs [aria-current]')).toContainText('Preloaded reader target.');

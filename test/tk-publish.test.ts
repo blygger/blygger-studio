@@ -229,17 +229,17 @@ describe("composer TK affordances (session 18)", () => {
     // draft holds it, and the client now navigates there instead of reloading.
     const cookie = await login();
     const created = await apiJson(cookie, "POST", "/blyg/api/items", {
-      content_md: "[TK]say something about pelicans[/TK]",
+      contentMd: "[TK]say something about pelicans[/TK]",
     });
     expect(created.status).toBe(201);
     const publish = await apiJson(cookie, "POST", `/blyg/api/items/${created.json.id}/publish`, {});
     expect(publish.status).toBe(400);
-    expect(publish.json.error).toMatch(/not publish-ready/);
+    expect(publish.json.message).toMatch(/not publish-ready/);
 
     // The draft still exists and still carries the scope, verbatim.
     const draft = await apiJson(cookie, "GET", `/blyg/api/items/${created.json.id}`);
     expect(draft.status).toBe(200);
-    expect(draft.json.content_md).toBe("[TK]say something about pelicans[/TK]");
+    expect(draft.json.contentMd).toBe("[TK]say something about pelicans[/TK]");
   });
 });
 
@@ -250,7 +250,7 @@ describe("an own-line directive in TK output (decision #60)", () => {
     const cookie = await login();
     const quoted = await createAndPublish(cookie, "words someone else will echo");
     const md = `Intro.\n\n[TK]write a bridge[=]bridge line\n![[${quoted}]]\nafter[/TK]`;
-    const created = await apiJson(cookie, "POST", "/blyg/api/items", { content_md: md, kind: "thread" });
+    const created = await apiJson(cookie, "POST", "/blyg/api/items", { contentMd: md, kind: "thread" });
     expect(created.status).toBe(201);
     const res = await apiJson(cookie, "POST", `/blyg/api/items/${created.json.id}/publish`, {});
     expect(res.status).toBe(200);
@@ -263,7 +263,7 @@ describe("an own-line directive in TK output (decision #60)", () => {
     const cookie = await login();
     const quoted = await createAndPublish(cookie, "words quoted on purpose");
     const md = `[TK]open with ![[${quoted}]] then riff[=]x\n![[${quoted}]]\ny[/TK]`;
-    const created = await apiJson(cookie, "POST", "/blyg/api/items", { content_md: md, kind: "thread" });
+    const created = await apiJson(cookie, "POST", "/blyg/api/items", { contentMd: md, kind: "thread" });
     const res = await apiJson(cookie, "POST", `/blyg/api/items/${created.json.id}/publish`, {});
     expect(res.status).toBe(200);
     expect(res.json.warning).toBeUndefined();

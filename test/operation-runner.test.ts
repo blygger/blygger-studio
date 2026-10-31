@@ -14,13 +14,13 @@ function context(scope: string[]): OperationContext {
 const input = { path: {}, query: {} };
 it('executes domain work without an HTTP context and returns typed outcomes', async () => {
   const definitions = operationDefinitions([]), ctx = context(['owner:draft', 'owner:read']);
-  const created = await runOperation(definitions.get('createItem')!, { ...input, body: { content_md: 'direct operation' } }, ctx);
-  expect(created).toMatchObject({ ok: true, created: true, value: { content_md: 'direct operation', status: 'draft' } });
+  const created = await runOperation(definitions.get('createItem')!, { ...input, body: { contentMd: 'direct operation' } }, ctx);
+  expect(created).toMatchObject({ ok: true, created: true, value: { contentMd: 'direct operation', status: 'draft' } });
   if (!created.ok) throw new Error('creation failed');
   const id = (created.value as { id: string }).id;
   expect(created.location).toBe('/blyg/api/items/' + id);
   const read = await runOperation(definitions.get('getItem')!, { ...input, path: { id } }, ctx);
-  expect(read).toMatchObject({ ok: true, created: false, value: { id, content_md: 'direct operation' } });
+  expect(read).toMatchObject({ ok: true, created: false, value: { id, contentMd: 'direct operation' } });
   const invalid = await runOperation(definitions.get('createItem')!, { ...input, body: { unknown: true } }, ctx);
   expect(invalid).toMatchObject({ ok: false, kind: 'invalid-input' });
 });
@@ -42,7 +42,7 @@ it('keeps domain/output schema failures internal instead of blaming client input
   const definition = operationDefinitions([]).get('getSettings')!, log = vi.spyOn(console, 'error').mockImplementation(() => {});
   try {
     const result = await runOperation({ ...definition, handler: async () => { z.string().parse(12); return success({}); } }, input, context(['owner:read']));
-    expect(result).toEqual({ ok: false, kind: 'internal', value: { error: 'internal server error' }, requiredScopes: undefined });
+    expect(result).toEqual({ ok: false, kind: 'internal', value: { code: 'internal', message: 'internal server error' }, requiredScopes: undefined });
     expect(log).toHaveBeenCalledWith('Operation failed', { operation: 'getSettings', errorType: 'ZodError' });
   } finally { log.mockRestore(); }
 });
@@ -52,7 +52,7 @@ it.each(['bad inline', 'file as item id'])('rejects malformed multipart metadata
   const form = new FormData();
   form.set('file', new File(['bytes'], 'file.png', { type: 'image/png' }));
   if (kind === 'bad inline') form.set('inline', 'sometimes');
-  else form.set('item_id', new File(['not an id'], 'id.txt'));
+  else form.set('itemId', new File(['not an id'], 'id.txt'));
   const response = await app.fetch(new Request('https://runner.example/api/media', { method: 'POST', body: form }), env);
   expect(response.status).toBe(400);
   expect(await env.DB.prepare('SELECT COUNT(*) AS n FROM media').first()).toEqual({ n: 0 });

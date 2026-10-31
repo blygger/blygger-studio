@@ -32,7 +32,7 @@ async function fixture() {
   expect(login.status).toBe(302);
   const cookie = login.headers.get('set-cookie')!.split(';')[0];
   const owner = async (path: string, method = 'GET', body?: unknown) => { body = await testRevisionBody(method, path, body); return receive(app, path, { method, headers: { cookie, 'Content-Type': 'application/json' }, ...(body === undefined ? {} : { body: JSON.stringify(body) }) }); };
-  const created = await owner('/blyg/api/items', 'POST', { kind: 'thread', content_md: 'Public authority fixture' });
+  const created = await owner('/blyg/api/items', 'POST', { kind: 'thread', contentMd: 'Public authority fixture' });
   expect(created.status).toBe(201); const { id } = await created.json() as { id: string };
   return { app, owner, id, cookie };
 }
@@ -43,7 +43,7 @@ it('draft edits and restoration leave every named public projection unchanged', 
   const before = await (await receive(f.app, publicPath)).text();
   const draft = new Hono().route('/api', createOwnerApi({ scope: ['owner:draft'], clientId: 'draft-fixture', userId: 'owner' }));
   for (const [method, path, body, status] of [
-    ['PATCH', `/api/items/${f.id}`, { content_md: 'Unpublished text', stub_of: { url: 'https://citation.example/post' } }, 200],
+    ['PATCH', `/api/items/${f.id}`, { contentMd: 'Unpublished text', stubOf: { url: 'https://citation.example/post' } }, 200],
     ['POST', `/api/items/${f.id}/restore`, { version: 1 }, 200],
     ['DELETE', `/api/items/${f.id}`, undefined, 409],
   ] as const) {

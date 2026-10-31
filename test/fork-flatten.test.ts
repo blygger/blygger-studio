@@ -91,7 +91,7 @@ describe("a fork through the API (#57)", () => {
   it("inherits no transclusions, sends no quote-mentions, and keeps a fragment's generated disclosure", async () => {
     const cookie = await login();
     const quoted = await createAndPublish(cookie, "quoted words");
-    const thread = (await apiJson(cookie, "POST", "/blyg/api/items", { content_md: `Mine. [TK]impyrt gen-1=Machine words.[/TK]\n\n![[${quoted}]]`, kind: "thread" })).json.id as string;
+    const thread = (await apiJson(cookie, "POST", "/blyg/api/items", { contentMd: `Mine. [TK]impyrt gen-1=Machine words.[/TK]\n\n![[${quoted}]]`, kind: "thread" })).json.id as string;
     await apiJson(cookie, "POST", `/blyg/api/items/${thread}/publish`, {});
     await apiJson(cookie, "PUT", `/blyg/api/items/${thread}/versions/1/pin`);
     const fork = await apiJson(cookie, "POST", "/blyg/api/items", { mode: "fork", source: { origin: OURS, id: thread, version: 1 } });
@@ -102,17 +102,17 @@ describe("a fork through the API (#57)", () => {
     expect(doc.content_html).toContain("quoted words");
     expect(doc.generated).toEqual([{ sources: [], model: "gen-1" }]);
 
-    const frag = (await apiJson(cookie, "POST", "/blyg/api/items", { content_md: "Plain. [TK]impyrt gen-2=Generated.[/TK]" })).json.id as string;
+    const frag = (await apiJson(cookie, "POST", "/blyg/api/items", { contentMd: "Plain. [TK]impyrt gen-2=Generated.[/TK]" })).json.id as string;
     await apiJson(cookie, "POST", `/blyg/api/items/${frag}/publish`, {});
     await apiJson(cookie, "PUT", `/blyg/api/items/${frag}/versions/1/pin`);
     const ffork = await apiJson(cookie, "POST", "/blyg/api/items", { mode: "fork", source: { origin: OURS, id: frag, version: 1 } });
     expect((await apiJson(cookie, "POST", `/blyg/api/items/${ffork.json.id}/publish`, {})).status).toBe(200);
     expect((await (await getPublic(`/blyg/items/${ffork.json.id}.json`)).json<any>()).generated).toEqual([{ sources: [], model: "gen-2" }]);
-    const linker = (await apiJson(cookie, "POST", "/blyg/api/items", { content_md: `Pointing at [[${quoted}]].` })).json.id as string;
+    const linker = (await apiJson(cookie, "POST", "/blyg/api/items", { contentMd: `Pointing at [[${quoted}]].` })).json.id as string;
     await apiJson(cookie, "POST", `/blyg/api/items/${linker}/publish`, {});
     await apiJson(cookie, "PUT", `/blyg/api/items/${linker}/versions/1/pin`);
     const lfork = await apiJson(cookie, "POST", "/blyg/api/items", { mode: "fork", source: { origin: OURS, id: linker, version: 1 } });
-    expect(lfork.json.content_md).not.toContain("[[");
-    expect(lfork.json.content_md).toMatch(new RegExp(`^Pointing at \\[“quoted words”\\]\\(https://[^)]*${quoted}/?\\)\\.$`));
+    expect(lfork.json.contentMd).not.toContain("[[");
+    expect(lfork.json.contentMd).toMatch(new RegExp(`^Pointing at \\[“quoted words”\\]\\(https://[^)]*${quoted}/?\\)\\.$`));
   });
 });

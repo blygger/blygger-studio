@@ -56,7 +56,7 @@ async function stub(cookie: string, body: Record<string, unknown>) {
   const res = await SELF.fetch(`${BASE}/blyg/api/items`, {
     method: "POST",
     headers: { cookie, "content-type": "application/json" },
-    body: JSON.stringify({ mode: "response", source: { subscription_id: body.subscription_id, remote_id: body.remote_id }, selection: body.selection }),
+    body: JSON.stringify({ mode: "response", source: { subscriptionId: body.subscription_id, remoteId: body.remote_id }, selection: body.selection }),
   });
   return { status: res.status, json: (await res.json()) as any };
 }
@@ -65,13 +65,13 @@ async function stub(cookie: string, body: Record<string, unknown>) {
 async function draftMd(cookie: string, id: string): Promise<string> {
   const res = await apiJson(cookie, "GET", `/blyg/api/items/${id}`);
   expect(res.status).toBe(200);
-  return res.json.content_md;
+  return res.json.contentMd;
 }
 
 describe("select-to-quote produces a draft that publishes", () => {
   it("round trip: a highlighted passage becomes a partial transclusion on the wire", async () => {
     const cookie = await login();
-    await apiJson(cookie, "PATCH", "/blyg/api/settings", { site_url: "https://ours.example/blyg/" });
+    await apiJson(cookie, "PATCH", "/blyg/api/settings", { siteUrl: "https://ours.example/blyg/" });
     const { sub, id } = await importItem({ md: LONG_BODY });
 
     // What a browser hands back from Selection.toString() for a highlight
@@ -90,7 +90,7 @@ describe("select-to-quote produces a draft that publishes", () => {
     );
 
     // And it publishes — the point of the whole test.
-    await apiJson(cookie, "PATCH", `/blyg/api/items/${created.json.id}`, { content_md: `${md}I want to disagree.` });
+    await apiJson(cookie, "PATCH", `/blyg/api/items/${created.json.id}`, { contentMd: `${md}I want to disagree.` });
     expect((await apiJson(cookie, "POST", `/blyg/api/items/${created.json.id}/publish`, {})).status).toBe(200);
 
     const doc = await (await getPublic(`/blyg/items/${created.json.id}.json`)).json<any>();
@@ -182,7 +182,7 @@ describe("the stub prefill quotes the whole item, whatever its length (session 3
     // into the list: blank lines between blocks, no list markers.
     const chosen = withStubQuote(md, id, "The second paragraph.\n\na listed point\nanother point");
     expect(stubQuoteForm(chosen, id)).toBe("passage");
-    await apiJson(cookie, "PATCH", `/blyg/api/items/${created.json.id}`, { content_md: chosen + "My reply." });
+    await apiJson(cookie, "PATCH", `/blyg/api/items/${created.json.id}`, { contentMd: chosen + "My reply." });
     const published = await apiJson(cookie, "POST", `/blyg/api/items/${created.json.id}/publish`, {});
     expect(published.status, JSON.stringify(published.json) + "\n" + chosen).toBe(200);
     const doc = await (await getPublic(`/blyg/items/${created.json.id}.json`)).json<any>();
@@ -194,7 +194,7 @@ describe("the stub prefill quotes the whole item, whatever its length (session 3
     const cookie = await login();
     const { sub, id } = await importItem({ md: LONG_BODY.repeat(3) });
     const created = await stub(cookie, { subscription_id: sub, remote_id: id });
-    await apiJson(cookie, "PATCH", `/blyg/api/items/${created.json.id}`, { content_md: `![[${id}]]\n\nAll of it, then.` });
+    await apiJson(cookie, "PATCH", `/blyg/api/items/${created.json.id}`, { contentMd: `![[${id}]]\n\nAll of it, then.` });
     expect((await apiJson(cookie, "POST", `/blyg/api/items/${created.json.id}/publish`, {})).status).toBe(200);
     const doc = await (await getPublic(`/blyg/items/${created.json.id}.json`)).json<any>();
     expect(doc.content_html).not.toContain("blyg-partial");
@@ -205,7 +205,7 @@ describe("the stub prefill quotes the whole item, whatever its length (session 3
     const cookie = await login();
     const { sub, id } = await importItem({ md: LONG_BODY.repeat(3) });
     const created = await stub(cookie, { subscription_id: sub, remote_id: id });
-    await apiJson(cookie, "PATCH", `/blyg/api/items/${created.json.id}`, { content_md: `![[${id}]]\n> \n\n` });
+    await apiJson(cookie, "PATCH", `/blyg/api/items/${created.json.id}`, { contentMd: `![[${id}]]\n> \n\n` });
     const res = await apiJson(cookie, "POST", `/blyg/api/items/${created.json.id}/publish`, {});
     expect(res.status).toBe(400);
     expect(JSON.stringify(res.json)).toContain("empty");

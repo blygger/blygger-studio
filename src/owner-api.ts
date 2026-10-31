@@ -1,3 +1,4 @@
+import { statusError } from './api-error.ts';
 import { operationDefinitions } from './operations.ts';
 import { executeRest } from './operation-rest.ts';
 import { bodyLimit } from 'hono/body-limit';
@@ -34,7 +35,7 @@ ownerApi.use('*', async (c, next) => {
   await next();
   c.header('Cache-Control', 'no-store');
 });
-ownerApi.use('*', (c, next) => bodyLimit({ maxSize: securityLimit(c.env.API_BODY_LIMIT, 8 * 1024 * 1024), onError: c => c.json({ error: 'request body exceeds byte limit' }, 413) })(c, next));
+ownerApi.use('*', (c, next) => bodyLimit({ maxSize: securityLimit(c.env.API_BODY_LIMIT, 8 * 1024 * 1024), onError: c => c.json(statusError(413, 'request body exceeds byte limit'), 413) })(c, next));
 ownerApi.use("*", async (c, next) => {
   const origin = c.req.header('origin');
   const authorization = c.req.header('authorization');
@@ -46,18 +47,18 @@ ownerApi.use("*", async (c, next) => {
   if (!delegated) {
     if (bearer || !await verifySession(c.env, c.req.header('cookie'))) {
       c.header('WWW-Authenticate', bearerChallenge(c.req.url, c.env, 'api'));
-      return c.json({ error: 'unauthorized' }, 401);
+      return c.json(statusError(401, 'unauthorized'), 401);
     }
-    if (origin && origin !== new URL(c.req.url).origin || c.req.header('sec-fetch-site') === 'cross-site') return c.json({ error: 'cross-origin owner request denied' }, 403);
+    if (origin && origin !== new URL(c.req.url).origin || c.req.header('sec-fetch-site') === 'cross-site') return c.json(statusError(403, 'cross-origin owner request denied'), 403);
   } else {
     if (!operation) {
       if (!['GET', 'HEAD'].includes(c.req.method)) {
         c.header('WWW-Authenticate', bearerChallenge(c.req.url, c.env, 'api', '', true));
-        return c.json({ error: 'unclassified write denied' }, 403);
+        return c.json(statusError(403, 'unclassified write denied'), 403);
       }
       if (!delegated.scope.includes('owner:read')) {
         c.header('WWW-Authenticate', bearerChallenge(c.req.url, c.env, 'api', 'owner:read', true));
-        return c.json({ error: 'insufficient scope' }, 403);
+        return c.json(statusError(403, 'insufficient scope'), 403);
       }
     }
   }
@@ -66,7 +67,7 @@ ownerApi.use("*", async (c, next) => {
     c.env = withWorkPrincipal(c.env, delegated ?? undefined);
     if (!await admitApi(c.env, ['GET', 'HEAD'].includes(c.req.method))) {
       c.header('Retry-After', '60');
-      return c.json({ error: 'API work budget exceeded' }, 429);
+      return c.json(statusError(429, 'API work budget exceeded'), 429);
     }
   }
   return next();
@@ -87,13 +88,13 @@ ownerApi.get('/openapi.json', c => {
 ownerApi.all("*", async (c) => {
   const path = c.req.path.slice(apiPath.length);
   const extension = extensions.find(extension => path.startsWith(`/ext/${extension.name}/`));
-  if (extension && !await isExtensionEnabled(c.env.DB, extension.name)) return c.json({ error: `extension ${extension.name} is not enabled` }, 404);
+  if (extension && !await isExtensionEnabled(c.env.DB, extension.name)) return c.json(statusError(404, `extension ${extension.name} is not enabled`), 404);
   const methods = methodInventory.filter(route => route.pattern.test(path)).map(route => route.method);
   if (methods.length) {
     c.header("Allow", [...new Set(methods.flatMap((method) => method === "GET" ? ["GET", "HEAD"] : [method]))].join(", "));
-    return c.json({ error: "method not allowed" }, 405);
+    return c.json(statusError(405, "method not allowed"), 405);
   }
-  return c.json({ error: "not found" }, 404);
+  return c.json(statusError(404, "not found"), 404);
 });
 
 return ownerApi;

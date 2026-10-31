@@ -5,7 +5,7 @@ import { test, expect, type Page } from "./fixture";
 // an image is pasted.
 const SVG = '<svg xmlns="http://www.w3.org/2000/svg" width="10" height="10"><rect width="10" height="10"/></svg>';
 const file = (name: string) => ({ name, mimeType: "image/svg+xml", buffer: Buffer.from(SVG) });
-const IMG = String.raw`!\[\]\(/media/[0-9a-z]+\.svg\)`;
+const IMG = String.raw`!\[\]\(http://127\.0\.0\.1:8787/media/[0-9a-z]+\.svg\)`;
 
 async function login(page: Page) {
   await page.goto("/studio");

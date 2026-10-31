@@ -56,7 +56,7 @@ describe("the per-node setting", () => {
     expect(on.json.extensions).toEqual(["example"]);
     const unknown = await apiJson(cookie, "PATCH", "/blyg/api/settings", { extensions: ["example", "not-compiled"] });
     expect(unknown.status).toBe(400);
-    expect(unknown.json.error).toContain("not-compiled");
+    expect(unknown.json.message).toContain("not-compiled");
     expect((await apiJson(cookie, "GET", "/blyg/api/settings")).json.extensions).toEqual(["example"]);
     expect((await apiJson(cookie, "PATCH", "/blyg/api/settings", { extensions: [] })).json.extensions).toEqual([]);
   });
@@ -75,7 +75,7 @@ describe("extension routes behind the owner API", () => {
     const cookie = await login();
     const off = await receive(ownerApp(), "/ext/probe/status", { headers: { cookie } });
     expect(off.status).toBe(404);
-    expect(await off.json()).toEqual({ error: "extension probe is not enabled" });
+    expect(await off.json()).toEqual({ code: "not-found", message: "extension probe is not enabled" });
     await enable(["probe"]);
     const on = await receive(ownerApp(), "/ext/probe/status?echo=hi", { headers: { cookie } });
     expect(on.status).toBe(200);

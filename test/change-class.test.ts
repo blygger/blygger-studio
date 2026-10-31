@@ -50,7 +50,7 @@ const withAi = (ai: Ai | undefined, extra: Partial<Env> = {}) => ({ ...env, AI: 
 
 async function editedItem(cookie: string, v1: string, v2: string) {
   const id = await createAndPublish(cookie, v1);
-  await apiJson(cookie, "PATCH", `/blyg/api/items/${id}`, { content_md: v2 });
+  await apiJson(cookie, "PATCH", `/blyg/api/items/${id}`, { contentMd: v2 });
   return id;
 }
 
@@ -80,17 +80,17 @@ describe("decision models in the manifest", () => {
 
   it("keeps decision models and text functions apart in settings", async () => {
     const cookie = await login();
-    expect((await apiJson(cookie, "PATCH", "/blyg/api/settings", { ai_model_classify: "claude-sonnet-5-5" })).status).toBe(400);
-    expect((await apiJson(cookie, "PATCH", "/blyg/api/settings", { ai_model_tk: CLEF })).status).toBe(400);
-    expect((await apiJson(cookie, "PATCH", "/blyg/api/settings", { ai_model_changelog: JEV })).status).toBe(400);
-    const ok = await apiJson(cookie, "PATCH", "/blyg/api/settings", { ai_model_classify: CLEF });
+    expect((await apiJson(cookie, "PATCH", "/blyg/api/settings", { aiModelClassify: "claude-sonnet-5-5" })).status).toBe(400);
+    expect((await apiJson(cookie, "PATCH", "/blyg/api/settings", { aiModelTk: CLEF })).status).toBe(400);
+    expect((await apiJson(cookie, "PATCH", "/blyg/api/settings", { aiModelChangelog: JEV })).status).toBe(400);
+    const ok = await apiJson(cookie, "PATCH", "/blyg/api/settings", { aiModelClassify: CLEF });
     expect(ok.status).toBe(200);
-    expect(ok.json).toMatchObject({ ai_model_classify: CLEF, change_category_in_note: true });
+    expect(ok.json).toMatchObject({ aiModelClassify: CLEF, changeCategoryInNote: true });
   });
 
   it("is off by default", async () => {
     const cookie = await login();
-    expect((await apiJson(cookie, "GET", "/blyg/api/settings")).json).toMatchObject({ ai_model_classify: "", change_category_in_note: true });
+    expect((await apiJson(cookie, "GET", "/blyg/api/settings")).json).toMatchObject({ aiModelClassify: "", changeCategoryInNote: true });
   });
 });
 
@@ -150,7 +150,7 @@ describe("POST /items/{id}/classify", () => {
     const id = await editedItem(cookie, "First take.", "First take, revised.");
     const res = await apiJson(cookie, "POST", `/blyg/api/items/${id}/classify`);
     expect(res.status).toBe(409);
-    expect(res.json.error).toMatch(/classifier is off/);
+    expect(res.json.message).toMatch(/classifier is off/);
   });
 
   it("classifies with the model's choice and probability, and keeps it studio-private", async () => {
@@ -165,10 +165,10 @@ describe("POST /items/{id}/classify", () => {
     expect(calls[0].input.state).toContain("+ added:");
     expect(calls[0].input.questions.change.criteria).toHaveProperty("typo");
     // Settled at publish and shown in the owner's versions.
-    expect((await apiJson(cookie, "POST", `/blyg/api/items/${id}/publish`, { note: "major: Reversed the argument.", change_category: "major" })).status).toBe(200);
+    expect((await apiJson(cookie, "POST", `/blyg/api/items/${id}/publish`, { note: "major: Reversed the argument.", changeCategory: "major" })).status).toBe(200);
     const detail = (await apiJson(cookie, "GET", `/blyg/api/items/${id}`)).json;
-    expect(detail.versions[1].change_class).toMatchObject({ category: "major", model: CLEF, probability: 0.87, overridden: false });
-    expect(detail.versions[0].change_class).toBeNull();
+    expect(detail.versions[1].changeClass).toMatchObject({ category: "major", model: CLEF, probability: 0.87, overridden: false });
+    expect(detail.versions[0].changeClass).toBeNull();
   });
 
   it("decides refresh locally from content_hash, with no model call", async () => {
@@ -204,7 +204,7 @@ describe("POST /items/{id}/classify", () => {
     expect(calls).toHaveLength(1);
     // The failed retry dropped the earlier classification, and publishing works.
     expect((await apiJson(cookie, "POST", `/blyg/api/items/${id}/publish`, {})).status).toBe(200);
-    expect((await apiJson(cookie, "GET", `/blyg/api/items/${id}`)).json.versions[1].change_class).toBeNull();
+    expect((await apiJson(cookie, "GET", `/blyg/api/items/${id}`)).json.versions[1].changeClass).toBeNull();
   });
 
   it("through the route, a missing AI binding is a null category with a reason, not an error", async () => {
@@ -221,19 +221,19 @@ describe("POST /items/{id}/classify", () => {
     await putSettings(env.DB, { ai_model_classify: CLEF });
     const id = await editedItem(cookie, "Teh cat sat.", "The cat sat.");
     await classifyChange(withAi(fakeAi(choiceAnswer("typo", { typo: 0.95, minor: 0.05, major: 0 })).ai), (await getItem(env.DB, id))!);
-    await apiJson(cookie, "POST", `/blyg/api/items/${id}/publish`, { note: "minor", change_category: "minor" });
-    expect((await apiJson(cookie, "GET", `/blyg/api/items/${id}`)).json.versions[1].change_class).toMatchObject({ category: "minor", model: CLEF, probability: 0.95, overridden: true });
+    await apiJson(cookie, "POST", `/blyg/api/items/${id}/publish`, { note: "minor", changeCategory: "minor" });
+    expect((await apiJson(cookie, "GET", `/blyg/api/items/${id}`)).json.versions[1].changeClass).toMatchObject({ category: "minor", model: CLEF, probability: 0.95, overridden: true });
     // Classified, then edited again before publishing: the record is stale.
-    await apiJson(cookie, "PATCH", `/blyg/api/items/${id}`, { content_md: "The cat sat on the mat." });
+    await apiJson(cookie, "PATCH", `/blyg/api/items/${id}`, { contentMd: "The cat sat on the mat." });
     await classifyChange(withAi(fakeAi(choiceAnswer("minor", { typo: 0.1, minor: 0.9, major: 0 })).ai), (await getItem(env.DB, id))!);
-    await apiJson(cookie, "PATCH", `/blyg/api/items/${id}`, { content_md: "Something else altogether." });
+    await apiJson(cookie, "PATCH", `/blyg/api/items/${id}`, { contentMd: "Something else altogether." });
     await apiJson(cookie, "POST", `/blyg/api/items/${id}/publish`, {});
-    expect((await apiJson(cookie, "GET", `/blyg/api/items/${id}`)).json.versions[2].change_class).toBeNull();
+    expect((await apiJson(cookie, "GET", `/blyg/api/items/${id}`)).json.versions[2].changeClass).toBeNull();
     // Cleared by the author: kept as a record that there is no category.
-    await apiJson(cookie, "PATCH", `/blyg/api/items/${id}`, { content_md: "Something else altogether, again." });
+    await apiJson(cookie, "PATCH", `/blyg/api/items/${id}`, { contentMd: "Something else altogether, again." });
     await classifyChange(withAi(fakeAi(choiceAnswer("minor", { typo: 0.1, minor: 0.9, major: 0 })).ai), (await getItem(env.DB, id))!);
-    await apiJson(cookie, "POST", `/blyg/api/items/${id}/publish`, { change_category: null });
-    expect((await apiJson(cookie, "GET", `/blyg/api/items/${id}`)).json.versions[3].change_class).toMatchObject({ category: null, overridden: true });
+    await apiJson(cookie, "POST", `/blyg/api/items/${id}/publish`, { changeCategory: null });
+    expect((await apiJson(cookie, "GET", `/blyg/api/items/${id}`)).json.versions[3].changeClass).toMatchObject({ category: null, overridden: true });
   });
 });
 
@@ -270,7 +270,7 @@ describe("the note the dialog composes", () => {
   it("a note that is only the category word, published as generated, is marked generated on the wire", async () => {
     const cookie = await login();
     const id = await editedItem(cookie, "Teh cat.", "The cat.");
-    await apiJson(cookie, "POST", `/blyg/api/items/${id}/publish`, { note: "typo", note_generated: true, change_category: "typo" });
+    await apiJson(cookie, "POST", `/blyg/api/items/${id}/publish`, { note: "typo", noteGenerated: true, changeCategory: "typo" });
     const doc = await (await getPublic(`/blyg/items/${id}.json`)).json<any>();
     expect(doc.changelog[1]).toEqual(expect.objectContaining({ note: "typo", generated: true }));
   });
@@ -293,8 +293,8 @@ describe("nothing new on the wire (#19 / TN-1, #77)", () => {
     await putSettings(env.DB, { ai_model_classify: CLEF });
     const classified = await editedItem(cookie, "Teh dog.", "The dog.");
     await classifyChange(withAi(fakeAi(choiceAnswer("typo", { typo: 0.97, minor: 0.03, major: 0 })).ai), (await getItem(env.DB, classified))!);
-    await apiJson(cookie, "POST", `/blyg/api/items/${classified}/publish`, { note: "typo: Fixed a word.", change_category: "typo" });
-    expect((await apiJson(cookie, "GET", `/blyg/api/items/${classified}`)).json.versions[1].change_class.category).toBe("typo");
+    await apiJson(cookie, "POST", `/blyg/api/items/${classified}/publish`, { note: "typo: Fixed a word.", changeCategory: "typo" });
+    expect((await apiJson(cookie, "GET", `/blyg/api/items/${classified}`)).json.versions[1].changeClass.category).toBe("typo");
 
     const a = await (await getPublic(`/blyg/items/${plain}.json`)).json<any>();
     const b = await (await getPublic(`/blyg/items/${classified}.json`)).json<any>();

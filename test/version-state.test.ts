@@ -13,13 +13,13 @@ import { draftChangeNote } from '../src/change-note.ts';
 describe('explicit publication state', () => {
   it.each(['fragment', 'thread'] as const)('pins, restores, and republishes an empty %s', async kind => {
     const cookie = await login();
-    const created = await apiJson(cookie, 'POST', '/blyg/api/items', { kind, content_md: '' });
+    const created = await apiJson(cookie, 'POST', '/blyg/api/items', { kind, contentMd: '' });
     expect(created.status).toBe(201);
     const id = created.json.id, segment = kind === 'thread' ? 't' : 'f';
     expect((await apiJson(cookie, 'POST', `/blyg/api/items/${id}/publish`, {})).json.version).toBe(1);
     expect((await getVersion(env.DB, id, 1))?.kind).toBe(kind);
     const detail = await apiJson(cookie, 'GET', `/blyg/api/items/${id}`);
-    expect(detail.json.versions[0]).toMatchObject({ kind, content_md: '' });
+    expect(detail.json.versions[0]).toMatchObject({ kind, contentMd: '' });
     expect((await apiJson(cookie, 'PUT', `/blyg/api/items/${id}/versions/1/pin`)).status).toBe(200);
     const choices = await apiJson(cookie, 'GET', `/blyg/api/fork-options?id=${id}`);
     expect(choices.json.versions.map((row: { version: number }) => row.version)).toEqual([1]);
@@ -33,7 +33,7 @@ describe('explicit publication state', () => {
     expect((await apiJson(cookie, 'POST', `/blyg/api/items/${id}/restore`, { version: 2 })).status).toBe(409);
     const item = (await getItem(env.DB, id))!;
     expect(await authoredKind(env.DB, item)).toBe(kind);
-    expect((await apiJson(cookie, 'GET', `/blyg/api/items/${id}`)).json.authored_kind).toBe(kind);
+    expect((await apiJson(cookie, 'GET', `/blyg/api/items/${id}`)).json.kind).toBe(kind);
     expect((await getPublic(`/blyg/${segment}/${id}/`)).status).toBe(200);
     const origin = `${BASE}/blyg/`;
     expect(await targetItemId(env.DB, new URL(`${origin}${segment}/${id}/`), origin)).toBe(id);
@@ -49,15 +49,15 @@ describe('explicit publication state', () => {
     expect(await (await getPublic(pinPath)).text()).toBe(before);
     const fork = await apiJson(cookie, 'POST', '/blyg/api/items', { mode: 'fork', source: { origin, id, version: 1 } });
     expect(fork.status).toBe(201);
-    expect(fork.json).toMatchObject({ kind, content_md: '' });
+    expect(fork.json).toMatchObject({ kind, contentMd: '' });
   });
 
   it.each(['fragment', 'thread'] as const)('restores the attachments of a media-only %s', async kind => {
     const cookie = await login();
-    const id = (await apiJson(cookie, 'POST', '/blyg/api/items', { kind, content_md: '' })).json.id;
+    const id = (await apiJson(cookie, 'POST', '/blyg/api/items', { kind, contentMd: '' })).json.id;
     const form = new FormData();
     form.set('file', new File(['media-only bytes'], 'only.png', { type: 'image/png' }));
-    (form.set('item_id', id), form.set('expectedRevision', String(await testItemRevision(id))));
+    (form.set('itemId', id), form.set('expectedRevision', String(await testItemRevision(id))));
     const uploaded = await SELF.fetch(`${BASE}/blyg/api/media`, { method: 'POST', headers: { cookie }, body: form });
     expect(uploaded.status).toBe(201);
     const media = await uploaded.json<{ id: string; url: string }>();
@@ -66,14 +66,14 @@ describe('explicit publication state', () => {
     expect((await apiJson(cookie, 'DELETE', `/blyg/api/media/${media.id}`)).status).toBe(200);
     expect((await apiJson(cookie, 'POST', `/blyg/api/items/${id}/restore`, { version: 1 })).status).toBe(200);
     const detail = (await apiJson(cookie, 'GET', `/blyg/api/items/${id}`)).json;
-    expect(detail).toMatchObject({ dirty: false, content_md: '' });
+    expect(detail).toMatchObject({ dirty: false, contentMd: '' });
     expect(detail.media.map((row: { id: string }) => row.id)).toEqual([media.id]);
-    expect(await (await getPublic(`/blyg/${media.url}`)).text()).toBe('media-only bytes');
+    expect(await (await getPublic(new URL(media.url).pathname)).text()).toBe('media-only bytes');
   });
 
   it('compares a normal empty prior publication without a false withdrawal error', async () => {
     const cookie = await login();
-    const id = (await apiJson(cookie, 'POST', '/blyg/api/items', { content_md: '' })).json.id;
+    const id = (await apiJson(cookie, 'POST', '/blyg/api/items', { contentMd: '' })).json.id;
     await apiJson(cookie, 'POST', `/blyg/api/items/${id}/publish`, {});
     await putSettings(env.DB, { ai_model_classify: '@cf/cloudflare/clef-flash' });
     const item = (await getItem(env.DB, id))!;
