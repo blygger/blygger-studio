@@ -9,6 +9,7 @@ import { routes } from './contract/routes.ts';
 import { createOwnerApi } from './owner-api.ts';
 import { verifyBearer, bearerChallenge, authLocations } from './oauth.ts';
 import { operationScopes, type OwnerAccess } from './permissions.ts';
+import { responseHeaders } from './http-response.ts';
 
 /** Decode canonical padded RFC4648 Base64 without allowing atob's whitespace tolerance. */
 function mediaForm(body: unknown) {
@@ -47,7 +48,7 @@ const toolDefinitions = Object.entries(routes).map(([name, definition]) => {
  * Media uses a Base64-to-multipart transport adapter; REST owns media policy. */
 export async function serveMcp(request: Request, env: Env, ctx: Context['executionCtx']) {
   const origin = request.headers.get('origin');
-  if (origin && origin !== new URL(request.url).origin) return Response.json({ error: 'cross-origin MCP request denied' }, { status: 403 });
+  if (origin && origin !== new URL(request.url).origin) return Response.json({ error: 'cross-origin MCP request denied' }, { status: 403, headers: { 'Cache-Control': 'no-store' } });
   const access = await verifyBearer(request, env, 'mcp');
   if (!access) return Response.json({ error: 'unauthorized' }, { status: 401, headers: { 'WWW-Authenticate': bearerChallenge(request.url, env, 'mcp'), 'Cache-Control': 'no-store' } });
   if (!await admitMcp(env, access)) return Response.json({ error: 'MCP request budget exceeded' }, { status: 429, headers: { 'Retry-After': '60', 'Cache-Control': 'no-store' } });
@@ -90,8 +91,7 @@ export async function serveAuthorizedMcp(request: Request, env: Env, ctx: Contex
   });
   try {
     const response = await handler.fetch(request, { authInfo: { token: request.headers.get('authorization')?.replace(/^Bearer\s+/i, '') ?? '', clientId: access.clientId, scopes: access.scope, resource: new URL(authLocations(request.url, env).mcp), resourceMetadataUrl: authLocations(request.url, env).base + '/auth/resources/mcp' } });
-    response.headers.set('Cache-Control', 'no-store');
-    return response;
+    return responseHeaders(response, { 'Cache-Control': 'no-store', ...(response.status === 405 ? { Allow: 'POST' } : {}) });
   } finally {
     // Stateless tools finish within this request. No Durable Object or session storage.
     await handler.close();

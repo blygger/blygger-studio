@@ -18,6 +18,26 @@ not have its own repo until session 26.
 
 ---
 
+## 0.49.3 — 2026-10-31
+
+**Migrations: none.**
+
+- Public JSON, OPML, CSS, Studio assets, and legacy media URLs provide ETags
+  and conditional GET/HEAD responses. JSON validators cover all emitted data,
+  including changelog pin flags and mutable author/origin metadata on pins.
+  Legacy random-ID media URLs revalidate rather than promise immutable caching.
+- CORS and cache policy apply to actual OAuth responses, public wire errors,
+  explicit conditional preflight, and bearer-authenticated private media reads.
+  Browser clients can inspect validators, retry delays, supported methods,
+  returned locations, and authentication challenges where CORS permits reads.
+- Authorization endpoints exclude CORS on canonical and trailing-slash routes,
+  including preflight. Early private size-limit errors and MCP origin denials
+  have an explicit no-store policy. Native OAuth discovery retains its public
+  cache lifetime, and signing-key metadata has an explicit revalidation policy.
+- Wrong-method responses include owner grant administration, schema delivery,
+  and MCP in their Allow headers. Enabled Webmention reports POST as its method;
+  disabled Webmention remains absent.
+
 ## 0.49.2 — 2026-10-31
 
 **Migrations: none.**

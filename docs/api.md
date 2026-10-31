@@ -3,14 +3,33 @@
 The owner API lives at `/api`, including installations with a mounted Studio.
 The public Blygger protocol remains separate.
 Sign into Studio before calling the API from a browser on the same origin.
-Server clients must send the owner session cookie.
-OAuth and cross-origin clients belong to the next compatibility phase.
+Delegated clients use scoped bearer tokens. See [Client access](client-access.md)
+for OAuth, manual tokens, and browser access.
 
 Shared Zod definitions validate JSON bodies, path parameters, and query parameters.
 They also define resource responses and generate the OpenAPI 3.1 contract.
 Resource projectors validate their output with these schemas.
 Contract tests validate successful responses against the same definitions.
 Hey API generates the SDK directly from the contract, without changes to generated code.
+
+## HTTP responses
+
+Private API responses use `Cache-Control: no-store`, including errors rejected
+before dispatch. Browser bearer requests can read `ETag`, `Retry-After`, `Allow`,
+`Location`, and `WWW-Authenticate` when those headers apply. Wrong-method
+responses identify supported methods in `Allow`.
+
+Public JSON, RSS, OPML, CSS, and stable asset URLs support ETags and conditional
+GET/HEAD. Save the returned ETag and send it as `If-None-Match` on a later read.
+A matching current representation returns 304 without a body. Resource and
+access checks precede validation, so a validator does not bypass private media
+access or make an absent resource available.
+
+Validators cover complete response bytes. A pinned document can get a new ETag
+when live author or origin metadata changes, even when its markdown hash stays
+the same. Legacy media URLs contain random IDs and revalidate. They do not
+promise immutable caching. OAuth discovery keeps its native public cache policy,
+and signing keys revalidate. Token responses use `no-store`.
 
 ## Resources and operations
 

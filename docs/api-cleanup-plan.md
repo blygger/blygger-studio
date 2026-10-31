@@ -201,10 +201,11 @@ the original TK authoring scopes or their positional provenance cache.
 
 Persist an explicit distinction between a normal empty publication and a
 withdrawal snapshot. Projectors, pinning, and restoration use that distinction,
-not `!content_md`. Backfill states that retained data can establish. Detect
-ambiguous historical empty versions during migration review rather than invent
-their intent from empty text or a publication note. That migration check must
-be resolved before shipping the discriminator change.
+not `!content_md`. Backfill states that retained data can establish. Leave
+ambiguous historical rows explicitly unclassified in the new stored state and
+preserve their existing interpretation on reads. Every new version writes
+explicit state. This keeps upgrades automatic without inventing historical
+intent from empty text or a publication note.
 
 Keep retries specific to each operation. Pinning and read-state updates retain
 their existing repeat-safe behavior. A lost response to a publication or draft
@@ -290,9 +291,10 @@ from the operation refactor. Merge PR 4 before the final consumer checks for
 PR 6 and PR 7 so the final examples use canonical mounted URLs.
 
 The first implementation pass confirmed that the snapshot-state backfill can
-be ambiguous, so PR 1 is split into 1a and 1b. PR 1b does not block unrelated
-fixes or the operation refactor. Do not guess the intent of an ambiguous empty
-historical version. Track implementation findings and stack state in
+be ambiguous, so PR 1 is split into 1a and 1b. The selected policy preserves
+legacy behavior for ambiguous rows and requires explicit state for new versions.
+PR 1b does not block unrelated fixes or the operation refactor. Track
+implementation findings and stack state in
 [API cleanup progress](api-cleanup-progress.md).
 
 Each PR includes its relevant docs, generated artifacts, changelog/version
