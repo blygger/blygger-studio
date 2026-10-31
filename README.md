@@ -162,6 +162,16 @@ npx playwright install chromium
 npm run test:e2e
 ```
 
+### Dependency updates
+
+[Renovate](.github/renovate.json) groups related auth, MCP, TanStack DB, and
+Cloudflare packages and refreshes lockfiles weekly. It follows prereleases for
+TanStack DB and Miniflare. Update pull requests require manual review and merge.
+
+To activate it, merge the config into the default branch and grant the
+[Renovate GitHub app](https://github.com/apps/renovate) access to this repository.
+For a fork, select the repository explicitly when installing the app.
+
 ## Public page caching
 
 Public HTML pages use a shared Cloudflare cache for 60 seconds. After expiry,

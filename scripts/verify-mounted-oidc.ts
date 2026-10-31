@@ -2,7 +2,7 @@
 import assert from 'node:assert/strict';
 import { gzipSync } from 'node:zlib';
 import { build } from 'esbuild';
-import { Miniflare } from 'miniflare';
+import { Miniflare, convertV4MiniflareOptions } from 'miniflare';
 import { jwt } from 'better-auth/plugins';
 import { oauthProvider } from '@better-auth/oauth-provider';
 import { getMigrations } from 'better-auth/db/migration';
@@ -31,7 +31,7 @@ const output = await build({
 });
 const script = output.outputFiles[0].text;
 for (const mount of ['', '/blyg', '/nested/blyg']) {
-  const mf = new Miniflare({ modules: [{ type: "ESModule", path: "worker.mjs", contents: script }], compatibilityDate: '2026-07-01', compatibilityFlags: ['nodejs_compat'], d1Databases: ['DB'], bindings: { MOUNT: mount }, outboundService: () => new Response(null, { status: 503 }) });
+  const mf = new Miniflare(convertV4MiniflareOptions({ modules: [{ type: "ESModule", path: "worker.mjs", contents: script }], compatibilityDate: '2026-07-01', compatibilityFlags: ['nodejs_compat'], d1Databases: ['DB'], bindings: { MOUNT: mount }, outboundService: () => new Response(null, { status: 503 }) }));
   try {
     const db = await mf.getD1Database('DB');
     await (await getMigrations({ database: db, plugins: [jwt({ jwks: { keyPairConfig: { alg: 'RS256' } } }), oauthProvider({ loginPage: '/login', consentPage: '/consent', scopes: ['openid', 'offline_access', 'owner:read'] })] })).runMigrations();
