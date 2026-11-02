@@ -43,6 +43,10 @@
 .picker-excerpt { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; overflow-wrap: anywhere; font-size: .9rem; }
 .picker-meta { display: block; font-size: .75rem; color: var(--ink-soft); margin-top: 3px; overflow-wrap: anywhere; }
 .picker-mine { color: var(--pencil); font-weight: 600; }
+.picker-placeholder { font-style: italic; }
+.picker-create { display: flex; flex-direction: column; gap: 2px; width: 100%; text-align: left; font: inherit; color: inherit; background: none; border: 1px dashed currentColor; border-radius: 8px; padding: 8px 10px; margin-top: 6px; cursor: pointer; opacity: .85; }
+.picker-create.sel, .picker-create:hover, .picker-create:focus-visible { opacity: 1; background: var(--sunk); }
+.picker-create .picker-excerpt { font-style: italic; }
 .picker-foot { display: flex; flex-wrap: wrap; gap: 6px 12px; align-items: center; justify-content: space-between; font-size: .78rem; color: var(--ink-soft); border-top: 1px solid var(--rule); padding-top: 8px; }
 .picker-foot .hint { margin: 0; }
 @media (hover: none) { .picker-foot { display: none; } }

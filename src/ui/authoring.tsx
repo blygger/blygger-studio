@@ -117,7 +117,8 @@ function Help({ thread, className = 'compose-help' }: { thread?: boolean; classN
   return thread ? (
     <p className={className}>
       Markdown supported. <code>![[id]]</code> quotes an item.{' '}
-      <code>[[id]]</code> links an item. <code>[TK]an instruction[/TK]</code>{' '}
+      <code>[[id]]</code> links an item; <code>[[some words]]</code> makes a placeholder to write later.{' '}
+      <code>[TK]an instruction[/TK]</code>{' '}
       marks AI-drafted text. Type <code>/image</code> on its own line, or
       paste or drop an image, to insert one there. Paste a URL over selected
       text to link it. <Link to="/syntax">full syntax reference</Link>
@@ -125,7 +126,8 @@ function Help({ thread, className = 'compose-help' }: { thread?: boolean; classN
   ) : (
     <p className={className}>
       Markdown supported. Write <code>[[id]]</code> to link another item of
-      yours or something you read (type <code>[[</code> for a picker), and{' '}
+      yours or something you read (type <code>[[</code> for a picker, or{' '}
+      <code>[[some words]]</code> for a placeholder to write later), and{' '}
       <code>[TK]an instruction[/TK]</code> to mark a scope for AI-drafted text —
       a <em>generate</em> button appears, which saves and opens the editor.
       Type <code>/image</code> on its own line, or paste or drop an image, to
@@ -937,6 +939,7 @@ function useNoteConfirm(write: ReturnType<typeof createDraftAction>) {
 const FILTERS = {
   all: { label: 'all' },
   drafts: { label: 'drafts' },
+  placeholders: { label: 'not yet written' },
   changes: { label: 'unpublished changes' },
   public: { label: 'public' },
   withdrawn: { label: 'withdrawn' },
@@ -957,6 +960,7 @@ export function Compose() {
   const result = useLiveInfiniteQuery(q => {
     let query = q.from({ item: items });
     if (filter === 'drafts') query = query.where(({ item }) => eq(item.version, 0));
+    if (filter === 'placeholders') query = query.where(({ item }) => eq(item.isPlaceholder, true));
     if (filter === 'changes') query = query.where(({ item }) => and(eq(item.dirty, true), eq(item.status, 'public')));
     if (filter === 'public' || filter === 'withdrawn') query = query.where(({ item }) => eq(item.status, filter));
     return query.orderBy(({ item }) => item.orderKey, { direction: 'asc', stringSort: 'lexical' });
@@ -1335,14 +1339,19 @@ function ItemRow({
       >
         <span className={`dot ${dot}`} title={item.status} />
         <span className="item-main">
-          <span className={preview.title || preview.body ? 'item-title' : 'item-title empty'}>
-            {preview.title || preview.body || doesOnly || '(empty draft)'}
+          <span className={preview.title || preview.body || item.placeholder ? 'item-title' : 'item-title empty'}>
+            {preview.title || preview.body || item.placeholder || doesOnly || '(empty draft)'}
           </span>
           {preview.title && preview.body ? (
             <span className="item-excerpt">{preview.body}</span>
           ) : null}
           <span className="item-meta">
             {item.kind === 'thread' ? <span className="badge">thread</span> : null}
+            {item.placeholder ? (
+              <span className="badge badge-placeholder" title={`a placeholder for “${item.placeholder}”: links to it publish as plain text until it is published`}>
+                not yet written
+              </span>
+            ) : null}
             {count ? <span className="badge">⧉{count}</span> : null}
             {item.stubOf ? <span className="badge">stub</span> : null}
             {item.forkedFrom ? <span className="badge">fork</span> : null}
@@ -1924,6 +1933,13 @@ function Editor({ item }: { item: Detail }) {
         ) : null}
       </p>
       <PublishedBanner published={published} dismiss={() => setPublished(undefined)} />
+      {item.placeholder ? (
+        <p className="placeholder-head" id="placeholder-head">
+          <span className="badge badge-placeholder">not yet written</span> A placeholder for “{item.placeholder}”. Until
+          it is published, links to it publish as that text; republish the items that link here afterwards to make
+          them live.
+        </p>
+      ) : null}
       <div id="error-banner-slot">
         <Failure error={action.error || upload.action.error} />
         {action.warning ? (

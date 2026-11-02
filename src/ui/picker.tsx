@@ -9,6 +9,8 @@ import './picker.css';
 import { readCursorWindow } from './cursor-query.ts';
 import { zSearchResponse } from '../../sdk/dist/schemas.js';
 import { domainRevision } from './revision-query.ts';
+import { toast } from './sheets.tsx';
+import { locateSite, mintableLabel, placeholderAfterTyping, rewriteSite, stillMintable, type PlaceholderSite } from './placeholder-link.ts';
 
 /**
  * The `[[` / `![[` picker (0.29). Typing either bracket form opens a panel at
@@ -24,6 +26,14 @@ import { domainRevision } from './revision-query.ts';
  * panel mode on a phone the picker takes the whole screen: there is nothing
  * to type in the editor meanwhile, and a half-height dock under the keyboard
  * was the awkward part. Both modes share every other part.
+ *
+ * **Placeholders** (speculative authoring, studio-only): closing `[[some
+ * text]]` with a typed `]]`, or choosing *create placeholder* at the foot of
+ * a link picker's list, creates an empty fragment draft for "some text" and
+ * rewrites the brackets in place to `[[id | some text]]`, so the id is always
+ * visible. One undo — ⌘Z/Ctrl+Z before anything else is typed, or the toast's
+ * *undo* — restores `[[some text]]` and discards the draft if it is still
+ * empty. The rules for what mints are in placeholder-link.ts.
  */
 type Hit = SearchResponses[200]['items'][number];
 type Source = 'all' | 'mine' | 'imported';
@@ -83,6 +93,9 @@ export function BracketPicker({
   const [subs, setSubs] = useState<{ id: string; title: string }[]>([]);
   const [panelQuery, setPanelQuery] = useState('');
   const [dismissed, setDismissed] = useState<string>();
+  // The query whose search has answered: *create placeholder* waits for it, so
+  // an Enter typed before the results arrive can never mint over a match.
+  const [settled, setSettled] = useState<string>();
   const request = useRef<AbortController | undefined>(undefined);
   const search = useRef<HTMLInputElement>(null);
   const [caret, setCaret] = useState(text.length);
@@ -99,6 +112,77 @@ export function BracketPicker({
       element?.removeEventListener('click', update);
     };
   }, [input, text]);
+  // ── Placeholders ──
+  const latest = useRef(text);
+  latest.current = text;
+  const previous = useRef(text);
+  const undo = useRef<{ before: string; after: string; caret: number; id: string } | null>(null);
+  const discardIfUntouched = async (id: string) => {
+    try {
+      const item = await unwrap(BlyggerApi.getItem({ client, path: { id } }));
+      // Only a draft nobody has written in yet; anything else stays, listed under "not yet written".
+      if (item.version === 0 && item.placeholder && !item.contentMd)
+        await unwrap(BlyggerApi.deleteItem({ client, path: { id }, body: { expectedRevision: item.revision } }));
+    } catch {
+      /* left in place: it is a draft, listed with the others */
+    }
+  };
+  const undoPlaceholder = () => {
+    const step = undo.current;
+    undo.current = null;
+    if (!step || latest.current !== step.after) return false;
+    previous.current = step.before;
+    if (input.current) setTextAt(input.current, change, step.before, step.caret);
+    else change(step.before);
+    void discardIfUntouched(step.id);
+    return true;
+  };
+  const mint = async (site: PlaceholderSite) => {
+    let item: { id: string };
+    try {
+      item = await unwrap(BlyggerApi.createItem({ client, body: { mode: 'placeholder', label: site.label } }));
+    } catch (failure) {
+      toast(`Could not create a placeholder: ${failure instanceof Error ? failure.message : String(failure)}`);
+      return;
+    }
+    // The text may have moved on while the item was made.
+    const now = latest.current;
+    const at = locateSite(now, site);
+    if (at === null || !stillMintable(now, at)) {
+      void discardIfUntouched(item.id);
+      return;
+    }
+    const caretNow = input.current?.selectionStart ?? now.length;
+    const next = rewriteSite(now, at, site, item.id, caretNow);
+    previous.current = next.text;
+    undo.current = { before: now, after: next.text, caret: caretNow, id: item.id };
+    if (input.current) setTextAt(input.current, change, next.text, next.caret);
+    else change(next.text);
+    toast(`“${site.label}” is a placeholder, not yet written`, {
+      duration: 6000,
+      action: { label: 'undo', run: () => void undoPlaceholder() },
+    });
+  };
+  useEffect(() => {
+    const before = previous.current;
+    previous.current = text;
+    if (undo.current && text !== undo.current.after) undo.current = null;
+    const site = placeholderAfterTyping(before, text, input.current?.selectionStart ?? -1);
+    if (site) void mint(site);
+  }, [text]);
+  useEffect(() => {
+    const element = input.current;
+    if (!element) return;
+    const onKey = (event: KeyboardEvent) => {
+      if (!(event.metaKey || event.ctrlKey) || event.shiftKey || event.altKey || event.key.toLowerCase() !== 'z') return;
+      if (!undo.current || latest.current !== undo.current.after) return;
+      event.preventDefault();
+      undoPlaceholder();
+    };
+    element.addEventListener('keydown', onKey);
+    return () => element.removeEventListener('keydown', onKey);
+  });
+
   const trigger = paletteTrigger(text, caret, allowTransclude);
   // One trigger is one bracket being typed; Escape dismisses that one only.
   const triggerKey = trigger ? `${trigger.form}:${trigger.start}` : undefined;
@@ -130,13 +214,15 @@ export function BracketPicker({
     try {
       const changes = await unwrap(BlyggerApi.getChanges({ client, signal: controller.signal }));
       const generation = { epoch: changes.epoch, revision: domainRevision(changes, ['items', 'reading', 'subscriptions']) };
-      const filters = { q: query, source, sort, ...(source === 'imported' && sub ? { sub } : {}) };
+      // A link may name an open placeholder of ours; a quote or a source may not.
+      const filters = { q: query, source, sort, ...(source === 'imported' && sub ? { sub } : {}), ...(trigger?.form === 'link' ? { placeholders: 'include' as const } : {}) };
       const pageKey = ['search', 'pages', filters, generation];
       const rows = await readCursorWindow<Hit>({ queryClient, queryKey: pageKey, signal: controller.signal,
         window: { limit: offset + PAGE }, validate: page => { zSearchResponse.parse(page); }, read: (cursor, signal) => unwrap(BlyggerApi.search({ client, query: { ...filters, cursor, limit: PAGE }, signal })),
       });
       if (controller.signal.aborted || request.current !== controller) return;
       setHits(rows.slice(0, offset + PAGE));
+      setSettled(query);
       const cached = queryClient.getQueryData<{ pages: { rows: readonly Hit[]; nextCursor: string | null }[] }>(pageKey);
       const acquired = cached?.pages.reduce((sum, page) => sum + page.rows.length, 0) ?? rows.length;
       setHasMore(acquired > offset + PAGE || cached?.pages.at(-1)?.nextCursor != null);
@@ -148,6 +234,7 @@ export function BracketPicker({
   };
   useEffect(() => {
     setSelected(0);
+    setSettled(undefined);
     setHits([]);
     setHasMore(false);
     setError(undefined);
@@ -161,7 +248,7 @@ export function BracketPicker({
       controller.abort();
       if (request.current === controller) request.current = undefined;
     };
-  }, [query, source, sort, sub]);
+  }, [query, source, sort, sub, trigger?.form]);
   const loadMore = () => {
     const controller = request.current;
     if (controller && query !== undefined) void loadPage(hits.length, controller, query);
@@ -180,6 +267,18 @@ export function BracketPicker({
     if (input.current) setTextAt(input.current, change, next.text, next.caret);
     else change(next.text);
   };
+  // *create placeholder*: offered for a link whose query could name one, once
+  // the search for it has answered. Last in the keyboard order, after every hit.
+  const createLabel = open && trigger?.form === 'link' && query !== undefined && settled === query ? mintableLabel(query) : null;
+  const options = hits.length + (createLabel ? 1 : 0);
+  const create = () => {
+    if (!trigger || !createLabel) return;
+    request.current?.abort();
+    setHits([]);
+    setDismissed(triggerKey);
+    // In editor mode the typed `[[some text` is replaced; in panel mode the bare `[[` is.
+    void mint({ start: trigger.start, end: caret, original: text.slice(trigger.start, caret), label: createLabel });
+  };
   const dismiss = () => {
     request.current?.abort();
     setHits([]);
@@ -197,10 +296,10 @@ export function BracketPicker({
       dismiss();
       return;
     }
-    if (!hits.length) return;
+    if (!options) return;
     if (event.key === 'ArrowDown') {
       event.preventDefault();
-      setSelected((i) => Math.min(i + 1, hits.length - 1));
+      setSelected((i) => Math.min(i + 1, options - 1));
     }
     if (event.key === 'ArrowUp') {
       event.preventDefault();
@@ -209,6 +308,9 @@ export function BracketPicker({
     if (event.key === 'Enter' && hits[selected]) {
       event.preventDefault();
       pick(hits[selected]);
+    } else if (event.key === 'Enter' && createLabel && selected === hits.length) {
+      event.preventDefault();
+      create();
     }
   };
   useEffect(() => {
@@ -218,7 +320,7 @@ export function BracketPicker({
     return () => element.removeEventListener('keydown', navigate);
   });
   useEffect(() => {
-    document.querySelector('.picker li.sel')?.scrollIntoView({ block: 'nearest' });
+    document.querySelector('.picker .sel')?.scrollIntoView({ block: 'nearest' });
   }, [selected]);
 
   if (!open || !trigger) return null;
@@ -327,13 +429,30 @@ export function BracketPicker({
               pick(hit);
             }}
           >
-            <span className="picker-excerpt">{hit.excerpt}</span>
+            <span className="picker-excerpt">{hit.placeholder ? hit.label : hit.excerpt}</span>
             <span className="picker-meta">
-              {hit.source === 'mine' ? <span className="picker-mine">mine</span> : <span>{hit.sourceTitle}</span>} · {hit.kind} · {ago(hit.updated)} · v{hit.version}
+              {hit.source === 'mine' ? <span className="picker-mine">mine</span> : <span>{hit.sourceTitle}</span>} · {hit.kind} · {ago(hit.updated)} ·{' '}
+              {hit.placeholder ? <span className="picker-placeholder">not yet written</span> : `v${hit.version}`}
             </span>
           </li>
         ))}
       </ul>
+      {createLabel ? (
+        <button
+          type="button"
+          id="picker-create-placeholder"
+          className={selected === hits.length ? 'picker-create sel' : 'picker-create'}
+          aria-describedby="picker-create-note"
+          onMouseEnter={() => setSelected(hits.length)}
+          onMouseDown={(event) => event.preventDefault()}
+          onClick={create}
+        >
+          <span className="picker-excerpt">Create placeholder “{createLabel}”</span>
+          <span className="picker-meta" id="picker-create-note">
+            a new draft to write later · links to it publish as plain text until then
+          </span>
+        </button>
+      ) : null}
       {error ? (
         <Button className="btn btn-ghost btn-mini" disabled={loading} onMouseDown={(event) => event.preventDefault()} onClick={loadMore}>
           retry search

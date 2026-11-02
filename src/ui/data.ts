@@ -143,13 +143,14 @@ export const items = createCollection(
           });
         }
         const { filters } = parseLoadSubsetOptions(context.meta?.loadSubsetOptions);
-        const query: { status?: 'draft' | 'public' | 'withdrawn'; dirty?: 'true' | 'false'; version?: number; id?: string; updated?: string } = {};
+        const query: { status?: 'draft' | 'public' | 'withdrawn'; dirty?: 'true' | 'false'; version?: number; id?: string; updated?: string; placeholder?: 'true' | 'false' } = {};
         for (const filter of filters) {
           const field = filter.field.join('.');
           if (filter.operator !== 'eq') throw new Error('Unsupported item predicate');
           if (field === 'orderKey' && typeof filter.value === 'string') [query.updated, query.id] = sequenceParts(filter.value, ['desc', 'desc']);
           else if (field === 'status' && ['draft', 'public', 'withdrawn'].includes(String(filter.value))) query.status = filter.value as typeof query.status;
           else if (field === 'dirty' && typeof filter.value === 'boolean') query.dirty = filter.value ? 'true' : 'false';
+          else if (field === 'isPlaceholder' && typeof filter.value === 'boolean') query.placeholder = filter.value ? 'true' : 'false';
           else if (field === 'version' && typeof filter.value === 'number' && Number.isSafeInteger(filter.value) && filter.value >= 0) query.version = filter.value;
           else throw new Error('Unsupported item predicate');
         }

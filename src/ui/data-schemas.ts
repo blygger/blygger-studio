@@ -27,7 +27,7 @@ import {
 
 const rank = z.number().int().nonnegative();
 export const sourceSchemas = {
-  items: zListItemsResponse.shape.items.element.transform(row => ({ ...row, orderKey: sequenceOrder([[row.updated, 'desc'], [row.id, 'desc']]) })),
+  items: zListItemsResponse.shape.items.element.transform(row => ({ ...row, isPlaceholder: row.placeholder !== null, orderKey: sequenceOrder([[row.updated, 'desc'], [row.id, 'desc']]) })),
   itemSummary: zGetItemSummaryResponse.extend({ key: z.literal('items') }),
   itemVersions: zVersion,
   itemHistory: zGetItemResponse.pick({

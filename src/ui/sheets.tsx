@@ -62,6 +62,8 @@ export interface ToastOptions {
   duration?: number;
   /** "ok" for a completed action the person asked for (green); default is neutral. */
   tone?: 'ok';
+  /** One button beside the message (e.g. undo); pressing it runs this and closes the toast. */
+  action?: { label: string; run: () => void };
 }
 
 type Request =
@@ -73,6 +75,7 @@ interface ToastState {
   message: string;
   duration: number;
   tone?: 'ok';
+  action?: { label: string; run: () => void };
 }
 
 let queue: Request[] = [];
@@ -113,7 +116,7 @@ export function menu(options: MenuOptions): Promise<string | null> {
 }
 /** A short, non-blocking message at the bottom of the screen (replaces alert). */
 export function toast(message: string, options: ToastOptions = {}) {
-  currentToast = { id: nextId++, message, duration: options.duration ?? 2400, tone: options.tone };
+  currentToast = { id: nextId++, message, duration: options.duration ?? 2400, tone: options.tone, action: options.action };
   emit();
 }
 
@@ -359,6 +362,19 @@ function Toast() {
   return state ? (
     <div className="toast" role="status" aria-live="polite" key={state.id} data-tone={state.tone}>
       <span>{state.message}</span>
+      {state.action ? (
+        <button
+          type="button"
+          className="toast-action"
+          onMouseDown={(event) => event.preventDefault()}
+          onClick={() => {
+            state.action!.run();
+            dismiss();
+          }}
+        >
+          {state.action.label}
+        </button>
+      ) : null}
       {/* The ✕ is drawn by CSS so the toast's text stays exactly its message. */}
       <button type="button" className="toast-x" aria-label="dismiss message" onClick={dismiss} />
     </div>
