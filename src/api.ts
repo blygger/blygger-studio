@@ -10,6 +10,7 @@ import { mediaUrl } from './contract/resources.ts';
 import { settingsResource } from "./settings-resource.ts";
 import { CUSTOM_THEME_ID, pairError, themeNameError, validateCustomTheme, type CustomTheme } from "./themes.ts";
 import { itemResource } from "./contract/resources.ts";
+import { createPlaceholder, placeholderLabel } from "./placeholder.ts";
 import { itemUrl, storedSurface } from "./surface.ts";
 import { z } from "@hono/zod-openapi";
 import { createResponseDraft } from "./item-create.ts";
@@ -80,6 +81,11 @@ async function observedItem(context: OperationContext, input: OperationInput) {
 const createItemOperation = async (context: OperationContext, input: OperationInput) => {
   const body = (input.body as z.infer<typeof ItemCreateSchema>);
   if (body.mode === "fork") return createForkResponse(context, body.source);
+  if (body.mode === "placeholder") {
+    if (!placeholderLabel(body.label)) return failure('invalid-input', { error: "a placeholder needs a label" });
+    const item = await createPlaceholder(context.env.DB, body.label);
+    return created(itemResource(item, "fragment"), `${deploymentPaths(context.env.MOUNT).api}/items/${item.id}`);
+  }
   if (body.mode === "response") {
     const item = await createResponseDraft(context, { subscription_id: body.source.subscriptionId, remote_id: body.source.remoteId, selection: body.selection });
     return created(itemResource(item, await authoredKind(context.env.DB, item)), `${deploymentPaths(context.env.MOUNT).api}/items/${item.id}`);

@@ -19,6 +19,7 @@ export const ItemRowSchema = z.object({
   stub_of: z.string().nullable(),
   forked_from: z.string().nullable(),
   fork_cite: z.string().nullable(),
+  placeholder_label: z.string().nullable().optional(),
 }).openapi("ItemRow");
 
 export const VersionRowSchema = z.object({

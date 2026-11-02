@@ -207,7 +207,7 @@ Studio calls the canonical routes through the generated SDK.
 
 ## Create an item
 
-One creation route accepts three recipes.
+One creation route accepts four recipes.
 These examples use the generated SDK with an authenticated `client`:
 
 ```ts
@@ -232,11 +232,37 @@ const response = await unwrap(BlyggerApi.createItem({
     selection: "An optional passage from the source",
   },
 }));
+
+const placeholder = await unwrap(BlyggerApi.createItem({
+  client,
+  body: { mode: "placeholder", label: "the maintenance argument" },
+}));
 ```
 
 Blank creation may omit `mode` or the entire body.
 A fork starts from a pinned version and permanently records its source.
 A response creates a thread with a citation to the imported source.
+
+A placeholder is speculative authoring: the Studio makes one when the author
+types `[[some text]]` and writes `[[id | some text]]` in its place. It is an
+empty fragment draft whose `placeholder` is its label (one line, at most 200
+characters) for as long as it has never been published; every other item has
+`placeholder: null`. `GET /items?placeholder=true` lists the open ones and
+`GET /items/summary` counts them as `placeholders`. `GET /search` lists them
+(`placeholder: true`, matched on their label) only with
+`placeholders=include`, which the link picker sends and the quote picker does
+not, since a quote cannot name an unpublished item.
+
+Publish treats a `[[id]]` link to an open placeholder as its label in plain
+text: the link's own label, else the placeholder's, markdown-escaped so it
+renders as exactly that text. No anchor, no wire entry, no mention, and the
+id appears nowhere in the published version; the working copy keeps
+`[[id | text]]`, so the first republish after the placeholder is published
+makes it a real link. A link to any other draft or unknown id is still a
+publish error, and so is a quote of a placeholder. `/preview` renders a
+placeholder link as `span.blyg-link-placeholder` marked "not yet written"
+rather than as an error. Nothing about placeholders reaches the wire: the
+marker (`items.placeholder_label`, migration 0039) is studio-private.
 Creation returns the item, status 201, and a `Location` header.
 Hopper and media creation also return 201.
 Subscription creation returns 200 when the owner must accept the proposed subscription, then 201 when it creates the subscription.
@@ -358,7 +384,8 @@ visible through membership management, but do not consume Reading slots.
 
 Named summary reads supply counts separately:
 
-- `GET /items/summary`: all, drafts, unpublished changes, public and withdrawn.
+- `GET /items/summary`: all, drafts, unpublished changes, public, withdrawn and
+  open placeholders.
 - `GET /reading/summary`: source counts and selected-source fallback, with the
   same `sub`, `kind`, `background` and `hopper` filters as Reading.
 - `GET /signals/summary`: thumb and activity counts.

@@ -94,6 +94,10 @@ export type Item = {
     provenance: Array<GenerationProvenance | null>;
     responses: 'default' | 'show' | 'hide';
     highlight: 'default' | 'show' | 'hide';
+    /**
+     * While this item is an open placeholder (created from `[[some text]]` and never published), the text it was named by; null otherwise. Studio-private: a link to an open placeholder publishes as plain text.
+     */
+    placeholder: string | null;
 };
 
 export type VersionReference = {
@@ -1028,6 +1032,10 @@ export type ListItemsData = {
         version?: number | null;
         id?: string;
         updated?: string;
+        /**
+         * true: only open placeholders (created from `[[text]]`, never published); false: none of them.
+         */
+        placeholder?: 'true' | 'false';
     };
     url: '/items';
 };
@@ -1125,6 +1133,12 @@ export type CreateItemData = {
             remoteId: string;
         };
         selection?: string;
+    } | {
+        mode: 'placeholder';
+        /**
+         * The text the author typed inside `[[…]]`. Stored one-line and trimmed (at most 200 characters) as the placeholder's label; the item starts empty.
+         */
+        label: string;
     };
     path?: never;
     query?: never;
@@ -1354,6 +1368,10 @@ export type GetItemResponses = {
         provenance: Array<GenerationProvenance | null>;
         responses: 'default' | 'show' | 'hide';
         highlight: 'default' | 'show' | 'hide';
+        /**
+         * While this item is an open placeholder (created from `[[some text]]` and never published), the text it was named by; null otherwise. Studio-private: a link to an open placeholder publishes as plain text.
+         */
+        placeholder: string | null;
         pins: Array<{
             version: number;
             kind: 'fragment' | 'thread';
@@ -4095,6 +4113,10 @@ export type GetItemSummaryResponses = {
         changes: number;
         public: number;
         withdrawn: number;
+        /**
+         * Open placeholders: drafts created from `[[text]]`, not yet written.
+         */
+        placeholders: number;
     };
 };
 
@@ -4870,6 +4892,10 @@ export type SearchData = {
         source?: 'all' | 'mine' | 'imported';
         sub?: string;
         sort?: 'newest' | 'oldest';
+        /**
+         * include: also list open placeholders (own, matched on their label), which a `[[id]]` link may name but a quote may not.
+         */
+        placeholders?: 'include';
     };
     url: '/search';
 };
@@ -4946,6 +4972,10 @@ export type SearchResponses = {
             kind: 'fragment' | 'thread';
             subscriptionId: string | null;
             sourceTitle: string | null;
+            /**
+             * An open placeholder of yours: not yet written, so a link to it publishes as its label until it is published. Only listed with placeholders=include.
+             */
+            placeholder: boolean;
         }>;
         page: {
             limit: number;

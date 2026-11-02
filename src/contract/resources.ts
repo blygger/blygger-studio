@@ -32,6 +32,7 @@ export const ItemSchema = z.object({
   provenance: z.array(z.union([ProvenanceSchema, z.null()])),
   responses: z.enum(["default", "show", "hide"]),
   highlight: z.enum(["default", "show", "hide"]),
+  placeholder: z.string().nullable().describe("While this item is an open placeholder (created from `[[some text]]` and never published), the text it was named by; null otherwise. Studio-private: a link to an open placeholder publishes as plain text."),
 }).openapi("Item");
 
 export const VersionSchema = z.object({
@@ -186,6 +187,7 @@ export const itemResource = (row: ItemRow, kind: "fragment" | "thread") => ItemS
   provenance: stored(row.tk_provenance_json, ItemSchema.shape.provenance, []),
   responses: overrideMode(row.responses_override),
   highlight: overrideMode(row.highlight_override),
+  placeholder: row.version === 0 && row.placeholder_label ? row.placeholder_label : null,
 });
 
 export const versionResource = (row: VersionRow) => VersionSchema.parse({

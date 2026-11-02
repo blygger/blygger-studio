@@ -43,13 +43,14 @@ const getChangesOperation = async (context: OperationContext, input: OperationIn
 // Pin history retains the legacy nullness rule for unresolved version kinds.
 const pinKindSql = `CASE WHEN kind IN ('fragment','thread') THEN kind WHEN transclusions IS NULL THEN 'fragment' ELSE 'thread' END`;
 const listItemsOperation = async (context: OperationContext, input: OperationInput) => {
-  const filters = [input.query.status ?? null, input.query.dirty ?? null, input.query.version ?? null, input.query.id ?? null, input.query.updated ?? null];
+  const filters = [input.query.status ?? null, input.query.dirty ?? null, input.query.version ?? null, input.query.id ?? null, input.query.updated ?? null, input.query.placeholder ?? null];
   const where: string[] = [], binds: (string | number)[] = [];
   if (input.query.status) { where.push('i.status = ?'); binds.push(input.query.status); }
   if (input.query.dirty) { where.push('i.dirty = ?'); binds.push(input.query.dirty === 'true' ? 1 : 0); }
   if (input.query.id) { where.push('i.id = ?'); binds.push(input.query.id); }
   if (input.query.updated) { where.push('i.updated = ?'); binds.push(input.query.updated); }
   if (input.query.version) { where.push('i.version = ?'); binds.push(Number(input.query.version)); }
+  if (input.query.placeholder) where.push(input.query.placeholder === 'true' ? '(i.version = 0 AND i.placeholder_label IS NOT NULL)' : '(i.version <> 0 OR i.placeholder_label IS NULL)');
   return success(await cursorPage<ItemRow & { authored_kind: 'fragment' | 'thread' }, ReturnType<typeof itemResource> & { pins: { version: number; kind: 'fragment' | 'thread' }[] }>(context.env.DB, input.query, {
     name: 'items', filters, domains: ['items'], binds,
     sql: `SELECT i.*, ${authoredItemKindSql('p')} AS authored_kind FROM items i LEFT JOIN versions p ON p.item_id=i.id AND p.version=i.version-1${where.length ? ` WHERE ${where.join(' AND ')}` : ''}`,
@@ -73,7 +74,7 @@ async function presentVersions(db: D1Database, rows: VersionRow[]) {
     return { ...await presentVersion(row), changeClass: cls ? { category: cls.category, model: cls.model, probability: cls.probability, classifiedAt: cls.classified_at, overridden: cls.overridden === 1 } : null };
   }));
 }
-const getItemSummaryOperation = async (context: OperationContext) => success(await context.env.DB.prepare(`SELECT COUNT(*) AS 'all', COALESCE(SUM(version=0),0) AS drafts, COALESCE(SUM(dirty=1 AND status='public'),0) AS changes, COALESCE(SUM(status='public'),0) AS public, COALESCE(SUM(status='withdrawn'),0) AS withdrawn FROM items`).first());
+const getItemSummaryOperation = async (context: OperationContext) => success(await context.env.DB.prepare(`SELECT COUNT(*) AS 'all', COALESCE(SUM(version=0),0) AS drafts, COALESCE(SUM(dirty=1 AND status='public'),0) AS changes, COALESCE(SUM(status='public'),0) AS public, COALESCE(SUM(status='withdrawn'),0) AS withdrawn, COALESCE(SUM(version=0 AND placeholder_label IS NOT NULL),0) AS placeholders FROM items`).first());
 const getItemOperation = async (context: OperationContext, input: OperationInput) => {
   const detail = await itemDetail(context.env.DB, input.path.id);
   if (!detail) return failure('not-found', { error: 'not found' });
@@ -327,32 +328,41 @@ const searchOperation = async (context: OperationContext, input: OperationInput)
   const binds: string[] = [];
   if (source !== "imported" && !sub) {
     parts.push(`SELECT 'mine' AS source, i.id AS id, v.content_html AS html, i.version AS version, i.updated AS updated, i.kind AS kind,
-        NULL AS subscription_id, NULL AS source_title, NULL AS origin
+        NULL AS subscription_id, NULL AS source_title, NULL AS origin, NULL AS placeholder
       FROM items i JOIN versions v ON v.item_id = i.id AND v.version = i.version
       WHERE i.status = 'public' AND i.kind IN ('fragment', 'thread')${words.length ? " AND " + textMatch("v.content_md", "i.id") : ""}`);
     binds.push(...wordBinds);
+    // Open placeholders, for a link only (speculative authoring): a quote
+    // cannot name one, so the picker asks for them only for `[[`.
+    if (input.query.placeholders === "include") {
+      parts.push(`SELECT 'mine' AS source, i.id AS id, NULL AS html, 0 AS version, i.updated AS updated, i.kind AS kind,
+          NULL AS subscription_id, NULL AS source_title, NULL AS origin, i.placeholder_label AS placeholder
+        FROM items i
+        WHERE i.version = 0 AND i.placeholder_label IS NOT NULL${words.length ? " AND " + textMatch("i.placeholder_label || ' ' || i.content_md", "i.id") : ""}`);
+      binds.push(...wordBinds);
+    }
   }
   if (source !== "mine") {
     // Exactly what resolveTarget will accept at publish, so the picker never
     // offers something the author then can't publish.
     parts.push(`SELECT 'imported' AS source, ii.remote_id AS id, ii.content_html AS html,
         CASE WHEN ii.state = 'current' THEN ii.version ELSE ii.pinned_version_retained END AS version,
-        ii.observed_at AS updated, ii.kind AS kind, s.id AS subscription_id, s.title AS source_title, s.origin AS origin
+        ii.observed_at AS updated, ii.kind AS kind, s.id AS subscription_id, s.title AS source_title, s.origin AS origin, NULL AS placeholder
       FROM imported_items ii JOIN subscriptions s ON s.id = ii.subscription_id
       WHERE ii.l0 = 0 AND (ii.state = 'current' OR ii.pinned_version_retained IS NOT NULL)${sub ? " AND s.id = ?" : ""}${words.length ? " AND " + textMatch("ii.content_md", "ii.remote_id") : ""}`);
     if (sub) binds.push(sub);
     binds.push(...wordBinds);
   }
-  type Row = { source: 'mine' | 'imported'; id: string; html: string | null; version: number; updated: string; kind: string; subscription_id: string | null; source_title: string | null; origin: string | null };
+  type Row = { source: 'mine' | 'imported'; id: string; html: string | null; version: number; updated: string; kind: string; subscription_id: string | null; source_title: string | null; origin: string | null; placeholder: string | null };
   return success(await cursorPage(context.env.DB, { ...input.query, limit: input.query.limit ?? SEARCH_PAGE }, {
-    name: 'search', filters: [words, source, sub ?? null, order], domains: ['items', 'reading', 'subscriptions'],
+    name: 'search', filters: [words, source, sub ?? null, order, input.query.placeholders ?? null], domains: ['items', 'reading', 'subscriptions'],
     sql: parts.length ? parts.join(' UNION ALL ') : 'SELECT NULL AS source, NULL AS id, NULL AS updated, NULL AS subscription_id WHERE 0', binds,
     order: ['updated', 'id', 'source', 'subscription_id'].map(column => ({ column, direction: order === 'ASC' ? 'asc' as const : 'desc' as const })),
     project: (rows: Row[]) => rows.map((r) => {
     // From rendered HTML, not markdown source — the picker showed literal
     // "#"/"*" markers otherwise, same bug class as the index rows.
-    const excerpt = clampText(plainTextFromHtml(r.html ?? ""), 140);
-    const label = linkLabel(r.html ?? "", r.kind);
+    const excerpt = r.placeholder !== null ? "" : clampText(plainTextFromHtml(r.html ?? ""), 140);
+    const label = r.placeholder ?? linkLabel(r.html ?? "", r.kind);
     const sourceTitle = r.source === "mine" ? null : r.source_title || (r.origin ? new URL(r.origin).host : null);
     return {
       id: r.id,
@@ -366,6 +376,7 @@ const searchOperation = async (context: OperationContext, input: OperationInput)
       kind: r.kind === "thread" ? ("thread" as const) : ("fragment" as const),
       subscriptionId: r.subscription_id,
       sourceTitle: sourceTitle,
+      placeholder: r.placeholder !== null,
     };
     }),
   }));

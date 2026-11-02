@@ -104,6 +104,12 @@ export interface ItemRow {
   forked_from: string | null;
   /** JSON `StubCite` (migration 0010) — the lineage citation's human half, frozen at fork. Client-side only. */
   fork_cite: string | null;
+  /**
+   * The text a placeholder was created from (migration 0039, speculative
+   * authoring): set when the author typed `[[some text]]` and the studio made
+   * this item for it; null otherwise. Open while `version = 0`. Studio-only.
+   */
+  placeholder_label?: string | null;
 }
 
 export interface Transclusion {

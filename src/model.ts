@@ -14,6 +14,7 @@ import { applyVersionAgreement, composeStubCite, composeTransclusionCite, parseS
 import {
   applyInternalLinks,
   type TransclusionRefError,
+  placeholderLinksToText,
   resolveBlockLinks,
   resolveInternalLinks,
   resolveTransclusions,
@@ -318,7 +319,9 @@ export async function publish(db: D1Database, item: ItemRow, note: string | null
 
   // What gets published is authored text: XML-safe, no internal sentinels
   // (studio#15). The working copy keeps whatever was typed.
-  const source = authoredText(item.content_md);
+  // A link to one of our own unpublished placeholders publishes as its label,
+  // in plain text (speculative authoring; see placeholderLinksToText).
+  const { text: source } = await placeholderLinksToText(db, authoredText(item.content_md));
   const { scopes, errors: parseErrors } = parseScopes(source);
   const unresolved = unresolvedScopes(scopes);
   if (parseErrors.length || unresolved.length) {

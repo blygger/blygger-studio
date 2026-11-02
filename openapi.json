@@ -461,6 +461,13 @@
               "show",
               "hide"
             ]
+          },
+          "placeholder": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "While this item is an open placeholder (created from `[[some text]]` and never published), the text it was named by; null otherwise. Studio-private: a link to an open placeholder publishes as plain text."
           }
         },
         "required": [
@@ -478,7 +485,8 @@
           "forkCite",
           "provenance",
           "responses",
-          "highlight"
+          "highlight",
+          "placeholder"
         ]
       },
       "VersionReference": {
@@ -3640,6 +3648,29 @@
                       "source"
                     ],
                     "additionalProperties": false
+                  },
+                  {
+                    "type": "object",
+                    "properties": {
+                      "mode": {
+                        "type": "string",
+                        "enum": [
+                          "placeholder"
+                        ]
+                      },
+                      "label": {
+                        "type": "string",
+                        "minLength": 1,
+                        "maxLength": 1000,
+                        "description": "The text the author typed inside `[[…]]`. Stored one-line and trimmed (at most 200 characters) as the placeholder's label; the item starts empty."
+                      }
+                    },
+                    "required": [
+                      "mode",
+                      "label"
+                    ],
+                    "additionalProperties": false,
+                    "description": "Speculative authoring: an empty fragment draft that a `[[id | label]]` link can name before it is written. Until it is published, a link to it publishes as its label in plain text."
                   }
                 ]
               }
@@ -3868,6 +3899,20 @@
             },
             "required": false,
             "name": "updated",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "enum": [
+                "true",
+                "false"
+              ],
+              "description": "true: only open placeholders (created from `[[text]]`, never published); false: none of them."
+            },
+            "required": false,
+            "description": "true: only open placeholders (created from `[[text]]`, never published); false: none of them.",
+            "name": "placeholder",
             "in": "query"
           }
         ],
@@ -4660,6 +4705,13 @@
                         "hide"
                       ]
                     },
+                    "placeholder": {
+                      "type": [
+                        "string",
+                        "null"
+                      ],
+                      "description": "While this item is an open placeholder (created from `[[some text]]` and never published), the text it was named by; null otherwise. Studio-private: a link to an open placeholder publishes as plain text."
+                    },
                     "pins": {
                       "type": "array",
                       "items": {
@@ -4724,6 +4776,7 @@
                     "provenance",
                     "responses",
                     "highlight",
+                    "placeholder",
                     "pins",
                     "media",
                     "publishedMedia",
@@ -11303,6 +11356,11 @@
                     "withdrawn": {
                       "type": "integer",
                       "minimum": 0
+                    },
+                    "placeholders": {
+                      "type": "integer",
+                      "minimum": 0,
+                      "description": "Open placeholders: drafts created from `[[text]]`, not yet written."
                     }
                   },
                   "required": [
@@ -11310,7 +11368,8 @@
                     "drafts",
                     "changes",
                     "public",
-                    "withdrawn"
+                    "withdrawn",
+                    "placeholders"
                   ]
                 }
               }
@@ -13512,6 +13571,19 @@
             "required": false,
             "name": "sort",
             "in": "query"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "enum": [
+                "include"
+              ],
+              "description": "include: also list open placeholders (own, matched on their label), which a `[[id]]` link may name but a quote may not."
+            },
+            "required": false,
+            "description": "include: also list open placeholders (own, matched on their label), which a `[[id]]` link may name but a quote may not.",
+            "name": "placeholders",
+            "in": "query"
           }
         ],
         "responses": {
@@ -13571,6 +13643,10 @@
                               "string",
                               "null"
                             ]
+                          },
+                          "placeholder": {
+                            "type": "boolean",
+                            "description": "An open placeholder of yours: not yet written, so a link to it publishes as its label until it is published. Only listed with placeholders=include."
                           }
                         },
                         "required": [
@@ -13583,7 +13659,8 @@
                           "source",
                           "kind",
                           "subscriptionId",
-                          "sourceTitle"
+                          "sourceTitle",
+                          "placeholder"
                         ]
                       }
                     },

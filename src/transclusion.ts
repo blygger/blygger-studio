@@ -11,6 +11,7 @@ import { absolutizeHtml, escapeHtml } from "./util.ts";
 import { DIRECTIVE_LINE, label, LINK_INLINE, RESERVED_LINE } from "./grammar.ts";
 import { linkLabel } from "./link-label.ts";
 import { renderGeneratedBlock } from "./tk.ts";
+import { markdownLiteral, openPlaceholderLabel } from "./placeholder.ts";
 
 /**
  * `[[id]]` — a plain internal link (§10.1, decision #32). The same bracket
@@ -414,6 +415,35 @@ function anchorText(target: ResolvedTarget): string {
 }
 
 /**
+ * Every inline `[[id]]` in `contentMd` that is grammar rather than text: not
+ * inside a code span or block (§10.1, #54). One walk, shared by link
+ * resolution and by publish's placeholder pass, so the two cannot disagree
+ * about which links are live.
+ *
+ * A label is text, not markdown, so a backtick in one must not open a code
+ * span that swallows a later link. Each live link's label is blanked (same
+ * length, so offsets hold) and code found again. Left to right, so a span
+ * opened *before* a link still makes it inert, as markdown's own precedence
+ * has it.
+ */
+export function liveLinkMatches(contentMd: string): RegExpMatchArray[] {
+  const live: RegExpMatchArray[] = [];
+  let scanned = contentMd;
+  let code = codeRanges(scanned);
+  for (const m of contentMd.matchAll(LINK_INLINE)) {
+    const at = m.index ?? 0;
+    if (inRanges(code, at)) continue;
+    if (m[2]?.includes("`")) {
+      const end = at + m[0].length - 2; // the label runs up to the closing `]]`
+      scanned = scanned.slice(0, end - m[2].length) + " ".repeat(m[2].length) + scanned.slice(end);
+      code = codeRanges(scanned);
+    }
+    live.push(m);
+  }
+  return live;
+}
+
+/**
  * Resolve every inline `[[id]]` in `contentMd`.
  *
  * Resolution is **literally the directive's** — `resolveTarget`, the #26 order:
@@ -442,6 +472,7 @@ export async function resolveInternalLinks(
   contentMd: string,
   ourOrigin: string,
   onError: (err: TransclusionRefError) => string | null = () => null,
+  placeholder?: (id: string, text: string) => string,
 ): Promise<InternalLinkDocument> {
   const errors: TransclusionRefError[] = [];
   const replacements = new Map<string, string>();
@@ -449,25 +480,26 @@ export async function resolveInternalLinks(
   let out = "";
   let last = 0;
 
-  // A label is text, not markdown, so a backtick in one must not open a code
-  // span that swallows a later link. Each live link's label is blanked (same
-  // length, so offsets hold) and code found again. Left to right, so a span
-  // opened *before* a link still makes it inert, as markdown's own precedence
-  // has it (§10.1, #54).
-  let scanned = contentMd;
-  let code = codeRanges(scanned);
-  for (const m of contentMd.matchAll(LINK_INLINE)) {
+  for (const m of liveLinkMatches(contentMd)) {
     const at = m.index ?? 0;
-    if (inRanges(code, at)) continue; // inert inside code (§10.1, #54)
-    if (m[2]?.includes("`")) {
-      const end = at + m[0].length - 2; // the label runs up to the closing `]]`
-      scanned = scanned.slice(0, end - m[2].length) + " ".repeat(m[2].length) + scanned.slice(end);
-      code = codeRanges(scanned);
-    }
     out += contentMd.slice(last, at);
     last = at + m[0].length;
     const id = m[1];
     const resolved = await resolveTarget(db, id);
+    if (!resolved.ok && placeholder) {
+      // Our own placeholder draft (speculative authoring, studio-only): the
+      // caller decides how it reads. Publish never gets here, because it has
+      // already turned these links into their labels (`placeholderLinksToText`).
+      const pending = await openPlaceholderLabel(db, id);
+      if (pending !== null) {
+        const text = label(m[2]) ?? pending;
+        const token = `${LINK_SENTINEL}${linkTokenSeq++}${LINK_SENTINEL}`;
+        replacements.set(token, placeholder(id, text));
+        labels.set(token, { text: escapeHtml(text), literal: m[0] });
+        out += token;
+        continue;
+      }
+    }
     if (!resolved.ok) {
       const err = { directive: m[0], reason: resolved.reason };
       errors.push(err);
@@ -493,6 +525,35 @@ export async function resolveInternalLinks(
   }
   out += contentMd.slice(last);
   return { text: out, replacements, labels, errors };
+}
+
+/**
+ * Publish's pass over links to our own open placeholders (speculative
+ * authoring; studio-only, no wire change): each becomes its label — the
+ * link's own, else the placeholder's — as markdown that renders to exactly
+ * that text. No anchor, no wire entry, no mention: the target is unpublished,
+ * so there is nothing for a reader to follow and no id to disclose. Run over
+ * the authored text before anything else, so the published `content_md` and
+ * `content_html` agree; the working copy keeps `[[id | text]]`, and the link
+ * comes alive on the first republish after the target is published.
+ *
+ * Every other link is left alone, so a link to any other draft or an unknown
+ * id is still a publish error (decision #32). Links inside code are text and
+ * are left alone too (`liveLinkMatches`).
+ */
+export async function placeholderLinksToText(db: D1Database, contentMd: string): Promise<{ text: string; count: number }> {
+  let out = "";
+  let last = 0;
+  let count = 0;
+  for (const m of liveLinkMatches(contentMd)) {
+    const pending = await openPlaceholderLabel(db, m[1]);
+    if (pending === null) continue;
+    const at = m.index ?? 0;
+    out += contentMd.slice(last, at) + markdownLiteral(label(m[2]) ?? pending);
+    last = at + m[0].length;
+    count++;
+  }
+  return { text: out + contentMd.slice(last), count };
 }
 
 const ENCODED_SENTINEL = encodeURIComponent(LINK_SENTINEL);
@@ -589,5 +650,10 @@ export async function previewInternalLinks(db: D1Database, contentMd: string, ou
     contentMd,
     ourOrigin,
     (err) => `<span class="blyg-link-unresolved" style="color:#b3412b">⚠ ${escapeHtml(err.reason)}</span>`,
+    // A placeholder is not an error: it is a link to an item the author means
+    // to write. It reads as its label, marked "not yet written"; publish gives
+    // readers the label as plain text until the target is published.
+    (id, text) =>
+      `<span class="blyg-link-placeholder" data-blyg-placeholder="${escapeHtml(id)}" title="not yet written" style="border-bottom:1px dashed currentColor">${escapeHtml(text)}<span class="blyg-placeholder-note" style="font-size:.75em;margin-left:.3em;font-style:italic;opacity:.7">(not yet written)</span></span>`,
   );
 }

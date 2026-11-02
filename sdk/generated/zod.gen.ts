@@ -147,7 +147,8 @@ export const zItem = z.object({
         'default',
         'show',
         'hide'
-    ])
+    ]),
+    placeholder: z.string().nullable()
 });
 
 export const zCustomTheme = z.object({
@@ -719,7 +720,8 @@ export const zListItemsQuery = z.object({
     dirty: z.enum(['true', 'false']).optional(),
     version: z.int().gte(0).nullish(),
     id: z.string().optional(),
-    updated: z.string().optional()
+    updated: z.string().optional(),
+    placeholder: z.enum(['true', 'false']).optional()
 });
 
 /**
@@ -763,6 +765,10 @@ export const zCreateItemBody = z.union([
             remoteId: z.string().min(1)
         }).strict(),
         selection: z.string().optional()
+    }).strict(),
+    z.object({
+        mode: z.enum(['placeholder']),
+        label: z.string().min(1).max(1000)
     }).strict()
 ]);
 
@@ -828,6 +834,7 @@ export const zGetItemResponse = z.object({
         'show',
         'hide'
     ]),
+    placeholder: z.string().nullable(),
     pins: z.array(z.object({
         version: z.int().gt(0),
         kind: z.enum(['fragment', 'thread'])
@@ -1429,7 +1436,8 @@ export const zGetItemSummaryResponse = z.object({
     drafts: z.int().gte(0),
     changes: z.int().gte(0),
     public: z.int().gte(0),
-    withdrawn: z.int().gte(0)
+    withdrawn: z.int().gte(0),
+    placeholders: z.int().gte(0)
 });
 
 export const zListItemVersionsPath = z.object({
@@ -1621,7 +1629,8 @@ export const zSearchQuery = z.object({
         'imported'
     ]).optional(),
     sub: z.string().optional(),
-    sort: z.enum(['newest', 'oldest']).optional()
+    sort: z.enum(['newest', 'oldest']).optional(),
+    placeholders: z.enum(['include']).optional()
 });
 
 /**
@@ -1638,7 +1647,8 @@ export const zSearchResponse = z.object({
         source: z.enum(['mine', 'imported']),
         kind: z.enum(['fragment', 'thread']),
         subscriptionId: z.string().nullable(),
-        sourceTitle: z.string().nullable()
+        sourceTitle: z.string().nullable(),
+        placeholder: z.boolean()
     })),
     page: z.object({
         limit: z.int().gt(0),
