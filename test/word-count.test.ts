@@ -6,13 +6,16 @@
 //      Inline links (navigation, citations) and links in code are not followed.
 //   2. Transcluded text is in the thread's own count and is not followed.
 //   3. The roll-up is a strict tree or nothing: a cycle, a repeat, or a link to
-//      anything that is not our published item gives no total, and says why.
-//   4. Off, the route is a 404.
+//      anything that is not one of our items gives no total, and says why.
+//   4. Every item has a published side and a draft side, each counted and
+//      rolled up over its own outline. A draft counts quotes as publish would
+//      bake them now, and links as their anchor text.
+//   5. Off, the route is a 404.
 import { env } from "cloudflare:test";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { apiJson, createAndPublish, login } from "./helpers.ts";
 import { putSettings } from "../src/model.ts";
-import { draftHtml, outlineLinks, rollup, type CountedItem } from "../extensions/word-count/tree.ts";
+import { outlineLinks, rollup, type CountedItem } from "../extensions/word-count/tree.ts";
 import { countWords } from "../extensions/word-count/count.ts";
 
 const A = "0000000000000000000000000a";
@@ -50,12 +53,6 @@ describe("rollup", () => {
   });
 });
 
-describe("draftHtml", () => {
-  it("reads links as their labels and leaves directives out", () => {
-    expect(countWords(draftHtml(`Two words, [[${A} | three more words]] and [[${B}]].\n\n![[${C}]]\n\n\`[[${A}]]\``))).toEqual({ words: 7, cjk: 0 });
-  });
-});
-
 describe("countWords", () => {
   it("counts words, and Han, kana and Hangul by the character", () => {
     expect(countWords("<p>It’s <em>well-known</em> &amp; true.</p><script>var x = 1</script>")).toEqual({ words: 3, cjk: 0 });
@@ -88,12 +85,40 @@ describe("the counts route", () => {
     const got = await counts(cookie, [toc, ch1, ch2]);
     expect(got.status).toBe(200);
     const c = got.json.counts;
-    const own = (id: string) => c[`own:${id}`].words as number;
+    const own = (id: string) => c[`own:${id}`].published.words as number;
     // The quoted fragment's words are in ch1's own count, the note is not.
     expect(own(ch1)).toBeGreaterThanOrEqual(6);
-    expect(c[`own:${ch1}`].document).toEqual({ words: own(ch1) + 3, cjk: 0, items: 2 });
-    expect(c[`own:${ch2}`].document).toEqual({ words: own(ch2), cjk: 0, items: 1 });
-    expect(c[`own:${toc}`].document).toEqual({ words: own(toc) + own(ch1) + 3 + own(ch2), cjk: 0, items: 4 });
+    expect(c[`own:${ch1}`].published.document).toEqual({ words: own(ch1) + 3, cjk: 0, items: 2 });
+    expect(c[`own:${ch2}`].published.document).toEqual({ words: own(ch2), cjk: 0, items: 1 });
+    expect(c[`own:${toc}`].published.document).toEqual({ words: own(toc) + own(ch1) + 3 + own(ch2), cjk: 0, items: 4 });
+    // Nothing unpublished: the draft side is the published side.
+    for (const id of [toc, ch1, ch2]) expect(c[`own:${id}`].draft).toEqual(c[`own:${id}`].published);
+  });
+
+  it("counts unpublished edits on the draft side, through the tree, and leaves the published side alone", async () => {
+    const cookie = await login();
+    const quoted = await createAndPublish(cookie, "Quoted words here.");
+    const ch = await publishThread(cookie, "One two.");
+    const toc = await publishThread(cookie, `- [[${ch} | Only chapter]]`);
+    const before = (await counts(cookie, [toc, ch])).json.counts;
+    // Five more words of the author's own and a three-word quote, not yet published.
+    expect((await apiJson(cookie, "PATCH", `/blyg/api/items/${ch}`, { contentMd: `One two three four five six seven.\n\n![[${quoted}]]` })).status).toBe(200);
+    const after = (await counts(cookie, [toc, ch])).json.counts;
+    expect(after[`own:${ch}`].published).toEqual(before[`own:${ch}`].published);
+    expect(after[`own:${ch}`].draft.words).toBe(before[`own:${ch}`].draft.words + 5 + 3);
+    expect(after[`own:${toc}`].published).toEqual(before[`own:${toc}`].published);
+    expect(after[`own:${toc}`].draft.document.words).toBe(before[`own:${toc}`].draft.document.words + 8);
+  });
+
+  it("follows the draft outline on the draft side", async () => {
+    const cookie = await login();
+    const a = await createAndPublish(cookie, "Alpha alpha.");
+    const b = await createAndPublish(cookie, "Beta beta beta.");
+    const toc = await publishThread(cookie, `- [[${a}]]`);
+    expect((await apiJson(cookie, "PATCH", `/blyg/api/items/${toc}`, { contentMd: `- [[${a}]]\n- [[${b}]]` })).status).toBe(200);
+    const got = (await counts(cookie, [toc])).json.counts[`own:${toc}`];
+    expect(got.published.document.items).toBe(2);
+    expect(got.draft.document.items).toBe(3);
   });
 
   it("gives no total when an outline lists an item twice, and says why", async () => {
@@ -102,8 +127,8 @@ describe("the counts route", () => {
     const a = await publishThread(cookie, `- [[${leaf}]]`);
     const top = await publishThread(cookie, `- [[${a}]]\n- [[${leaf}]]`);
     const got = (await counts(cookie, [top])).json.counts[`own:${top}`];
-    expect(got).toMatchObject({ document: null, reason: "repeated" });
-    expect(got.words).toBeGreaterThan(0);
+    expect(got.published).toMatchObject({ document: null, reason: "repeated" });
+    expect(got.published.words).toBeGreaterThan(0);
   });
 
   it("gives no total for an outline cycle", async () => {
@@ -112,7 +137,7 @@ describe("the counts route", () => {
     const b = await publishThread(cookie, `- [[${a}]]`);
     expect((await apiJson(cookie, "PATCH", `/blyg/api/items/${a}`, { contentMd: `- [[${b}]]` })).status).toBe(200);
     expect((await apiJson(cookie, "POST", `/blyg/api/items/${a}/publish`, {})).status).toBe(200);
-    expect((await counts(cookie, [a])).json.counts[`own:${a}`]).toMatchObject({ document: null, reason: "cycle" });
+    expect((await counts(cookie, [a])).json.counts[`own:${a}`].published).toMatchObject({ document: null, reason: "cycle" });
   });
 
   it("gives no total when an outline lists a withdrawn item, and omits keys it cannot count", async () => {
@@ -121,20 +146,23 @@ describe("the counts route", () => {
     const top = await publishThread(cookie, `- [[${gone}]]`);
     expect((await apiJson(cookie, "POST", `/blyg/api/items/${gone}/withdraw`, {})).status).toBe(200);
     const got = (await counts(cookie, [top, gone])).json.counts;
-    expect(got[`own:${top}`]).toMatchObject({ document: null, reason: "unavailable" });
+    expect(got[`own:${top}`].published).toMatchObject({ document: null, reason: "unavailable" });
+    expect(got[`own:${top}`].draft).toMatchObject({ document: null, reason: "unavailable" });
     expect(got[`own:${gone}`]).toBeUndefined();
   });
 
-  it("counts drafts from their working copy, as roots and in the tree", async () => {
+  it("counts never-published drafts on the draft side only, as roots and in the tree", async () => {
     const cookie = await login();
     const draft = async (contentMd: string) => (await apiJson(cookie, "POST", "/blyg/api/items", { contentMd, kind: "thread" })).json.id as string;
     const leaf = await createAndPublish(cookie, "One two three.");
-    const part = await draft(`Four five six seven.\n\n- [[${leaf}]]`);
-    const book = await draft(`Eight nine.\n\n- [[${part} | Part one]]`);
+    const part = await draft("Four five six seven.");
+    const book = await draft(`Eight nine.\n\n- [[${leaf} | Leaf]]\n- [[${part} | Part]]`);
     const got = (await counts(cookie, [book, part])).json.counts;
-    // The book's own words: its text and its outline entry's label.
-    expect(got[`own:${book}`]).toMatchObject({ words: 4, document: { words: 4 + 4 + 3, items: 3 } });
-    expect(got[`own:${part}`]).toMatchObject({ words: 4, document: { words: 7, items: 2 } });
+    expect(got[`own:${book}`].published).toBeNull();
+    expect(got[`own:${part}`]).toMatchObject({ published: null, draft: { words: 4, document: { words: 4, items: 1 } } });
+    const own = got[`own:${book}`].draft.words as number;
+    expect(own).toBeGreaterThanOrEqual(2);
+    expect(got[`own:${book}`].draft.document).toEqual({ words: own + 3 + 4, cjk: 0, items: 3 });
   });
 
   it("refuses keys that are not a JSON array", async () => {

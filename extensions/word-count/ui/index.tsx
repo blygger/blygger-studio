@@ -60,36 +60,64 @@ export function formatCount({ words, cjk }: Count) {
   return [words ? `${number(words)} ${words === 1 ? 'word' : 'words'}` : '', cjk ? `${number(cjk)} ${cjk === 1 ? 'character' : 'characters'}` : ''].filter(Boolean).join(', ');
 }
 
-const NO_TOTAL: Record<NonNullable<WordCount['reason']>, string> = {
+const NO_TOTAL: Record<NonNullable<WordCountSide['reason']>, string> = {
   cycle: 'its outline links lead back to an item above them',
   repeated: 'its outline lists an item more than once',
   unavailable: 'its outline links to something that is not one of your items',
   'too-large': 'its outline tree is too large to count',
 };
 
+type WordCountSide = NonNullable<WordCount['published']>;
+const same = (a: Count | null | undefined, b: Count | null | undefined) => !!a && !!b && a.words === b.words && a.cjk === b.cjk;
+/** A side's roll-up, when its outline has anything under the item. */
+const documentOf = (side: WordCountSide | null | undefined) => (side?.document && side.document.items > 1 ? side.document : null);
+
+/** One line of the tooltip: a side's own count and its roll-up, or why it has none. */
+function describe(name: string, side: WordCountSide) {
+  const document = documentOf(side);
+  const tree = document ? `; ${formatCount(document)} across the ${number(document.items)} items of its outline` : side.reason ? `; no document total: ${NO_TOTAL[side.reason]}` : '';
+  return `${name}: ${formatCount(side) || 'nothing'}${tree}.`;
+}
+
+/** Own entries: the published count, and the draft's where it is ahead or behind. */
+function OwnCount({ count }: { count: WordCount }) {
+  const { published, draft } = count;
+  const pubDoc = documentOf(published);
+  const draftDoc = documentOf(draft);
+  const title = [published ? describe('Published', published) : 'Never published.', same(published, draft) && same(pubDoc, draftDoc) && published?.reason === draft.reason ? '' : describe('Draft', draft)].filter(Boolean).join('\n');
+  const item = published ? formatCount(published) : '';
+  const draftItem = same(published, draft) ? '' : formatCount(draft);
+  if (!item && !draftItem) return null;
+  return (
+    <span data-extension="word-count" title={title}>
+      {item ? `· ${item}` : null}
+      {draftItem ? <span data-word-count="draft">{item ? ` (draft ${draftItem})` : `· draft ${draftItem}`}</span> : null}
+      {pubDoc || draftDoc ? (
+        <>
+          {' · '}
+          {pubDoc ? `${formatCount(pubDoc)} in document` : 'document'}
+          {draftDoc && !same(pubDoc, draftDoc) ? <span data-word-count="draft-document">{pubDoc ? ` (draft ${formatCount(draftDoc)})` : ` in draft: ${formatCount(draftDoc)}`}</span> : null}
+        </>
+      ) : null}
+    </span>
+  );
+}
+
 export const extension: StudioExtension = {
   name: 'word-count',
   label: 'Word count',
-  description: 'Shows each entry’s word count at the end of its byline, and for a thread whose list of links forms an outline, such as a table of contents, the words in the whole document under it.',
+  description: 'Shows each entry’s word count at the end of its byline, published and in draft, and for a thread whose list of links forms an outline, such as a table of contents, the words in the whole document under it.',
   entryByline: ({ context }) => {
     const { entry } = context;
     const own = entry.source === 'own' && !entry.withdrawn;
     const served = useOwnCount(context.client, entry.key, own);
     if (entry.withdrawn) return null;
-    const count = own ? served : countWords(entry.contentHtml);
-    const label = count ? formatCount(count) : '';
-    if (!count || !label) return null;
-    const document = served?.document && served.document.items > 1 ? served.document : null;
-    const title = document
-      ? `${label} in this item; ${formatCount(document)} across the ${number(document.items)} items of its outline`
-      : served?.reason
-        ? `${label}. No document total: ${NO_TOTAL[served.reason]}.`
-        : label;
-    return (
-      <span data-extension="word-count" title={title}>
+    if (own) return served ? <OwnCount count={served} /> : null;
+    const label = formatCount(countWords(entry.contentHtml));
+    return label ? (
+      <span data-extension="word-count" title={label}>
         · {label}
-        {document ? <> · {formatCount(document)} in document</> : null}
       </span>
-    );
+    ) : null;
   },
 };

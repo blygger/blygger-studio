@@ -2772,16 +2772,7 @@
       "WordCount": {
         "type": "object",
         "properties": {
-          "words": {
-            "type": "integer",
-            "minimum": 0
-          },
-          "cjk": {
-            "type": "integer",
-            "minimum": 0,
-            "description": "Han, kana and Hangul characters, counted one by one."
-          },
-          "document": {
+          "published": {
             "type": [
               "object",
               "null"
@@ -2796,34 +2787,114 @@
                 "minimum": 0,
                 "description": "Han, kana and Hangul characters, counted one by one."
               },
-              "items": {
-                "type": "integer",
-                "exclusiveMinimum": 0,
-                "description": "Items in the outline tree, this one included."
+              "document": {
+                "type": [
+                  "object",
+                  "null"
+                ],
+                "properties": {
+                  "words": {
+                    "type": "integer",
+                    "minimum": 0
+                  },
+                  "cjk": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "description": "Han, kana and Hangul characters, counted one by one."
+                  },
+                  "items": {
+                    "type": "integer",
+                    "exclusiveMinimum": 0,
+                    "description": "Items in the outline tree, this one included."
+                  }
+                },
+                "required": [
+                  "words",
+                  "cjk",
+                  "items"
+                ],
+                "description": "The roll-up over this side's outline links; null when they do not form a strict tree of our own items."
+              },
+              "reason": {
+                "type": "string",
+                "enum": [
+                  "cycle",
+                  "repeated",
+                  "unavailable",
+                  "too-large"
+                ],
+                "description": "Why `document` is null."
               }
             },
             "required": [
               "words",
               "cjk",
-              "items"
+              "document"
             ],
-            "description": "The roll-up over the item's outline links; null when they do not form a strict tree of our own items, published or draft."
+            "description": "The current published version, and the tree its outline makes; null for an item never published."
           },
-          "reason": {
-            "type": "string",
-            "enum": [
-              "cycle",
-              "repeated",
-              "unavailable",
-              "too-large"
+          "draft": {
+            "type": "object",
+            "properties": {
+              "words": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "cjk": {
+                "type": "integer",
+                "minimum": 0,
+                "description": "Han, kana and Hangul characters, counted one by one."
+              },
+              "document": {
+                "type": [
+                  "object",
+                  "null"
+                ],
+                "properties": {
+                  "words": {
+                    "type": "integer",
+                    "minimum": 0
+                  },
+                  "cjk": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "description": "Han, kana and Hangul characters, counted one by one."
+                  },
+                  "items": {
+                    "type": "integer",
+                    "exclusiveMinimum": 0,
+                    "description": "Items in the outline tree, this one included."
+                  }
+                },
+                "required": [
+                  "words",
+                  "cjk",
+                  "items"
+                ],
+                "description": "The roll-up over this side's outline links; null when they do not form a strict tree of our own items."
+              },
+              "reason": {
+                "type": "string",
+                "enum": [
+                  "cycle",
+                  "repeated",
+                  "unavailable",
+                  "too-large"
+                ],
+                "description": "Why `document` is null."
+              }
+            },
+            "required": [
+              "words",
+              "cjk",
+              "document"
             ],
-            "description": "Why `document` is null."
+            "description": "The working copy as publish would bake it now, and the tree its outline makes. Equal to `published` when there are no unpublished edits."
           }
         },
         "required": [
-          "words",
-          "cjk",
-          "document"
+          "published",
+          "draft"
         ]
       }
     },

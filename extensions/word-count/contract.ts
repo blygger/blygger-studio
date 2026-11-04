@@ -4,11 +4,15 @@ import { z } from "@hono/zod-openapi";
 import { extensionRoute } from "../../src/extensions/contract.ts";
 
 const count = { words: z.number().int().nonnegative(), cjk: z.number().int().nonnegative().describe("Han, kana and Hangul characters, counted one by one.") };
+const side = z.object({
+  ...count,
+  document: z.object({ ...count, items: z.number().int().positive().describe("Items in the outline tree, this one included.") }).nullable().describe("The roll-up over this side's outline links; null when they do not form a strict tree of our own items."),
+  reason: z.enum(["cycle", "repeated", "unavailable", "too-large"]).optional().describe("Why `document` is null."),
+});
 export const WordCountSchema = z
   .object({
-    ...count,
-    document: z.object({ ...count, items: z.number().int().positive().describe("Items in the outline tree, this one included.") }).nullable().describe("The roll-up over the item's outline links; null when they do not form a strict tree of our own items, published or draft."),
-    reason: z.enum(["cycle", "repeated", "unavailable", "too-large"]).optional().describe("Why `document` is null."),
+    published: side.nullable().describe("The current published version, and the tree its outline makes; null for an item never published."),
+    draft: side.describe("The working copy as publish would bake it now, and the tree its outline makes. Equal to `published` when there are no unpublished edits."),
   })
   .openapi("WordCount");
 

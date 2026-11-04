@@ -48,6 +48,20 @@ test('a contents thread shows its own words and the words of its outline', async
   await expect(chapterCount).toHaveText(/^· \d+ words$/);
 });
 
+test('unpublished edits show as the draft count beside the published one', async ({ page }) => {
+  const run = marker();
+  const chapter = await publish(page, `Edited ${run}: one two.`, 'fragment');
+  await page.evaluate(async ({ id, contentMd }) => {
+    const { revision } = await (await fetch(`/api/items/${id}`)).json();
+    const response = await fetch(`/api/items/${id}`, { method: 'PATCH', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ contentMd, expectedRevision: revision }) });
+    if (!response.ok) throw new Error(`edit ${response.status}`);
+  }, { id: chapter, contentMd: `Edited ${run}: one two three four five.` });
+  await page.goto('/studio/reading?sub=own');
+  const count = page.locator('.reading-entry').filter({ hasText: `Edited ${run}` }).locator('[data-extension=word-count]');
+  await expect(count).toHaveText(/^· \d+ words \(draft \d+ words\)$/);
+  await expect(count).toHaveAttribute('title', /Published: \d+ words\.\nDraft: \d+ words\./);
+});
+
 test('off, bylines carry no count', async ({ page }) => {
   await setExtensions(page, []);
   const run = marker();

@@ -663,19 +663,36 @@ export const zLineageGlyphSummary = z.object({
 });
 
 export const zWordCount = z.object({
-    words: z.int().gte(0),
-    cjk: z.int().gte(0),
-    document: z.object({
+    published: z.object({
         words: z.int().gte(0),
         cjk: z.int().gte(0),
-        items: z.int().gt(0)
+        document: z.object({
+            words: z.int().gte(0),
+            cjk: z.int().gte(0),
+            items: z.int().gt(0)
+        }).nullable(),
+        reason: z.enum([
+            'cycle',
+            'repeated',
+            'unavailable',
+            'too-large'
+        ]).optional()
     }).nullable(),
-    reason: z.enum([
-        'cycle',
-        'repeated',
-        'unavailable',
-        'too-large'
-    ]).optional()
+    draft: z.object({
+        words: z.int().gte(0),
+        cjk: z.int().gte(0),
+        document: z.object({
+            words: z.int().gte(0),
+            cjk: z.int().gte(0),
+            items: z.int().gt(0)
+        }).nullable(),
+        reason: z.enum([
+            'cycle',
+            'repeated',
+            'unavailable',
+            'too-large'
+        ]).optional()
+    })
 });
 
 /**

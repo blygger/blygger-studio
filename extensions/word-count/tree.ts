@@ -10,20 +10,24 @@
 // published HTML, so it is already in the item's own count.
 //
 // The roll-up is conservative about shape, not about state. It is given only
-// when the outline links from the root form a strict tree of our own items,
-// published or draft. A cycle, an item listed twice (under one parent or two),
-// a link to anything that is not one of our items (remote, withdrawn, gone), or
-// a tree past the size limit, and there is no total.
+// when the outline links from the root form a strict tree of our own items. A
+// cycle, an item listed twice (under one parent or two), a link to anything
+// that is not one of our items (remote, withdrawn, gone), or a tree past the
+// size limit, and there is no total.
 //
-// An item with a published version counts that version, as the reading view
-// shows it. A draft that has never been published counts its working copy:
-// its markdown rendered, links read as their labels, and its transclusion
-// directives left out, since nothing has been baked for them yet.
+// Every item has two sides, counted and rolled up separately:
+//   published  its current published version, as readers and the reading view
+//              see it; none for an item never published.
+//   draft      its working copy, rendered as the Studio's preview renders it,
+//              so quotes count as publish would bake them now. A working copy
+//              identical to the published version is that version.
+// Each side's tree follows that side's outline, so a contents thread being
+// reorganised in draft rolls up its draft outline.
 
 import { codeRanges, inRanges } from "../../src/code-ranges.ts";
-import { extractDirectives } from "../../src/directives.ts";
-import { label, LINK_INLINE, linkInline } from "../../src/grammar.ts";
-import { renderMarkdown } from "../../src/markdown.ts";
+import { annotateTkPreview } from "../../src/authoring.ts";
+import { LINK_INLINE } from "../../src/grammar.ts";
+import { applyInternalLinks, previewInternalLinks, previewTransclusions, resolveBlockLinks } from "../../src/transclusion.ts";
 import { countWords, type Count } from "./count.ts";
 
 /** Items in one tree before the roll-up gives up. A book is far smaller. */
@@ -104,23 +108,34 @@ export async function rollup(rootId: string, load: (ids: string[]) => Promise<Ma
   return { document: total };
 }
 
-/** A never-published working copy as HTML to count: directives out, each link its label. */
-export function draftHtml(contentMd: string): string {
-  const { withoutDirectives } = extractDirectives(contentMd);
-  const code = codeRanges(withoutDirectives);
-  return renderMarkdown(withoutDirectives.replace(linkInline(), (whole, _id: string, raw: string | undefined, at: number) => (inRanges(code, at) ? whole : label(raw) ?? "")));
+/** The placeholder a preview shows for a quote it cannot resolve: not the author's words. */
+const UNRESOLVED = /<blockquote class="blyg-transclusion unresolved">[\s\S]*?<\/blockquote>/g;
+
+/**
+ * A working copy as the HTML publish would bake from it now: the same steps
+ * as the Studio's thread preview (read-api.ts threadPreview), so a draft's
+ * count is the count it would publish with.
+ */
+export async function draftHtml(db: D1Database, ourOrigin: string, id: string, contentMd: string): Promise<string> {
+  const tk = annotateTkPreview(contentMd);
+  const links = await previewInternalLinks(db, tk.text, ourOrigin);
+  const blocks = await resolveBlockLinks(tk, (md) => previewInternalLinks(db, md, ourOrigin));
+  const resolved = await previewTransclusions(db, links.text, id, tk);
+  return [links, ...blocks.docs].reduce((acc, doc) => applyInternalLinks(acc, doc), tk.finish(resolved.html)).replace(UNRESOLVED, " ");
+}
+
+/** Both sides of one of our items. */
+export interface ItemSides {
+  published: CountedItem | null;
+  draft: CountedItem;
 }
 
 /** D1 binds at most 100 parameters per statement. */
 const CHUNK = 90;
 
-/**
- * Our own items by id, published or draft, not withdrawn: each one counted
- * and outlined from its published version, or from its working copy when it
- * has never been published.
- */
-export async function loadItems(db: D1Database, ids: string[]): Promise<Map<string, CountedItem>> {
-  const out = new Map<string, CountedItem>();
+/** Our own items by id, published or draft, not withdrawn, with both sides counted and outlined. */
+export async function loadItems(db: D1Database, ourOrigin: string, ids: string[]): Promise<Map<string, ItemSides>> {
+  const out = new Map<string, ItemSides>();
   for (let i = 0; i < ids.length; i += CHUNK) {
     const chunk = ids.slice(i, i + CHUNK);
     const { results } = await db
@@ -131,12 +146,9 @@ export async function loadItems(db: D1Database, ids: string[]): Promise<Map<stri
       .bind(...chunk)
       .all<{ id: string; working_md: string; content_md: string | null; content_html: string | null }>();
     for (const row of results) {
-      out.set(
-        row.id,
-        row.content_md === null
-          ? { count: countWords(draftHtml(row.working_md)), children: outlineLinks(row.working_md) }
-          : { count: countWords(row.content_html ?? ""), children: outlineLinks(row.content_md) },
-      );
+      const published = row.content_md === null ? null : { count: countWords(row.content_html ?? ""), children: outlineLinks(row.content_md) };
+      const draft = published && row.working_md === row.content_md ? published : { count: countWords(await draftHtml(db, ourOrigin, row.id, row.working_md)), children: outlineLinks(row.working_md) };
+      out.set(row.id, { published, draft });
     }
   }
   return out;

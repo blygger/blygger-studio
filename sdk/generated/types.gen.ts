@@ -693,29 +693,62 @@ export type LineageGlyphSummary = {
 };
 
 export type WordCount = {
-    words: number;
     /**
-     * Han, kana and Hangul characters, counted one by one.
+     * The current published version, and the tree its outline makes; null for an item never published.
      */
-    cjk: number;
-    /**
-     * The roll-up over the item's outline links; null when they do not form a strict tree of our own items, published or draft.
-     */
-    document: {
+    published: {
         words: number;
         /**
          * Han, kana and Hangul characters, counted one by one.
          */
         cjk: number;
         /**
-         * Items in the outline tree, this one included.
+         * The roll-up over this side's outline links; null when they do not form a strict tree of our own items.
          */
-        items: number;
+        document: {
+            words: number;
+            /**
+             * Han, kana and Hangul characters, counted one by one.
+             */
+            cjk: number;
+            /**
+             * Items in the outline tree, this one included.
+             */
+            items: number;
+        } | null;
+        /**
+         * Why `document` is null.
+         */
+        reason?: 'cycle' | 'repeated' | 'unavailable' | 'too-large';
     } | null;
     /**
-     * Why `document` is null.
+     * The working copy as publish would bake it now, and the tree its outline makes. Equal to `published` when there are no unpublished edits.
      */
-    reason?: 'cycle' | 'repeated' | 'unavailable' | 'too-large';
+    draft: {
+        words: number;
+        /**
+         * Han, kana and Hangul characters, counted one by one.
+         */
+        cjk: number;
+        /**
+         * The roll-up over this side's outline links; null when they do not form a strict tree of our own items.
+         */
+        document: {
+            words: number;
+            /**
+             * Han, kana and Hangul characters, counted one by one.
+             */
+            cjk: number;
+            /**
+             * Items in the outline tree, this one included.
+             */
+            items: number;
+        } | null;
+        /**
+         * Why `document` is null.
+         */
+        reason?: 'cycle' | 'repeated' | 'unavailable' | 'too-large';
+    };
 };
 
 export type RevokeAllAuthorizationsData = {
