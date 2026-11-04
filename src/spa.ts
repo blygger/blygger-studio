@@ -17,6 +17,8 @@ import {
   STUDIO_ICON_SVG,
 } from './studio-icon.ts';
 import type { Env } from './types.ts';
+import { getSettings } from './model.ts';
+import { themeAccent, themeIsDark, themeVars, type ThemeVars } from './studio-theme.ts';
 import { validatedResponse } from './http-response.ts';
 
 /** The pencil accent of the default (auto, light) palette — the shell's
@@ -130,15 +132,36 @@ export function studioSpa(mount: string) {
     `<link rel="authorization_endpoint" href="${b}/auth/oauth2/authorize">` +
     `<link rel="oauth-metadata" href="${b}/auth/.well-known/openid-configuration">` +
     `<link rel="stylesheet" href="${b}/app.css">`;
-  const shell = (body: string, spa = false) =>
-    `<!doctype html><html lang="en" class="js" data-theme="auto"><head>${head(`blyg studio${spa ? '' : ' — login'}`)}</head><body>${body}${spa ? `<script defer src="${b}/app.js"></script>` : ''}</body></html>`;
+  const shell = (body: string, spa = false, theme = '') =>
+    `<!doctype html><html lang="en" class="js" data-theme="${theme ? 'fixed' : 'auto'}"><head>${head(`blyg studio${spa ? '' : ' — login'}`)}${theme}</head><body>${body}${spa ? `<script defer src="${b}/app.js"></script>` : ''}</body></html>`;
   const spaShell = shell(
     `<div id="studio-root" data-mount="${escapeHtml(mount)}" data-api-base="${escapeHtml(deploymentPaths(mount).api)}"></div>`,
     true,
   );
-  const login = (error = '', next = base, oauthQuery?: string) =>
+  // The login page wears the install's theme, as the studio does once settings
+  // load (src/ui/theme.ts). There is no session yet, so the server paints it:
+  // the theme is public, since it already colours every public page.
+  const loginTheme = async (env: Env) => {
+    try {
+      const { theme, custom_theme: custom, custom_theme_dark: customDark } = await getSettings(env.DB);
+      const light = themeVars(theme, custom, customDark), dark = themeVars(theme, custom, customDark, true);
+      if (!light || !dark) return '';
+      const rule = (vars: ThemeVars, isDark: boolean) =>
+        `:root{${Object.entries(vars).map(([k, v]) => `--${k}:${v};`).join('')}color-scheme:${isDark ? 'dark' : 'light'}}`;
+      // Only a custom light/dark pair differs by device; every named theme is
+      // one palette, which the author chose over the reader's preference.
+      const pair = JSON.stringify(light) !== JSON.stringify(dark);
+      return `<style>${rule(light, themeIsDark(theme, false, custom, customDark))}${pair ? `@media (prefers-color-scheme: dark){${rule(dark, themeIsDark(theme, true, custom, customDark))}}` : ''}</style>` +
+        `<meta name="theme-color" content="${escapeHtml(themeAccent(theme, false, custom, customDark))}">`;
+    } catch {
+      return ''; // settings unreadable: the stylesheet's own light/dark pair
+    }
+  };
+  const login = (error = '', next = base, oauthQuery?: string, theme = '') =>
     shell(
       `<main class="login"><h1>blyg studio</h1>${error ? `<p role="alert" class="banner banner-alert">${escapeHtml(error)}</p>` : ''}<form method="post" action="${b}/login"><input type="hidden" name="return_to" value="${escapeHtml(next)}">${oauthQuery === undefined ? '' : `<input type="hidden" name="oauth_query" value="${escapeHtml(oauthQuery)}">`}<p><input type="password" name="password" placeholder="password" aria-label="password" autofocus required></p><p><button type="submit" class="btn btn-primary">log in</button></p></form></main>`,
+      false,
+      theme,
     );
   app.get('/app.js', (c) =>
     c.body(script, 200, {
@@ -197,11 +220,11 @@ export function studioSpa(mount: string) {
     if (oauthQuery !== undefined) {
       const server = await authorizationServer(c.req.url, c.env);
       if (!await verifyOAuthQueryParams(oauthQuery, (await server.$context).secret)) return c.json({ error: 'invalid_request' }, 400);
-      return c.html(login('', base, oauthQuery));
+      return c.html(login('', base, oauthQuery, await loginTheme(c.env)));
     }
     return await verifySession(c.env, c.req.header('cookie'))
       ? c.redirect(base)
-      : c.html(login('', returnTo(c.req.query('return_to'))));
+      : c.html(login('', returnTo(c.req.query('return_to')), undefined, await loginTheme(c.env)));
   });
   app.post('/login', async (c) => {
     if (c.req.header('origin') && c.req.header('origin') !== new URL(c.req.url).origin || c.req.header('sec-fetch-site') === 'cross-site') return c.json({ error: 'cross-origin login denied' }, 403);
@@ -211,7 +234,7 @@ export function studioSpa(mount: string) {
     const server = query === null ? undefined : await authorizationServer(c.req.url, c.env);
     if (query !== null && (typeof query !== 'string' || !await verifyOAuthQueryParams(query, (await server!.$context).secret))) return c.json({ error: 'invalid_request' }, 400);
     if (!(await checkPassword(c.env, String(form.get('password') ?? ''))))
-      return c.html(login('Wrong password.', returnTo(form.get('return_to')), query === null ? undefined : String(query)), 403);
+      return c.html(login('Wrong password.', returnTo(form.get('return_to')), query === null ? undefined : String(query), await loginTheme(c.env)), 403);
     const ownerCookie = await issueSessionCookie(c.env);
     if (server && typeof query === 'string') {
       const headers = new Headers(c.req.raw.headers);
