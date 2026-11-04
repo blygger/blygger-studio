@@ -23,6 +23,7 @@ import { displayUrl } from '../importer/util.ts';
 import { Sheet } from './sheets.tsx';
 import { SetupBanner } from './setup.tsx';
 import { applyTheme } from './theme.ts';
+import { applyTitle } from './tab.ts';
 import type { CustomTheme } from '../themes.ts';
 export { Button };
 export const mount =
@@ -226,6 +227,10 @@ export function Layout({ children }: { children: ReactNode }) {
     media.addEventListener('change', flip);
     return () => media.removeEventListener('change', flip);
   }, [theme, customKey, customDarkKey]);
+  const siteTitle = settings?.siteTitle;
+  useEffect(() => {
+    if (settings) applyTitle(siteTitle);
+  }, [siteTitle, settings === undefined]);
   useEffect(() => {
     document.body.classList.toggle('has-tabs', showTabs);
     document.body.classList.toggle('no-tabs', !showTabs);

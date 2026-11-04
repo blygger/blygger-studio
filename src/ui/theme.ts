@@ -11,6 +11,7 @@
  * paints `auto` until settings arrive.
  */
 import { validateCustomTheme, type CustomTheme } from '../themes.ts';
+import { applyTabIcon } from './tab.ts';
 import { themeAccent, themeIsDark, themeVars, THEME_VARS } from '../studio-theme.ts';
 export { luminance, THEME_VARS, themeVars, themeIsDark, themeAccent, AUTO_LIGHT_PENCIL, AUTO_DARK_PENCIL, type ThemeVars } from '../studio-theme.ts';
 
@@ -39,12 +40,11 @@ export function applyTheme(
       root.style.setProperty(`--${key}`, value);
   const dark = themeIsDark(name, prefersDark(), custom, customDark);
   root.style.colorScheme = dark ? 'dark' : 'light';
+  const accent = themeAccent(name, prefersDark(), custom, customDark);
   const meta = document.querySelector('meta[name="theme-color"]');
-  if (meta)
-    meta.setAttribute(
-      'content',
-      themeAccent(name, prefersDark(), custom, customDark),
-    );
+  if (meta) meta.setAttribute('content', accent);
+  // The tab icon wears the accent too (tab.ts); `auto` takes studio.css's own on-pencil.
+  applyTabIcon(accent, vars?.['on-pencil'] ?? (dark ? '#0f1314' : '#fafbfb'));
   try {
     localStorage.setItem(STORAGE_KEY, vars ? name! : 'auto');
     if (vars && custom) localStorage.setItem(CUSTOM_KEY, JSON.stringify(custom));

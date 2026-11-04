@@ -51,9 +51,11 @@ import { SheetHost } from './sheets.tsx';
 import { ExtensionPage } from './extension-page.tsx';
 import { SetupPage } from './setup.tsx';
 import { applyCachedTheme } from './theme.ts';
+import { applyCachedTitle } from './tab.ts';
 // Paint the last theme this device saw before the first render; settings
 // repaint it once they load (see theme.ts).
 applyCachedTheme();
+applyCachedTitle();
 const rootRoute = createRootRoute({
   loader: () => Promise.all([
     preloadView(listViews.settings),
