@@ -46,6 +46,7 @@ import { itemTitle, permalink, plainText, textWithLink } from './plain-text.ts';
 import { OcrScan } from './ocr.tsx';
 import { addStubQuote, passageCount, quoteCount, stubQuoteForm, withStubQuote } from './stub-quote.ts';
 import { Image as ImageIcon, LinkIcon, More, Scan, Sparkle, Swap } from './icons.tsx';
+import { SearchBox, SearchResults, store, stored } from './search.tsx';
 import './authoring.css';
 
 type Kind = 'fragment' | 'thread';
@@ -943,9 +944,12 @@ const FILTERS = {
 };
 type Filter = keyof typeof FILTERS;
 
-export function Compose() {
+export function Compose({ q }: { q?: string } = {}) {
   useChrome({ framed: false });
   const navigate = useNavigate();
+  // Search (docs/search.md): this blyg only by default, drafts included.
+  const [scope, setScope] = useState<'mine' | 'all'>(() => stored('blyg.compose.searchScope', ['mine', 'all'] as const, 'mine'));
+  const setQuery = (next: string) => void navigate({ to: '/', search: { ...(next ? { q: next } : {}) }, replace: true });
   const action = useAction();
   const [text, setText] = useState('');
   const [kind, setKind] = useState<Kind>('fragment');
@@ -1147,6 +1151,32 @@ export function Compose() {
       </div>
       {tools.sheet}
       {totals?.all ? (
+        <div className="page-search-row">
+          <SearchBox value={q ?? ''} onChange={setQuery} label="search your items" />
+          {q ? (
+            <div className="segmented" role="group" aria-label="search scope">
+              {(['mine', 'all'] as const).map((value) => (
+                <button
+                  key={value}
+                  type="button"
+                  aria-pressed={scope === value}
+                  className={scope === value ? 'seg is-active' : 'seg'}
+                  onClick={() => {
+                    setScope(value);
+                    store('blyg.compose.searchScope', value);
+                  }}
+                >
+                  {value === 'mine' ? 'this blyg only' : 'everything'}
+                </button>
+              ))}
+            </div>
+          ) : null}
+        </div>
+      ) : null}
+      {q ? (
+        <SearchResults filters={{ q, source: scope, include: 'drafts' }} ownOpens="editor" />
+      ) : <>
+      {totals?.all ? (
         <div className="segmented filters" role="group" aria-label="show">
           {(Object.keys(FILTERS) as Filter[]).map((key) => (
             <button
@@ -1179,6 +1209,7 @@ export function Compose() {
         ))}
       </ol>
       {result.hasNextPage ? <Button disabled={result.isFetchingNextPage} onClick={() => void result.fetchNextPage()}>load more items</Button> : null}
+      </>}
     </>
   );
 }

@@ -1701,7 +1701,8 @@ export const zSearchQuery = z.object({
         'imported'
     ]).optional(),
     sub: z.string().optional(),
-    sort: z.enum(['newest', 'oldest']).optional()
+    sort: z.enum(['newest', 'oldest']).optional(),
+    include: z.enum(['drafts']).optional()
 });
 
 /**
@@ -1718,7 +1719,8 @@ export const zSearchResponse = z.object({
         source: z.enum(['mine', 'imported']),
         kind: z.enum(['fragment', 'thread']),
         subscriptionId: z.string().nullable(),
-        sourceTitle: z.string().nullable()
+        sourceTitle: z.string().nullable(),
+        draft: z.boolean().optional()
     })),
     page: z.object({
         limit: z.int().gt(0),

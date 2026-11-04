@@ -2,7 +2,7 @@
   "openapi": "3.1.0",
   "info": {
     "title": "Blygger Studio API",
-    "version": "5.3.0",
+    "version": "5.4.0",
     "description": "Private authoring and reading API. Protocol files remain a separate public interface."
   },
   "servers": [
@@ -14288,6 +14288,19 @@
             "required": false,
             "name": "sort",
             "in": "query"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "enum": [
+                "drafts"
+              ],
+              "description": "drafts: also search own drafts and unpublished changes, by their working copy. For finding your own work (the compose page); off by default because the default scope is exactly what a quote or link can name."
+            },
+            "required": false,
+            "description": "drafts: also search own drafts and unpublished changes, by their working copy. For finding your own work (the compose page); off by default because the default scope is exactly what a quote or link can name.",
+            "name": "include",
+            "in": "query"
           }
         ],
         "responses": {
@@ -14347,6 +14360,10 @@
                               "string",
                               "null"
                             ]
+                          },
+                          "draft": {
+                            "type": "boolean",
+                            "description": "With include=drafts: true when an own item's hit is its working copy (never published, or unpublished changes). A draft cannot be quoted or linked; the picker never asks for drafts."
                           }
                         },
                         "required": [

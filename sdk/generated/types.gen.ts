@@ -5189,6 +5189,10 @@ export type SearchData = {
         source?: 'all' | 'mine' | 'imported';
         sub?: string;
         sort?: 'newest' | 'oldest';
+        /**
+         * drafts: also search own drafts and unpublished changes, by their working copy. For finding your own work (the compose page); off by default because the default scope is exactly what a quote or link can name.
+         */
+        include?: 'drafts';
     };
     url: '/search';
 };
@@ -5265,6 +5269,10 @@ export type SearchResponses = {
             kind: 'fragment' | 'thread';
             subscriptionId: string | null;
             sourceTitle: string | null;
+            /**
+             * With include=drafts: true when an own item's hit is its working copy (never published, or unpublished changes). A draft cannot be quoted or linked; the picker never asks for drafts.
+             */
+            draft?: boolean;
         }>;
         page: {
             limit: number;

@@ -86,8 +86,10 @@ const rootRoute = createRootRoute({
 const compose = createRoute({
   getParentRoute: () => rootRoute,
   path: '/',
+  validateSearch: (search: Record<string, unknown>): { q?: string } =>
+    typeof search.q === 'string' && search.q ? { q: search.q } : {},
   loader: () => preloadView(listViews.items),
-  component: Compose,
+  component: () => <Compose {...compose.useSearch()} />,
 });
 function readingOffset(search: Record<string, unknown>) {
   if (
@@ -111,7 +113,13 @@ function readingOffset(search: Record<string, unknown>) {
  * ?sub=X one source's timeline and ?hopper=H a hopper's. A bookmark that pages
  * without naming a source (?page=2, ?offset=25) still means "all".
  */
-function readingSearch(search: Record<string, unknown>): {
+function readingSearch(search: Record<string, unknown>): ReturnType<typeof readingLocation> & { q?: string } {
+  // ?q= is a search over the picker's scope (docs/search.md); it rides along
+  // with any view so clearing it returns to where the reader was.
+  const view = readingLocation(search);
+  return typeof search.q === 'string' && search.q ? { ...view, q: search.q } : view;
+}
+function readingLocation(search: Record<string, unknown>): {
   sub?: string;
   hopper?: string;
   offset?: number;

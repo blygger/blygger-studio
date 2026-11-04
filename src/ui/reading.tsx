@@ -66,6 +66,7 @@ import type { EntryContext, StudioExtension } from './extension-api.ts';
 import { EntryBylineSlot, EntrySheetSlot, entryActionRows, enabledExtensions, type OpenSheet } from './extensions.tsx';
 import { compiledExtensions } from '../../build/extensions.ui.ts';
 import { More, ThumbDown, ThumbUp } from './icons.tsx';
+import { SearchBox, SearchResults, type SearchFilters } from './search.tsx';
 import './reading.css';
 
 
@@ -1908,24 +1909,70 @@ function HopperTimeline({ id, offset }: { id: string; offset: number }) {
   );
 }
 
+/**
+ * Search on the reading page (docs/search.md): the picker's scope, narrowed to
+ * the selected source when there is one, with a chip to widen it. A hopper, a
+ * lens or Background does not narrow it; the route has no such filter.
+ */
+function ReadingSearch({ q, sub }: { q: string; sub?: string }) {
+  const navigate = useNavigate();
+  const [wide, setWide] = useState(false);
+  useEffect(() => setWide(false), [sub]);
+  const one = sub && sub !== 'all' ? sub : undefined;
+  const narrowed = one && !wide ? one : undefined;
+  const title = narrowed === '~own' ? 'my blyg' : narrowed ? subscriptions.get(narrowed)?.title || narrowed : '';
+  const filters: SearchFilters = narrowed === '~own' ? { q, source: 'mine' } : narrowed ? { q, source: 'imported', sub: narrowed } : { q };
+  return (
+    <>
+      {narrowed ? (
+        <p className="search-scope">
+          searching <strong>{title}</strong> only ·{' '}
+          <button type="button" className="btn btn-ghost btn-mini" onClick={() => setWide(true)}>search everything</button>
+        </p>
+      ) : one && wide ? (
+        <p className="search-scope">
+          searching everything ·{' '}
+          <button type="button" className="btn btn-ghost btn-mini" onClick={() => setWide(false)}>only this source</button>
+        </p>
+      ) : null}
+      <SearchResults filters={filters} ownOpens="reader" />
+      <p className="search-scope">
+        <button type="button" className="btn btn-ghost btn-mini" onClick={() => void navigate({ to: '/reading', search: (prev) => ({ ...prev, q: undefined }) })}>
+          back to the feed
+        </button>
+      </p>
+    </>
+  );
+}
+
 export function ReadingPage({
   sub,
   hopper,
   offset,
   lens = 'all',
   view,
+  q,
 }: {
   sub?: string;
   hopper?: string;
   offset?: number;
   lens?: Lens;
   view?: 'sources';
+  q?: string;
 }) {
   // A timeline or source list is where a walk through the thicket ends.
   useEndTrail();
+  const navigate = useNavigate();
+  const setQuery = (next: string) =>
+    void navigate({ to: '/reading', search: (prev) => ({ ...prev, q: next || undefined }), replace: true });
   return (
     <LensContext.Provider value={lens}>
-      {view === 'sources' ? (
+      <div className="page-search-row">
+        <SearchBox value={q ?? ''} onChange={setQuery} label="search reading" />
+      </div>
+      {q ? (
+        <ReadingSearch q={q} sub={hopper ? undefined : sub} />
+      ) : view === 'sources' ? (
         <Sources />
       ) : hopper ? (
         <HopperTimeline id={hopper} offset={offset ?? 0} />

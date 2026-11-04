@@ -337,6 +337,9 @@ const SEARCH_PAGE = 20;
 const searchOperation = async (context: OperationContext, input: OperationInput) => {
   const source = input.query.source === "mine" || input.query.source === "imported" ? input.query.source : "all";
   const sub = input.query.sub || undefined;
+  // Opt-in, for the compose page: own drafts and unpublished changes match by
+  // their working copy. The default stays exactly what resolveTarget accepts.
+  const drafts = input.query.include === "drafts";
   const order = input.query.sort === "oldest" ? "ASC" : "DESC";
   // Every word must appear somewhere in the item's text or id, in any order.
   // lower() folds ASCII only; that is the "rudimentary" in rudimentary
@@ -347,9 +350,19 @@ const searchOperation = async (context: OperationContext, input: OperationInput)
   const wordBinds = words.flatMap((w) => [w, w]);
   const parts: string[] = [];
   const binds: string[] = [];
-  if (source !== "imported" && !sub) {
+  if (source !== "imported" && !sub && drafts) {
+    // A clean published item's working copy is its published text, so one
+    // match on i.content_md covers drafts, unpublished changes and the rest.
+    parts.push(`SELECT 'mine' AS source, i.id AS id, CASE WHEN i.dirty = 1 OR i.version = 0 THEN NULL ELSE v.content_html END AS html,
+        i.version AS version, i.updated AS updated, i.kind AS kind,
+        NULL AS subscription_id, NULL AS source_title, NULL AS origin,
+        CASE WHEN i.dirty = 1 OR i.version = 0 THEN i.content_md END AS draft_md
+      FROM items i LEFT JOIN versions v ON v.item_id = i.id AND v.version = i.version
+      WHERE i.status IN ('public', 'draft') AND i.kind IN ('fragment', 'thread')${words.length ? " AND " + textMatch("i.content_md", "i.id") : ""}`);
+    binds.push(...wordBinds);
+  } else if (source !== "imported" && !sub) {
     parts.push(`SELECT 'mine' AS source, i.id AS id, v.content_html AS html, i.version AS version, i.updated AS updated, i.kind AS kind,
-        NULL AS subscription_id, NULL AS source_title, NULL AS origin
+        NULL AS subscription_id, NULL AS source_title, NULL AS origin, NULL AS draft_md
       FROM items i JOIN versions v ON v.item_id = i.id AND v.version = i.version
       WHERE i.status = 'public' AND i.kind IN ('fragment', 'thread')${words.length ? " AND " + textMatch("v.content_md", "i.id") : ""}`);
     binds.push(...wordBinds);
@@ -359,22 +372,24 @@ const searchOperation = async (context: OperationContext, input: OperationInput)
     // offers something the author then can't publish.
     parts.push(`SELECT 'imported' AS source, ii.remote_id AS id, ii.content_html AS html,
         CASE WHEN ii.state = 'current' THEN ii.version ELSE ii.pinned_version_retained END AS version,
-        ii.observed_at AS updated, ii.kind AS kind, s.id AS subscription_id, s.title AS source_title, s.origin AS origin
+        ii.observed_at AS updated, ii.kind AS kind, s.id AS subscription_id, s.title AS source_title, s.origin AS origin, NULL AS draft_md
       FROM imported_items ii JOIN subscriptions s ON s.id = ii.subscription_id
       WHERE ii.l0 = 0 AND (ii.state = 'current' OR ii.pinned_version_retained IS NOT NULL)${sub ? " AND s.id = ?" : ""}${words.length ? " AND " + textMatch("ii.content_md", "ii.remote_id") : ""}`);
     if (sub) binds.push(sub);
     binds.push(...wordBinds);
   }
-  type Row = { source: 'mine' | 'imported'; id: string; html: string | null; version: number; updated: string; kind: string; subscription_id: string | null; source_title: string | null; origin: string | null };
+  type Row = { source: 'mine' | 'imported'; id: string; html: string | null; version: number; updated: string; kind: string; subscription_id: string | null; source_title: string | null; origin: string | null; draft_md: string | null };
   return success(await cursorPage(context.env.DB, { ...input.query, limit: input.query.limit ?? SEARCH_PAGE }, {
-    name: 'search', filters: [words, source, sub ?? null, order], domains: ['items', 'reading', 'subscriptions'],
+    name: 'search', filters: [words, source, sub ?? null, order, drafts], domains: ['items', 'reading', 'subscriptions'],
     sql: parts.length ? parts.join(' UNION ALL ') : 'SELECT NULL AS source, NULL AS id, NULL AS updated, NULL AS subscription_id WHERE 0', binds,
     order: ['updated', 'id', 'source', 'subscription_id'].map(column => ({ column, direction: order === 'ASC' ? 'asc' as const : 'desc' as const })),
     project: (rows: Row[]) => rows.map((r) => {
     // From rendered HTML, not markdown source — the picker showed literal
     // "#"/"*" markers otherwise, same bug class as the index rows.
-    const excerpt = clampText(plainTextFromHtml(r.html ?? ""), 140);
-    const label = linkLabel(r.html ?? "", r.kind);
+    // A draft has no rendered HTML yet: its excerpt comes from the working copy.
+    const html = r.draft_md !== null ? renderMarkdown(r.draft_md) : r.html ?? "";
+    const excerpt = clampText(plainTextFromHtml(html), 140);
+    const label = linkLabel(html, r.kind);
     const sourceTitle = r.source === "mine" ? null : r.source_title || (r.origin ? new URL(r.origin).host : null);
     return {
       id: r.id,
@@ -388,6 +403,7 @@ const searchOperation = async (context: OperationContext, input: OperationInput)
       kind: r.kind === "thread" ? ("thread" as const) : ("fragment" as const),
       subscriptionId: r.subscription_id,
       sourceTitle: sourceTitle,
+      ...(drafts && r.source === "mine" ? { draft: r.draft_md !== null } : {}),
     };
     }),
   }));

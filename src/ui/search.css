@@ -1,0 +1,16 @@
+/* Search on the reading and compose pages (search.tsx, docs/search.md). Rows
+   mirror the picker's hits (picker.css), since they are the same results. */
+.page-search-row { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin: 0 0 12px; }
+.page-search { flex: 1 1 16rem; min-width: 0; font-size: 1rem; }
+.search-scope { margin: 0 0 8px; font-size: .85rem; color: var(--page-ink-soft); }
+.search-count { margin: 0 0 6px; font-size: .82rem; color: var(--page-ink-soft); }
+.search-list { list-style: none; margin: 0 0 12px; padding: 0; background: var(--card); border: 1px solid var(--rule); border-radius: var(--radius); }
+.search-list li { border-top: 1px solid var(--rule); }
+.search-list li:first-child { border-top: none; }
+.search-list a { display: block; padding: 10px 12px; color: var(--ink); text-decoration: none; }
+.search-list a:hover, .search-list a:focus-visible { background: var(--sunk); }
+.search-excerpt { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; overflow-wrap: anywhere; font-size: .92rem; }
+.search-excerpt mark { background: color-mix(in srgb, var(--pencil) 22%, transparent); color: inherit; border-radius: 2px; }
+.search-meta { display: block; font-size: .75rem; color: var(--ink-soft); margin-top: 3px; overflow-wrap: anywhere; }
+.search-meta .picker-mine { color: var(--pencil); font-weight: 600; }
+.search-draft { color: var(--warn); font-weight: 600; }

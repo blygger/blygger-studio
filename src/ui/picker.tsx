@@ -1,14 +1,10 @@
 import { useEffect, useRef, useState } from 'react';
-import type { SearchResponses } from '../../sdk/dist/browser.js';
-import { BlyggerApi, unwrap } from '../../sdk/dist/browser.js';
-import { client, queryClient, listViews, preloadView } from './data.ts';
+import { listViews, preloadView } from './data.ts';
 import { Button, Failure, useSettings } from './components.tsx';
 import { paletteTrigger, paletteInsert } from '../palette.ts';
 import { setTextAt } from './caret.ts';
 import './picker.css';
-import { readCursorWindow } from './cursor-query.ts';
-import { zSearchResponse } from '../../sdk/dist/schemas.js';
-import { domainRevision } from './revision-query.ts';
+import { ago, store, stored, useSearch, type Hit } from './search.tsx';
 
 /**
  * The `[[` / `![[` picker (0.29). Typing either bracket form opens a panel at
@@ -25,39 +21,12 @@ import { domainRevision } from './revision-query.ts';
  * to type in the editor meanwhile, and a half-height dock under the keyboard
  * was the awkward part. Both modes share every other part.
  */
-type Hit = SearchResponses[200]['items'][number];
 type Source = 'all' | 'mine' | 'imported';
 type Sort = 'newest' | 'oldest';
 type Focus = 'editor' | 'panel';
 // Touch without hover, the same test as the reading list's swipe hint (#36).
 const touch = () => matchMedia('(hover: none) and (pointer: coarse)').matches;
 const narrow = () => matchMedia('(max-width: 640px)').matches;
-const PAGE = 20;
-
-function stored<T extends string>(key: string, allowed: readonly T[], fallback: T): T {
-  try {
-    const value = localStorage.getItem(key);
-    return allowed.includes(value as T) ? (value as T) : fallback;
-  } catch {
-    return fallback;
-  }
-}
-function store(key: string, value: string) {
-  try {
-    localStorage.setItem(key, value);
-  } catch {
-    /* private window or blocked storage: the choice lasts this page only */
-  }
-}
-
-function ago(iso: string): string {
-  const days = Math.floor((Date.now() - Date.parse(iso)) / 86_400_000);
-  if (!Number.isFinite(days)) return '';
-  if (days < 1) return 'today';
-  if (days < 30) return `${days}d ago`;
-  if (days < 365) return `${Math.floor(days / 30)}mo ago`;
-  return `${Math.floor(days / 365)}y ago`;
-}
 
 export function BracketPicker({
   input,
@@ -70,11 +39,7 @@ export function BracketPicker({
   change: (text: string) => void;
   allowTransclude?: boolean;
 }) {
-  const [hits, setHits] = useState<Hit[]>([]);
   const [selected, setSelected] = useState(0);
-  const [hasMore, setHasMore] = useState(false);
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<unknown>();
   const [source, setSource] = useState<Source>(() => stored('blyg.picker.source', ['all', 'mine', 'imported'] as const, 'all'));
   const [sort, setSort] = useState<Sort>(() => stored('blyg.picker.sort', ['newest', 'oldest'] as const, 'newest'));
   const setting = useSettings()?.pickerTyping ?? 'auto';
@@ -83,7 +48,6 @@ export function BracketPicker({
   const [subs, setSubs] = useState<{ id: string; title: string }[]>([]);
   const [panelQuery, setPanelQuery] = useState('');
   const [dismissed, setDismissed] = useState<string>();
-  const request = useRef<AbortController | undefined>(undefined);
   const search = useRef<HTMLInputElement>(null);
   const [caret, setCaret] = useState(text.length);
   useEffect(() => {
@@ -123,49 +87,10 @@ export function BracketPicker({
       .catch(() => {});
   }, [open, subs.length]);
 
-  const loadPage = async (offset: number, controller: AbortController, query: string) => {
-    if (controller.signal.aborted) return;
-    setLoading(true);
-    setError(undefined);
-    try {
-      const changes = await unwrap(BlyggerApi.getChanges({ client, signal: controller.signal }));
-      const generation = { epoch: changes.epoch, revision: domainRevision(changes, ['items', 'reading', 'subscriptions']) };
-      const filters = { q: query, source, sort, ...(source === 'imported' && sub ? { sub } : {}) };
-      const pageKey = ['search', 'pages', filters, generation];
-      const rows = await readCursorWindow<Hit>({ queryClient, queryKey: pageKey, signal: controller.signal,
-        window: { limit: offset + PAGE }, validate: page => { zSearchResponse.parse(page); }, read: (cursor, signal) => unwrap(BlyggerApi.search({ client, query: { ...filters, cursor, limit: PAGE }, signal })),
-      });
-      if (controller.signal.aborted || request.current !== controller) return;
-      setHits(rows.slice(0, offset + PAGE));
-      const cached = queryClient.getQueryData<{ pages: { rows: readonly Hit[]; nextCursor: string | null }[] }>(pageKey);
-      const acquired = cached?.pages.reduce((sum, page) => sum + page.rows.length, 0) ?? rows.length;
-      setHasMore(acquired > offset + PAGE || cached?.pages.at(-1)?.nextCursor != null);
-    } catch (failure) {
-      if (!controller.signal.aborted && request.current === controller) setError(failure);
-    } finally {
-      if (request.current === controller) setLoading(false);
-    }
-  };
-  useEffect(() => {
-    setSelected(0);
-    setHits([]);
-    setHasMore(false);
-    setError(undefined);
-    setLoading(false);
-    if (query === undefined) return;
-    const controller = new AbortController();
-    request.current = controller;
-    const timer = setTimeout(() => void loadPage(0, controller, query), 150);
-    return () => {
-      clearTimeout(timer);
-      controller.abort();
-      if (request.current === controller) request.current = undefined;
-    };
-  }, [query, source, sort, sub]);
-  const loadMore = () => {
-    const controller = request.current;
-    if (controller && query !== undefined) void loadPage(hits.length, controller, query);
-  };
+  const { hits, hasMore, loading, error, loadMore, cancel } = useSearch(
+    query === undefined ? undefined : { q: query, source, sort, ...(source === 'imported' && sub ? { sub } : {}) },
+  );
+  useEffect(() => setSelected(0), [query, source, sort, sub]);
   const backToEditor = (at: number) =>
     requestAnimationFrame(() => {
       input.current?.focus();
@@ -174,16 +99,13 @@ export function BracketPicker({
   const pick = (hit: Hit) => {
     if (!trigger) return;
     const next = paletteInsert(text, caret, trigger, hit.id, hit.label);
-    request.current?.abort();
-    setHits([]);
+    cancel();
     // Caret placed now, not on the next frame: see setTextAt.
     if (input.current) setTextAt(input.current, change, next.text, next.caret);
     else change(next.text);
   };
   const dismiss = () => {
-    request.current?.abort();
-    setHits([]);
-    setError(undefined);
+    cancel();
     setDismissed(triggerKey);
     backToEditor(caret);
   };
