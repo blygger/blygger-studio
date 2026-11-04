@@ -699,7 +699,7 @@ export type WordCount = {
      */
     cjk: number;
     /**
-     * The roll-up over the item's outline links; null when they do not form a strict tree of our own published items.
+     * The roll-up over the item's outline links; null when they do not form a strict tree of our own items, published or draft.
      */
     document: {
         words: number;

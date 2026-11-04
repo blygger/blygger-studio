@@ -12,7 +12,7 @@ import { env } from "cloudflare:test";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { apiJson, createAndPublish, login } from "./helpers.ts";
 import { putSettings } from "../src/model.ts";
-import { outlineLinks, rollup, type CountedItem } from "../extensions/word-count/tree.ts";
+import { draftHtml, outlineLinks, rollup, type CountedItem } from "../extensions/word-count/tree.ts";
 import { countWords } from "../extensions/word-count/count.ts";
 
 const A = "0000000000000000000000000a";
@@ -47,6 +47,12 @@ describe("rollup", () => {
     const load = graph({ r: [A, B], [A]: [C], [B]: [], [C]: [] });
     await rollup("r", async (ids) => (calls.push(ids), load(ids)));
     expect(calls).toEqual([["r"], [A, B], [C]]);
+  });
+});
+
+describe("draftHtml", () => {
+  it("reads links as their labels and leaves directives out", () => {
+    expect(countWords(draftHtml(`Two words, [[${A} | three more words]] and [[${B}]].\n\n![[${C}]]\n\n\`[[${A}]]\``))).toEqual({ words: 7, cjk: 0 });
   });
 });
 
@@ -117,6 +123,18 @@ describe("the counts route", () => {
     const got = (await counts(cookie, [top, gone])).json.counts;
     expect(got[`own:${top}`]).toMatchObject({ document: null, reason: "unavailable" });
     expect(got[`own:${gone}`]).toBeUndefined();
+  });
+
+  it("counts drafts from their working copy, as roots and in the tree", async () => {
+    const cookie = await login();
+    const draft = async (contentMd: string) => (await apiJson(cookie, "POST", "/blyg/api/items", { contentMd, kind: "thread" })).json.id as string;
+    const leaf = await createAndPublish(cookie, "One two three.");
+    const part = await draft(`Four five six seven.\n\n- [[${leaf}]]`);
+    const book = await draft(`Eight nine.\n\n- [[${part} | Part one]]`);
+    const got = (await counts(cookie, [book, part])).json.counts;
+    // The book's own words: its text and its outline entry's label.
+    expect(got[`own:${book}`]).toMatchObject({ words: 4, document: { words: 4 + 4 + 3, items: 3 } });
+    expect(got[`own:${part}`]).toMatchObject({ words: 4, document: { words: 7, items: 2 } });
   });
 
   it("refuses keys that are not a JSON array", async () => {

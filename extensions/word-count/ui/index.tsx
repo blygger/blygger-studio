@@ -63,7 +63,7 @@ export function formatCount({ words, cjk }: Count) {
 const NO_TOTAL: Record<NonNullable<WordCount['reason']>, string> = {
   cycle: 'its outline links lead back to an item above them',
   repeated: 'its outline lists an item more than once',
-  unavailable: 'its outline links to something that is not one of your published items',
+  unavailable: 'its outline links to something that is not one of your items',
   'too-large': 'its outline tree is too large to count',
 };
 

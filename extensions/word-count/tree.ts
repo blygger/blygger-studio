@@ -9,14 +9,21 @@
 // Transclusions are not followed either: their snapshot is already in the
 // published HTML, so it is already in the item's own count.
 //
-// The roll-up is conservative. It is given only when the outline links from the
-// root form a strict tree of our own published items. A cycle, an item listed
-// twice (under one parent or two), a link to anything not held here as one of
-// our published items, or a tree past the size limit, and there is no total.
-// Each item counts its current published version, as the reading view shows it.
+// The roll-up is conservative about shape, not about state. It is given only
+// when the outline links from the root form a strict tree of our own items,
+// published or draft. A cycle, an item listed twice (under one parent or two),
+// a link to anything that is not one of our items (remote, withdrawn, gone), or
+// a tree past the size limit, and there is no total.
+//
+// An item with a published version counts that version, as the reading view
+// shows it. A draft that has never been published counts its working copy:
+// its markdown rendered, links read as their labels, and its transclusion
+// directives left out, since nothing has been baked for them yet.
 
 import { codeRanges, inRanges } from "../../src/code-ranges.ts";
-import { LINK_INLINE } from "../../src/grammar.ts";
+import { extractDirectives } from "../../src/directives.ts";
+import { label, LINK_INLINE, linkInline } from "../../src/grammar.ts";
+import { renderMarkdown } from "../../src/markdown.ts";
 import { countWords, type Count } from "./count.ts";
 
 /** Items in one tree before the roll-up gives up. A book is far smaller. */
@@ -35,7 +42,7 @@ export function outlineLinks(contentMd: string): string[] {
   return ids;
 }
 
-/** One of our own published items, as the roll-up needs it. */
+/** One of our own items, as the roll-up needs it. */
 export interface CountedItem {
   count: Count;
   children: string[];
@@ -53,7 +60,7 @@ export type Rollup = { document: DocumentCount } | { document: null; reason: NoT
 
 /**
  * The roll-up over `root`'s outline tree. `load` fetches items by id (one call
- * per tree level); an id it leaves out is not one of our published items.
+ * per tree level); an id it leaves out is not one of our items.
  * Items already loaded are kept in `cache`, so one request can share them.
  */
 export async function rollup(rootId: string, load: (ids: string[]) => Promise<Map<string, CountedItem>>, cache = new Map<string, CountedItem | null>()): Promise<Rollup> {
@@ -97,22 +104,40 @@ export async function rollup(rootId: string, load: (ids: string[]) => Promise<Ma
   return { document: total };
 }
 
+/** A never-published working copy as HTML to count: directives out, each link its label. */
+export function draftHtml(contentMd: string): string {
+  const { withoutDirectives } = extractDirectives(contentMd);
+  const code = codeRanges(withoutDirectives);
+  return renderMarkdown(withoutDirectives.replace(linkInline(), (whole, _id: string, raw: string | undefined, at: number) => (inRanges(code, at) ? whole : label(raw) ?? "")));
+}
+
 /** D1 binds at most 100 parameters per statement. */
 const CHUNK = 90;
 
-/** Our own published, not withdrawn, items by id: each one's current version, counted and outlined. */
+/**
+ * Our own items by id, published or draft, not withdrawn: each one counted
+ * and outlined from its published version, or from its working copy when it
+ * has never been published.
+ */
 export async function loadItems(db: D1Database, ids: string[]): Promise<Map<string, CountedItem>> {
   const out = new Map<string, CountedItem>();
   for (let i = 0; i < ids.length; i += CHUNK) {
     const chunk = ids.slice(i, i + CHUNK);
     const { results } = await db
       .prepare(
-        `SELECT i.id, v.content_md, v.content_html FROM items i JOIN versions v ON v.item_id = i.id AND v.version = i.version
-         WHERE i.id IN (${chunk.map(() => "?").join(",")}) AND i.version > 0 AND i.kind != 'withdrawn' AND (v.kind IS NULL OR v.kind != 'withdrawn')`,
+        `SELECT i.id, i.content_md AS working_md, v.content_md, v.content_html FROM items i LEFT JOIN versions v ON v.item_id = i.id AND v.version = i.version
+         WHERE i.id IN (${chunk.map(() => "?").join(",")}) AND i.kind != 'withdrawn' AND (v.kind IS NULL OR v.kind != 'withdrawn')`,
       )
       .bind(...chunk)
-      .all<{ id: string; content_md: string; content_html: string }>();
-    for (const row of results) out.set(row.id, { count: countWords(row.content_html), children: outlineLinks(row.content_md) });
+      .all<{ id: string; working_md: string; content_md: string | null; content_html: string | null }>();
+    for (const row of results) {
+      out.set(
+        row.id,
+        row.content_md === null
+          ? { count: countWords(draftHtml(row.working_md)), children: outlineLinks(row.working_md) }
+          : { count: countWords(row.content_html ?? ""), children: outlineLinks(row.content_md) },
+      );
+    }
   }
   return out;
 }
