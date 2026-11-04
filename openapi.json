@@ -2768,6 +2768,63 @@
           "up",
           "down"
         ]
+      },
+      "WordCount": {
+        "type": "object",
+        "properties": {
+          "words": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "cjk": {
+            "type": "integer",
+            "minimum": 0,
+            "description": "Han, kana and Hangul characters, counted one by one."
+          },
+          "document": {
+            "type": [
+              "object",
+              "null"
+            ],
+            "properties": {
+              "words": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "cjk": {
+                "type": "integer",
+                "minimum": 0,
+                "description": "Han, kana and Hangul characters, counted one by one."
+              },
+              "items": {
+                "type": "integer",
+                "exclusiveMinimum": 0,
+                "description": "Items in the outline tree, this one included."
+              }
+            },
+            "required": [
+              "words",
+              "cjk",
+              "items"
+            ],
+            "description": "The roll-up over the item's outline links; null when they do not form a strict tree of our own published items."
+          },
+          "reason": {
+            "type": "string",
+            "enum": [
+              "cycle",
+              "repeated",
+              "unavailable",
+              "too-large"
+            ],
+            "description": "Why `document` is null."
+          }
+        },
+        "required": [
+          "words",
+          "cjk",
+          "document"
+        ]
       }
     },
     "parameters": {}
@@ -18294,6 +18351,182 @@
                   },
                   "required": [
                     "summaries"
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Request failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Request failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Request failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Request failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "405": {
+            "description": "Request failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Request failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "413": {
+            "description": "Request failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "415": {
+            "description": "Request failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Request failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Request failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Request failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "502": {
+            "description": "Request failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/ext/word-count/counts": {
+      "get": {
+        "operationId": "extWordCountListCounts",
+        "tags": [
+          "extension",
+          "extension:word-count"
+        ],
+        "security": [
+          {
+            "ownerSession": []
+          },
+          {
+            "ownerOAuth": [
+              "owner:read"
+            ]
+          }
+        ],
+        "description": "Extension \"word-count\". Answers only on a node that compiles the extension in and has enabled it in Settings; otherwise 404.",
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "minLength": 2,
+              "description": "A JSON array of up to 50 own reading entry keys."
+            },
+            "required": true,
+            "description": "A JSON array of up to 50 own reading entry keys.",
+            "name": "keys",
+            "in": "query"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "counts": {
+                      "type": "object",
+                      "additionalProperties": {
+                        "$ref": "#/components/schemas/WordCount"
+                      }
+                    }
+                  },
+                  "required": [
+                    "counts"
                   ]
                 }
               }
