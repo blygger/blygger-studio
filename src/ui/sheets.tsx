@@ -13,9 +13,11 @@
  *    content (a publish flow, an inspector).
  */
 import type { ReactNode } from 'react';
-import { useEffect, useRef, useState, useSyncExternalStore } from 'react';
+import { useRef, useState, useSyncExternalStore } from 'react';
 import { Button } from '@base-ui/react/button';
-import { Dialog } from '@base-ui/react/dialog';
+import { Dialog as BaseDialog } from '@base-ui/react/dialog';
+import { Toast as BaseToast } from '@base-ui/react/toast';
+import { Menu as SystemMenu, MenuItem } from './primitives.tsx';
 
 export interface ConfirmOptions {
   /** The question. Also the dialog's accessible name. */
@@ -68,16 +70,11 @@ type Request =
   | { id: number; kind: 'confirm'; options: ConfirmOptions; resolve: (v: boolean) => void }
   | { id: number; kind: 'prompt'; options: PromptOptions; resolve: (v: string | null) => void }
   | { id: number; kind: 'menu'; options: MenuOptions; resolve: (v: string | null) => void };
-interface ToastState {
-  id: number;
-  message: string;
-  duration: number;
-  tone?: 'ok';
-}
-
 let queue: Request[] = [];
-let currentToast: ToastState | null = null;
 let nextId = 1;
+// A global manager preserves Studio's imperative toast() API while Base UI
+// owns announcement, timeout, dismissal, and stacking behavior.
+const toastManager = BaseToast.createToastManager();
 const listeners = new Set<() => void>();
 const emit = () => listeners.forEach((listener) => listener());
 const subscribe = (listener: () => void) => {
@@ -113,8 +110,12 @@ export function menu(options: MenuOptions): Promise<string | null> {
 }
 /** A short, non-blocking message at the bottom of the screen (replaces alert). */
 export function toast(message: string, options: ToastOptions = {}) {
-  currentToast = { id: nextId++, message, duration: options.duration ?? 2400, tone: options.tone };
-  emit();
+  toastManager.add({
+    description: message,
+    timeout: options.duration ?? 2400,
+    type: options.tone,
+    priority: 'low',
+  });
 }
 
 /**
@@ -140,28 +141,28 @@ export function Sheet({
   initialFocus?: React.RefObject<HTMLElement | null>;
 }) {
   return (
-    <Dialog.Root
+    <BaseDialog.Root
       open={open}
       onOpenChange={(value) => {
         if (!value) onClose();
       }}
     >
-      <Dialog.Portal>
-        <Dialog.Backdrop className="backdrop" />
-        <Dialog.Popup
+      <BaseDialog.Portal>
+        <BaseDialog.Backdrop className="backdrop" />
+        <BaseDialog.Popup
           className={className ? `sheet ${className}` : 'sheet'}
           initialFocus={initialFocus}
         >
-          <Dialog.Title className="sheet-title">{title}</Dialog.Title>
+          <BaseDialog.Title className="sheet-title">{title}</BaseDialog.Title>
           {description ? (
-            <Dialog.Description className="sheet-body" render={<div />}>
+            <BaseDialog.Description className="sheet-body" render={<div />}>
               {description}
-            </Dialog.Description>
+            </BaseDialog.Description>
           ) : null}
           {children}
-        </Dialog.Popup>
-      </Dialog.Portal>
-    </Dialog.Root>
+        </BaseDialog.Popup>
+      </BaseDialog.Portal>
+    </BaseDialog.Root>
   );
 }
 /** A button that closes the enclosing <Sheet>. */
@@ -173,11 +174,13 @@ Sheet.Close = function SheetClose({
   className?: string;
 }) {
   return (
-    <Dialog.Close render={<Button className={className} />}>
+    <BaseDialog.Close render={<Button className={className} />}>
       {children}
-    </Dialog.Close>
+    </BaseDialog.Close>
   );
 };
+/** The design-system name; Sheet remains as the established app API. */
+export const Dialog = Sheet;
 
 function ConfirmSheet({
   request,
@@ -295,74 +298,64 @@ function MenuSheet({
     row?.onSelect?.();
   };
   return (
-    <Dialog.Root
+    <BaseDialog.Root
       open
       onOpenChange={(value) => {
         if (!value) done(null);
       }}
     >
-      <Dialog.Portal>
-        <Dialog.Backdrop className="backdrop" />
-        <Dialog.Popup
+      <BaseDialog.Portal>
+        <BaseDialog.Backdrop className="backdrop" />
+        <BaseDialog.Popup
           className="sheet sheet-menu"
           aria-label={request.options.title ? undefined : 'actions'}
         >
           {request.options.title ? (
-            <Dialog.Title className="sheet-title">
+            <BaseDialog.Title className="sheet-title">
               {request.options.title}
-            </Dialog.Title>
+            </BaseDialog.Title>
           ) : null}
-          <ul className="menu-list">
+          <SystemMenu>
             {rows.map((row) => (
-              <li key={row.key ?? row.label}>
-                <Button
-                  className={row.danger ? 'danger' : undefined}
-                  disabled={row.disabled}
-                  onClick={() => done(row)}
-                >
-                  <span className="mi" aria-hidden="true">
-                    {row.icon ?? ''}
-                  </span>
-                  <span className="ml">
-                    {row.label}
-                    {row.description ? (
-                      <span className="md">{row.description}</span>
-                    ) : null}
-                  </span>
-                </Button>
-              </li>
+              <MenuItem
+                key={row.key ?? row.label}
+                icon={row.icon}
+                label={row.label}
+                description={row.description}
+                tone={row.danger ? 'destructive' : 'default'}
+                disabled={row.disabled}
+                onClick={() => done(row)}
+              />
             ))}
-          </ul>
-        </Dialog.Popup>
-      </Dialog.Portal>
-    </Dialog.Root>
+          </SystemMenu>
+        </BaseDialog.Popup>
+      </BaseDialog.Portal>
+    </BaseDialog.Root>
   );
 }
-function Toast() {
-  const state = useSyncExternalStore(subscribe, () => currentToast);
-  useEffect(() => {
-    if (!state) return;
-    const timer = setTimeout(() => {
-      if (currentToast?.id === state.id) {
-        currentToast = null;
-        emit();
-      }
-    }, state.duration);
-    return () => clearTimeout(timer);
-  }, [state]);
-  const dismiss = () => {
-    if (currentToast?.id === state?.id) {
-      currentToast = null;
-      emit();
-    }
-  };
-  return state ? (
-    <div className="toast" role="status" aria-live="polite" key={state.id} data-tone={state.tone}>
-      <span>{state.message}</span>
-      {/* The ✕ is drawn by CSS so the toast's text stays exactly its message. */}
-      <button type="button" className="toast-x" aria-label="dismiss message" onClick={dismiss} />
-    </div>
-  ) : null;
+function ToastList() {
+  const { toasts } = BaseToast.useToastManager();
+  return toasts.map((item) => (
+    <BaseToast.Root key={item.id} toast={item} className="toast" data-tone={item.type}>
+      <BaseToast.Content className="toast-content">
+        <BaseToast.Description className="toast-message" />
+        {/* The ✕ is drawn by CSS so the toast's text stays exactly its message. */}
+        <BaseToast.Close className="toast-x" aria-label="dismiss message" />
+      </BaseToast.Content>
+    </BaseToast.Root>
+  ));
+}
+
+function ToastHost() {
+  return (
+    <BaseToast.Provider timeout={2400} limit={1} toastManager={toastManager}>
+      <BaseToast.Portal>
+        <BaseToast.Viewport className="toast-viewport">
+          <ToastList />
+        </BaseToast.Viewport>
+      </BaseToast.Portal>
+    </BaseToast.Provider>
+  );
 }
 
 /** Mount once (Layout does). Renders the head of the sheet queue and the toast. */
@@ -377,7 +370,7 @@ export function SheetHost() {
       ) : head?.kind === 'menu' ? (
         <MenuSheet key={head.id} request={head} />
       ) : null}
-      <Toast />
+      <ToastHost />
     </>
   );
 }
