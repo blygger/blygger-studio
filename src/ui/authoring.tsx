@@ -37,7 +37,7 @@ import {
 import { Sheet, confirm, menu, prompt, toast } from './sheets.tsx';
 import { HandlePicker } from './contacts.tsx';
 import { BracketPicker } from './picker.tsx';
-import { setTextAt } from './caret.ts';
+import { revealCaret, setTextAt } from './caret.ts';
 import { Draft } from './draft.ts';
 
 import { stripStaleUploads, uploadToken } from './upload-tokens.ts';
@@ -46,7 +46,7 @@ import { insertLink, isUrl, linkToast } from './links.ts';
 import { itemTitle, permalink, plainText, textWithLink } from './plain-text.ts';
 import { OcrScan } from './ocr.tsx';
 import { addStubQuote, passageCount, quoteCount, stubQuoteForm, withStubQuote } from './stub-quote.ts';
-import { Image as ImageIcon, LinkIcon, More, Scan, Sparkle, Swap } from './icons.tsx';
+import { EnterFocus, ExitFocus, Image as ImageIcon, LinkIcon, More, Scan, Sparkle, Swap } from './icons.tsx';
 import { SearchBox, SearchResults, store, stored } from './search.tsx';
 import './authoring.css';
 
@@ -1615,6 +1615,69 @@ function Card({
   );
 }
 const initiallyOpen = (hash: string) => location.hash === `#${hash}`;
+/**
+ * The editor's focus view: only the text, filling the screen. It is a CSS state
+ * of the editor (authoring.css), not a second textarea, so the text, caret, undo
+ * history and autosave all carry straight through. Browser fullscreen is on top
+ * where the browser has it, and the view works the same where it doesn't (iPhone).
+ */
+function useFocusView(input: RefObject<HTMLTextAreaElement | null>, onEnter: () => void) {
+  const [active, setActive] = useState(false);
+  const toggled = useRef(false);
+  const toggle = () => {
+    toggled.current = true;
+    const next = !active;
+    setActive(next);
+    if (next) {
+      onEnter();
+      document.documentElement.requestFullscreen?.().catch(() => {});
+    }
+  };
+  useEffect(() => {
+    const onKey = (event: KeyboardEvent) => {
+      if ((event.target as Element).closest?.('.sheet')) return;
+      const chord = event.key === 'Enter' && event.shiftKey && (event.metaKey || event.ctrlKey);
+      // The picker takes Escape first (preventDefault): it dismisses the picker only.
+      if (chord || (active && event.key === 'Escape' && !event.defaultPrevented)) {
+        event.preventDefault();
+        toggle();
+      }
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  });
+  useEffect(() => {
+    if (!active) return;
+    document.body.classList.add('focus-view');
+    // The browser keeps Escape for itself in fullscreen, so its exit is how that
+    // key arrives here. With a picker or sheet open, that Escape was meant for it.
+    const onFullscreen = () => {
+      if (!document.fullscreenElement && !document.querySelector('.picker, .sheet')) setActive(false);
+    };
+    document.addEventListener('fullscreenchange', onFullscreen);
+    return () => {
+      document.removeEventListener('fullscreenchange', onFullscreen);
+      document.body.classList.remove('focus-view');
+      if (document.fullscreenElement) void document.exitFullscreen().catch(() => {});
+    };
+  }, [active]);
+  // Bring the writer back to their caret, once the box has its new shape; going
+  // fullscreen resizes it again a moment later. On a touch screen, leaving does
+  // not take focus, or the keyboard would rise over the buttons being returned to.
+  useEffect(() => {
+    const el = input.current;
+    if (!toggled.current || !el) return;
+    if (active || matchMedia('(hover: hover)').matches) el.focus({ preventScroll: true });
+    const observer = new ResizeObserver(() => revealCaret(el));
+    observer.observe(el);
+    const settled = setTimeout(() => observer.disconnect(), 1500);
+    return () => {
+      clearTimeout(settled);
+      observer.disconnect();
+    };
+  }, [active]);
+  return { active, toggle };
+}
 function Editor({ item, onDiscarding }: { item: Detail; onDiscarding?: (active: boolean) => void }) {
   const navigate = useNavigate();
   const settings = useSettings();
@@ -1810,6 +1873,7 @@ function Editor({ item, onDiscarding }: { item: Detail; onDiscarding?: (active: 
       setPublished({ id: item.id, kind: item.kind, md, version: result.version });
       return result;
     });
+  const focus = useFocusView(input, () => setPane('draft'));
   const isThread = item.kind === 'thread';
   const isPublic = item.status === 'public';
   // Attachments the live version lists that the working copy no longer has.
@@ -1947,7 +2011,18 @@ function Editor({ item, onDiscarding }: { item: Detail; onDiscarding?: (active: 
     });
   const over = text.length > MAX && !isThread;
   return (
-    <div className="editor">
+    <div className={focus.active ? 'editor is-focus' : 'editor'}>
+      {focus.active ? (
+        <Button
+          className="act icon-only focus-exit"
+          data-action="exit-focus"
+          aria-label="exit focus view"
+          title="Exit focus view (Esc)"
+          onClick={focus.toggle}
+        >
+          <ExitFocus />
+        </Button>
+      ) : null}
       <p className="ed-head">
         <Link to="/">← compose</Link> · {item.kind} · {item.status} · v
         {item.version}
@@ -1959,6 +2034,15 @@ function Editor({ item, onDiscarding }: { item: Detail; onDiscarding?: (active: 
             </span>
           </>
         ) : null}
+        <Button
+          className="act icon-only tool focus-enter"
+          data-action="enter-focus"
+          aria-label="focus view"
+          title="Focus view: only your text, full screen (⌘⇧↩ or Ctrl+Shift+Enter)"
+          onClick={focus.toggle}
+        >
+          <EnterFocus />
+        </Button>
       </p>
       <PublishedBanner published={published} dismiss={() => setPublished(undefined)} />
       <div id="error-banner-slot">
@@ -1968,16 +2052,17 @@ function Editor({ item, onDiscarding }: { item: Detail; onDiscarding?: (active: 
             {action.warning}
           </p>
         ) : null}
-        {preview?.unresolvedHandles?.length ? (
+        {!focus.active && preview?.unresolvedHandles?.length ? (
           <p role="status" className="publish-warning">
             {preview.unresolvedHandles.map((h) => `@${h}`).join(', ')} {preview.unresolvedHandles.length === 1 ? 'is' : 'are'} not in your
             address book and will stay plain text. <Link to="/settings" hash="contacts">add contact</Link>
           </p>
         ) : null}
-        {preview?.linkErrors?.map((e, i) => (
+        {/* Half-typed links are errors until they're finished; a failed save always shows. */}
+        {focus.active ? null : preview?.linkErrors?.map((e, i) => (
           <Failure key={`link:${i}`} error={e.reason} />
         ))}
-        {preview?.errors?.map((e, i) => <Failure key={i} error={e.reason} />)}
+        {focus.active ? null : preview?.errors?.map((e, i) => <Failure key={i} error={e.reason} />)}
       </div>
       {item.stubOf ? (
         <p className="stub-head">

@@ -142,6 +142,21 @@
   .editor .pane-toggle { display: none; }
   .editor-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; align-items: start; }
 }
+.ed-head .focus-enter { margin-left: auto; }
+/* Focus view: the editor fills the screen with the same textarea and nothing else
+   of the studio. Failures still show (#error-banner-slot); sheets, toasts and the
+   picker sit above it. The textarea stays full width, its padding making the
+   measure, so the scrollbar is at the window's edge and the margins scroll too. */
+body.focus-view .topbar, body.focus-view .views > :not(.screen) { display: none; }
+.editor.is-focus { position: fixed; inset: 0; z-index: 40; display: flex; flex-direction: column; background: var(--card); color: var(--ink); }
+.editor.is-focus > :not(.editor-grid, #error-banner-slot, .focus-exit), .editor.is-focus .preview-pane, .editor.is-focus .editor-pane > :not(.ta-wrap) { display: none; }
+.editor.is-focus #error-banner-slot:not(:empty) { padding: var(--s2) var(--s4); padding-top: max(var(--s2), env(safe-area-inset-top)); }
+.editor.is-focus .editor-grid, .editor.is-focus .editor-pane, .editor.is-focus .ta-wrap { display: flex; flex-direction: column; align-items: stretch; flex: 1; min-height: 0; }
+.editor.is-focus textarea.md { flex: 1; min-height: 0; resize: none; background: transparent; border: none; border-radius: 0; box-shadow: none; font-family: var(--sans); font-size: 1.15rem; line-height: 1.7;
+  padding: max(48px, env(safe-area-inset-top)) max(var(--s4), calc((100% - 68ch) / 2)) 40vh; }
+.editor.is-focus textarea.md:focus { outline: none; box-shadow: none; }
+.focus-exit { position: absolute; top: max(var(--s2), env(safe-area-inset-top)); right: var(--s3); z-index: 1; background: var(--card); color: var(--ink-soft); opacity: .6; }
+.focus-exit:hover, .focus-exit:focus-visible { opacity: 1; }
 .ed-cards { margin-top: 16px; }
 .ed-cards .card .row > input { flex: 1; min-width: 0; }
 .kv, .ed-cards .h-row { display: flex; gap: 8px; align-items: center; padding: 8px 0; border-top: 1px solid var(--rule); border-bottom: none; font-size: .84rem; flex-wrap: wrap; margin: 0; }
