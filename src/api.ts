@@ -1,6 +1,6 @@
 import { retainedMediaSql } from './media-retention.ts';
 import { assertCurrentRevision, assertItemRevision, ItemRevisionConflict } from './item-revision.ts';
-import { consumeHandles, contactResource, createContact, deleteContact, getContact, handleTaken, HANDLE, listContacts, updateContact } from './contacts.ts';
+import { consumeHandles, contactResource, createContact, deleteContact, getContact, handleTaken, HANDLE, listContacts, resolveContact, updateContact } from './contacts.ts';
 import { success, created, failure, modelFailure, type OperationContext, type OperationInput } from './operation-types.ts';
 import { versionState } from './version-state.ts';
 import { isFont } from "./fonts.ts";
@@ -686,6 +686,15 @@ const updateContactOperation = async (context: OperationContext, input: Operatio
   if (body.handle && await handleTaken(context.env.DB, body.handle, row.id)) return failure('conflict', { error: `@${body.handle} is already in the book` });
   return success(contactResource(await updateContact(context.env.DB, row, body)));
 };
+const resolveContactOperation = async (context: OperationContext, input: OperationInput) => {
+  const row = await getContact(context.env.DB, input.path.id);
+  if (!row) return failure('not-found', { error: "not found" });
+  try {
+    return success(contactResource(await resolveContact(context.env.DB, platformFetchFor(context.env), row)));
+  } catch (e) {
+    return failure('bad-gateway', { error: `could not read ${row.url}: ${e instanceof Error ? e.message : String(e)}` });
+  }
+};
 const deleteContactOperation = async (context: OperationContext, input: OperationInput) =>
   await deleteContact(context.env.DB, input.path.id) ? success({ ok: true }) : failure('not-found', { error: "not found" });
 
@@ -693,6 +702,7 @@ export const itemOperations = {
   listContacts: listContactsOperation,
   createContact: createContactOperation,
   updateContact: updateContactOperation,
+  resolveContact: resolveContactOperation,
   deleteContact: deleteContactOperation,
   createItem: createItemOperation,
   updateItem: updateItemOperation,

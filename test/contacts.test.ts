@@ -2,7 +2,7 @@
 // path, an h-card reaches `content_html`, and the wire carries nothing else.
 import { env } from "cloudflare:test";
 import { beforeEach, describe, expect, it } from "vitest";
-import { consumeHandles, createContact, updateContact } from "../src/contacts.ts";
+import { consumeHandles, createContact, mergeSelfIds, resolveContact, selfIdsInPage, updateContact } from "../src/contacts.ts";
 import { createDraft, getItem, getVersion, publish } from "../src/model.ts";
 import { apiJson, login } from "./helpers.ts";
 
@@ -141,5 +141,35 @@ describe("/contacts", () => {
     const done = await apiJson(cookie, "POST", `/blyg/api/items/${item.json.id}/publish`, {});
     expect(done.status).toBe(200);
     expect(done.json.unresolvedHandles).toEqual(["nobody"]);
+  });
+});
+
+describe("identifiers from the contact's own page", () => {
+  const page = `<link rel="me" href="https://social.example/@ada"><a href="/about" rel="me nofollow">about</a>
+    <a rel=me href='did:web:ada.example'>did</a><a rel="me" href="javascript:alert(1)">x</a><a rel="me" href="http://old.example/">x</a>
+    <a rel="author" href="https://not-me.example/">no</a><a rel="me" href="https://ada.example/">same page</a>`;
+
+  it("reads rel=me links in the wire schemes only", () => {
+    expect(selfIdsInPage(page, "https://ada.example/")).toEqual(["https://social.example/@ada", "https://ada.example/about", "did:web:ada.example"]);
+  });
+
+  it("promotes what the page lists, and demotes a self the page dropped", () => {
+    expect(mergeSelfIds(
+      [{ id: "did:web:a", provenance: "entered" }, { id: "acct:gone@x", provenance: "self" }, { id: "did:plc:b", provenance: "bound" }, { id: "did:key:c", provenance: "entered" }],
+      ["did:web:a", "https://new.example/"],
+    )).toEqual([{ id: "did:web:a", provenance: "self" }, { id: "acct:gone@x", provenance: "entered" }, { id: "did:plc:b", provenance: "bound" }, { id: "did:key:c", provenance: "entered" }, { id: "https://new.example/", provenance: "self" }]);
+  });
+
+  it("puts what it found on the wire at the next publish", async () => {
+    const row = await createContact(env.DB, { handle: "ada", name: "Ada", url: "https://ada.example/" });
+    await resolveContact(env.DB, async () => new Response(page), row);
+    const html = (await published("@ada"))?.content_html ?? "";
+    expect(html).toContain('<data class="u-url" value="did:web:ada.example"></data>');
+  });
+
+  it("fails without touching the book when the page cannot be read", async () => {
+    const row = await createContact(env.DB, { handle: "ada", name: "Ada", url: "https://ada.example/", ids: ["did:web:x"] });
+    await expect(resolveContact(env.DB, async () => new Response("", { status: 500 }), row)).rejects.toThrow("500");
+    expect((await consumeHandles(env.DB, "@ada")).cards.size).toBe(1);
   });
 });

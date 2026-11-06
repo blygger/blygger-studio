@@ -27,7 +27,9 @@ export function AddressBook() {
   const add = async () => {
     setError(undefined);
     try {
-      await unwrap(BlyggerApi.createContact({ client, body: { handle: handle.replace(/^@/, ''), name, url } }));
+      const made = await unwrap(BlyggerApi.createContact({ client, body: { handle: handle.replace(/^@/, ''), name, url } }));
+      // Best effort: a page that cannot be read leaves a contact that still works.
+      await unwrap(BlyggerApi.resolveContact({ client, path: { id: made.id } })).catch(() => {});
       setHandle('');
       setName('');
       setUrl('');
@@ -57,6 +59,7 @@ export function AddressBook() {
           {contacts.map((contact) => (
             <li key={contact.id} className="row">
               <code>@{contact.handle}</code> <span>{contact.name}</span> <span className="hint">{contact.url}</span>
+              {contact.ids.length ? <span className="hint">· {contact.ids.filter((i) => i.provenance !== 'entered').length} checked identifiers</span> : null}
               <span className="spacer" />
               <Button className="btn btn-ghost btn-mini" aria-label={`remove @${contact.handle}`} onClick={() => void remove(contact.id)}>
                 remove

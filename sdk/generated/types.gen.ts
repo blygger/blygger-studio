@@ -3467,6 +3467,77 @@ export type UpdateContactResponses = {
 
 export type UpdateContactResponse = UpdateContactResponses[keyof UpdateContactResponses];
 
+export type ResolveContactData = {
+    body?: never;
+    path: {
+        id: string;
+    };
+    query?: never;
+    url: '/contacts/{id}/resolve';
+};
+
+export type ResolveContactErrors = {
+    /**
+     * Request failed
+     */
+    400: ApiError;
+    /**
+     * Request failed
+     */
+    401: ApiError;
+    /**
+     * Request failed
+     */
+    403: ApiError;
+    /**
+     * Request failed
+     */
+    404: ApiError;
+    /**
+     * Request failed
+     */
+    405: ApiError;
+    /**
+     * Request failed
+     */
+    409: ApiError;
+    /**
+     * Request failed
+     */
+    413: ApiError;
+    /**
+     * Request failed
+     */
+    415: ApiError;
+    /**
+     * Request failed
+     */
+    422: ApiError;
+    /**
+     * Request failed
+     */
+    429: ApiError;
+    /**
+     * Request failed
+     */
+    500: ApiError;
+    /**
+     * Request failed
+     */
+    502: ApiError;
+};
+
+export type ResolveContactError = ResolveContactErrors[keyof ResolveContactErrors];
+
+export type ResolveContactResponses = {
+    /**
+     * Success
+     */
+    200: Contact;
+};
+
+export type ResolveContactResponse = ResolveContactResponses[keyof ResolveContactResponses];
+
 export type ListHoppersData = {
     body?: never;
     path?: never;

@@ -119,6 +119,7 @@ export const routes = {
   listContacts: route("listContacts", readOperation(), "get", "/contacts", z.object({ contacts: z.array(ContactSchema) })),
   createContact: route("createContact", manageOperation({"writes":["settings"]}), "post", "/contacts", ContactSchema, z.object({ handle: z.string(), name: z.string().trim().min(1).max(200), url: z.string(), ids: z.array(z.string().min(1).max(500)).max(50).optional() }), 201),
   updateContact: route("updateContact", manageOperation({"writes":["settings"]}), "patch", "/contacts/{id}", ContactSchema, z.object({ handle: z.string().optional(), name: z.string().trim().min(1).max(200).optional(), url: z.string().optional(), ids: z.array(z.string().min(1).max(500)).max(50).optional() })),
+  resolveContact: route("resolveContact", manageOperation({"writes":["settings"],"network":true}), "post", "/contacts/{id}/resolve", ContactSchema),
   deleteContact: route("deleteContact", manageOperation({"writes":["settings"],"destructive":true}), "delete", "/contacts/{id}", ok),
   createHopper: route("createHopper", manageOperation({"writes":["hoppers"]}), "post", "/hoppers", HopperSchema, z.object({ name: z.string() }), 201),
   updateHopper: route("updateHopper", manageOperation({"writes":["hoppers","presentation"],"destructive":true}), "patch", "/hoppers/{id}", HopperSchema, z.object({ name: z.string().trim().min(1).optional(), public: z.boolean().optional(), description: z.string().trim().max(280).optional() }).strict()),

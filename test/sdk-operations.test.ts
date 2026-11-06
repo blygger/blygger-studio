@@ -40,6 +40,7 @@ it("exercises every declared operation through its named SDK method, including a
     ["createContact", 201, async client => api.createContact({ client, body: { handle: "matrix", name: "Matrix", url: "https://matrix.example/" } })],
     ["listContacts", 200, async client => api.listContacts({ client })],
     ["updateContact", 200, async client => api.updateContact({ client, path: { id: contact.id }, body: { name: "Matrix two" } })],
+    ["resolveContact", 502, async client => api.resolveContact({ client, path: { id: contact.id } })],
     ["deleteContact", 200, async client => api.deleteContact({ client, path: { id: contact.id } })],
     ["createHopper", 201, async client => api.createHopper({ client, body: { name: "Other matrix" } })],
     ["updateHopper", 200, async client => api.updateHopper({ client, path: { id: hopper.id }, body: { public: true } })],

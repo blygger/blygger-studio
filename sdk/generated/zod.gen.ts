@@ -1361,6 +1361,15 @@ export const zUpdateContactPath = z.object({
  */
 export const zUpdateContactResponse = zContact;
 
+export const zResolveContactPath = z.object({
+    id: z.string().min(1)
+});
+
+/**
+ * Success
+ */
+export const zResolveContactResponse = zContact;
+
 export const zListHoppersQuery = z.object({
     cursor: z.string().min(1).max(8192).optional(),
     limit: z.int().gte(1).lte(100).optional()

@@ -4,7 +4,8 @@
 // and an h-card in `content_html`. Nothing else reaches the wire: no member, no
 // relation, nothing sent. A word that names no contact stays literal prose.
 import { codeRanges, inRanges } from "./code-ranges.ts";
-import { renderMarkdown } from "./markdown.ts";
+import type { FetchLike } from "./importer/http.ts";
+import { decodeEntities, renderMarkdown } from "./markdown.ts";
 import { addLinkToken, type InternalLinkDocument } from "./transclusion.ts";
 import { escapeHtml, newId, nowIso } from "./util.ts";
 
@@ -69,6 +70,50 @@ export async function updateContact(db: D1Database, row: ContactRow, input: { ha
 
 export async function deleteContact(db: D1Database, id: string): Promise<boolean> {
   return ((await db.prepare("DELETE FROM contacts WHERE id = ?").bind(id).run()).meta.changes ?? 0) > 0;
+}
+
+const REL_ME_TAG = /<(?:a|link)\b[^>]*>/gi;
+const attribute = (tag: string, name: string) => new RegExp(`\\s${name}\\s*=\\s*(?:"([^"]*)"|'([^']*)'|([^\\s>]+))`, "i").exec(tag)?.slice(1).find((v) => v !== undefined);
+
+/**
+ * What a contact's own page says is also them: its `rel="me"` links, in the
+ * three wire schemes (tn-6 sections 4 and 5.1). A claim the person makes at
+ * their own URL is `self`, which is what lets it go on the wire. Their reciprocal
+ * proof is a reader's concern, not this list's.
+ */
+export function selfIdsInPage(html: string, pageUrl: string): string[] {
+  const found = new Set<string>();
+  for (const [tag] of html.matchAll(REL_ME_TAG)) {
+    const rel = attribute(tag, "rel");
+    const href = attribute(tag, "href");
+    if (!href || !rel?.toLowerCase().split(/\s+/).includes("me")) continue;
+    try {
+      const url = new URL(decodeEntities(href), pageUrl);
+      if (["https:", "acct:", "did:"].includes(url.protocol) && url.href !== pageUrl) found.add(url.href);
+    } catch {
+      // Not a URL: nothing to carry.
+    }
+  }
+  return [...found].slice(0, 50);
+}
+
+/**
+ * The book's identifiers after reading the page: found ones are `self`; a `self`
+ * the page no longer lists falls back to `entered`, which takes it off the wire;
+ * `bound` and anything typed by hand stay.
+ */
+export function mergeSelfIds(held: ContactId[], found: string[]): ContactId[] {
+  const kept = held.map((id): ContactId => (found.includes(id.id) ? { id: id.id, provenance: id.provenance === "bound" ? "bound" : "self" } : id.provenance === "self" ? { id: id.id, provenance: "entered" } : id));
+  return [...kept, ...found.filter((id) => !held.some((h) => h.id === id)).map((id): ContactId => ({ id, provenance: "self" }))];
+}
+
+export async function resolveContact(db: D1Database, fetchFn: FetchLike, row: ContactRow): Promise<ContactRow> {
+  const res = await fetchFn(row.url, { headers: { Accept: "text/html" } });
+  if (!res.ok) throw new Error(`the page answered ${res.status}`);
+  const ids_json = JSON.stringify(mergeSelfIds(JSON.parse(row.ids_json), selfIdsInPage(await res.text(), res.url || row.url)));
+  const updated = nowIso();
+  await db.prepare("UPDATE contacts SET ids_json = ?, updated = ? WHERE id = ?").bind(ids_json, updated, row.id).run();
+  return { ...row, ids_json, updated };
 }
 
 // Not after a word or URL character (emails, `/@name` paths); not before `@`,
