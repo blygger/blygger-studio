@@ -156,6 +156,7 @@ saying so.
 
 ## Status
 
+**0.55.2** (session 60, 2026-11-06): fragment-mode cues (#128; `--fragment-bg`, `boxClass`, `CharCount`); Cmd/Ctrl+B, I, K (#129; `src/ui/format-shortcuts.ts`, `insertText` for undo); the toolbar above both panes and public-styled preview quotes with provenance lines (#130); one subscribe sheet through the address book offer (#127). Contract and SDK unchanged. No migration.
 **0.55.1** (session 60, 2026-11-06): the address book offers a blyg on a manual subscribe and an author from the reading menu (#124; `customSheet` in `src/ui/sheets.tsx`, the manifest read from the browser with a fallback); help text; the section has its own form outside the settings form. Contract and SDK unchanged. No migration.
 **0.55.0** (session 60, 2026-11-06): the address book and `@handle` (#123; tn-6, #91): `src/contacts.ts`, `src/ui/contacts.tsx`, consumed at publish on every write path through the `[[id]]` token splice, `unresolvedHandles` from publish and preview, `rel="me"` identifiers read as `self`. Plan and what remains: `../blygger-spec/docs/mentions-build-plan.md`. Private contract 5.6.0, SDK 0.12.0. **Migration 0042.**
 **0.54.1** (session 60, 2026-11-05): one `theme-color` on the themed login page; the importer's sanitizer keeps `<data value>` (tn-6 section 5.3; first step of the RFC-1 build). Contract and SDK unchanged. No migration.

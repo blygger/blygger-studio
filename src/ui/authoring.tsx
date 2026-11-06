@@ -36,6 +36,7 @@ import {
 } from './components.tsx';
 import { Sheet, confirm, menu, prompt, toast } from './sheets.tsx';
 import { HandlePicker } from './contacts.tsx';
+import { onFormatKey } from './format-shortcuts.ts';
 import { BracketPicker } from './picker.tsx';
 import { setTextAt } from './caret.ts';
 import { Draft } from './draft.ts';
@@ -123,7 +124,8 @@ function Help({ thread, className = 'compose-help' }: { thread?: boolean; classN
       <code>[[id]]</code> links an item. <code>[TK]an instruction[/TK]</code>{' '}
       marks AI-drafted text. Type <code>/image</code> on its own line, or
       paste or drop an image, to insert one there. Paste a URL over selected
-      text to link it. <Link to="/syntax">full syntax reference</Link>
+      text to link it. Cmd/Ctrl+B, I and K make bold, italics and a link.{' '}
+      <Link to="/syntax">full syntax reference</Link>
     </p>
   ) : (
     <p className={className}>
@@ -132,7 +134,8 @@ function Help({ thread, className = 'compose-help' }: { thread?: boolean; classN
       <code>[TK]an instruction[/TK]</code> to mark a scope for AI-drafted text —
       a <em>generate</em> button appears, which saves and opens the editor.
       Type <code>/image</code> on its own line, or paste or drop an image, to
-      insert one there. Paste a URL over selected text to link it.{' '}
+      insert one there. Paste a URL over selected text to link it. Cmd/Ctrl+B,
+      I and K make bold, italics and a link.{' '}
       <Link to="/syntax">full syntax reference</Link>
     </p>
   );
@@ -743,6 +746,7 @@ function useUpload(
 function textareaProps(upload: ReturnType<typeof useUpload>, tools: TextTools) {
   return {
     ...upload.textareaProps,
+    onKeyDown: onFormatKey,
     onPaste: (event: React.ClipboardEvent<HTMLTextAreaElement>) => {
       if (!tools.pourOver(event)) upload.textareaProps.onPaste(event);
     },
@@ -1412,6 +1416,7 @@ function ItemRow({
                 aria-label="quick edit"
                 className={boxClass(kind === 'fragment', text.length)}
                 value={text}
+                onKeyDown={onFormatKey}
                 onPaste={(event) => void pourOver(event, quickEdit)}
                 onChange={(event) => quickEdit(event.target.value)}
               />
