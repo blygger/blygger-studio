@@ -68,7 +68,7 @@ test('the full editor shows the same counts as the byline and follows autosave',
   const contents = await publish(page, `Contents ${run}\n\n- [[${chapter} | The chapter]]`, 'thread');
 
   await page.goto(`/studio/edit/${chapter}`);
-  const count = page.locator('.ed-head [data-extension=word-count]');
+  const count = page.locator('.ed-foot [data-extension=word-count]');
   await expect(count).toHaveText('· 4 words');
 
   // Typing moves the draft count once autosave lands, leaving the published one.
@@ -82,7 +82,18 @@ test('the full editor shows the same counts as the byline and follows autosave',
 
   // A contents thread's editor carries the roll-up too, with the chapter's draft in it.
   await page.goto(`/studio/edit/${contents}`);
-  await expect(page.locator('.ed-head [data-extension=word-count]')).toHaveText(/^· \d+ words · \d+ words in document \(draft \d+ words\)$/);
+  await expect(page.locator('.ed-foot [data-extension=word-count]')).toHaveText(/^· \d+ words · \d+ words in document \(draft \d+ words\)$/);
+});
+
+test('the composer counts as typed, beside the character count', async ({ page }) => {
+  await page.goto('/studio/');
+  const count = page.locator('.composer-actions [data-extension=word-count]');
+  await expect(count).toHaveCount(0);
+  await page.locator('#composer-text').fill('one two [the label](https://example.com/a/b) ![alt](https://example.com/i.png) [[abc | three]] [[abc]]');
+  await expect(count).toHaveText('· 5 words');
+  await expect(page.locator('#composer-count + .counter')).toContainText('5 words');
+  await page.locator('#composer-text').fill('');
+  await expect(count).toHaveCount(0);
 });
 
 test('off, the editor carries no count', async ({ page }) => {
@@ -90,8 +101,13 @@ test('off, the editor carries no count', async ({ page }) => {
   const run = marker();
   const id = await publish(page, `Off editor ${run}: nothing to show.`, 'fragment');
   await page.goto(`/studio/edit/${id}`);
-  await expect(page.locator('.ed-head')).toContainText('v1');
+  await expect(page.locator('.ed-foot .counter')).toContainText('/ 1000');
   await expect(page.locator('[data-extension=word-count]')).toHaveCount(0);
+  await page.goto('/studio/');
+  await page.locator('#composer-text').fill('one two three');
+  await expect(page.locator('#composer-count')).toContainText('13');
+  await expect(page.locator('#composer-count + .counter')).toHaveCount(0);
+  await page.locator('#composer-text').fill('');
 });
 
 test('off, bylines carry no count', async ({ page }) => {

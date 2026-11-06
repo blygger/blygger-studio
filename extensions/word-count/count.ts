@@ -20,6 +20,22 @@ function textOf(html: string) {
   return html.replace(/<(script|style)\b[\s\S]*?<\/\1>/gi, ' ').replace(/<[^>]*>/g, ' ').replace(/&[#\w]+;/g, ' ');
 }
 
+// Markdown the server has not rendered: link and image syntax is not words.
+const IMAGE = /!\[[^\]]*\]\([^)]*\)/g;
+const LINK = /\[([^\]]*)\]\([^)]*\)/g;
+const QUOTE = /!\[\[[^\]]*\]\]/g;
+const LABELLED = /\[\[[^\]|]*\|([^\]]*)\]\]/g;
+const BARE = /\[\[[^\]]*\]\]/g;
+
+/**
+ * Words in text with no server copy to count, near enough: what the composer
+ * shows while typing. It cannot see what the server resolves, so a quote and a
+ * bare [[id]] link's title count as nothing until the text is saved and opened.
+ */
+export function countMarkdown(md: string): Count {
+  return countWords(md.replace(QUOTE, ' ').replace(IMAGE, ' ').replace(LABELLED, '$1').replace(BARE, ' ').replace(LINK, '$1'));
+}
+
 export function countWords(html: string): Count {
   const text = textOf(html);
   const cjk = text.match(CJK)?.length ?? 0;

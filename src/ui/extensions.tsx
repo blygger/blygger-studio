@@ -16,7 +16,7 @@
  */
 import type { ErrorInfo, ReactNode } from 'react';
 import { Component } from 'react';
-import type { EditorContext, EntryAction, EntryContext, StudioExtension } from './extension-api.ts';
+import type { DraftCounterContext, EntryAction, EntryContext, StudioExtension } from './extension-api.ts';
 import type { MenuRow } from './sheets.tsx';
 
 /** The compiled-in extensions this node has enabled, in compiled order. */
@@ -61,17 +61,19 @@ export function EntryBylineSlot({ extensions, context }: { extensions: readonly 
   );
 }
 
-/** The editor's status line slot: each enabled extension's addition, each in its own boundary. */
-export function EditorStatusSlot({ extensions, context }: { extensions: readonly StudioExtension[]; context: EditorContext }) {
-  const filling = extensions.filter((extension) => extension.editorStatus);
+/** Beside the character count: each enabled extension's addition, set as a counter, each in its own boundary. */
+export function DraftCounterSlot({ extensions, context }: { extensions: readonly StudioExtension[]; context: DraftCounterContext }) {
+  const filling = extensions.filter((extension) => extension.draftCounter);
   if (!filling.length) return null;
   return (
     <>
       {filling.map((extension) => {
-        const Status = extension.editorStatus!;
+        const Counter = extension.draftCounter!;
         return (
-          <ExtensionBoundary key={extension.name} name={extension.name} slot="editorStatus">
-            <Status context={context} />
+          <ExtensionBoundary key={extension.name} name={extension.name} slot="draftCounter">
+            <span className="counter">
+              <Counter context={context} />
+            </span>
           </ExtensionBoundary>
         );
       })}

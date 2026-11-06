@@ -21,7 +21,7 @@ import { previewFromHtml } from '../preview.ts';
 import { CHANGE_CATEGORIES, composeNote, noteIsGenerated, recategorize, type ChangeCategory } from '../change-category.ts';
 import type { ListItemsResponses, Version } from '../../sdk/dist/browser.js';
 import { BlyggerApi, unwrap } from '../../sdk/dist/browser.js';
-import type { EditorContext } from './extension-api.ts';
+import type { DraftCounterContext } from './extension-api.ts';
 import type { Detail } from './data.ts';
 import { client, items, itemVersions, itemSummary, itemDetail, createDraftAction, settings as settingsCollection, listViews, preloadView } from './data.ts';
 import {
@@ -37,7 +37,7 @@ import {
 } from './components.tsx';
 import { Sheet, confirm, menu, prompt, toast } from './sheets.tsx';
 import { compiledExtensions } from '../../build/extensions.ui.ts';
-import { EditorStatusSlot, enabledExtensions } from './extensions.tsx';
+import { DraftCounterSlot, enabledExtensions } from './extensions.tsx';
 import { HandlePicker } from './contacts.tsx';
 import { BracketPicker } from './picker.tsx';
 import { setTextAt } from './caret.ts';
@@ -1111,6 +1111,7 @@ export function Compose({ q }: { q?: string } = {}) {
               {/* Only fragments have a length limit; a thread shows its count alone. */}
               {kind === 'thread' ? `${text.length} chars` : `${text.length} / ${MAX}`}
             </span>
+            <DraftCounter text={text} run={action.run} />
             <span className="spacer" />
             {text.includes('[TK]') ? (
               <Button
@@ -1567,6 +1568,24 @@ function ItemRow({
   );
 }
 
+/** The extension slot beside a character count (docs/extensions.md). */
+function DraftCounter({ text, item, run }: { text: string; item?: DraftCounterContext['item']; run: (action: () => Promise<unknown>) => Promise<unknown> }) {
+  const settings = useSettings();
+  const navigate = useNavigate();
+  const context: DraftCounterContext = {
+    client,
+    openDraft: async (body) => {
+      const created = await createItem(body);
+      await navigate({ to: '/edit/$id', params: { id: created.id } });
+    },
+    navigate: (location) => navigate(location as never),
+    run: async (action) => void (await run(async () => action())),
+    text,
+    item,
+  };
+  return <DraftCounterSlot extensions={enabledExtensions(compiledExtensions, settings?.extensions)} context={context} />;
+}
+
 /* ---------------- EDITOR ---------------- */
 
 export function EditorPage({ id }: { id: string }) {
@@ -1949,16 +1968,6 @@ function Editor({ item, onDiscarding }: { item: Detail; onDiscarding?: (active: 
       ],
     });
   const over = text.length > MAX && !isThread;
-  const statusContext: EditorContext = {
-    client,
-    openDraft: async (body) => {
-      const created = await createItem(body);
-      await navigate({ to: '/edit/$id', params: { id: created.id } });
-    },
-    navigate: (location) => navigate(location as never),
-    run: (fn) => action.run(async () => fn()),
-    item: { id: item.id, kind: item.kind, status: item.status, version: item.version, revision: item.revision },
-  };
   return (
     <div className="editor">
       <p className="ed-head">
@@ -1972,7 +1981,6 @@ function Editor({ item, onDiscarding }: { item: Detail; onDiscarding?: (active: 
             </span>
           </>
         ) : null}
-        <EditorStatusSlot extensions={enabledExtensions(compiledExtensions, settings?.extensions)} context={statusContext} />
       </p>
       <PublishedBanner published={published} dismiss={() => setPublished(undefined)} />
       <div id="error-banner-slot">
@@ -2105,6 +2113,7 @@ function Editor({ item, onDiscarding }: { item: Detail; onDiscarding?: (active: 
             <span className={over ? 'counter over' : 'counter'}>
               {isThread ? `${text.length} chars` : `${text.length} / ${MAX}`}
             </span>
+            <DraftCounter text={text} item={{ id: item.id, kind: item.kind, status: item.status, version: item.version, revision: item.revision }} run={action.run} />
             <span className="spacer" />
             {isPublic ? (
               <a href={publicPath(shareable)} target="_blank" rel="noreferrer">
