@@ -53,3 +53,5 @@
 .contact-list li { gap: 8px; flex-wrap: wrap; padding: 4px 0; overflow-wrap: anywhere; }
 .contact-help { margin: 4px 0 0; }
 .sheet .contact-help { font-size: .8rem; }
+.add-sub-done { margin: 0 0 4px; color: var(--ink-soft); }
+#add-sub-offer ~ .add-sub-more { display: none; }

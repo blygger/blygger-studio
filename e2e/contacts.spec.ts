@@ -56,15 +56,24 @@ test('subscribing to one blyg by hand offers it, prefilled with its author; not 
   await page.locator('#add-sub-url').fill(origin);
   await page.locator('#add-sub-form').getByRole('button', { name: 'subscribe' }).click();
 
-  const offer = page.getByRole('dialog', { name: 'Add this blyg to address book?' });
+  // The same sheet carries on: it never closes between the two steps.
+  const offer = page.getByRole('dialog', { name: 'subscribe' });
+  await expect(offer.getByText('Subscribed to A Title.')).toBeVisible();
+  await expect(offer.getByText('Add this blyg to your address book?')).toBeVisible();
+  await expect(offer.locator('#add-sub-url')).toHaveCount(0);
   await expect(offer.locator('#offer-url')).toHaveValue(`https://zed${tag}.example/`);
   await expect(offer.locator('#offer-name')).toHaveValue(`Zed${tag} Ruiz`);
   await expect(offer.locator('#offer-handle')).toHaveValue(`zed${tag}`);
   await expect(offer.getByText('private to you')).toBeVisible();
   await expect(offer.getByText('Displayed on public page')).toBeVisible();
   await expect(offer.getByText('Where the person can be found, such as a blyg address or social feed profile')).toBeVisible();
+  await expect(offer.getByRole('button', { name: /import an OPML/ })).toBeHidden();
   await offer.getByRole('button', { name: 'not now' }).click();
   await expect(offer).toHaveCount(0);
+  // Reopened, it starts from the first step again.
+  await page.getByRole('button', { name: 'subscribe', exact: true }).first().click();
+  await expect(page.locator('#add-sub-url')).toHaveValue('');
+  await page.keyboard.press('Escape');
   const contacts = (await api(page, 'GET', '/api/contacts')).json.contacts as { handle: string }[];
   expect(contacts.some((c) => c.handle === `zed${tag}`)).toBe(false);
 });
