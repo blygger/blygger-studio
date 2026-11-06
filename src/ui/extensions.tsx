@@ -11,11 +11,12 @@
  *    entryActions() or onSelect() is caught and logged.
  *
  * Kept free of the data layer (data.ts, components.tsx) so the UI test suite
- * can render it without a browser; reading.tsx supplies the enabled list.
+ * can render it without a browser; reading.tsx and authoring.tsx supply the
+ * enabled list.
  */
 import type { ErrorInfo, ReactNode } from 'react';
 import { Component } from 'react';
-import type { EntryAction, EntryContext, StudioExtension } from './extension-api.ts';
+import type { EditorContext, EntryAction, EntryContext, StudioExtension } from './extension-api.ts';
 import type { MenuRow } from './sheets.tsx';
 
 /** The compiled-in extensions this node has enabled, in compiled order. */
@@ -53,6 +54,24 @@ export function EntryBylineSlot({ extensions, context }: { extensions: readonly 
         return (
           <ExtensionBoundary key={extension.name} name={extension.name} slot="entryByline">
             <Byline context={context(extension)} />
+          </ExtensionBoundary>
+        );
+      })}
+    </>
+  );
+}
+
+/** The editor's status line slot: each enabled extension's addition, each in its own boundary. */
+export function EditorStatusSlot({ extensions, context }: { extensions: readonly StudioExtension[]; context: EditorContext }) {
+  const filling = extensions.filter((extension) => extension.editorStatus);
+  if (!filling.length) return null;
+  return (
+    <>
+      {filling.map((extension) => {
+        const Status = extension.editorStatus!;
+        return (
+          <ExtensionBoundary key={extension.name} name={extension.name} slot="editorStatus">
+            <Status context={context} />
           </ExtensionBoundary>
         );
       })}

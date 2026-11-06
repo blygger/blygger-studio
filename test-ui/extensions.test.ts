@@ -11,8 +11,8 @@ import { join } from 'node:path';
 import { afterEach, expect, test, vi } from 'vitest';
 import { createElement, type ReactElement } from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
-import { EntryBylineSlot, EntrySheetSlot, ExtensionBoundary, entryActionRows, enabledExtensions } from '../src/ui/extensions.tsx';
-import type { EntryContext, StudioExtension } from '../src/ui/extension-api.ts';
+import { EditorStatusSlot, EntryBylineSlot, EntrySheetSlot, ExtensionBoundary, entryActionRows, enabledExtensions } from '../src/ui/extensions.tsx';
+import type { EditorContext, EntryContext, StudioExtension } from '../src/ui/extension-api.ts';
 import { extension as example } from '../extensions/example/ui/index.tsx';
 
 afterEach(() => vi.restoreAllMocks());
@@ -30,6 +30,14 @@ const context = (): EntryContext => ({
 });
 const html = (element: ReactElement) => renderToStaticMarkup(element);
 const byline = (extensions: readonly StudioExtension[]) => html(createElement(EntryBylineSlot, { extensions, context }));
+const editorContext: EditorContext = {
+  client: {} as EditorContext['client'],
+  openDraft: async () => {},
+  navigate: async () => {},
+  run: async () => {},
+  item: { id: 'x', kind: 'thread', status: 'draft', version: 0, revision: 1 },
+};
+const editorStatus = (extensions: readonly StudioExtension[]) => html(createElement(EditorStatusSlot, { extensions, context: editorContext }));
 const broken: StudioExtension = {
   name: 'broken',
   label: 'Broken',
@@ -54,6 +62,7 @@ test('with none enabled, every slot renders nothing and the ⋯ sheet gains no r
   for (const compiled of [[], [example]]) {
     const extensions = enabledExtensions(compiled, []);
     expect(byline(extensions)).toBe('');
+    expect(editorStatus(extensions)).toBe('');
     expect(entryActionRows(extensions, context)).toEqual([]);
   }
   expect(html(createElement(EntrySheetSlot, { sheet: null, close: () => {} }))).toBe('');
@@ -61,6 +70,7 @@ test('with none enabled, every slot renders nothing and the ⋯ sheet gains no r
 
 test('an enabled extension fills its slots', () => {
   expect(byline([example])).toContain('data-extension="example"');
+  expect(editorStatus([example])).toContain('thread');
   const rows = entryActionRows([example], context);
   expect(rows.map((row) => row.label)).toEqual(['example']);
   const opened: string[] = [];

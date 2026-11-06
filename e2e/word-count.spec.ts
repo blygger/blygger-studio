@@ -62,6 +62,38 @@ test('unpublished edits show as the draft count beside the published one', async
   await expect(count).toHaveAttribute('title', /Published: \d+ words\.\nDraft: \d+ words\./);
 });
 
+test('the full editor shows the same counts as the byline and follows autosave', async ({ page }) => {
+  const run = marker();
+  const chapter = await publish(page, `Editor ${run}: one two.`, 'fragment');
+  const contents = await publish(page, `Contents ${run}\n\n- [[${chapter} | The chapter]]`, 'thread');
+
+  await page.goto(`/studio/edit/${chapter}`);
+  const count = page.locator('.ed-head [data-extension=word-count]');
+  await expect(count).toHaveText('· 4 words');
+
+  // Typing moves the draft count once autosave lands, leaving the published one.
+  await page.locator('#md-input').fill(`Editor ${run}: one two three four five.`);
+  await expect(count).toHaveText('· 4 words (draft 7 words)');
+
+  // The reading view agrees.
+  await page.goto('/studio/reading?sub=own');
+  const byline = page.locator('.reading-entry').filter({ hasText: `Editor ${run}` }).locator('[data-extension=word-count]');
+  await expect(byline).toHaveText('· 4 words (draft 7 words)');
+
+  // A contents thread's editor carries the roll-up too, with the chapter's draft in it.
+  await page.goto(`/studio/edit/${contents}`);
+  await expect(page.locator('.ed-head [data-extension=word-count]')).toHaveText(/^· \d+ words · \d+ words in document \(draft \d+ words\)$/);
+});
+
+test('off, the editor carries no count', async ({ page }) => {
+  await setExtensions(page, []);
+  const run = marker();
+  const id = await publish(page, `Off editor ${run}: nothing to show.`, 'fragment');
+  await page.goto(`/studio/edit/${id}`);
+  await expect(page.locator('.ed-head')).toContainText('v1');
+  await expect(page.locator('[data-extension=word-count]')).toHaveCount(0);
+});
+
 test('off, bylines carry no count', async ({ page }) => {
   await setExtensions(page, []);
   const run = marker();

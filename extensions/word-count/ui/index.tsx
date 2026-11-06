@@ -1,9 +1,10 @@
 /*
- * word-count: words at the end of each reading entry's byline, and for an item
- * whose outline links form a clean tree (a contents thread), the words in the
- * whole document under it. Our own entries are counted by the extension's
- * owner read, one request per page; imported ones from the HTML the reading
- * view already holds, with no roll-up.
+ * word-count: words at the end of each reading entry's byline and the full
+ * editor's status line, and for an item whose outline links form a clean tree
+ * (a contents thread), the words in the whole document under it. Our own
+ * entries are counted by the extension's owner read, one request per page;
+ * imported ones from the HTML the reading view already holds, with no roll-up.
+ * The editor re-reads after each autosave, so it and the byline count alike.
  */
 import { useEffect, useState } from 'react';
 import type { StudioExtension } from '../../../src/ui/extension-api.ts';
@@ -40,16 +41,18 @@ function countFor(client: BlyggerClient, key: string) {
   return count;
 }
 
-function useOwnCount(client: BlyggerClient, key: string, wanted: boolean) {
+/** Pass `revision` to re-read past the cache whenever it moves; a failed re-read keeps the last count. */
+function useOwnCount(client: BlyggerClient, key: string, wanted: boolean, revision?: number) {
   const [count, setCount] = useState<WordCount>();
   useEffect(() => {
     if (!wanted) return;
+    if (revision !== undefined) cache.delete(key);
     let live = true;
-    void countFor(client, key).then((got) => live && setCount(got));
+    void countFor(client, key).then((got) => live && setCount((last) => got ?? last));
     return () => {
       live = false;
     };
-  }, [client, key, wanted]);
+  }, [client, key, wanted, revision]);
   return count;
 }
 
@@ -106,7 +109,7 @@ function OwnCount({ count }: { count: WordCount }) {
 export const extension: StudioExtension = {
   name: 'word-count',
   label: 'Word count',
-  description: 'Shows each entry’s word count at the end of its byline, published and in draft, and for a thread whose list of links forms an outline, such as a table of contents, the words in the whole document under it.',
+  description: 'Shows each entry’s word count at the end of its byline and in the full editor, published and in draft, and for a thread whose list of links forms an outline, such as a table of contents, the words in the whole document under it.',
   entryByline: ({ context }) => {
     const { entry } = context;
     const own = entry.source === 'own' && !entry.withdrawn;
@@ -119,5 +122,11 @@ export const extension: StudioExtension = {
         · {label}
       </span>
     ) : null;
+  },
+  editorStatus: ({ context }) => {
+    const { item } = context;
+    const own = item.status !== 'withdrawn';
+    const served = useOwnCount(context.client, `own:${item.id}`, own, item.revision);
+    return own && served ? <OwnCount count={served} /> : null;
   },
 };

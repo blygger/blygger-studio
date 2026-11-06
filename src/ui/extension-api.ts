@@ -66,6 +66,18 @@ export interface EntryContext extends StudioContext {
   openSheet(render: (close: () => void) => ReactNode): void;
 }
 
+/** The item open in the full editor. */
+export interface EditorContext extends StudioContext {
+  item: {
+    id: string;
+    kind: 'fragment' | 'thread';
+    status: 'draft' | 'public' | 'withdrawn';
+    version: number;
+    /** Moves each time the working copy reaches the server, so autosave is what a slot re-reads on. */
+    revision: number;
+  };
+}
+
 /** A row an extension adds to an entry's ⋯ sheet, below the Studio's own. */
 export interface EntryAction {
   icon?: ReactNode;
@@ -85,6 +97,8 @@ export interface StudioExtension {
   entryByline?: ComponentType<{ context: EntryContext }>;
   /** Rows for a reading entry's ⋯ sheet. Called when the sheet opens. */
   entryActions?: (context: EntryContext) => EntryAction[];
+  /** Rendered at the end of the full editor's status line. */
+  editorStatus?: ComponentType<{ context: EditorContext }>;
   /** A page of its own at /studio/ext/<name>, linked from More. */
   page?: { title: string; component: ComponentType<{ context: StudioContext }> };
 }

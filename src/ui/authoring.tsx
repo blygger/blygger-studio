@@ -7,7 +7,7 @@
  * optional on-device reader is ocr.tsx), ⧉ copy + link and share…
  * (plain-text.ts), list filters, and the published banner.
  */
-import { createHopper, addHopperItem, uploadMedia } from './server-mutations.ts';
+import { createHopper, createItem, addHopperItem, uploadMedia } from './server-mutations.ts';
 import type { ReactNode, RefObject } from 'react';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useLiveQuery, useLiveInfiniteQuery, and, eq } from '@tanstack/react-db';
@@ -21,6 +21,7 @@ import { previewFromHtml } from '../preview.ts';
 import { CHANGE_CATEGORIES, composeNote, noteIsGenerated, recategorize, type ChangeCategory } from '../change-category.ts';
 import type { ListItemsResponses, Version } from '../../sdk/dist/browser.js';
 import { BlyggerApi, unwrap } from '../../sdk/dist/browser.js';
+import type { EditorContext } from './extension-api.ts';
 import type { Detail } from './data.ts';
 import { client, items, itemVersions, itemSummary, itemDetail, createDraftAction, settings as settingsCollection, listViews, preloadView } from './data.ts';
 import {
@@ -35,6 +36,8 @@ import {
   publicPath,
 } from './components.tsx';
 import { Sheet, confirm, menu, prompt, toast } from './sheets.tsx';
+import { compiledExtensions } from '../../build/extensions.ui.ts';
+import { EditorStatusSlot, enabledExtensions } from './extensions.tsx';
 import { HandlePicker } from './contacts.tsx';
 import { BracketPicker } from './picker.tsx';
 import { setTextAt } from './caret.ts';
@@ -1946,6 +1949,16 @@ function Editor({ item, onDiscarding }: { item: Detail; onDiscarding?: (active: 
       ],
     });
   const over = text.length > MAX && !isThread;
+  const statusContext: EditorContext = {
+    client,
+    openDraft: async (body) => {
+      const created = await createItem(body);
+      await navigate({ to: '/edit/$id', params: { id: created.id } });
+    },
+    navigate: (location) => navigate(location as never),
+    run: (fn) => action.run(async () => fn()),
+    item: { id: item.id, kind: item.kind, status: item.status, version: item.version, revision: item.revision },
+  };
   return (
     <div className="editor">
       <p className="ed-head">
@@ -1959,6 +1972,7 @@ function Editor({ item, onDiscarding }: { item: Detail; onDiscarding?: (active: 
             </span>
           </>
         ) : null}
+        <EditorStatusSlot extensions={enabledExtensions(compiledExtensions, settings?.extensions)} context={statusContext} />
       </p>
       <PublishedBanner published={published} dismiss={() => setPublished(undefined)} />
       <div id="error-banner-slot">

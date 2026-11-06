@@ -13,7 +13,7 @@ Extensions are one of three places a mod can live; [`mods.md`](mods.md) says whi
 | `inspect` | Adds "inspect" to each reading entry's ⋯ sheet: the record this Studio holds for it, and its JSON. Browser only; shipped in `extensions.json`. |
 | `lineage-glyph` | The lineage glyph, hex view and action ring from #35. A glyph in each reading byline counts what a post draws on and what draws on it here. It opens a hex view of one hop of ancestors and descendants, where each corner previews what stub, quote a passage, fork, link post, history and open would make, and a second press runs that action. The actions are the Studio's own (or drafts and navigation through the extension context), so they write through the owner's session like the ⋯ sheet does. Its server routes are owner reads: `GET /api/ext/lineage-glyph/lineage` and `/summaries`. `scripts/lineage-demo.ts` runs a seeded local node with it enabled. |
 | `reading-time` | An estimated reading time and word count at the end of each reading entry's byline. Browser only; shipped in `extensions.json`. |
-| `word-count` | Each reading entry's word count at the end of its byline, published and in draft (the working copy as publish would bake it now), and for a thread whose outline links (list items that are just an `[[id]]` link, as a table of contents is written) form a strict tree of your own items (published or draft), the words in the whole document under it. Inline links (navigation, citations) are never followed; transclusions are already in a thread's own count. Its server route is an owner read: `GET /api/ext/word-count/counts`. |
+| `word-count` | Each reading entry's word count at the end of its byline and the full editor's status line (re-read after each autosave), published and in draft (the working copy as publish would bake it now), and for a thread whose outline links (list items that are just an `[[id]]` link, as a table of contents is written) form a strict tree of your own items (published or draft), the words in the whole document under it. Inline links (navigation, citations) are never followed; transclusions are already in a thread's own count. Its server route is an owner read: `GET /api/ext/word-count/counts`. |
 
 ## What an extension can do
 
@@ -21,7 +21,8 @@ Extensions are one of three places a mod can live; [`mods.md`](mods.md) says whi
 | --- | --- | --- |
 | Reading byline | Something at the end of each reading entry's byline, such as a badge or a button | `entryByline` (a component) |
 | Reading actions | Rows after the Studio's own in an entry's ⋯ sheet | `entryActions(context)` |
-| Sheets | A sheet of its own, opened from either slot above | `context.openSheet(render)` |
+| Editor status | Something at the end of the full editor's status line, for the item being edited | `editorStatus` (a component) |
+| Sheets | A sheet of its own, opened from a reading byline or reading actions | `context.openSheet(render)` |
 | A page | A screen at `/studio/ext/<name>`, linked from More | `page` |
 | Owner reads | `GET /api/ext/<name>/…` routes, in the documented contract and the SDK | `extensions/<name>/contract.ts` + `server.ts` |
 | Feed orders | An order for the public home page, chosen in Settings → home page | `feeds` in `server.ts` (see "Feed orders" below) |
@@ -34,6 +35,8 @@ A slot receives a narrow context ([`src/ui/extension-api.ts`](../src/ui/extensio
 - `actions`: the Studio's own handlers for this entry (`stub`, `fork`, `linkPost`, `history`, `open`), present only where the Studio offers them. An extension can present the existing actions differently without reimplementing them.
 - `openSheet(render)`: open a sheet that the extension owns, under the entry.
 
+The editor status slot gets the verbs (`client`, `openDraft`, `navigate`, `run`) and `item`: its `id`, `kind`, `status`, `version` and `revision`. `revision` moves each time autosave reaches the server, so a slot that shows something derived from the working copy re-reads on it. The slot does not get the unsaved text.
+
 Extensions do not get the router, the query cache, the data collections or any other Studio module. An extension's UI may import only `src/ui/extension-api.ts` (which also re-exports the Studio's `Sheet`, `Button`, `toast` and `confirm`), React, the SDK (`sdk/dist/browser.js`) and files in its own directory. `test-ui/extensions.test.ts` enforces this rule.
 
 Each slot renders inside an error boundary. If an extension throws, that slot renders nothing until the page reloads, and the console names the extension. A throwing `entryActions()` or row handler is caught the same way. The rest of the Studio carries on.
@@ -44,7 +47,7 @@ Each slot renders inside an error boundary. If an extension throws, that slot re
 - **Writes.** Extension routes are GETs under `/api/ext/<name>/`. The permission model classifies them as `owner:read`, and a route registered with any other method or prefix is refused when the Worker starts. An extension that wants to change something uses the existing contract through `client`, under the same scopes as any client.
 - **The wire.** An extension does not reach `blyg.json`, public pages, feeds, `content_html` or mentions. It is studio furniture for one owner. The one exception is order: a feed order may decide the sequence of the home page's cards, and nothing else (session 46; see "Feed orders").
 - **Changing the Studio's own controls.** No slot rewrites, hides or annotates a built-in button, row or label. #35 needed this (hover previews on `stub ↗`, tips on ⋯ rows), and it was left out because it would make the base UI's markup depend on extension code. See the open questions in the extension PR.
-- **Other screens.** The slots are on the reading view only, plus an extension's own page. New slots should be added when an extension needs them, not before.
+- **Other screens.** The slots are on the reading view and the full editor's status line, plus an extension's own page. New slots should be added when an extension needs them, not before.
 
 ## Writing one
 
