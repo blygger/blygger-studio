@@ -20,7 +20,32 @@ async function open(page: Page, contentMd: string) {
   return json.id as string;
 }
 const enter = (page: Page) => page.getByRole('button', { name: 'focus view', exact: true }).click();
-const exit = (page: Page) => page.getByRole('button', { name: 'exit focus view', exact: true }).click();
+const bar = (page: Page) => page.locator('.focus-bar');
+/** Bring the controls back the way a writer would: pointer to the top, or a tap there. */
+async function reveal(page: Page) {
+  if ((await bar(page).getAttribute('data-shown')) === 'true') return;
+  if (page.viewportSize()!.width < 600) await page.locator('.focus-hot').tap();
+  else await page.mouse.move(page.viewportSize()!.width / 2, 10);
+  await expect(bar(page)).toHaveAttribute('data-shown', 'true');
+}
+async function exit(page: Page) {
+  await reveal(page);
+  await page.getByRole('button', { name: 'exit focus view', exact: true }).click();
+}
+const tab = (page: Page, name: 'write' | 'preview') => page.locator(`.focus-bar [data-tab=${name === 'write' ? 'draft' : 'preview'}]`);
+/**
+ * How far the last line of the text sits from where it should, in lines. Measured
+ * from the scroll geometry rather than by laying the text out again, as the code
+ * under test does: with the caret at the end, the caret's line is the last line.
+ */
+const lastLineOffCentre = (page: Page, middle?: number) =>
+  box(page).evaluate((el: HTMLTextAreaElement, middle) => {
+    const style = getComputedStyle(el);
+    const lineHeight = parseFloat(style.lineHeight);
+    const y = el.scrollHeight - parseFloat(style.paddingBottom) - lineHeight / 2 - el.scrollTop;
+    return Math.abs(y - (middle ?? el.clientHeight / 2)) / lineHeight;
+  }, middle);
+const longDraft = Array.from({ length: 120 }, (_, i) => `Line ${i}.`).join('\n');
 const box = (page: Page) => page.locator('#md-input');
 /** Whether the caret's line is inside the textarea's visible window. */
 const caretInView = (page: Page) =>
@@ -105,14 +130,15 @@ test('autosave keeps working inside the view', async ({ page }) => {
 test('a failed autosave shows in the view; half-typed link errors do not', async ({ page }) => {
   const id = await open(page, 'Fails.');
   await enter(page);
-  await box(page).fill('See [[nothing-here]]');
-  await expect(page.locator('#preview-body')).toBeAttached();
-  await page.waitForResponse((r) => r.url().includes('/preview'));
-  await expect(page.locator('#error-banner-slot .banner')).toHaveCount(0);
+  const previewed = page.waitForResponse((r) => r.url().includes('/preview'));
+  await box(page).fill('See [[00000000000000000000000000]] and @nobody');
+  await previewed;
+  await page.waitForTimeout(100);
+  await expect(page.locator('#error-banner-slot')).toBeEmpty();
   await page.route(`**/api/items/${id}`, (route) => route.request().method() === 'PATCH' ? route.fulfill({ status: 500, json: { code: 'internal', message: 'save rejected' } }) : route.continue());
-  await box(page).fill('See [[nothing-here]] and more.');
+  await box(page).fill('See [[00000000000000000000000000]] and more.');
   await expect(page.locator('#error-banner-slot')).toContainText('save rejected');
-  await expect(box(page)).toHaveValue('See [[nothing-here]] and more.');
+  await expect(box(page)).toHaveValue('See [[00000000000000000000000000]] and more.');
   await page.unroute(`**/api/items/${id}`);
 });
 
@@ -197,4 +223,272 @@ test('the view goes browser-fullscreen, and leaving fullscreen leaves the view',
   await page.evaluate(() => document.exitFullscreen());
   await expect.poll(fullscreen).toBe(false);
   await expect(page.locator('.editor')).toHaveClass(/is-focus/);
+});
+
+test('typewriter: the line being written stays mid-window, across soft wraps and at the end of the text', async ({ page }) => {
+  await open(page, longDraft + '\n');
+  await enter(page);
+  await box(page).evaluate((el: HTMLTextAreaElement) => el.setSelectionRange(el.value.length, el.value.length));
+  const words = 'The ooze hardens slowly and then all at once, which is the whole trouble with it. '.repeat(3);
+  for (const char of words) {
+    await page.keyboard.type(char);
+    expect(await lastLineOffCentre(page)).toBeLessThan(1);
+  }
+  // It really wrapped: the last logical line takes several lines on screen.
+  expect(await box(page).evaluate((el: HTMLTextAreaElement) => {
+    const style = getComputedStyle(el);
+    const lines = (el.scrollHeight - parseFloat(style.paddingTop) - parseFloat(style.paddingBottom)) / parseFloat(style.lineHeight);
+    return lines - el.value.split('\n').length;
+  })).toBeGreaterThan(0);
+});
+
+test('typewriter: the caret keys recentre, a click and a selection do not, and scrolling away is left alone', async ({ page }, info) => {
+  test.skip(info.project.name !== 'desktop', 'mouse and keyboard');
+  await open(page, longDraft);
+  await enter(page);
+  // Going fullscreen resizes the box late, and the view recentres on the caret for
+  // that: let it finish, so that what moves the text below is only what each step does.
+  await page.waitForTimeout(1600);
+  const scrollTop = () => box(page).evaluate((el: HTMLTextAreaElement) => el.scrollTop);
+  const caretLine = () => box(page).evaluate((el: HTMLTextAreaElement) => el.value.slice(0, el.selectionEnd).split('\n').length);
+  const lineOffCentre = () => box(page).evaluate((el: HTMLTextAreaElement) => {
+    const style = getComputedStyle(el);
+    const lineHeight = parseFloat(style.lineHeight);
+    const lines = el.value.slice(0, el.selectionEnd).split('\n').length;
+    return Math.abs(parseFloat(style.paddingTop) + (lines - 0.5) * lineHeight - el.scrollTop - el.clientHeight / 2) / lineHeight;
+  });
+  await box(page).evaluate((el: HTMLTextAreaElement) => { const at = el.value.indexOf('Line 60.'); el.setSelectionRange(at, at); });
+  await page.keyboard.press('ArrowDown');
+  await expect.poll(lineOffCentre).toBeLessThan(1);
+  await page.keyboard.press('ArrowDown');
+  await expect.poll(lineOffCentre).toBeLessThan(1);
+  expect(await caretLine()).toBe(63);
+
+  // A click places the caret where the pointer is and the text stays put.
+  const before = await scrollTop();
+  await page.mouse.click(640, 600);
+  await page.waitForTimeout(100);
+  expect(await scrollTop()).toBe(before);
+  expect(await lineOffCentre()).toBeGreaterThan(3);
+  // Selecting with shift or the mouse does not move the text either.
+  await page.keyboard.press('Shift+ArrowDown');
+  await page.waitForTimeout(100);
+  expect(await scrollTop()).toBe(before);
+  await page.mouse.move(400, 300);
+  await page.mouse.down();
+  await page.mouse.move(600, 500, { steps: 4 });
+  await page.mouse.up();
+  await page.waitForTimeout(100);
+  expect(await scrollTop()).toBe(before);
+
+  // Scrolling away stays where it was, until the next keystroke brings the caret back.
+  await page.keyboard.press('ArrowRight');
+  await page.mouse.move(640, 300);
+  await page.mouse.wheel(0, -1000);
+  await expect.poll(scrollTop).toBeLessThan(before - 500);
+  const scrolled = await scrollTop();
+  await page.waitForTimeout(300);
+  expect(await scrollTop()).toBe(scrolled);
+  await page.keyboard.type('x');
+  await expect.poll(lineOffCentre).toBeLessThan(1);
+});
+
+// No browser here raises a real on-screen keyboard. This stands in for what one
+// reports: a visual viewport shorter than the window, and a resize event.
+test('typewriter: an on-screen keyboard moves the middle up to what can still be seen', async ({ page }, info) => {
+  test.skip(info.project.name !== 'mobile', 'only a touch screen keeps the extra space below for this');
+  await open(page, longDraft);
+  await page.evaluate(() => {
+    const view = Object.assign(new EventTarget(), { height: innerHeight, offsetTop: 0, scale: 1 });
+    Object.defineProperty(window, 'visualViewport', { value: view, configurable: true });
+  });
+  await enter(page);
+  await box(page).evaluate((el: HTMLTextAreaElement) => { el.focus(); el.setSelectionRange(el.value.length, el.value.length); });
+  const height = await page.evaluate(() => {
+    const view = window.visualViewport as unknown as EventTarget & { height: number };
+    view.height = Math.round(innerHeight * 0.45);
+    view.dispatchEvent(new Event('resize'));
+    return view.height;
+  });
+  await expect.poll(() => lastLineOffCentre(page, height / 2)).toBeLessThan(1);
+  await page.keyboard.type(' more');
+  expect(await lastLineOffCentre(page, height / 2)).toBeLessThan(1);
+  // Pinch zoom also resizes the viewport, and must not move the text.
+  const before = await box(page).evaluate((el: HTMLTextAreaElement) => el.scrollTop);
+  await page.evaluate(() => {
+    const view = window.visualViewport as unknown as EventTarget & { height: number; scale: number };
+    view.scale = 2;
+    view.height = 200;
+    view.dispatchEvent(new Event('resize'));
+  });
+  await page.waitForTimeout(100);
+  expect(await box(page).evaluate((el: HTMLTextAreaElement) => el.scrollTop)).toBe(before);
+});
+
+test('controls: shown on the way in, gone while typing, back when the pointer nears the top', async ({ page }, info) => {
+  test.skip(info.project.name !== 'desktop', 'a phone has no pointer');
+  await open(page, 'Controls ');
+  await enter(page);
+  await expect(bar(page)).toHaveAttribute('data-shown', 'true');
+  await box(page).evaluate((el: HTMLTextAreaElement) => { el.focus(); el.setSelectionRange(el.value.length, el.value.length); });
+  await page.keyboard.type('typing');
+  await expect(bar(page)).toHaveAttribute('data-shown', 'false');
+  await expect(bar(page)).toHaveCSS('opacity', '0');
+  await expect(bar(page)).toHaveCSS('pointer-events', 'none');
+  await page.mouse.move(640, 300);
+  await expect(bar(page)).toHaveAttribute('data-shown', 'false');
+  await page.mouse.move(640, 20);
+  await expect(bar(page)).toHaveAttribute('data-shown', 'true');
+  await expect(bar(page)).toHaveCSS('opacity', '1');
+  await page.mouse.move(640, 300);
+  await expect(bar(page)).toHaveAttribute('data-shown', 'false');
+  // Near the top but typing: typing wins, until the pointer next moves.
+  await page.mouse.move(640, 20);
+  await box(page).focus();
+  await page.keyboard.type(' more');
+  await expect(bar(page)).toHaveAttribute('data-shown', 'false');
+  await expect(box(page)).toHaveValue('Controls typing more');
+});
+
+test('controls: the intro fades by itself', async ({ page }, info) => {
+  test.skip(info.project.name !== 'desktop', 'one pointer case is enough');
+  await open(page, 'Intro.');
+  await page.mouse.move(640, 400);
+  await enter(page);
+  await page.mouse.move(640, 400);
+  await expect(bar(page)).toHaveAttribute('data-shown', 'false', { timeout: 4000 });
+});
+
+test('controls: the keyboard reaches them while they are faded', async ({ page }, info) => {
+  test.skip(info.project.name !== 'desktop', 'a phone has no Tab');
+  await open(page, 'Keys ');
+  await enter(page);
+  await box(page).focus();
+  await page.keyboard.type('x');
+  await expect(bar(page)).toHaveCSS('opacity', '0');
+  await page.keyboard.press('Shift+Tab');
+  await expect(page.getByRole('button', { name: 'exit focus view', exact: true })).toBeFocused();
+  await expect(bar(page)).toHaveCSS('opacity', '1');
+  await page.keyboard.press('Shift+Tab');
+  await expect(tab(page, 'preview')).toBeFocused();
+  await page.keyboard.press('Enter');
+  await expect(page.locator('#preview-pane')).toBeVisible();
+  await page.keyboard.press('Escape');
+  await expect(page.locator('.editor')).not.toHaveClass(/is-focus/);
+});
+
+test('controls: a tap near the top shows them without moving the caret, a tap on the text hides them', async ({ page }, info) => {
+  test.skip(info.project.name !== 'mobile', 'touch');
+  await open(page, longDraft);
+  await enter(page);
+  await box(page).fill('Tap here\nand here');
+  await expect(bar(page)).toHaveAttribute('data-shown', 'false');
+  await box(page).evaluate((el: HTMLTextAreaElement) => el.setSelectionRange(3, 3));
+  await page.locator('.focus-hot').tap();
+  await expect(bar(page)).toHaveAttribute('data-shown', 'true');
+  expect(await box(page).evaluate((el: HTMLTextAreaElement) => el.selectionStart)).toBe(3);
+  await page.touchscreen.tap(195, 400);
+  await expect(bar(page)).toHaveAttribute('data-shown', 'false');
+  await page.locator('.focus-hot').tap();
+  await tab(page, 'preview').tap();
+  await expect(page.locator('#preview-pane')).toBeVisible();
+  await tab(page, 'write').tap();
+  await expect(box(page)).toBeVisible();
+});
+
+test('preview tab: the same rendered preview, and write comes back with text, caret, scroll and undo', async ({ page }, info) => {
+  await open(page, longDraft + '\n\nThe *ooze* hardens.');
+  await enter(page);
+  await box(page).evaluate((el: HTMLTextAreaElement) => { el.focus(); const at = el.value.indexOf('Line 80.'); el.setSelectionRange(at, at); });
+  if (info.project.name === 'desktop') {
+    await page.keyboard.type('edit ');
+    await expect(box(page)).toHaveValue(/edit Line 80\./);
+    await expect(bar(page)).toHaveAttribute('data-shown', 'false');
+  }
+  const state = () => box(page).evaluate((el: HTMLTextAreaElement) => ({ value: el.value, caret: el.selectionStart, scrollTop: el.scrollTop }));
+  const before = await state();
+  await reveal(page);
+  await tab(page, 'preview').click();
+  await expect(page.locator('#preview-body em')).toHaveText('ooze');
+  await expect(page.locator('#preview-pane')).toBeVisible();
+  await expect(page.locator('#preview-pane')).toBeFocused();
+  await expect(box(page)).toBeHidden();
+  await expect(page.locator('.preview-pane')).toHaveCount(1);
+  await expect(bar(page)).toHaveAttribute('data-shown', 'true');
+  await expect(tab(page, 'preview')).toHaveAttribute('aria-pressed', 'true');
+  const rect = (await page.locator('#preview-pane').boundingBox())!;
+  expect(rect.width).toBeGreaterThanOrEqual(page.viewportSize()!.width - 1);
+  await tab(page, 'write').click();
+  await expect(box(page)).toBeVisible();
+  await expect(box(page)).toBeFocused();
+  await expect(page.locator('#preview-pane')).toBeHidden();
+  expect(await state()).toEqual(before);
+  if (info.project.name === 'desktop') {
+    await page.keyboard.press('ControlOrMeta+z');
+    await expect(box(page)).not.toHaveValue(/edit Line 80\./);
+  }
+});
+
+test('preview tab: autosave finishes behind it, and it shows what was just typed', async ({ page }) => {
+  const id = await open(page, 'Before.');
+  await enter(page);
+  const saved = page.waitForResponse((r) => r.url().endsWith(`/api/items/${id}`) && r.request().method() === 'PATCH' && r.status() === 200);
+  await box(page).fill('Typed *then* switched.');
+  await expect(bar(page)).toHaveAttribute('data-shown', 'false');
+  await reveal(page);
+  await tab(page, 'preview').click();
+  await saved;
+  await expect(page.locator('#preview-body em')).toHaveText('then');
+  const { json } = await api(page, 'GET', `/items/${id}`);
+  expect(json.contentMd).toBe('Typed *then* switched.');
+});
+
+test('preview tab: its shortcut switches both ways, and link warnings wait for it', async ({ page }, info) => {
+  test.skip(info.project.name !== 'desktop', 'a phone has no chord');
+  await open(page, 'See [[00000000000000000000000000]] and @nobody');
+  await enter(page);
+  await expect(page.locator('#error-banner-slot')).toBeEmpty();
+  for (const modifier of ['Control', 'Meta']) {
+    await page.keyboard.press(`${modifier}+Alt+Enter`);
+    await expect(page.locator('#preview-pane')).toBeVisible();
+    await expect(page.locator('#error-banner-slot')).toContainText('unknown item');
+    await page.keyboard.press(`${modifier}+Alt+Enter`);
+    await expect(box(page)).toBeVisible();
+    await expect(page.locator('#error-banner-slot')).toBeEmpty();
+  }
+  // Outside the view it does nothing.
+  await page.keyboard.press('Escape');
+  await page.keyboard.press('Control+Alt+Enter');
+  await expect(page.locator('.editor')).not.toHaveClass(/is-focus/);
+  await expect(page.locator('.editor-grid')).toHaveAttribute('data-pane', 'draft');
+});
+
+test('leaving from the preview tab returns to the draft', async ({ page }) => {
+  await open(page, 'Round trip.');
+  await enter(page);
+  await reveal(page);
+  await tab(page, 'preview').click();
+  await exit(page);
+  await expect(page.locator('.editor')).not.toHaveClass(/is-focus/);
+  await expect(box(page)).toBeVisible();
+  await expect(box(page)).toHaveValue('Round trip.');
+});
+
+test('on a phone the picker dock pushes the writing line above it', async ({ page }, info) => {
+  test.skip(info.project.name !== 'mobile', 'the dock is a phone layout');
+  await open(page, longDraft);
+  await api(page, 'PATCH', '/settings', { pickerTyping: 'editor' });
+  await page.reload();
+  await expect(box(page)).toBeVisible();
+  await enter(page);
+  await box(page).evaluate((el: HTMLTextAreaElement) => { el.focus(); el.setSelectionRange(el.value.length, el.value.length); });
+  await page.keyboard.type(' [[');
+  await expect(page.locator('.picker')).toBeVisible();
+  await page.keyboard.type('x');
+  const dockTop = (await page.locator('.picker').boundingBox())!.y;
+  await expect.poll(() => box(page).evaluate((el: HTMLTextAreaElement) => {
+    const style = getComputedStyle(el);
+    return el.scrollHeight - parseFloat(style.paddingBottom) - el.scrollTop;
+  })).toBeLessThan(dockTop);
+  await api(page, 'PATCH', '/settings', { pickerTyping: 'auto' });
 });

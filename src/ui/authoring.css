@@ -146,17 +146,33 @@
 /* Focus view: the editor fills the screen with the same textarea and nothing else
    of the studio. Failures still show (#error-banner-slot); sheets, toasts and the
    picker sit above it. The textarea stays full width, its padding making the
-   measure, so the scrollbar is at the window's edge and the margins scroll too. */
+   measure, so the scrollbar is at the window's edge and the margins scroll too.
+   The space below the text lets its last line reach the middle of the window. */
 body.focus-view .topbar, body.focus-view .views > :not(.screen) { display: none; }
 .editor.is-focus { position: fixed; inset: 0; z-index: 40; display: flex; flex-direction: column; background: var(--card); color: var(--ink); }
-.editor.is-focus > :not(.editor-grid, #error-banner-slot, .focus-exit), .editor.is-focus .preview-pane, .editor.is-focus .editor-pane > :not(.ta-wrap) { display: none; }
-.editor.is-focus #error-banner-slot:not(:empty) { padding: var(--s2) var(--s4); padding-top: max(var(--s2), env(safe-area-inset-top)); }
-.editor.is-focus .editor-grid, .editor.is-focus .editor-pane, .editor.is-focus .ta-wrap { display: flex; flex-direction: column; align-items: stretch; flex: 1; min-height: 0; }
+.editor.is-focus > :not(.editor-grid, #error-banner-slot, .focus-bar, .focus-hot), .editor.is-focus .editor-pane > :not(.ta-wrap) { display: none; }
+.editor.is-focus #error-banner-slot:not(:empty) { padding: 60px var(--s4) var(--s2); padding-top: calc(60px + env(safe-area-inset-top)); }
+.editor.is-focus .editor-grid { position: relative; }
+.editor.is-focus .editor-grid, .editor.is-focus .editor-grid .editor-pane, .editor.is-focus .ta-wrap { display: flex; flex-direction: column; align-items: stretch; flex: 1; min-height: 0; }
 .editor.is-focus textarea.md { flex: 1; min-height: 0; resize: none; background: transparent; border: none; border-radius: 0; box-shadow: none; font-family: var(--sans); font-size: 1.15rem; line-height: 1.7;
-  padding: max(48px, env(safe-area-inset-top)) max(var(--s4), calc((100% - 68ch) / 2)) 40vh; }
+  padding: max(48px, env(safe-area-inset-top)) max(var(--s4), calc((100% - 68ch) / 2)) 55vh; }
+/* An on-screen keyboard moves the middle up, so a touch screen needs more below. */
+@media (any-pointer: coarse) { .editor.is-focus textarea.md { padding-bottom: 85vh; } }
 .editor.is-focus textarea.md:focus { outline: none; box-shadow: none; }
-.focus-exit { position: absolute; top: max(var(--s2), env(safe-area-inset-top)); right: var(--s3); z-index: 1; background: var(--card); color: var(--ink-soft); opacity: .6; }
-.focus-exit:hover, .focus-exit:focus-visible { opacity: 1; }
+/* The preview tab lies over the text, which stays laid out: hiding it with display
+   would lose its scroll position and, in some browsers, its undo history. */
+.editor.is-focus .editor-grid[data-pane=preview] .editor-pane { visibility: hidden; }
+.editor.is-focus .editor-grid[data-pane=draft] .preview-pane { display: none; }
+.editor.is-focus .editor-grid[data-pane=preview] .preview-pane { display: block; position: absolute; inset: 0; min-height: 0; overflow-y: auto; border: none; border-radius: 0; background: transparent; font-size: 1.15rem; line-height: 1.7; outline: none;
+  padding: 72px max(var(--s4), calc((100% - 68ch) / 2)) 25vh; }
+/* The controls fade rather than leave, so the keyboard can still reach them. */
+.focus-bar { position: absolute; top: 0; left: 0; right: 0; z-index: 2; display: flex; align-items: center; justify-content: space-between; gap: var(--s3); padding: var(--s2) var(--s3); padding-top: max(var(--s2), env(safe-area-inset-top));
+  background: var(--card); border-bottom: 1px solid var(--rule); opacity: 0; pointer-events: none; transition: opacity .3s .2s; }
+.focus-bar .segmented { margin: 0; }
+.focus-bar[data-shown=true], .focus-bar:focus-within { opacity: 1; pointer-events: auto; transition: opacity .12s; }
+.focus-hot { display: none; }
+@media (any-pointer: coarse) { .focus-hot { display: block; position: absolute; top: 0; left: 0; right: 0; height: calc(56px + env(safe-area-inset-top)); z-index: 1; } }
+@media (prefers-reduced-motion: reduce) { .focus-bar, .focus-bar[data-shown=true], .focus-bar:focus-within { transition: none; } }
 .ed-cards { margin-top: 16px; }
 .ed-cards .card .row > input { flex: 1; min-width: 0; }
 .kv, .ed-cards .h-row { display: flex; gap: 8px; align-items: center; padding: 8px 0; border-top: 1px solid var(--rule); border-bottom: none; font-size: .84rem; flex-wrap: wrap; margin: 0; }
