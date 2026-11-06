@@ -2024,47 +2024,48 @@ function Editor({ item, onDiscarding }: { item: Detail; onDiscarding?: (active: 
         ))}
       </div>
       <div className="editor-grid" data-pane={pane}>
-        <div className="editor-pane">
-          <ToolRow
-            tools={tools}
-            thread={isThread}
-            attach={() => upload.pick()}
-            attachId="attach-btn"
-            disabled={replacing}
-            className="ed-tools"
-          >
-            {item.status === 'draft' ? (
-              <Button
-                className="act icon-only tool"
-                data-action="switch-kind"
-                title={`make this a ${isThread ? 'fragment' : 'thread'}`}
-                onClick={() => operation(switchKind)}
-              >
-                <Swap />
-                <span className="sr-only">make this a {isThread ? 'fragment' : 'thread'}</span>
-              </Button>
-            ) : null}
+        {/* Above both panes, so the text box and the preview start level. */}
+        <ToolRow
+          tools={tools}
+          thread={isThread}
+          attach={() => upload.pick()}
+          attachId="attach-btn"
+          disabled={replacing}
+          className="ed-tools"
+        >
+          {item.status === 'draft' ? (
             <Button
-              id="tk-impyrt-btn"
               className="act icon-only tool"
-              disabled={replacing}
-              title="Wrap the selected text as machine-generated text from another tool"
-              onClick={() => {
-                const el = input.current;
-                if (!el) return;
-                const value = draft.current!.text;
-                const [from, to] = [el.selectionStart, el.selectionEnd];
-                if (from === to) {
-                  toast('Select the pasted generated text first, then mark it.');
-                  return;
-                }
-                edit(markImported(value, from, to));
-              }}
+              data-action="switch-kind"
+              title={`make this a ${isThread ? 'fragment' : 'thread'}`}
+              onClick={() => operation(switchKind)}
             >
-              <Sparkle />
-              <span className="sr-only">mark selection as generated</span>
+              <Swap />
+              <span className="sr-only">make this a {isThread ? 'fragment' : 'thread'}</span>
             </Button>
-          </ToolRow>
+          ) : null}
+          <Button
+            id="tk-impyrt-btn"
+            className="act icon-only tool"
+            disabled={replacing}
+            title="Wrap the selected text as machine-generated text from another tool"
+            onClick={() => {
+              const el = input.current;
+              if (!el) return;
+              const value = draft.current!.text;
+              const [from, to] = [el.selectionStart, el.selectionEnd];
+              if (from === to) {
+                toast('Select the pasted generated text first, then mark it.');
+                return;
+              }
+              edit(markImported(value, from, to));
+            }}
+          >
+            <Sparkle />
+            <span className="sr-only">mark selection as generated</span>
+          </Button>
+        </ToolRow>
+        <div className="editor-pane">
           <div className="ta-wrap">
             <textarea
               id="md-input"

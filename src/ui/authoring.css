@@ -125,9 +125,17 @@
    page out zoomed out, which reads as a random zoom). */
 .preview :is(img, video, iframe, embed, object, svg, canvas), #h-viewer-body :is(video, iframe, embed, object, svg, canvas) { max-width: 100%; height: auto; }
 .preview :is(pre, table), #h-viewer-body :is(pre, table) { display: block; max-width: 100%; overflow-x: auto; }
-.preview blockquote.blyg-transclusion { margin: 1rem 0; padding: 8px 12px; border-left: 3px solid var(--pencil); background: var(--sunk); border-radius: 0 8px 8px 0; font-size: .95em; }
-.preview blockquote.blyg-transclusion p { margin: 0 0 .25rem; }
-.preview .provenance { font-size: .75rem; color: var(--ink-soft); }
+/* Quotes as the public page shows them (pages.ts STYLE_CSS). */
+.preview blockquote.blyg-transclusion { margin: 1.5rem 0; padding: .25rem 0 .25rem 1.1rem; border-left: 2px solid var(--pencil); background: none; }
+.preview blockquote.blyg-transclusion > :first-child { margin-top: 0; }
+.preview blockquote.blyg-transclusion p:last-of-type { margin-bottom: .25rem; }
+.preview blockquote.blyg-transclusion :is(h1, h2) { font-size: 1.125rem; }
+.preview blockquote.blyg-transclusion h3 { font-size: 1rem; }
+.preview blockquote.blyg-transclusion :is(h1, h2, h3) { margin: 1.2em 0 .4em; }
+/* Not selectable: choosing a passage to quote must not pick up this line. */
+.preview .provenance { margin: .5rem 0 0; font-size: .75rem; color: var(--ink-soft); user-select: none; }
+.preview .provenance a { color: var(--pencil); text-decoration: none; }
+.preview .provenance a:hover { text-decoration: underline; }
 .preview .unresolved { border-left-color: var(--alert); background: var(--alert-bg); color: var(--alert); font-style: italic; }
 /* Studio-only visibility for the wire's disclosure class. */
 .preview .blyg-tk-gen { background: var(--tk-bg); border-radius: 3px; box-shadow: 0 0 0 2px var(--tk-bg); }
@@ -136,11 +144,13 @@
 /* Phones: one pane at a time, chosen by the draft | preview toggle. */
 @media (max-width: 899px) {
   .editor-grid[data-pane=draft] .preview-pane,
-  .editor-grid[data-pane=preview] .editor-pane { display: none; }
+  .editor-grid[data-pane=preview] .editor-pane,
+  .editor-grid[data-pane=preview] .ed-tools { display: none; }
 }
 @media (min-width: 900px) {
   .editor .pane-toggle { display: none; }
-  .editor-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; align-items: start; }
+  .editor-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 0 16px; align-items: start; }
+  .editor-grid > .ed-tools { grid-column: 1 / -1; }
 }
 .ed-cards { margin-top: 16px; }
 .ed-cards .card .row > input { flex: 1; min-width: 0; }
