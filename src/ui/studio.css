@@ -47,6 +47,8 @@
   --warn-bg: color-mix(in srgb, var(--warn) 13%, var(--card));
   --alert-bg: color-mix(in srgb, var(--alert) 10%, var(--card));
   --pencil-bg: color-mix(in srgb, var(--pencil) 12%, var(--card));
+  /* A fragment's editing box: the theme's accent, greyed and very light. */
+  --fragment-bg: color-mix(in srgb, var(--pencil) 9%, color-mix(in srgb, var(--ink) 5%, var(--card)));
   --tk-bg: color-mix(in srgb, var(--warn) 16%, transparent);
   /* One scale for the whole studio (spacing, compact controls, radius, muted
      text), so composer, editor, cards and sheets read as one system. */

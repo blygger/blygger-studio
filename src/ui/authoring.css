@@ -12,16 +12,21 @@
 .composer { padding: var(--s4) var(--s4) var(--s2); }
 .composer .segmented.compact { margin-bottom: var(--s2); }
 .ta-wrap { position: relative; }
-.composer textarea { display: block; width: 100%; min-height: 140px; background: transparent; border: none; border-radius: 0; padding: var(--s2) 2px var(--s3); box-shadow: none; resize: none; font-size: 1.05rem; line-height: 1.6; }
+.composer textarea { display: block; width: 100%; min-height: 140px; background: transparent; border: none; border-radius: var(--radius-sm); padding: var(--s2) var(--s2) var(--s3); box-shadow: none; resize: none; font-size: 1.05rem; line-height: 1.6; }
 .composer textarea:focus { box-shadow: none; }
+/* Fragment or thread at a glance: the box itself is tinted, in every editor. */
+.composer textarea.is-fragment, .composer textarea.is-fragment:focus,
+.editor-pane textarea.md.is-fragment, .editor-pane textarea.md.is-fragment:focus,
+.quick-edit textarea.is-fragment, .quick-edit textarea.is-fragment:focus { background: var(--fragment-bg); }
+.composer textarea.is-over, .editor-pane textarea.md.is-over, .quick-edit textarea.is-over { color: var(--alert); }
 .composer textarea::placeholder, .editor-pane textarea.md::placeholder { color: var(--muted); opacity: .8; }
 .composer-foot { display: flex; flex-wrap: wrap; align-items: center; column-gap: var(--s2); border-top: 1px solid var(--rule); margin: 0 calc(-1 * var(--s2)); padding: 2px 0 0; }
 .composer-tools, .ed-tools { display: flex; align-items: center; gap: 0; flex-wrap: wrap; min-width: 0; }
 .composer-tools .full-editor { font-size: .78rem; }
 .ed-tools { margin: 0 0 var(--s1) calc(-1 * var(--s2)); }
 .tool .ico { width: 19px; height: 19px; }
-.counter { font-size: .74rem; color: var(--muted); font-variant-numeric: tabular-nums; margin-left: auto; }
-.counter.over { color: var(--alert); font-weight: 700; }
+.counter { font-size: .82rem; font-weight: 700; color: var(--ink); font-variant-numeric: tabular-nums; margin-left: auto; }
+.counter.over, .ed-foot .counter.over { color: var(--alert); }
 .over-hint { color: var(--alert); }
 .over-hint button.link { color: inherit; font-weight: 600; }
 .save-state { font-size: .78rem; color: var(--ok); font-weight: 600; }
