@@ -17,6 +17,7 @@ import { versionState } from './version-state.ts';
 import { complete, ProviderError, AiBudgetError, type ProviderFetchLike, platformProviderFetch } from "./ai/provider.ts";
 import { getVersion } from "./model.ts";
 import { parseScopes, stripToOutput } from "./tk.ts";
+import { parseComments } from "./comments.ts";
 import type { Env, ItemRow } from "./types.ts";
 
 /** A run this long, copied from removed text, counts as reproducing it. */
@@ -61,9 +62,11 @@ export type DraftNoteResult =
 
 /** The working copy as it would publish: TK scopes stripped to their output. */
 function publishableText(contentMd: string): string | null {
-  const { scopes, errors } = parseScopes(contentMd);
+  const comments = parseComments(contentMd);
+  if (comments.errors.length) return null;
+  const { scopes, errors } = parseScopes(comments.text);
   if (errors.length || scopes.some((s) => s.output === null)) return null;
-  return stripToOutput(contentMd, scopes).text;
+  return stripToOutput(comments.text, scopes).text;
 }
 
 export async function draftChangeNote(

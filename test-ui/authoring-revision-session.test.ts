@@ -77,6 +77,7 @@ function harness(component: 'ItemRow' | 'Editor') {
     },
     extractDirectives: (text: string) => ({ count: 0, withoutDirectives: text }),
     previewStrip: (text: string) => ({ text }), parseScopes: () => ({ scopes: [] }),
+    withoutComments: (text: string) => text, parseComments: () => ({ ranges: [] }),
     renderMarkdown: (text: string) => text, previewFromHtml: (text: string) => ({ title: text, body: '' }),
     linkInline: () => /\[\[never\]\]/g,
     rowDot: () => 'public', formatDateIn: () => '',

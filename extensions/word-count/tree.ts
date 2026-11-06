@@ -26,6 +26,7 @@
 
 import { codeRanges, inRanges } from "../../src/code-ranges.ts";
 import { annotateTkPreview } from "../../src/authoring.ts";
+import { withoutComments } from "../../src/comments.ts";
 import { LINK_INLINE } from "../../src/grammar.ts";
 import { applyInternalLinks, previewInternalLinks, previewTransclusions, resolveBlockLinks } from "../../src/transclusion.ts";
 import { countWords, type Count } from "./count.ts";
@@ -147,7 +148,7 @@ export async function loadItems(db: D1Database, ourOrigin: string, ids: string[]
       .all<{ id: string; working_md: string; content_md: string | null; content_html: string | null }>();
     for (const row of results) {
       const published = row.content_md === null ? null : { count: countWords(row.content_html ?? ""), children: outlineLinks(row.content_md) };
-      const draft = published && row.working_md === row.content_md ? published : { count: countWords(await draftHtml(db, ourOrigin, row.id, row.working_md)), children: outlineLinks(row.working_md) };
+      const draft = published && row.working_md === row.content_md ? published : { count: countWords(await draftHtml(db, ourOrigin, row.id, row.working_md)), children: outlineLinks(withoutComments(row.working_md)) };
       out.set(row.id, { published, draft });
     }
   }

@@ -20,6 +20,7 @@ import { MODELS, type Manifest } from "./ai/models.ts";
 import { isChangeCategory, type ChangeCategory } from "./change-category.ts";
 import { getSettings, getVersion } from "./model.ts";
 import { parseScopes, stripToOutput } from "./tk.ts";
+import { parseComments } from "./comments.ts";
 import type { Env, ItemRow } from "./types.ts";
 import { authoredText, contentHash, nowIso } from "./util.ts";
 import { diffText } from "./word-diff.ts";
@@ -67,7 +68,9 @@ export function classifierState(prior: string, next: string, priorVersion: numbe
 
 /** The working copy as publish() would store it: authored text, TK scopes stripped to their output. */
 function publishableText(contentMd: string): string | null {
-  const source = authoredText(contentMd);
+  const comments = parseComments(authoredText(contentMd));
+  if (comments.errors.length) return null;
+  const source = comments.text;
   const { scopes, errors } = parseScopes(source);
   if (errors.length || scopes.some((s) => s.output === null)) return null;
   return stripToOutput(source, scopes).text;

@@ -1,3 +1,4 @@
+import { withoutComments } from '../comments.ts';
 import { offerBlygContact } from './contacts.tsx';
 import { createSubscription, createHopper, removeHopperItem, createItem } from './server-mutations.ts';
 import { previewFromHtml } from '../preview.ts';
@@ -755,9 +756,9 @@ function MentionGroup({ row: { group, item }, defaultShowing }: {
         {/* The public page shows the responses; editing is a side link. */}
         {item?.status === 'public' ? (
           <a href={publicPath(item)} target="_blank" rel="noreferrer">
-            {item.contentMd.slice(0, 60) || id.slice(0, 8)} ↗
+            {withoutComments(item.contentMd).slice(0, 60) || id.slice(0, 8)} ↗
           </a>
-        ) : item?.contentMd.slice(0, 60) || id.slice(0, 8)}{' '}
+        ) : (item && withoutComments(item.contentMd).slice(0, 60)) || id.slice(0, 8)}{' '}
         <Link className="muted small" to="/edit/$id" params={{ id }}>edit</Link>
       </h3>
       <p className="muted small group-meta">
