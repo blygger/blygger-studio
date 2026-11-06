@@ -1,3 +1,4 @@
+import { offerBlygContact } from './contacts.tsx';
 import { createSubscription, createHopper, removeHopperItem, createItem } from './server-mutations.ts';
 import { previewFromHtml } from '../preview.ts';
 import { useEffect, useMemo, useRef, useState } from 'react';
@@ -78,6 +79,8 @@ export function AddFeedForm({ onSubscribed, initialUrl = '' }: { onSubscribed?: 
       // The backfill runs on the server after this reply; polling brings its
       // items in, so the sheet need not wait on the refetch.
       onSubscribed?.();
+      // One blyg, subscribed by hand: bulk imports never come through this form.
+      if (result.kind === 'blyg' && !result.hopperFeedUrl) void offerBlygContact(result);
     }
   };
   return (

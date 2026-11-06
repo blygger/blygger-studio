@@ -14,3 +14,22 @@ export function handleInsert(text: string, trigger: HandleTrigger, handle: strin
   const inserted = `@${handle} `;
   return { text: text.slice(0, trigger.start) + inserted + text.slice(trigger.end), caret: trigger.start + inserted.length };
 }
+
+/** A first guess at a handle: the name's first word, reduced to what a handle may hold. */
+export function suggestHandle(name: string): string {
+  const word = name.normalize('NFKD').trim().split(/\s+/)[0] ?? '';
+  return word.toLowerCase().replace(/[^a-z0-9_-]/g, '').replace(/^[_-]+/, '').slice(0, 39);
+}
+
+/** Whether two contact URLs name the same place: case of the host and a trailing slash don't count. */
+export function sameContactUrl(a: string, b: string): boolean {
+  const key = (raw: string) => {
+    try {
+      const url = new URL(raw);
+      return `${url.protocol}//${url.host}${url.pathname.replace(/\/$/, '')}${url.search}`;
+    } catch {
+      return raw;
+    }
+  };
+  return key(a) === key(b);
+}

@@ -423,3 +423,4 @@ main.login .btn { width: 100%; }
   .settings-nav a { padding: 0.4rem 0.8rem; border: 1px solid var(--rule); border-radius: 999px; white-space: nowrap; }
   .settings-section { scroll-margin-top: 112px; }
 }
+.settings-main { min-width: 0; }
