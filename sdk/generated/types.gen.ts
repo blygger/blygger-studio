@@ -274,6 +274,25 @@ export type Subscription = {
     hopperFeedUrl: string | null;
 };
 
+export type Contact = {
+    id: string;
+    /**
+     * The petname typed as @handle. Never leaves the studio.
+     */
+    handle: string;
+    name: string;
+    url: string;
+    /**
+     * Alternate identifiers. Only self and bound go on the wire; the API can only add entered ones.
+     */
+    ids: Array<{
+        id: string;
+        provenance: 'self' | 'bound' | 'entered';
+    }>;
+    created: string;
+    updated: string;
+};
+
 export type Hopper = {
     id: string;
     name: string;
@@ -1706,6 +1725,10 @@ export type PublishItemResponses = {
         revision: number;
         version: number;
         warning?: string;
+        /**
+         * @words that name no contact. They stay literal text.
+         */
+        unresolvedHandles?: Array<string>;
     };
 };
 
@@ -3149,6 +3172,300 @@ export type ResyncSubscriptionResponses = {
 };
 
 export type ResyncSubscriptionResponse = ResyncSubscriptionResponses[keyof ResyncSubscriptionResponses];
+
+export type ListContactsData = {
+    body?: never;
+    path?: never;
+    query?: never;
+    url: '/contacts';
+};
+
+export type ListContactsErrors = {
+    /**
+     * Request failed
+     */
+    400: ApiError;
+    /**
+     * Request failed
+     */
+    401: ApiError;
+    /**
+     * Request failed
+     */
+    403: ApiError;
+    /**
+     * Request failed
+     */
+    404: ApiError;
+    /**
+     * Request failed
+     */
+    405: ApiError;
+    /**
+     * Request failed
+     */
+    409: ApiError;
+    /**
+     * Request failed
+     */
+    413: ApiError;
+    /**
+     * Request failed
+     */
+    415: ApiError;
+    /**
+     * Request failed
+     */
+    422: ApiError;
+    /**
+     * Request failed
+     */
+    429: ApiError;
+    /**
+     * Request failed
+     */
+    500: ApiError;
+    /**
+     * Request failed
+     */
+    502: ApiError;
+};
+
+export type ListContactsError = ListContactsErrors[keyof ListContactsErrors];
+
+export type ListContactsResponses = {
+    /**
+     * Success
+     */
+    200: {
+        contacts: Array<Contact>;
+    };
+};
+
+export type ListContactsResponse = ListContactsResponses[keyof ListContactsResponses];
+
+export type CreateContactData = {
+    body: {
+        handle: string;
+        name: string;
+        url: string;
+        ids?: Array<string>;
+    };
+    path?: never;
+    query?: never;
+    url: '/contacts';
+};
+
+export type CreateContactErrors = {
+    /**
+     * Request failed
+     */
+    400: ApiError;
+    /**
+     * Request failed
+     */
+    401: ApiError;
+    /**
+     * Request failed
+     */
+    403: ApiError;
+    /**
+     * Request failed
+     */
+    404: ApiError;
+    /**
+     * Request failed
+     */
+    405: ApiError;
+    /**
+     * Request failed
+     */
+    409: ApiError;
+    /**
+     * Request failed
+     */
+    413: ApiError;
+    /**
+     * Request failed
+     */
+    415: ApiError;
+    /**
+     * Request failed
+     */
+    422: ApiError;
+    /**
+     * Request failed
+     */
+    429: ApiError;
+    /**
+     * Request failed
+     */
+    500: ApiError;
+    /**
+     * Request failed
+     */
+    502: ApiError;
+};
+
+export type CreateContactError = CreateContactErrors[keyof CreateContactErrors];
+
+export type CreateContactResponses = {
+    /**
+     * Success
+     */
+    201: Contact;
+};
+
+export type CreateContactResponse = CreateContactResponses[keyof CreateContactResponses];
+
+export type DeleteContactData = {
+    body?: never;
+    path: {
+        id: string;
+    };
+    query?: never;
+    url: '/contacts/{id}';
+};
+
+export type DeleteContactErrors = {
+    /**
+     * Request failed
+     */
+    400: ApiError;
+    /**
+     * Request failed
+     */
+    401: ApiError;
+    /**
+     * Request failed
+     */
+    403: ApiError;
+    /**
+     * Request failed
+     */
+    404: ApiError;
+    /**
+     * Request failed
+     */
+    405: ApiError;
+    /**
+     * Request failed
+     */
+    409: ApiError;
+    /**
+     * Request failed
+     */
+    413: ApiError;
+    /**
+     * Request failed
+     */
+    415: ApiError;
+    /**
+     * Request failed
+     */
+    422: ApiError;
+    /**
+     * Request failed
+     */
+    429: ApiError;
+    /**
+     * Request failed
+     */
+    500: ApiError;
+    /**
+     * Request failed
+     */
+    502: ApiError;
+};
+
+export type DeleteContactError = DeleteContactErrors[keyof DeleteContactErrors];
+
+export type DeleteContactResponses = {
+    /**
+     * Success
+     */
+    200: {
+        ok: boolean;
+    };
+};
+
+export type DeleteContactResponse = DeleteContactResponses[keyof DeleteContactResponses];
+
+export type UpdateContactData = {
+    body: {
+        handle?: string;
+        name?: string;
+        url?: string;
+        ids?: Array<string>;
+    };
+    path: {
+        id: string;
+    };
+    query?: never;
+    url: '/contacts/{id}';
+};
+
+export type UpdateContactErrors = {
+    /**
+     * Request failed
+     */
+    400: ApiError;
+    /**
+     * Request failed
+     */
+    401: ApiError;
+    /**
+     * Request failed
+     */
+    403: ApiError;
+    /**
+     * Request failed
+     */
+    404: ApiError;
+    /**
+     * Request failed
+     */
+    405: ApiError;
+    /**
+     * Request failed
+     */
+    409: ApiError;
+    /**
+     * Request failed
+     */
+    413: ApiError;
+    /**
+     * Request failed
+     */
+    415: ApiError;
+    /**
+     * Request failed
+     */
+    422: ApiError;
+    /**
+     * Request failed
+     */
+    429: ApiError;
+    /**
+     * Request failed
+     */
+    500: ApiError;
+    /**
+     * Request failed
+     */
+    502: ApiError;
+};
+
+export type UpdateContactError = UpdateContactErrors[keyof UpdateContactErrors];
+
+export type UpdateContactResponses = {
+    /**
+     * Success
+     */
+    200: Contact;
+};
+
+export type UpdateContactResponse = UpdateContactResponses[keyof UpdateContactResponses];
 
 export type ListHoppersData = {
     body?: never;
@@ -5230,6 +5547,7 @@ export type PreviewResponses = {
             [key: string]: unknown;
         }>;
         transclusions?: Array<Transclusion>;
+        unresolvedHandles?: Array<string>;
     };
 };
 

@@ -8,6 +8,7 @@ import { getHopper, getImportedItem, listSubscriptions, getSubscription } from "
 import { sanitizeHtml } from "./importer/sanitize.ts";
 import { renderMarkdown, plainTextFromHtml } from "./markdown.ts";
 import { clampText } from "./preview.ts";
+import { consumeHandles, withMentionCards } from "./contacts.ts";
 import { applyInternalLinks, previewInternalLinks, previewTransclusions, resolveBlockLinks } from "./transclusion.ts";
 import { siteOrigin } from "./protocol.ts";
 import { MODELS, bindingName, configuredProviders, isDecisionModel } from "./ai/models.ts";
@@ -294,15 +295,16 @@ const previewOperation = async (context: OperationContext, input: OperationInput
   const mount = normalizeMount(context.env.MOUNT);
   const body = (input.body as { contentMd?: string });
   if ((body as { kind?: string }).kind === "thread") return threadPreview(context, input);
-  const tk = annotateTkPreview(body.contentMd ?? "");
+  const handles = await consumeHandles(context.env.DB, body.contentMd ?? "");
+  const tk = annotateTkPreview(handles.text);
   // `[[id]]` resolves in the preview too, so an unresolvable link is visible
   // before publish rejects it — same contract as an unresolvable directive.
   const origin = siteOrigin(await getSettings(context.env.DB), context.url, mount);
-  const links = await previewInternalLinks(context.env.DB, tk.text, origin);
+  const links = withMentionCards(await previewInternalLinks(context.env.DB, tk.text, origin), handles.cards);
   // Links inside generated blocks resolve here too, as at publish (studio#14).
-  const blocks = await resolveBlockLinks(tk, (md) => previewInternalLinks(context.env.DB, md, origin));
+  const blocks = await resolveBlockLinks(tk, async (md) => withMentionCards(await previewInternalLinks(context.env.DB, md, origin), handles.cards));
   const html = [links, ...blocks.docs].reduce((acc, doc) => applyInternalLinks(acc, doc), tk.finish(renderMarkdown(links.text)));
-  return success({ html, scopes: await scopeSummariesWithSources(context.env.DB, tk.scopes), linkErrors: [...links.errors, ...blocks.errors] });
+  return success({ html, scopes: await scopeSummariesWithSources(context.env.DB, tk.scopes), linkErrors: [...links.errors, ...blocks.errors], ...(handles.unresolved.length ? { unresolvedHandles: handles.unresolved } : {}) });
 };
 
 /**
@@ -412,19 +414,21 @@ const searchOperation = async (context: OperationContext, input: OperationInput)
 
 async function threadPreview(context: OperationContext, input: OperationInput) {
   const body = (input.body as { contentMd?: string; itemId?: string });
-  const tk = annotateTkPreview(body.contentMd ?? "");
+  const handles = await consumeHandles(context.env.DB, body.contentMd ?? "");
+  const tk = annotateTkPreview(handles.text);
   // item_id is the thread being edited — the DAG check needs it, so the
   // preview rejects a circular quote at exactly the point publish would.
   const mount = normalizeMount(context.env.MOUNT);
   const origin = siteOrigin(await getSettings(context.env.DB), context.url, mount);
-  const links = await previewInternalLinks(context.env.DB, tk.text, origin);
-  const blocks = await resolveBlockLinks(tk, (md) => previewInternalLinks(context.env.DB, md, origin));
+  const links = withMentionCards(await previewInternalLinks(context.env.DB, tk.text, origin), handles.cards);
+  const blocks = await resolveBlockLinks(tk, async (md) => withMentionCards(await previewInternalLinks(context.env.DB, md, origin), handles.cards));
   const resolved = await previewTransclusions(context.env.DB, links.text, body.itemId, tk);
   return success({
     html: [links, ...blocks.docs].reduce((acc, doc) => applyInternalLinks(acc, doc), tk.finish(resolved.html)),
     errors: [...resolved.errors, ...links.errors, ...blocks.errors],
     transclusions: resolved.transclusions,
     scopes: await scopeSummariesWithSources(context.env.DB, tk.scopes),
+    ...(handles.unresolved.length ? { unresolvedHandles: handles.unresolved } : {}),
   });
 }
 async function forkablePins(

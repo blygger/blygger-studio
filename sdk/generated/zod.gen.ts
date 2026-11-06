@@ -256,6 +256,23 @@ export const zSubscription = z.object({
     hopperFeedUrl: z.string().nullable()
 });
 
+export const zContact = z.object({
+    id: z.string(),
+    handle: z.string(),
+    name: z.string(),
+    url: z.string(),
+    ids: z.array(z.object({
+        id: z.string(),
+        provenance: z.enum([
+            'self',
+            'bound',
+            'entered'
+        ])
+    })),
+    created: z.string(),
+    updated: z.string()
+});
+
 export const zHopper = z.object({
     id: z.string(),
     name: z.string(),
@@ -959,7 +976,8 @@ export const zPublishItemResponse = z.object({
     ok: z.boolean(),
     revision: z.int().gt(0).lte(9007199254740991),
     version: z.number(),
-    warning: z.string().optional()
+    warning: z.string().optional(),
+    unresolvedHandles: z.array(z.string()).optional()
 });
 
 export const zClassifyChangeBody = z.object({
@@ -1296,6 +1314,52 @@ export const zResyncSubscriptionResponse = z.object({
     ok: z.boolean(),
     changed: z.number()
 });
+
+/**
+ * Success
+ */
+export const zListContactsResponse = z.object({
+    contacts: z.array(zContact)
+});
+
+export const zCreateContactBody = z.object({
+    handle: z.string(),
+    name: z.string().min(1).max(200),
+    url: z.string(),
+    ids: z.array(z.string().min(1).max(500)).max(50).optional()
+}).strict();
+
+/**
+ * Success
+ */
+export const zCreateContactResponse = zContact;
+
+export const zDeleteContactPath = z.object({
+    id: z.string().min(1)
+});
+
+/**
+ * Success
+ */
+export const zDeleteContactResponse = z.object({
+    ok: z.boolean()
+});
+
+export const zUpdateContactBody = z.object({
+    handle: z.string().optional(),
+    name: z.string().min(1).max(200).optional(),
+    url: z.string().optional(),
+    ids: z.array(z.string().min(1).max(500)).max(50).optional()
+}).strict();
+
+export const zUpdateContactPath = z.object({
+    id: z.string().min(1)
+});
+
+/**
+ * Success
+ */
+export const zUpdateContactResponse = zContact;
 
 export const zListHoppersQuery = z.object({
     cursor: z.string().min(1).max(8192).optional(),
@@ -1721,7 +1785,8 @@ export const zPreviewResponse = z.object({
         directive: z.string().optional(),
         reason: z.string().optional()
     }).catchall(z.unknown())).optional(),
-    transclusions: z.array(zTransclusion).optional()
+    transclusions: z.array(zTransclusion).optional(),
+    unresolvedHandles: z.array(z.string()).optional()
 });
 
 export const zSearchQuery = z.object({

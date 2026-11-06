@@ -545,6 +545,15 @@ const ENCODED_TOKEN = new RegExp(`${ENCODED_SENTINEL}(\\d+)${ENCODED_SENTINEL}`,
  *
  * No sentinel character survives in any case.
  */
+/** Replace every occurrence of `literal` in a document's text with a token for `html`, as links are. */
+export function addLinkToken(doc: InternalLinkDocument, literal: string, html: string): void {
+  if (!doc.text.includes(literal)) return;
+  const token = `${LINK_SENTINEL}${linkTokenSeq++}${LINK_SENTINEL}`;
+  doc.text = doc.text.split(literal).join(token);
+  doc.replacements.set(token, html);
+  doc.labels.set(token, { text: escapeHtml(literal), literal });
+}
+
 export function applyInternalLinks(html: string, doc: InternalLinkDocument): string {
   const label = (seq: string) => doc.labels.get(`${LINK_SENTINEL}${seq}${LINK_SENTINEL}`);
   // 1. Tokens percent-encoded into attribute values: the author's literal,

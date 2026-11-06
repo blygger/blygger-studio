@@ -35,6 +35,7 @@ import {
   publicPath,
 } from './components.tsx';
 import { Sheet, confirm, menu, prompt, toast } from './sheets.tsx';
+import { HandlePicker } from './contacts.tsx';
 import { BracketPicker } from './picker.tsx';
 import { setTextAt } from './caret.ts';
 import { Draft } from './draft.ts';
@@ -1077,6 +1078,7 @@ export function Compose({ q }: { q?: string } = {}) {
             change={change}
             allowTransclude={kind === 'thread'}
           />
+          <HandlePicker input={input} text={text} change={change} />
           {tools.coach}
         </div>
         {/* Tools left, actions right: one row where it fits, two on a phone. */}
@@ -1966,6 +1968,12 @@ function Editor({ item, onDiscarding }: { item: Detail; onDiscarding?: (active: 
             {action.warning}
           </p>
         ) : null}
+        {preview?.unresolvedHandles?.length ? (
+          <p role="status" className="publish-warning">
+            {preview.unresolvedHandles.map((h) => `@${h}`).join(', ')} {preview.unresolvedHandles.length === 1 ? 'is' : 'are'} not in your
+            address book and will stay plain text. <Link to="/settings" hash="contacts">add contact</Link>
+          </p>
+        ) : null}
         {preview?.linkErrors?.map((e, i) => (
           <Failure key={`link:${i}`} error={e.reason} />
         ))}
@@ -2076,6 +2084,7 @@ function Editor({ item, onDiscarding }: { item: Detail; onDiscarding?: (active: 
                 allowTransclude={isThread}
               />
             ) : null}
+            {!replacing ? <HandlePicker input={input} text={text} change={edit} /> : null}
             {tools.coach}
           </div>
           <div className="row ed-foot">

@@ -90,6 +90,16 @@ export const HopperSchema = z.object({
   description: z.string().nullable(),
 }).openapi("Hopper");
 
+export const ContactSchema = z.object({
+  id: z.string(),
+  handle: z.string().describe("The petname typed as @handle. Never leaves the studio."),
+  name: z.string(),
+  url: z.string(),
+  ids: z.array(z.object({ id: z.string(), provenance: z.enum(["self", "bound", "entered"]) })).describe("Alternate identifiers. Only self and bound go on the wire; the API can only add entered ones."),
+  created: z.string(),
+  updated: z.string(),
+}).openapi("Contact");
+
 export const ImportedItemSchema = z.object({
   subscriptionId: z.string(),
   remoteId: z.string(),

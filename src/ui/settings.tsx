@@ -26,6 +26,7 @@ import { ThemeEditor, ThemeShare } from './theme-editor.tsx';
 import { FONTS } from '../fonts.ts';
 import { DEFAULT_FEED_ORDER, FEED_ALGORITHMS } from '../feeds/index.ts';
 import { CLIENT } from '../client.ts';
+import { AddressBook } from './contacts.tsx';
 import { compiledExtensions } from '../../build/extensions.ui.ts';
 
 const fields = [
@@ -779,6 +780,10 @@ function SettingsForm({ initial }: { initial: Settings }) {
         )}
       </section>
       </section>
+      <section className="settings-section" id="contacts" aria-labelledby="contacts-h">
+        <h2 className="section-title" id="contacts-h">Address book</h2>
+        <AddressBook />
+      </section>
       {compiledExtensions.length ? (
         <section className="settings-section" id="extensions" aria-labelledby="extensions-h">
           <h2 className="section-title" id="extensions-h">Extensions</h2>
@@ -836,6 +841,7 @@ const SECTIONS = [
   ['links', 'Links'],
   ['ai', 'AI'],
   ['network', 'Network'],
+  ['contacts', 'Address book'],
   ...(compiledExtensions.length ? [['extensions', 'Extensions'] as const] : []),
 ] as const;
 

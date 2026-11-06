@@ -7,6 +7,7 @@ import { DEFAULT_POSTS_PATH } from "./front-page.ts";
 import { parseCustomTheme } from "./themes.ts";
 // Data access + publish-flow semantics — v0.1-plan §3.1.
 
+import { consumeHandles, withMentionCards } from "./contacts.ts";
 import { renderMarkdown } from "./markdown.ts";
 import { annotateGenerated, applyGeneratedWrappers, parseScopes, stripToOutput, TkPublishError, unresolvedScopes } from "./tk.ts";
 import { recordPublishInteractions } from "./interactions.ts";
@@ -320,7 +321,11 @@ export async function publish(db: D1Database, item: ItemRow, note: string | null
 
   // What gets published is authored text: XML-safe, no internal sentinels
   // (studio#15). The working copy keeps whatever was typed.
-  const source = authoredText(item.content_md);
+  // `@handle` is consumed here, on every write path (tn-6 section 5.2, #91): the
+  // working copy keeps it and `content_md` never carries it.
+  const authored = authoredText(item.content_md);
+  const handles = await consumeHandles(db, authored);
+  const source = handles.text;
   const { scopes, errors: parseErrors } = parseScopes(source);
   const unresolved = unresolvedScopes(scopes);
   if (parseErrors.length || unresolved.length) {
@@ -331,8 +336,10 @@ export async function publish(db: D1Database, item: ItemRow, note: string | null
   }
 
   const { text: strippedMd, spans } = stripToOutput(source, scopes);
-  if (kind === "fragment" && strippedMd.length > FRAGMENT_MAX_CHARS) {
-    throw new FragmentTooLongError(strippedMd.length, FRAGMENT_MAX_CHARS);
+  // The cap measures the author's words, before a handle expands into a link.
+  const authoredLength = handles.cards.size ? stripToOutput(authored, parseScopes(authored).scopes).text.length : strippedMd.length;
+  if (kind === "fragment" && authoredLength > FRAGMENT_MAX_CHARS) {
+    throw new FragmentTooLongError(authoredLength, FRAGMENT_MAX_CHARS);
   }
 
   // An `impyrt` scope carries its provenance in the grammar (decision #37):
@@ -361,10 +368,10 @@ export async function publish(db: D1Database, item: ItemRow, note: string | null
   // where a label has already been through markdown and escaping once.
   // Token sequence is global, so the maps merge.
   const linkErrors: TransclusionRefError[] = [];
-  const links = await resolveInternalLinks(db, annotated.text, normalizedOrigin(origin));
+  const links = withMentionCards(await resolveInternalLinks(db, annotated.text, normalizedOrigin(origin)), handles.cards);
   linkErrors.push(...links.errors);
-  const { docs: blockLinks, errors: blockErrors } = await resolveBlockLinks(annotated, (md) =>
-    resolveInternalLinks(db, md, normalizedOrigin(origin)),
+  const { docs: blockLinks, errors: blockErrors } = await resolveBlockLinks(annotated, async (md) =>
+    withMentionCards(await resolveInternalLinks(db, md, normalizedOrigin(origin)), handles.cards),
   );
   linkErrors.push(...blockErrors);
   if (linkErrors.length) throw new TransclusionResolveError(linkErrors);

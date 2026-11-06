@@ -1,5 +1,6 @@
 import { retainedMediaSql } from './media-retention.ts';
 import { assertCurrentRevision, assertItemRevision, ItemRevisionConflict } from './item-revision.ts';
+import { consumeHandles, contactResource, createContact, deleteContact, getContact, handleTaken, HANDLE, listContacts, updateContact } from './contacts.ts';
 import { success, created, failure, modelFailure, type OperationContext, type OperationInput } from './operation-types.ts';
 import { versionState } from './version-state.ts';
 import { isFont } from "./fonts.ts";
@@ -240,12 +241,14 @@ async function publishAndNotify(context: OperationContext, item: ItemRow, note: 
     ? `Generated text contains ${echoed.map((id) => `![[${id}]]`).join(", ")} on its own line, which the instruction did not ask for. It was published as a quote and its author notified. Edit the output and republish if that was not intended.`
     : undefined;
   const warning = [lineageNote, echoNote].filter(Boolean).join(" ") || undefined;
+  // Literal prose on the wire, never an error; every client hears (tn-6 section 5.2).
+  const { unresolved: unresolvedHandles } = await consumeHandles(context.env.DB, item.content_md);
   try {
     const version = await publish(context.env.DB, item, note, origin, noteGenerated);
     // Studio-private bookkeeping must never fail a publish that has happened.
     if (settle) await settle(version).catch((e) => console.error("change class not settled", e));
     await sendMentionsFor(context, item.id, version);
-    return success({ ok: true, version, revision: item.revision + 1, ...extra, ...(warning ? { warning } : {}) });
+    return success({ ok: true, version, revision: item.revision + 1, ...extra, ...(warning ? { warning } : {}), ...(unresolvedHandles.length ? { unresolvedHandles } : {}) });
   } catch (e) {
     if (e instanceof TransclusionResolveError) {
       // Both bracket forms report here: `![[id]]` directives and `[[id]]`
@@ -653,7 +656,44 @@ const updateSettingsOperation = async (context: OperationContext, input: Operati
   return success(settingsResource(await getSettings(context.env.DB)));
 };
 
+const contactInput = (body: { handle?: string; url?: string }) => {
+  if (body.handle !== undefined && !HANDLE.test(body.handle)) return "a handle is letters, digits, - and _, starting with a letter or digit, at most 39 characters";
+  if (body.url !== undefined) {
+    try {
+      if (new URL(body.url).protocol !== "https:") return "a contact's url must be https";
+    } catch {
+      return "a contact's url must be an absolute https URL";
+    }
+  }
+  return null;
+};
+type ContactBody = { handle?: string; name?: string; url?: string; ids?: string[] };
+const listContactsOperation = async (context: OperationContext) =>
+  success({ contacts: (await listContacts(context.env.DB)).map(contactResource) });
+const createContactOperation = async (context: OperationContext, input: OperationInput) => {
+  const body = input.body as Required<Pick<ContactBody, "handle" | "name" | "url">> & ContactBody;
+  const bad = contactInput(body);
+  if (bad) return failure('invalid-input', { error: bad });
+  if (await handleTaken(context.env.DB, body.handle)) return failure('conflict', { error: `@${body.handle} is already in the book` });
+  return created(contactResource(await createContact(context.env.DB, body)));
+};
+const updateContactOperation = async (context: OperationContext, input: OperationInput) => {
+  const row = await getContact(context.env.DB, input.path.id);
+  if (!row) return failure('not-found', { error: "not found" });
+  const body = input.body as ContactBody;
+  const bad = contactInput(body);
+  if (bad) return failure('invalid-input', { error: bad });
+  if (body.handle && await handleTaken(context.env.DB, body.handle, row.id)) return failure('conflict', { error: `@${body.handle} is already in the book` });
+  return success(contactResource(await updateContact(context.env.DB, row, body)));
+};
+const deleteContactOperation = async (context: OperationContext, input: OperationInput) =>
+  await deleteContact(context.env.DB, input.path.id) ? success({ ok: true }) : failure('not-found', { error: "not found" });
+
 export const itemOperations = {
+  listContacts: listContactsOperation,
+  createContact: createContactOperation,
+  updateContact: updateContactOperation,
+  deleteContact: deleteContactOperation,
   createItem: createItemOperation,
   updateItem: updateItemOperation,
   publishItem: publishItemOperation,

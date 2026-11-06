@@ -15,6 +15,7 @@ it("exercises every declared operation through its named SDK method, including a
   const draft = await unwrap(api.createItem({ client, body: { contentMd: "matrix" } }));
   const sub = await createSubscription(env.DB, { kind: "rss", origin: "https://matrix.example/", feedUrl: "https://matrix.example/feed", title: "Matrix" });
   await upsertL0Item(env.DB, sub.id, "remote", { version: 1, contentMd: "remote", contentHtml: "<p>remote</p>", contentHash: "hash", observedAt: "2026-10-01T00:00:00Z", created: "2026-10-01T00:00:00Z", updated: "2026-10-01T00:00:00Z" });
+  const contact = await unwrap(api.createContact({ client, body: { handle: "fixture", name: "Fixture", url: "https://fixture.example/" } }));
   const hopper = await unwrap(api.createHopper({ client, body: { name: "Matrix" } }));
   await env.DB.prepare("INSERT INTO mentions_in (id, source, source_origin, source_id, source_kind, target, target_item_id, status, first_seen, last_seen, verified_at, hidden) VALUES ('matrix-mention', 'https://matrix.example/source', 'https://matrix.example/', 'remote', 'fragment', 'target', ?, 'verified', 'now', 'now', 'now', 0)").bind(draft.id).run();
   type Result = Promise<{ response?: Response; data?: unknown; error?: unknown }>;
@@ -36,6 +37,10 @@ it("exercises every declared operation through its named SDK method, including a
     ["updateSubscription", 200, async client => api.updateSubscription({ client, path: { id: sub.id }, body: { paused: true, title: "Renamed" } })],
     ["resyncSubscription", 409, async client => api.resyncSubscription({ client, path: { id: sub.id } })],
     ["pollAllSubscriptions", 200, async client => api.pollAllSubscriptions({ client })],
+    ["createContact", 201, async client => api.createContact({ client, body: { handle: "matrix", name: "Matrix", url: "https://matrix.example/" } })],
+    ["listContacts", 200, async client => api.listContacts({ client })],
+    ["updateContact", 200, async client => api.updateContact({ client, path: { id: contact.id }, body: { name: "Matrix two" } })],
+    ["deleteContact", 200, async client => api.deleteContact({ client, path: { id: contact.id } })],
     ["createHopper", 201, async client => api.createHopper({ client, body: { name: "Other matrix" } })],
     ["updateHopper", 200, async client => api.updateHopper({ client, path: { id: hopper.id }, body: { public: true } })],
     ["addHopperItem", 200, async client => api.addHopperItem({ client, path: member })],
