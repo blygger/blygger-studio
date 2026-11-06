@@ -130,7 +130,8 @@ test('confirm subscribe shows progress and closes the sheet on the reply', async
     if (route.request().method() !== 'POST') return route.continue();
     if (!route.request().postDataJSON().confirm) return route.fulfill({ json: { needsConfirm: true, kind: 'blyg', title: 'Small Hours' } });
     await held;
-    return route.fulfill({ status: 201, json: existing });
+    // A feed, so the sheet closes on the reply; a blyg goes on to the address book offer (contacts.spec.ts).
+    return route.fulfill({ status: 201, json: { ...existing, kind: 'rss' } });
   });
   await page.getByRole('button', { name: 'subscribe', exact: true }).click();
   const sheet = page.getByRole('dialog', { name: 'subscribe' });
