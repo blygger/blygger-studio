@@ -11,6 +11,7 @@ import { sanitizeHtml } from "./importer/sanitize.ts";
 import { renderMarkdown, plainTextFromHtml } from "./markdown.ts";
 import { clampText } from "./preview.ts";
 import { consumeHandles, withMentionCards } from "./contacts.ts";
+import { injectNestedProvenance, injectProvenance, transclusionProvenance } from "./pages.ts";
 import { applyInternalLinks, previewInternalLinks, previewTransclusions, resolveBlockLinks } from "./transclusion.ts";
 import { siteOrigin } from "./protocol.ts";
 import { MODELS, bindingName, configuredProviders, isDecisionModel } from "./ai/models.ts";
@@ -425,8 +426,13 @@ async function threadPreview(context: OperationContext, input: OperationInput) {
   const links = withMentionCards(await previewInternalLinks(context.env.DB, tk.text, origin), handles.cards);
   const blocks = await resolveBlockLinks(tk, async (md) => withMentionCards(await previewInternalLinks(context.env.DB, md, origin), handles.cards));
   const resolved = await previewTransclusions(context.env.DB, links.text, body.itemId, tk);
+  const html = [links, ...blocks.docs].reduce((acc, doc) => applyInternalLinks(acc, doc), tk.finish(resolved.html));
   return success({
-    html: [links, ...blocks.docs].reduce((acc, doc) => applyInternalLinks(acc, doc), tk.finish(resolved.html)),
+    // The lines the public page puts under its quotes. Placeholders for quotes
+    // that don't resolve have no entry to pair with, so they go without.
+    html: resolved.errors.length
+      ? html
+      : await injectNestedProvenance(context.env.DB, injectProvenance(html, await transclusionProvenance(context.env.DB, resolved.transclusions, mount)), mount),
     errors: [...resolved.errors, ...links.errors, ...blocks.errors],
     transclusions: resolved.transclusions,
     // Every scope in the working copy, comments included: generate addresses

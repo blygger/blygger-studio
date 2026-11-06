@@ -417,6 +417,19 @@ type TextTools = ReturnType<typeof useTextTools>;
  * keeps its words as its accessible name and its hover text as its title.
  * The bracket forms are syntax and show their own glyphs.
  */
+/** The editing box's classes: fragments are tinted, and over-long text goes red. */
+const boxClass = (fragment: boolean, length: number, base = '') =>
+  [base, fragment && 'is-fragment', fragment && length > MAX && 'is-over'].filter(Boolean).join(' ') || undefined;
+
+function CharCount({ fragment, length, id }: { fragment: boolean; length: number; id?: string }) {
+  return (
+    <span className={fragment && length > MAX ? 'counter over' : 'counter'} id={id}>
+      {/* Only fragments have a length limit; a thread shows its count alone. */}
+      {fragment ? `${length} / ${MAX}` : `${length} chars`}
+    </span>
+  );
+}
+
 function ToolRow({
   tools,
   thread,
@@ -476,18 +489,17 @@ function ToolRow({
       >
         [[
       </Button>
-      {thread ? (
-        <Button
-          className="act mono tool"
-          data-action="bracket-quote"
-          disabled={disabled}
-          aria-label="![[ quote an item"
-          title="Quote an item on its own line: bakes a snapshot of it into this thread and tells its author"
-          onClick={() => tools.bracket('![[')}
-        >
-          ![[
-        </Button>
-      ) : null}
+      {/* Greyed rather than removed in a fragment, so the row doesn't shift when the kind changes. */}
+      <Button
+        className="act mono tool"
+        data-action="bracket-quote"
+        disabled={disabled || !thread}
+        aria-label="![[ quote an item"
+        title={thread ? 'Quote an item on its own line: bakes a snapshot of it into this thread and tells its author' : 'Quotes are for threads. Make this a thread to quote an item.'}
+        onClick={() => tools.bracket('![[')}
+      >
+        ![[
+      </Button>
       <Button
         className="act mono tool"
         data-action="tk"
@@ -1069,6 +1081,7 @@ export function Compose({ q }: { q?: string } = {}) {
           <textarea
             ref={input}
             id="composer-text"
+            className={boxClass(kind === 'fragment', length)}
             aria-label="compose"
             placeholder={`compose a ${kind}…`}
             value={text}
@@ -1107,10 +1120,7 @@ export function Compose({ q }: { q?: string } = {}) {
             <span className="save-state" id="composer-state" hidden={!saved}>
               {saved ? 'saved' : ''}
             </span>
-            <span className={over ? 'counter over' : 'counter'} id="composer-count">
-              {/* Only fragments have a length limit; a thread shows its count alone. */}
-              {kind === 'thread' ? `${length} chars` : `${length} / ${MAX}`}
-            </span>
+            <CharCount id="composer-count" fragment={kind === 'fragment'} length={length} />
             <span className="spacer" />
             {text.includes('[TK]') ? (
               <Button
@@ -1313,6 +1323,7 @@ function ItemRow({
     setText(value);
     setSaved(false);
   };
+  const length = withoutComments(text).length;
   const ownWords = withoutComments(item.contentMd);
   const { count, withoutDirectives } = extractDirectives(ownWords);
   const stripped = previewStrip(
@@ -1404,12 +1415,14 @@ function ItemRow({
             <div className="quick-edit" id={`qe-${item.id}`}>
               <textarea
                 aria-label="quick edit"
+                className={boxClass(kind === 'fragment', length)}
                 value={text}
                 onPaste={(event) => void pourOver(event, quickEdit)}
                 onChange={(event) => quickEdit(event.target.value)}
               />
               <div className="row qe-bar">
                 {saved ? <span className="save-state">saved</span> : null}
+                <CharCount fragment={kind === 'fragment'} length={length} />
                 <span className="spacer" />
                 <Button className="btn btn-ghost btn-mini" onClick={() => setOpen(false)}>
                   done
@@ -1847,6 +1860,7 @@ function Editor({ item, onDiscarding }: { item: Detail; onDiscarding?: (active: 
     await addHopperItem({ id: hopperId, sub: '~own', remoteId: item.id });
     toast(`added to ${name}`);
   };
+  const length = withoutComments(text).length;
   // A comment to self is not an unpublished change.
   const edited = !saved && withoutComments(text) !== withoutComments(item.contentMd);
   // Unpublished changes, discounting a working copy that already holds the
@@ -1952,8 +1966,6 @@ function Editor({ item, onDiscarding }: { item: Detail; onDiscarding?: (active: 
         },
       ],
     });
-  const length = withoutComments(text).length;
-  const over = length > MAX && !isThread;
   return (
     <div className="editor">
       <p className="ed-head">
@@ -2032,51 +2044,52 @@ function Editor({ item, onDiscarding }: { item: Detail; onDiscarding?: (active: 
         ))}
       </div>
       <div className="editor-grid" data-pane={pane}>
-        <div className="editor-pane">
-          <ToolRow
-            tools={tools}
-            thread={isThread}
-            attach={() => upload.pick()}
-            attachId="attach-btn"
-            disabled={replacing}
-            className="ed-tools"
-          >
-            {item.status === 'draft' ? (
-              <Button
-                className="act icon-only tool"
-                data-action="switch-kind"
-                title={`make this a ${isThread ? 'fragment' : 'thread'}`}
-                onClick={() => operation(switchKind)}
-              >
-                <Swap />
-                <span className="sr-only">make this a {isThread ? 'fragment' : 'thread'}</span>
-              </Button>
-            ) : null}
+        {/* Above both panes, so the text box and the preview start level. */}
+        <ToolRow
+          tools={tools}
+          thread={isThread}
+          attach={() => upload.pick()}
+          attachId="attach-btn"
+          disabled={replacing}
+          className="ed-tools"
+        >
+          {item.status === 'draft' ? (
             <Button
-              id="tk-impyrt-btn"
               className="act icon-only tool"
-              disabled={replacing}
-              title="Wrap the selected text as machine-generated text from another tool"
-              onClick={() => {
-                const el = input.current;
-                if (!el) return;
-                const value = draft.current!.text;
-                const [from, to] = [el.selectionStart, el.selectionEnd];
-                if (from === to) {
-                  toast('Select the pasted generated text first, then mark it.');
-                  return;
-                }
-                edit(markImported(value, from, to));
-              }}
+              data-action="switch-kind"
+              title={`make this a ${isThread ? 'fragment' : 'thread'}`}
+              onClick={() => operation(switchKind)}
             >
-              <Sparkle />
-              <span className="sr-only">mark selection as generated</span>
+              <Swap />
+              <span className="sr-only">make this a {isThread ? 'fragment' : 'thread'}</span>
             </Button>
-          </ToolRow>
+          ) : null}
+          <Button
+            id="tk-impyrt-btn"
+            className="act icon-only tool"
+            disabled={replacing}
+            title="Wrap the selected text as machine-generated text from another tool"
+            onClick={() => {
+              const el = input.current;
+              if (!el) return;
+              const value = draft.current!.text;
+              const [from, to] = [el.selectionStart, el.selectionEnd];
+              if (from === to) {
+                toast('Select the pasted generated text first, then mark it.');
+                return;
+              }
+              edit(markImported(value, from, to));
+            }}
+          >
+            <Sparkle />
+            <span className="sr-only">mark selection as generated</span>
+          </Button>
+        </ToolRow>
+        <div className="editor-pane">
           <div className="ta-wrap">
             <textarea
               id="md-input"
-              className="md"
+              className={boxClass(!isThread, length, 'md')}
               aria-label="draft"
               readOnly={replacing}
               ref={input}
@@ -2096,9 +2109,7 @@ function Editor({ item, onDiscarding }: { item: Detail; onDiscarding?: (active: 
             {tools.coach}
           </div>
           <div className="row ed-foot">
-            <span className={over ? 'counter over' : 'counter'}>
-              {isThread ? `${length} chars` : `${length} / ${MAX}`}
-            </span>
+            <CharCount fragment={!isThread} length={length} />
             <span className="spacer" />
             {isPublic ? (
               <a href={publicPath(shareable)} target="_blank" rel="noreferrer">

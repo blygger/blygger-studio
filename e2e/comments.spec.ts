@@ -102,3 +102,14 @@ test('an unclosed comment warns in the preview and blocks publish, saying why', 
   expect(JSON.parse((await api(page, 'GET', `/api/items/${id}`)).text).version).toBe(0);
   expect((await page.request.get(`/items/${id}.json`)).status()).toBe(404);
 });
+
+test('a long comment does not push a fragment over its limit', async ({ page }) => {
+  await login(page);
+  const id = await draft(page, 'Words.');
+  await page.goto(`/studio/edit/${id}`);
+  await editor(page).fill(`Short words. /* ${'long note '.repeat(150)} */`);
+  await expect(page.getByText('12 / 1000')).toBeVisible();
+  await expect(page.locator('textarea.is-over')).toHaveCount(0);
+  await editor(page).fill('over '.repeat(250));
+  await expect(page.locator('textarea.is-over')).toHaveCount(1);
+});

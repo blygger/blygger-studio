@@ -81,7 +81,7 @@ function harness(component: 'ItemRow' | 'Editor') {
     renderMarkdown: (text: string) => text, previewFromHtml: (text: string) => ({ title: text, body: '' }),
     linkInline: () => /\[\[never\]\]/g,
     rowDot: () => 'public', formatDateIn: () => '',
-    Button: 'Button', Link: 'Link', Html: 'Html', Help: 'Help', Failure: 'Failure', mount: '',
+    Button: 'Button', Link: 'Link', Html: 'Html', Help: 'Help', Failure: 'Failure', mount: '', CharCount: 'CharCount', boxClass: () => undefined,
     jsx: (type: unknown, props: Record<string, any>, ...children: unknown[]) => ({ type, props: props ?? {}, children }),
     Fragment: 'Fragment',
     useNavigate: () => async () => {}, useLiveQuery: () => ({}), hoppers: {},

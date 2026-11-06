@@ -197,6 +197,19 @@ describe("the preview", () => {
     expect(thread.json.errors).toEqual([]);
   });
 
+  it("a quote in a comment bakes nothing and takes no provenance line from a visible quote", async () => {
+    const cookie = await login();
+    const hidden = await createAndPublish(cookie, `${SECRET} quoted words`);
+    const shown = await createAndPublish(cookie, "Shown words");
+    const res = await apiJson(cookie, "POST", "/blyg/api/preview", { kind: "thread", contentMd: `/*\n![[${hidden}]]\n*/\n\n![[${shown}]]\n` });
+    expect(res.json.errors).toEqual([]);
+    expect(res.json.transclusions.map((t: { id: string }) => t.id)).toEqual([shown]);
+    expect(res.json.html).not.toContain(SECRET);
+    expect(res.json.html).not.toContain(`/f/${hidden}/`);
+    expect(res.json.html).toContain('<p class="provenance">');
+    expect(res.json.html).toContain(`/f/${shown}/`);
+  });
+
   it("warns about what would stop a publish", async () => {
     const cookie = await login();
     const res = await apiJson(cookie, "POST", "/blyg/api/preview", { contentMd: `Words. /* ${SECRET}`, kind: "fragment" });

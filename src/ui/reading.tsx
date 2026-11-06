@@ -1254,9 +1254,9 @@ function SubscribeSheet({
   return (
     <Sheet open={open} onClose={onClose} title="subscribe">
       <AddFeedForm
-        onSubscribed={() => {
+        onSubscribed={(told) => {
           onClose();
-          toast('subscribed');
+          if (!told) toast('subscribed');
         }}
       />
       <div className="sheet-actions add-sub-more">

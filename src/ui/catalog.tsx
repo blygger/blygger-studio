@@ -1,5 +1,5 @@
 import { withoutComments } from '../comments.ts';
-import { offerBlygContact } from './contacts.tsx';
+import { blygContactSeed, ContactOffer, type ContactSeed } from './contacts.tsx';
 import { createSubscription, createHopper, removeHopperItem, createItem } from './server-mutations.ts';
 import { previewFromHtml } from '../preview.ts';
 import { useEffect, useMemo, useRef, useState } from 'react';
@@ -59,7 +59,8 @@ function useAction() {
   };
 }
 /** Subscribe to a blyg or a feed: the body of reading's ＋ sheet. */
-export function AddFeedForm({ onSubscribed, initialUrl = '' }: { onSubscribed?: () => void; initialUrl?: string }) {
+/** `onSubscribed(told)`: told is true when the sheet has already said so, in its offer step. */
+export function AddFeedForm({ onSubscribed, initialUrl = '' }: { onSubscribed?: (told: boolean) => void; initialUrl?: string }) {
   const action = useAction();
   const [url, setUrl] = useState(initialUrl);
   const [confirmation, setConfirmation] = useState<{
@@ -71,6 +72,7 @@ export function AddFeedForm({ onSubscribed, initialUrl = '' }: { onSubscribed?: 
       actual: string;
     };
   }>();
+  const [offer, setOffer] = useState<{ title: string; seed: ContactSeed }>();
   const add = async (confirm = false, wholeBlyg = false) => {
     const result = await createSubscription({ url, confirm, ...(wholeBlyg ? { wholeBlyg: true } : {}) });
     if ('needsConfirm' in result) setConfirmation(result);
@@ -79,11 +81,22 @@ export function AddFeedForm({ onSubscribed, initialUrl = '' }: { onSubscribed?: 
       setUrl('');
       // The backfill runs on the server after this reply; polling brings its
       // items in, so the sheet need not wait on the refetch.
-      onSubscribed?.();
       // One blyg, subscribed by hand: bulk imports never come through this form.
-      if (result.kind === 'blyg' && !result.hopperFeedUrl) void offerBlygContact(result);
+      // The sheet stays open and becomes the offer, so nothing appears after it closes.
+      const seed = result.kind === 'blyg' && !result.hopperFeedUrl ? await blygContactSeed(result).catch(() => null) : null;
+      if (seed) setOffer({ title: result.title, seed });
+      else onSubscribed?.(false);
     }
   };
+  if (offer) {
+    return (
+      <div id="add-sub-offer">
+        <p className="add-sub-done">Subscribed to {offer.title}.</p>
+        <p><strong>Add this blyg to your address book?</strong></p>
+        <ContactOffer seed={offer.seed} done={() => onSubscribed?.(true)} />
+      </div>
+    );
+  }
   return (
     <>
       <Failure error={action.error} />
