@@ -16,6 +16,7 @@ import { formatDateIn } from '../dates.ts';
 import { renderMarkdown } from '../markdown.ts';
 import { linkInline } from '../grammar.ts';
 import { markImported, parseScopes, previewStrip } from '../tk.ts';
+import { parseComments, withoutComments } from '../comments.ts';
 import { extractDirectives } from '../directives.ts';
 import { previewFromHtml } from '../preview.ts';
 import { CHANGE_CATEGORIES, composeNote, noteIsGenerated, recategorize, type ChangeCategory } from '../change-category.ts';
@@ -1057,7 +1058,9 @@ export function Compose({ q }: { q?: string } = {}) {
     return result;
   };
   const rows = result.data ?? [];
-  const over = text.length > MAX && kind === 'fragment';
+  // The cap measures what would publish, as publish() does.
+  const length = withoutComments(text).length;
+  const over = length > MAX && kind === 'fragment';
   return (
     <>
       <h2 className="view-h">compose</h2>
@@ -1085,7 +1088,7 @@ export function Compose({ q }: { q?: string } = {}) {
           <textarea
             ref={input}
             id="composer-text"
-            className={boxClass(kind === 'fragment', text.length)}
+            className={boxClass(kind === 'fragment', length)}
             aria-label="compose"
             placeholder={`compose a ${kind}…`}
             value={text}
@@ -1124,8 +1127,8 @@ export function Compose({ q }: { q?: string } = {}) {
             <span className="save-state" id="composer-state" hidden={!saved}>
               {saved ? 'saved' : ''}
             </span>
-            <CharCount id="composer-count" fragment={kind === 'fragment'} length={text.length} />
-            <DraftCounter text={text} run={action.run} />
+            <CharCount id="composer-count" fragment={kind === 'fragment'} length={length} />
+            <DraftCounter text={withoutComments(text)} run={action.run} />
             <span className="spacer" />
             {text.includes('[TK]') ? (
               <Button
@@ -1328,7 +1331,9 @@ function ItemRow({
     setText(value);
     setSaved(false);
   };
-  const { count, withoutDirectives } = extractDirectives(item.contentMd);
+  const length = withoutComments(text).length;
+  const ownWords = withoutComments(item.contentMd);
+  const { count, withoutDirectives } = extractDirectives(ownWords);
   const stripped = previewStrip(
     withoutDirectives,
     parseScopes(withoutDirectives).scopes,
@@ -1340,7 +1345,7 @@ function ItemRow({
   // and public pages show (quotes baked, links resolved); until it answers,
   // say what the item does.
   const LINK = linkInline();
-  const links = (item.contentMd.match(LINK) ?? []).length;
+  const links = (ownWords.match(LINK) ?? []).length;
   // Bare [[id]] tokens are not prose: without them, is anything left?
   const prose = links ? previewFromHtml(renderMarkdown(stripped.text.replace(LINK, ''))) : own;
   const ownEmpty = !prose.title && !prose.body;
@@ -1418,7 +1423,7 @@ function ItemRow({
             <div className="quick-edit" id={`qe-${item.id}`}>
               <textarea
                 aria-label="quick edit"
-                className={boxClass(kind === 'fragment', text.length)}
+                className={boxClass(kind === 'fragment', length)}
                 value={text}
                 onKeyDown={onFormatKey}
                 onPaste={(event) => void pourOver(event, quickEdit)}
@@ -1426,7 +1431,7 @@ function ItemRow({
               />
               <div className="row qe-bar">
                 {saved ? <span className="save-state">saved</span> : null}
-                <CharCount fragment={kind === 'fragment'} length={text.length} />
+                <CharCount fragment={kind === 'fragment'} length={length} />
                 <span className="spacer" />
                 <Button className="btn btn-ghost btn-mini" onClick={() => setOpen(false)}>
                   done
@@ -1938,10 +1943,12 @@ function Editor({ item, onDiscarding }: { item: Detail; onDiscarding?: (active: 
     kind: item.kind === 'fragment' ? 'thread' : 'fragment',
   } });
   const restore = async (version: number, discardChanges = false) => {
+    // A published version holds no comments, so going back to one loses them.
+    const notes = parseComments(text).ranges.length ? ' Your comments to self in this draft go too.' : '';
     const question = discardChanges
       ? {
           title: `Discard unpublished changes and go back to the published v${version}?`,
-          body: `The public item is not affected — it is already v${version}.`,
+          body: `The public item is not affected — it is already v${version}.${notes}`,
           ok: 'discard changes',
           danger: true,
         }
@@ -1949,7 +1956,7 @@ function Editor({ item, onDiscarding }: { item: Detail; onDiscarding?: (active: 
           title: `Restore v${version} into the working copy?`,
           body: `Nothing is published yet and no version is rewound — this replaces your current draft, which you would then publish as v${
             item.version + 1
-          }.`,
+          }.${notes}`,
           ok: `restore → v${item.version + 1}`,
         };
     if (!(await confirm(question))) return;
@@ -2060,14 +2067,16 @@ function Editor({ item, onDiscarding }: { item: Detail; onDiscarding?: (active: 
     await addHopperItem({ id: hopperId, sub: '~own', remoteId: item.id });
     toast(`added to ${name}`);
   };
-  const edited = !saved && text !== item.contentMd;
+  const length = withoutComments(text).length;
+  // A comment to self is not an unpublished change.
+  const edited = !saved && withoutComments(text) !== withoutComments(item.contentMd);
   // Unpublished changes, discounting a working copy that already holds the
   // published words again (discard changes leaves `dirty` set on purpose).
   const unpublished =
     edited ||
     (item.dirty &&
       !(
-        text === item.published?.contentMd &&
+        withoutComments(text) === item.published?.contentMd &&
         !item.published?.generated.length
       ));
   const scopes = preview?.scopes ?? [];
@@ -2335,7 +2344,7 @@ function Editor({ item, onDiscarding }: { item: Detail; onDiscarding?: (active: 
           <div className="ta-wrap">
             <textarea
               id="md-input"
-              className={boxClass(!isThread, text.length, 'md')}
+              className={boxClass(!isThread, length, 'md')}
               aria-label="draft"
               readOnly={replacing}
               ref={input}
@@ -2355,8 +2364,8 @@ function Editor({ item, onDiscarding }: { item: Detail; onDiscarding?: (active: 
             {tools.coach}
           </div>
           <div className="row ed-foot">
-            <CharCount fragment={!isThread} length={text.length} />
-            <DraftCounter text={text} item={{ id: item.id, kind: item.kind, status: item.status, version: item.version, revision: item.revision }} run={action.run} />
+            <CharCount fragment={!isThread} length={length} />
+            <DraftCounter text={withoutComments(text)} item={{ id: item.id, kind: item.kind, status: item.status, version: item.version, revision: item.revision }} run={action.run} />
             <span className="spacer" />
             {isPublic ? (
               <a href={publicPath(shareable)} target="_blank" rel="noreferrer">

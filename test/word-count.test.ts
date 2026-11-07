@@ -104,6 +104,18 @@ describe("the counts route", () => {
     for (const id of [toc, ch1, ch2]) expect(c[`own:${id}`].draft).toEqual(c[`own:${id}`].published);
   });
 
+  it("counts no comment text, and follows no outline link in a comment", async () => {
+    const cookie = await login();
+    const chapter = await createAndPublish(cookie, "One two three.");
+    const id = await createAndPublish(cookie, "Four five.");
+    const edited = await apiJson(cookie, "PATCH", `/blyg/api/items/${id}`, { contentMd: `Four five. /* six seven eight\n\n- [[${chapter} | One]]\n*/` });
+    expect(edited.status).toBe(200);
+    const c = (await counts(cookie, [id])).json.counts[`own:${id}`];
+    expect(c.draft.words).toBe(2);
+    expect(c.published.words).toBe(2);
+    expect(c.draft.document).toEqual(c.published.document);
+  });
+
   it("counts unpublished edits on the draft side, through the tree, and leaves the published side alone", async () => {
     const cookie = await login();
     const quoted = await createAndPublish(cookie, "Quoted words here.");

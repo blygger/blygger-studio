@@ -9,6 +9,7 @@ import { selectionText } from "./markdown.ts";
 import { getSettings, getTkProvenance } from "./model.ts";
 import { composeStubCite } from "./stub.ts";
 import { parseScopes, setScopeOutput } from "./tk.ts";
+import { outsideOtherComments } from "./comments.ts";
 import { resolveTarget, type ResolvedTarget } from "./transclusion.ts";
 import type { Env, GenerationSource, ItemRow } from "./types.ts";
 import { nowIso } from "./util.ts";
@@ -69,6 +70,7 @@ export async function runGenerateScope(
     sources.push({ ...ref, text: sourceText(target) });
   }
 
+  const context = outsideOtherComments(item.content_md, scope.start);
   let result;
   try {
     result = await generate(
@@ -77,7 +79,7 @@ export async function runGenerateScope(
         instruction: scope.instruction,
         currentText: scope.output,
         sources: sources.map(({ id, text }) => ({ id, content_md: text })),
-        documentContext: markDocument(item.content_md, scope.start, scope.end),
+        documentContext: markDocument(context.text, context.offset(scope.start), context.offset(scope.end)),
         stylePrompt: settings.ai_style_prompt || null,
       },
       fetchImpl,

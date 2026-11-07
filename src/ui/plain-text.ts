@@ -14,6 +14,7 @@ import { DIRECTIVE_LINE, label, linkInline } from '../grammar.ts';
 import { renderMarkdown, selectionText } from '../markdown.ts';
 import { codeRanges, inRanges, lineOffsets } from '../code-ranges.ts';
 import { parseScopes } from '../tk.ts';
+import { withoutComments } from '../comments.ts';
 import { leadingHeading, previewFromHtml } from '../preview.ts';
 import { attachedQuote, extractDirectives } from '../directives.ts';
 
@@ -23,7 +24,10 @@ export type Resolve = (id: string, form: 'quote' | 'link') => string | undefined
 const LINK = linkInline();
 
 /** Every TK scope replaced by its output (nothing, if it has none yet). */
-function withOutputs(md: string) {
+function withOutputs(source: string) {
+  // A clean row's working copy stands in for its published words (publishedOf),
+  // so this is the guard that keeps a note out of what gets copied and shared.
+  const md = withoutComments(source);
   let text = '';
   let last = 0;
   for (const scope of parseScopes(md).scopes) {
@@ -78,7 +82,7 @@ export function plainText(md: string, resolve: Resolve = () => undefined): strin
 
 /** A one-line name for an item: its heading, else the start of its text. */
 export function itemTitle(md: string): string {
-  const html = renderMarkdown(withOutputs(extractDirectives(md).withoutDirectives));
+  const html = renderMarkdown(withOutputs(extractDirectives(withoutComments(md)).withoutDirectives));
   const { title } = leadingHeading(html);
   return title || previewFromHtml(html, 80).body;
 }

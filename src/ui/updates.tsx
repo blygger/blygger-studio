@@ -9,6 +9,7 @@ import { useLiveQuery } from '@tanstack/react-db';
 import { Link } from '@tanstack/react-router';
 import type { ThreadFreshness } from '../../sdk/dist/browser.js';
 import { renderMarkdown } from '../markdown.ts';
+import { withoutComments } from '../comments.ts';
 import { extractDirectives } from '../directives.ts';
 import { previewFromHtml } from '../preview.ts';
 import { staleThreadItemsView } from './data.ts';
@@ -39,7 +40,7 @@ export function UpdatesPage() {
   const label = ({ freshness, item }: NonNullable<typeof result.data>[number]) => {
     if (!item) return freshness.id.slice(0, 8);
     const p = previewFromHtml(
-      renderMarkdown(extractDirectives(item.contentMd).withoutDirectives),
+      renderMarkdown(extractDirectives(withoutComments(item.contentMd)).withoutDirectives),
     );
     return p.title || p.body || freshness.id.slice(0, 8);
   };
