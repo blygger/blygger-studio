@@ -93,7 +93,7 @@ beforeAll(async () => {
     }
     // Logical requests after unpacking the transport; API tests own batch auth.
     requests.push({ path: url.pathname, params: url.searchParams });
-    if (url.pathname === '/api/changes') return json({ epoch, domains: Object.fromEntries(['items', 'reading', 'hoppers', 'subscriptions', 'signals', 'settings', 'feed', 'mentions', 'responses', 'interactions', 'browse'].map((domain) => [domain, revision])) });
+    if (url.pathname === '/api/changes') return json({ epoch, domains: Object.fromEntries(['items', 'reading', 'hoppers', 'subscriptions', 'signals', 'settings', 'feed', 'mentions', 'responses', 'interactions', 'browse', 'shelf'].map((domain) => [domain, revision])) });
     if (url.pathname === '/api/items' && request.method === 'POST') {
       const body = await request.json(); text = body.contentMd; revision++; itemCount = 1;
       const { pins, ...created } = item();

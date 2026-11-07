@@ -44,6 +44,15 @@
 .syntax-help > p { margin: var(--s1) 0 0; font-size: .82rem; }
 .publish-warning { font-size: .85rem; color: var(--warn); margin: 10px 0 0; }
 .filters { margin-top: 20px; }
+/* The shelf (#135): the owner's ordered own items, above the filters. */
+.shelf { margin-top: 20px; }
+.shelf-h { font-size: .78rem; text-transform: uppercase; letter-spacing: .06em; color: var(--ink-soft); margin: 0 0 6px; }
+.shelf-list { margin: 0; padding: 0; list-style: none; }
+.shelf-row { display: flex; align-items: center; gap: 8px; border: 1px solid var(--rule); border-radius: 12px; background: var(--card); color: var(--ink); padding: 6px 6px 6px 12px; margin-bottom: 6px; min-width: 0; }
+.shelf-title { flex: 1 1 auto; min-width: 0; font-weight: 600; font-size: .94rem; color: inherit; text-decoration: none; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.shelf-title:hover { text-decoration: underline; }
+.shelf-meta { font-size: .75rem; color: var(--ink-soft); flex: 0 0 auto; }
+.shelf-actions { display: flex; gap: 2px; flex: 0 0 auto; }
 
 /* Coach mark: where the phone's own scanner lives. */
 .coach { position: absolute; left: 50%; top: 40px; transform: translateX(-50%); z-index: 5; background: var(--ink); color: var(--card); padding: 8px 14px; border-radius: 10px; font-size: .85rem; box-shadow: 0 8px 24px rgba(0,0,0,.25); animation: up .2s ease-out; white-space: nowrap; pointer-events: none; }

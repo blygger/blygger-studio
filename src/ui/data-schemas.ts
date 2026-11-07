@@ -20,6 +20,7 @@ import {
   zGetUpdateStateResponse,
   zAuthorization,
   zSettings,
+  zShelf,
   zSignal,
   zThreadFreshness,
   zHopperMembership,
@@ -40,6 +41,7 @@ export const sourceSchemas = {
     published: true,
   }),
   settings: zSettings.extend({ key: z.literal('settings') }),
+  shelf: zShelf.extend({ key: z.literal('shelf') }),
   subscriptions: zSubscription,
   hoppers: zHopper,
   hopperStats: zGetHopperResponse.pick({ total: true, sourceCount: true })

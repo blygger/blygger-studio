@@ -9,7 +9,7 @@
  * Histories can serve any saved legal snapshot; SWR promises no maximum age.
  * A successful publisher cannot lower generation within the same epoch.
  */
-export const oracleDomains = ['items', 'reading', 'subscriptions', 'hoppers', 'signals', 'settings', 'feed', 'mentions', 'responses', 'interactions', 'browse'] as const;
+export const oracleDomains = ['items', 'reading', 'subscriptions', 'hoppers', 'signals', 'settings', 'feed', 'mentions', 'responses', 'interactions', 'browse', 'shelf'] as const;
 export type OracleDomain = typeof oracleDomains[number];
 export type OracleToken = { epoch: string; domains: Record<OracleDomain, number> };
 export function changedDomains(before: OracleToken, after: OracleToken) {

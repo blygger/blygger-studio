@@ -72,6 +72,7 @@ export type ChangeState = {
         responses: number;
         interactions: number;
         browse: number;
+        shelf: number;
     };
 };
 
@@ -272,6 +273,17 @@ export type Subscription = {
      * A hopper subscription (one public hopper at another blyg; spec 0.4 §16.12): the hopper feed's resolved absolute URL, which with origin (the blyg's identity origin) is the subscription's identity. Null for every other subscription.
      */
     hopperFeedUrl: string | null;
+};
+
+export type Shelf = {
+    /**
+     * The owner's own items, in the owner's order. Drafts may be shelved; withdrawn items are omitted, and a discarded draft leaves the shelf. Studio-private: never in an item document, feed, manifest or public page.
+     */
+    itemIds: Array<string>;
+    /**
+     * The shelf's revision. Send it back as expectedRevision for a conditional replace; every successful PUT bumps it.
+     */
+    revision: number;
 };
 
 export type Contact = {
@@ -3172,6 +3184,153 @@ export type ResyncSubscriptionResponses = {
 };
 
 export type ResyncSubscriptionResponse = ResyncSubscriptionResponses[keyof ResyncSubscriptionResponses];
+
+export type GetShelfData = {
+    body?: never;
+    path?: never;
+    query?: never;
+    url: '/shelf';
+};
+
+export type GetShelfErrors = {
+    /**
+     * Request failed
+     */
+    400: ApiError;
+    /**
+     * Request failed
+     */
+    401: ApiError;
+    /**
+     * Request failed
+     */
+    403: ApiError;
+    /**
+     * Request failed
+     */
+    404: ApiError;
+    /**
+     * Request failed
+     */
+    405: ApiError;
+    /**
+     * Request failed
+     */
+    409: ApiError;
+    /**
+     * Request failed
+     */
+    413: ApiError;
+    /**
+     * Request failed
+     */
+    415: ApiError;
+    /**
+     * Request failed
+     */
+    422: ApiError;
+    /**
+     * Request failed
+     */
+    429: ApiError;
+    /**
+     * Request failed
+     */
+    500: ApiError;
+    /**
+     * Request failed
+     */
+    502: ApiError;
+};
+
+export type GetShelfError = GetShelfErrors[keyof GetShelfErrors];
+
+export type GetShelfResponses = {
+    /**
+     * Success
+     */
+    200: Shelf;
+};
+
+export type GetShelfResponse = GetShelfResponses[keyof GetShelfResponses];
+
+export type PutShelfData = {
+    body: {
+        /**
+         * The whole list, in order (at most 50). Replaces the stored list. Ids that name no own item, or a withdrawn one, are dropped quietly, and a repeated id keeps its first position; the response is what was stored.
+         */
+        itemIds: Array<string>;
+        /**
+         * Replace only if the shelf is still at this revision; otherwise 409 revision-conflict with the current { itemIds, revision } in details.current. Omitted: an unconditional replace.
+         */
+        expectedRevision?: number;
+    };
+    path?: never;
+    query?: never;
+    url: '/shelf';
+};
+
+export type PutShelfErrors = {
+    /**
+     * Request failed
+     */
+    400: ApiError;
+    /**
+     * Request failed
+     */
+    401: ApiError;
+    /**
+     * Request failed
+     */
+    403: ApiError;
+    /**
+     * Request failed
+     */
+    404: ApiError;
+    /**
+     * Request failed
+     */
+    405: ApiError;
+    /**
+     * Request failed
+     */
+    409: ApiError;
+    /**
+     * Request failed
+     */
+    413: ApiError;
+    /**
+     * Request failed
+     */
+    415: ApiError;
+    /**
+     * Request failed
+     */
+    422: ApiError;
+    /**
+     * Request failed
+     */
+    429: ApiError;
+    /**
+     * Request failed
+     */
+    500: ApiError;
+    /**
+     * Request failed
+     */
+    502: ApiError;
+};
+
+export type PutShelfError = PutShelfErrors[keyof PutShelfErrors];
+
+export type PutShelfResponses = {
+    /**
+     * Success
+     */
+    200: Shelf;
+};
+
+export type PutShelfResponse = PutShelfResponses[keyof PutShelfResponses];
 
 export type ListContactsData = {
     body?: never;

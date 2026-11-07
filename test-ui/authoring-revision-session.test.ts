@@ -59,6 +59,7 @@ function harness(component: 'ItemRow' | 'Editor') {
     useEffect() {},
     useSettings: () => null,
     useSharing: () => ({}),
+    useShelf: () => [], shelfLabel: () => 'add to shelf', toggleShelf: async () => {},
     useAction: () => action,
     useNoteConfirm: () => ({}),
     useBlocker(value: unknown) { blocker = value; },

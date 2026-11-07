@@ -100,6 +100,11 @@ export const ContactSchema = z.object({
   updated: z.string(),
 }).openapi("Contact");
 
+export const ShelfSchema = z.object({
+  itemIds: z.array(z.string()).describe("The owner's own items, in the owner's order. Drafts may be shelved; withdrawn items are omitted, and a discarded draft leaves the shelf. Studio-private: never in an item document, feed, manifest or public page."),
+  revision: z.number().int().nonnegative().describe("The shelf's revision. Send it back as expectedRevision for a conditional replace; every successful PUT bumps it."),
+}).openapi("Shelf");
+
 export const ImportedItemSchema = z.object({
   subscriptionId: z.string(),
   remoteId: z.string(),

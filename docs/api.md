@@ -160,6 +160,7 @@ Consult `openapi.json` for every field and response.
 | Signals | `GET /signals` | `PUT` or `DELETE /signals/{sub}/{remoteId}` |
 | Mentions | `GET /mentions?direction=inbound` or `outbound` | `PATCH /mentions/{id}` with `hidden` |
 | Settings | `GET /settings` | `PATCH /settings` |
+| Shelf | `GET /shelf` | `PUT /shelf` (replaces the whole list; see [Shelf](#shelf)) |
 | Media | Included in item detail: `media` is the working copy's attachments, `publishedMedia` what the live version lists | `POST /media` with a multipart file (`inline=true` when the client places it in the text; the same file sent again to the same item in the same placement returns the existing row with `200` and `duplicate: true`). Attachments are per version: one added to a published item is listed from its next version on. `DELETE /media/{id}` detaches it from the working copy, so the next version goes without it while the versions that listed it keep it; the file is deleted only when no published version lists or shows it |
 | Imported items | `GET /imports/{sub}/{id}`, `GET /imports/{sub}/{id}/history`, `GET /imports/{sub}/{id}/versions/{v}` (history and public versions, read from the origin) | The subscription importer manages these items |
 | Reading | `GET /reading`, `GET /reading/imported` (imported items only; see below) | Read only |
@@ -177,6 +178,42 @@ Publication, withdrawal, restoration, and generation remain explicit operations:
 - `POST /items/{id}/note-draft` drafts a changelog note from the change between the published version and the working copy. It never publishes. When the published version is unpinned, the note must not reproduce wording that only that version had; a draft that does returns 422. Send `noteGenerated: true` with `POST /items/{id}/publish` only when the note is that draft, unedited: it becomes `changelog[].generated` on the wire.
 - `POST /items/{id}/classify` asks the optional change classifier what kind of change the working copy would publish. See [Change classifier](#change-classifier).
 - `POST /items/{id}/refresh` republishes a thread to re-bake quotes whose source has a newer version. See below.
+
+## Shelf
+
+The shelf is a short list of the owner's own items in the owner's order, such
+as living threads kept at the top of a writing list. Studio and other clients
+(Blygger Desktop) share it. It is studio-private: it never reaches an item
+document, a feed, the manifest, a public page or the static export.
+
+- `GET /shelf` (`owner:read`) returns `{ itemIds, revision }`, in order.
+- `PUT /shelf` (`owner:manage`) takes `{ itemIds, expectedRevision? }` and
+  replaces the whole list. It returns the stored `{ itemIds, revision }`.
+
+Rules:
+
+- Any of this blyg's own items can be shelved, drafts included.
+- `GET` omits withdrawn items. A `PUT` drops ids that name no own item and ids
+  of withdrawn items quietly, and a repeated id keeps its first position. Check
+  the response to see what was kept. A withdrawn item's place is kept until the
+  next `PUT`, so republishing it before then puts it back where it was.
+- Discarding a draft takes it off the shelf.
+- At most 50 ids per `PUT`. A longer list, non-string ids, unknown fields or a
+  negative `expectedRevision` return 400 `invalid-input`.
+- Every successful `PUT` bumps `revision`, even when the list is unchanged.
+  Send `expectedRevision` to replace only if nobody else has since. A stale one
+  returns 409 `revision-conflict` with the current list in
+  `details.current: { itemIds, revision }`: merge and retry. Without
+  `expectedRevision` the replace is unconditional.
+- The `shelf` change domain in `GET /changes` moves on every `PUT`, when a
+  shelved item is withdrawn or republished, and when a shelved draft is
+  discarded.
+- Shelving is not an interaction: nothing goes in the interaction log.
+
+```ts
+const { itemIds, revision } = await unwrap(BlyggerApi.getShelf({ client }));
+await unwrap(BlyggerApi.putShelf({ client, body: { itemIds: [id, ...itemIds], expectedRevision: revision } }));
+```
 
 ## Change classifier
 
@@ -243,7 +280,7 @@ document keys as an unclassified one.
 Preview and search use `/preview` and `/search`.
 `GET /changes` returns `{ epoch, domains }`, with revision counters for items,
 Reading, subscriptions, hoppers, signals, settings, the public feed, mentions,
-responses, interactions and browsing history. It uses
+responses, interactions, browsing history and the shelf. It uses
 the same current owner/delegated read authorization as other private reads.
 Clients can skip unchanged data refreshes, but must capture their target before
 loading and acknowledge it only after successful installation. These are change

@@ -341,10 +341,10 @@ test('the editor ⋯ menu copies, pins and withdraws, and the Version-N dialog s
     const sheet = page.getByRole('dialog', { name: 'actions' });
     await sheet.getByRole('button', { name: new RegExp(`^${label.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}`) }).click();
   };
-  // A draft: make this a…, add to hopper (session 47), discard draft — nothing that needs a public item.
+  // A draft: make this a…, add to shelf (#135), add to hopper (session 47), discard draft — nothing that needs a public item.
   await page.getByRole('button', { name: 'more actions' }).click();
   const sheet = page.getByRole('dialog', { name: 'actions' });
-  await expect(sheet.locator('.ml')).toHaveText(['make this a thread', /^add to hopper…/, 'discard draft']);
+  await expect(sheet.locator('.ml')).toHaveText(['make this a thread', /^(add to|remove from) shelf/, /^add to hopper…/, 'discard draft']);
   await page.keyboard.press('Escape');
   await expect(sheet).toHaveCount(0);
   await page.locator('#publish-btn').click();

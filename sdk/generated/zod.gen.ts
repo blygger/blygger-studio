@@ -82,7 +82,8 @@ export const zChangeState = z.object({
         mentions: z.int().gte(0).lte(9007199254740991),
         responses: z.int().gte(0).lte(9007199254740991),
         interactions: z.int().gte(0).lte(9007199254740991),
-        browse: z.int().gte(0).lte(9007199254740991)
+        browse: z.int().gte(0).lte(9007199254740991),
+        shelf: z.int().gte(0).lte(9007199254740991)
     })
 });
 
@@ -254,6 +255,11 @@ export const zSubscription = z.object({
     created: z.string(),
     titleFollowsSource: z.boolean(),
     hopperFeedUrl: z.string().nullable()
+});
+
+export const zShelf = z.object({
+    itemIds: z.array(z.string()),
+    revision: z.int().gte(0)
 });
 
 export const zContact = z.object({
@@ -1314,6 +1320,21 @@ export const zResyncSubscriptionResponse = z.object({
     ok: z.boolean(),
     changed: z.number()
 });
+
+/**
+ * Success
+ */
+export const zGetShelfResponse = zShelf;
+
+export const zPutShelfBody = z.object({
+    itemIds: z.array(z.string().min(1).max(128)).max(50),
+    expectedRevision: z.int().gte(0).optional()
+}).strict();
+
+/**
+ * Success
+ */
+export const zPutShelfResponse = zShelf;
 
 /**
  * Success
