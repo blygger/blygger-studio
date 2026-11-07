@@ -10,16 +10,15 @@ import { compiledExtensions } from '../../build/extensions.ui.ts';
 import { client } from './data.ts';
 import { Failure, useChrome, useSettings } from './components.tsx';
 import type { StudioContext } from './extension-api.ts';
-import { ExtensionBoundary, enabledExtensions } from './extensions.tsx';
+import { ExtensionBoundary, enabledExtensions, mainMenuPage } from './extensions.tsx';
 
 export function ExtensionPage({ name }: { name: string }) {
   useChrome({ framed: false });
   const settings = useSettings();
   const navigate = useNavigate();
   const [error, setError] = useState<unknown>();
-  const extension = enabledExtensions(compiledExtensions, settings?.extensions).find(
-    (candidate) => candidate.name === name && candidate.page,
-  );
+  const enabled = enabledExtensions(compiledExtensions, settings?.extensions);
+  const extension = enabled.find((candidate) => candidate.name === name && candidate.page);
   if (!settings) return <p className="view-sub">Loading…</p>;
   if (!extension?.page)
     return (
@@ -49,9 +48,11 @@ export function ExtensionPage({ name }: { name: string }) {
   const Page = extension.page.component;
   return (
     <>
-      <Link className="back-link" to="/more">
-        ← more
-      </Link>
+      {extension === mainMenuPage(enabled) ? null : (
+        <Link className="back-link" to="/more">
+          ← more
+        </Link>
+      )}
       <h2 className="view-h">{extension.page.title}</h2>
       <Failure error={error} />
       <ExtensionBoundary name={extension.name} slot="page">
