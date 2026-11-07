@@ -1,6 +1,7 @@
 // D1 access for the subscribe side (migration 0004) — the importer-side
 // counterpart to ../model.ts, which owns the publish side's items/versions.
 
+import { syncImportedMentions } from "./mention-index.ts";
 import type { Surface } from "../surface.ts";
 import type { HopperItemRow, HopperRow, ImportedItemRow, SignalRow, SubscriptionRow } from "../types.ts";
 import { newId, nowIso, toIsoUtc } from "../util.ts";
@@ -85,6 +86,7 @@ export async function deleteSubscription(db: D1Database, id: string): Promise<vo
   await db.batch([
     db.prepare("DELETE FROM hopper_items WHERE subscription_id = ?").bind(id),
     db.prepare("DELETE FROM signals WHERE subscription_id = ?").bind(id),
+    db.prepare("DELETE FROM imported_mentions WHERE subscription_id = ?").bind(id),
     db.prepare("DELETE FROM imported_items WHERE subscription_id = ?").bind(id),
     db.prepare("DELETE FROM subscriptions WHERE id = ?").bind(id),
   ]);
@@ -212,6 +214,20 @@ export async function applyEffect(
   effect: TransitionEffect,
   observedAt: string,
   opts: { l0?: boolean; retainPinnedVersion?: number } = {},
+): Promise<void> {
+  await writeEffect(db, subscriptionId, remoteId, effect, observedAt, opts);
+  if (opts.l0) return;
+  if ("doc" in effect) await syncImportedMentions(db, subscriptionId, remoteId, effect.doc.content_html);
+  else if (effect.type === "record-tombstone" || effect.type === "rollup-null") await syncImportedMentions(db, subscriptionId, remoteId, null);
+}
+
+async function writeEffect(
+  db: D1Database,
+  subscriptionId: string,
+  remoteId: string,
+  effect: TransitionEffect,
+  observedAt: string,
+  opts: { l0?: boolean; retainPinnedVersion?: number },
 ): Promise<void> {
   // Store foreign dates in UTC so SQL pages and Reading's display clamp agree.
   // Observation times come from our clock; adopt-stealth keeps stored dates.
@@ -348,9 +364,10 @@ export async function applyEffect(
 export async function dropImportedItemsExcept(db: D1Database, subscriptionId: string, keep: string[]): Promise<number> {
   const keepJson = JSON.stringify(keep);
   const gone = "subscription_id = ? AND remote_id NOT IN (SELECT value FROM json_each(?))";
-  const [, , res] = await db.batch([
+  const [, , , res] = await db.batch([
     db.prepare(`DELETE FROM hopper_items WHERE ${gone}`).bind(subscriptionId, keepJson),
     db.prepare(`DELETE FROM signals WHERE ${gone}`).bind(subscriptionId, keepJson),
+    db.prepare(`DELETE FROM imported_mentions WHERE ${gone}`).bind(subscriptionId, keepJson),
     db.prepare(`DELETE FROM imported_items WHERE ${gone}`).bind(subscriptionId, keepJson),
   ]);
   return res.meta.changes ?? 0;

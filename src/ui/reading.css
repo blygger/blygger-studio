@@ -323,3 +323,5 @@
 /* A revised post leads with what changed. */
 .change-lead { margin: 0 0 6px; font-size: .88rem; color: var(--page-ink); }
 .change-lead.none { color: var(--page-ink-soft); font-style: italic; }
+/* A mention of the owner, in anything they read: the words that name them. */
+.mention-you { background: var(--pencil-bg); box-shadow: 0 0 0 2px var(--pencil-bg); border-radius: 3px; font-weight: 600; }

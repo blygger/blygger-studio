@@ -91,7 +91,7 @@ test('the visible Mentions tab preloads summaries, while source details never bl
     expect(new URL(page.url()).pathname).toMatch(/^\/studio\/?$/);
     expect(stats.receiptReads).toEqual([]);
     expect(stats.sources).toEqual([]);
-    await page.getByRole('link', { name: 'mentions', exact: true }).click();
+    await page.getByRole('link', { name: 'responses', exact: true }).click();
     await expect(page).toHaveURL(/\/studio\/mentions$/);
     await expect(page.locator('.mention-row')).toHaveCount(10);
     await expect(page.locator('.group-meta')).toContainText('60 responses');
@@ -111,7 +111,7 @@ test('the visible Mentions tab preloads summaries, while source details never bl
 test('mentions pages groups, their receipts, and outbound rows with complete counts', async ({ page }) => {
   const stats = await installMentions(page, { groups: 80, receipts: 45, outbound: 80 });
   await login(page);
-  await page.getByRole('link', { name: 'mentions', exact: true }).click();
+  await page.getByRole('link', { name: 'responses', exact: true }).click();
   await expect(page.locator('.mention-group')).toHaveCount(10);
   const first = page.locator('.mention-group').first();
   await expect(first.locator('.mention-row')).toHaveCount(10);
@@ -180,7 +180,7 @@ test('a failed Mentions group continuation keeps the loaded page and recovers th
   await page.clock.install();
   const stats = await installMentions(page, { groups: 80, receipts: 1, outbound: 0 });
   await login(page);
-  await page.getByRole('link', { name: 'mentions', exact: true }).click();
+  await page.getByRole('link', { name: 'responses', exact: true }).click();
   await expect(page.locator('.mention-group')).toHaveCount(10);
   await page.clock.pauseAt(new Date(Date.now() + 10_000));
   let fail = true;

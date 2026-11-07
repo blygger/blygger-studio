@@ -9,6 +9,7 @@
 import { listBlogrollSubscriptions, listPublicHoppers } from "./importer/store.ts";
 import { listPublicResponses } from "./mentions/store.ts";
 import { sanitizeHtml } from "./importer/sanitize.ts";
+import { decodeHTMLAttribute } from "entities";
 import { blygItemUrl } from "./importer/util.ts";
 import { isBlygStub, parseStoredCite, parseStoredFork, parseStoredStub } from "./stub.ts";
 import { linkLabel } from "./link-label.ts";
@@ -1153,6 +1154,26 @@ ${permalinkLink(item.id, false, mount)}
 }
 
 /**
+ * An item's page as a microformats2 h-entry, with its byline as a p-author
+ * h-card (tn-6 section 5.4), so a parser gets the author and the mentions from
+ * one read. Page chrome, not the item: nothing here reaches the document or the
+ * feed. Hidden, because these pages show no byline of their own. It goes last so
+ * the article's first-child rules still reach the first thing you see. A
+ * withdrawn item is not an entry. No h-cite or responses markup, ever (tn-7).
+ */
+export function asHEntry(article: string, settings: Settings, origin: string, url: string, published: string): string {
+  if (!article.startsWith('<article class="') || /^<article class="[^"]*\bwithdrawn\b/.test(article)) return article;
+  const author = settings.author_name
+    ? `<a class="p-author h-card" href="${escapeHtml(settings.author_url || origin)}" hidden>${escapeHtml(settings.author_name)}</a>\n`
+    : "";
+  const meta = `<a class="u-url" href="${escapeHtml(url)}" hidden></a>\n<time class="dt-published" datetime="${escapeHtml(published)}" hidden></time>\n${author}`;
+  return article
+    .replace('<article class="', '<article class="h-entry ')
+    .replace('<div class="item-content', '<div class="e-content item-content')
+    .replace(/<\/article>$/, () => `${meta}</article>`);
+}
+
+/**
  * `titleLink` is set on the feed page and unset on the permalink page: on the
  * item's own page the title would link to the page you are already reading.
  */
@@ -1232,6 +1253,30 @@ export async function transclusionProvenance(db: D1Database, transclusions: Tran
 }
 
 /**
+ * A baked quote's `data-blyg-label` (§10.1, §10.2, decision #81): the quoting
+ * author's own name for what they quoted, decoded from the attribute and
+ * flattened to one short line. Null when the tag carries none, which is every
+ * quote baked before the label was, and every unlabelled directive.
+ */
+export function bakedLabel(tag: string): string | null {
+  const raw = /\sdata-blyg-label="([^"]*)"/.exec(tag)?.[1];
+  if (raw === undefined) return null;
+  const text = clampForeign(decodeHTMLAttribute(raw), 120);
+  return text || null;
+}
+
+/**
+ * A provenance line with the quoter's label as its anchor text (decision #81:
+ * RECOMMENDED as the attribution anchor). What the anchor said before — the
+ * source blyg's name, or the local kind — stays beside it as plain text, so a
+ * label never stands in for the source, and never for the target's title
+ * (#46): it is the quoter's words, shown where the quoter's reference is.
+ */
+function labelledProvenance(line: string, label: string): string {
+  return line.replace(/(<a\b[^>]*>)([\s\S]*?)(?: ↗)?<\/a>/, (_all, open: string, was: string) => `${open}${escapeHtml(label)} ↗</a> · ${was}`);
+}
+
+/**
  * Inject a provenance paragraph inside each *top-level* baked transclusion
  * blockquote, in document order. Presentation only — this is never stored in
  * the protocol content_html (§2.9 specifies only the blockquote + data
@@ -1249,6 +1294,7 @@ export function injectProvenance(html: string, provenance: string[]): string {
   let last = 0;
   let depth = 0;
   let inTransclusion = false;
+  let label: string | null = null;
   let i = 0;
   let m: RegExpExecArray | null;
   while ((m = re.exec(html))) {
@@ -1256,11 +1302,12 @@ export function injectProvenance(html: string, provenance: string[]): string {
       depth = Math.max(0, depth - 1);
       if (depth === 0 && inTransclusion) {
         const p = provenance[i++];
-        out += html.slice(last, m.index) + (p ? `\n${p}` : "");
+        out += html.slice(last, m.index) + (p ? `\n${label ? labelledProvenance(p, label) : p}` : "");
         last = m.index;
         inTransclusion = false;
       }
     } else {
+      if (depth === 0) label = bakedLabel(m[0]);
       // Match the class **token**, not the literal attribute. A partial
       // transclusion's class is `blyg-transclusion blyg-partial` (§10.1–§10.3), so a
       // substring test on the whole attribute misses it — and missing it does
@@ -1290,7 +1337,7 @@ export function injectProvenance(html: string, provenance: string[]): string {
  */
 export async function injectNestedProvenance(db: D1Database, html: string, mount: string): Promise<string> {
   if (!html.includes("data-blyg-id=")) return html;
-  type Layer = { transclusion: boolean; id: string | null; version: string | null; origin: string | null; partial: boolean; nested: boolean };
+  type Layer = { transclusion: boolean; id: string | null; version: string | null; origin: string | null; partial: boolean; nested: boolean; label: string | null };
   const attr = (tag: string, name: string) => new RegExp(`\\b${name}="([^"]*)"`).exec(tag)?.[1] ?? null;
   const stack: Layer[] = [];
   const closes: Array<{ at: number; layer: Layer }> = [];
@@ -1312,6 +1359,7 @@ export async function injectNestedProvenance(db: D1Database, html: string, mount
       origin: attr(m[0], "data-blyg-origin") ?? (enclosing ? enclosing.origin : null),
       partial: /\bblyg-partial\b/.test(cls),
       nested: !!enclosing,
+      label: transclusion ? bakedLabel(m[0]) : null,
     });
   }
   if (!closes.length) return html;
@@ -1344,7 +1392,8 @@ export async function injectNestedProvenance(db: D1Database, html: string, mount
   for (const { at, layer } of closes.sort((a, b) => b.at - a.at)) {
     const link = lines.get(`${layer.origin ?? ""}\u0000${layer.id}`)!;
     const what = layer.partial ? "excerpt of" : "snapshot of";
-    out = `${out.slice(0, at)}\n<p class="provenance nested">${link} · ${what} v${escapeHtml(layer.version ?? "?")}</p>${out.slice(at)}`;
+    const line = `<p class="provenance nested">${link} · ${what} v${escapeHtml(layer.version ?? "?")}</p>`;
+    out = `${out.slice(0, at)}\n${layer.label ? labelledProvenance(line, layer.label) : line}${out.slice(at)}`;
   }
   return out;
 }
@@ -1970,7 +2019,7 @@ export async function permalinkPage(db: D1Database, settings: Settings, item: It
   const latest = await publishedVersion(db, item);
   const media = await listVersionMedia(db, item.id, item.version);
   const head = itemHead(latest?.content_html ?? "", settings);
-  const body = `${await blygPage(db, settings, mount, `${await fragmentBlock(db, item, mount, settings.timezone)}
+  const body = `${await blygPage(db, settings, mount, `${asHEntry(await fragmentBlock(db, item, mount, settings.timezone), settings, origin, url, item.created)}
 ${await localMentionsSection(db, item, settings, mount, origin)}
 ${await responsesSection(db, item, settings, mount)}`)}
 <script>${VERSION_NAV_SCRIPT}</script>`;
@@ -2006,7 +2055,7 @@ export async function threadPage(db: D1Database, settings: Settings, item: ItemR
   const latest = await publishedVersion(db, item);
   const media = await listVersionMedia(db, item.id, item.version);
   const head = itemHead(latest?.content_html ?? "", settings, respondsToLabel(latest));
-  const body = `${await blygPage(db, settings, mount, `${await threadBlock(db, item, mount, settings.timezone)}
+  const body = `${await blygPage(db, settings, mount, `${asHEntry(await threadBlock(db, item, mount, settings.timezone), settings, origin, url, item.created)}
 ${await localMentionsSection(db, item, settings, mount, origin)}
 ${await responsesSection(db, item, settings, mount)}`)}
 <script>${VERSION_NAV_SCRIPT}</script>`;
@@ -2063,13 +2112,13 @@ export async function pinnedVersionPage(
   const cite = isThread ? stubCitation(row, tz) : "";
   const body = await blygPage(db, settings, mount, `<p class="pinned-banner">📌 Pinned v${row.version} — a frozen snapshot from ${formatDate(row.published_at, tz)}.
 <a href="${live}">latest version</a> &middot; <a href="${mount}/items/${item.id}/v${row.version}.json">citable JSON</a></p>
-<article class="${isThread ? "thread" : "fragment"}${highlightClass(item)}"${generatedAttr(row.generated_json)}>
+${asHEntry(`<article class="${isThread ? "thread" : "fragment"}${highlightClass(item)}"${generatedAttr(row.generated_json)}>
 ${cite}
 ${forkLineage(item, tz)}
 <div class="item-content">${html}</div>
 ${noteHtml}
 <p class="timestamps"><span>Published: ${formatDate(row.published_at, tz)}</span></p>
-</article>`);
+</article>`, settings, origin, `${origin}${isThread ? "t" : "f"}/${item.id}/v${row.version}/`, row.published_at)}`);
   // Canonical points at the live permalink (absolute — origin is the blyg
   // base URL, trailing slash included): the frozen page is a version of the
   // same work, and the living one is the page that should be indexed.

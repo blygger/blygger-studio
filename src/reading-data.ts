@@ -14,21 +14,22 @@ function dateOrderSql(column: string) {
     WHEN length(${column}) = 23 AND substr(${column}, 1, 1) = '+' THEN '2' || substr(${column}, 2)
     ELSE '1' || strftime('%Y-%m-%dT%H:%M:%SZ', ${column}) END`;
 }
-function identitySql(kind: 'thread' | 'fragment' | undefined, background: boolean, hopper?: string) {
-  const binds = [...(kind ? [kind] : []), ...(hopper ? [hopper] : []), ...(kind ? [kind] : [])];
+function identitySql(kind: 'thread' | 'fragment' | undefined, background: boolean, hopper?: string, mentioning?: string[]) {
+  const binds = [...(kind ? [kind] : []), ...(hopper ? [hopper] : []), ...(kind ? [kind] : []), ...(mentioning ? [JSON.stringify(mentioning)] : [])];
   const updated = dateOrderSql('ii.updated'), observed = dateOrderSql('ii.observed_at');
   const sql = `SELECT 'own' AS source, i.id, '' AS sub, ${dateOrderSql('i.updated')} AS at
     FROM items i LEFT JOIN versions p ON i.kind = 'withdrawn' AND p.item_id = i.id AND p.version = i.version - 1
-    WHERE i.status IN ('public','withdrawn') AND (i.kind = 'withdrawn') = ${background ? 1 : 0}${hopper ? ' AND 0' : ''}${kind ? ` AND ${authoredItemKindSql('p')} = ?` : ''}
+    WHERE i.status IN ('public','withdrawn') AND (i.kind = 'withdrawn') = ${background ? 1 : 0}${hopper || mentioning ? ' AND 0' : ''}${kind ? ` AND ${authoredItemKindSql('p')} = ?` : ''}
     UNION ALL SELECT 'imported', ii.remote_id, ii.subscription_id,
       ${hopper ? 'hi.added_at' : `CASE WHEN ${updated} < ${observed} THEN ${updated} ELSE ${observed} END`}
     FROM imported_items ii ${hopper ? 'JOIN hopper_items hi ON hi.subscription_id = ii.subscription_id AND hi.remote_id = ii.remote_id AND hi.hopper_id = ?' : ''}
-    WHERE (ii.state = 'tombstone') = ${background ? 1 : 0}${kind ? ' AND ii.kind = ?' : ''}`;
+    WHERE (ii.state = 'tombstone') = ${background ? 1 : 0}${kind ? ' AND ii.kind = ?' : ''}${mentioning ? ` AND EXISTS (SELECT 1 FROM imported_mentions m
+      WHERE m.subscription_id = ii.subscription_id AND m.remote_id = ii.remote_id AND m.target IN (SELECT value FROM json_each(?)))` : ''}`;
   return { sql, binds };
 }
 /** Counts are a named summary. Page construction never materializes the full identity set. */
-export async function readingSummary(db: D1Database, source: string | undefined, kind?: 'thread' | 'fragment', background = false, hopper?: string) {
-  const { sql, binds } = identitySql(kind, background, hopper);
+export async function readingSummary(db: D1Database, source: string | undefined, kind?: 'thread' | 'fragment', background = false, hopper?: string, mentioning?: string[]) {
+  const { sql, binds } = identitySql(kind, background, hopper, mentioning);
   const [counts, subs] = await Promise.all([
     db.prepare(`SELECT source, sub, COUNT(*) AS total FROM (${sql}) GROUP BY source, sub`).bind(...binds).all<{ source: string; sub: string; total: number }>(),
     db.prepare('SELECT id FROM subscriptions').all<{ id: string }>(),
@@ -43,11 +44,11 @@ export async function readingSummary(db: D1Database, source: string | undefined,
   return { counts: result, selected };
 }
 /** Select one bounded keyset of identities before loading or sanitizing bodies. */
-export async function readingData(db: D1Database, query: CursorQuery, source: string | undefined, kind?: 'thread' | 'fragment', background = false, hopper?: string) {
+export async function readingData(db: D1Database, query: CursorQuery, source: string | undefined, kind?: 'thread' | 'fragment', background = false, hopper?: string, mentioning?: string[]) {
   const selected = source ?? 'all';
-  const identities = identitySql(kind, background, hopper);
+  const identities = identitySql(kind, background, hopper, mentioning);
   return cursorPage(db, { ...query, limit: query.limit ?? 25 }, {
-    name: 'reading', filters: [selected, kind ?? null, background, hopper ?? null], domains: hopper ? ['reading', 'subscriptions', 'hoppers'] : ['reading', 'subscriptions'],
+    name: 'reading', filters: [selected, kind ?? null, background, hopper ?? null, mentioning?.join(' ') ?? null], domains: hopper ? ['reading', 'subscriptions', 'hoppers'] : ['reading', 'subscriptions'],
     sql: `SELECT * FROM (${identities.sql})${selected === 'all' ? '' : selected === 'own' ? " WHERE source = 'own'" : ' WHERE sub = ? OR NOT EXISTS (SELECT 1 FROM subscriptions WHERE id = ?)'}`,
     binds: [...identities.binds, ...(selected !== 'all' && selected !== 'own' ? [selected, selected] : [])],
     order: [{ column: 'at', direction: 'desc' }, { column: 'source', direction: 'asc' }, { column: 'sub', direction: 'asc' }, { column: 'id', direction: 'asc' }],

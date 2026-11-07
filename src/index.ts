@@ -25,6 +25,7 @@ import { type Context, Hono } from "hono";
 import { buildBlogrollOpml } from "./importer/opml.ts";
 import { loadHopperMembers, publicHopperPage } from "./importer/pages.ts";
 import { buildHopperFeedXml } from "./hopper-feed.ts";
+import { backfillImportedMentions } from "./importer/mention-index.ts";
 import { repairImportedUrls, runScheduledPoll } from "./importer/schedule.ts";
 import { getHopperBySlug, listBlogrollSubscriptions } from "./importer/store.ts";
 import { resolveFrontPage } from "./front-page.ts";
@@ -468,6 +469,9 @@ export default {
     const at = new Date(controller.scheduledTime);
     if (at.getUTCHours() === 0 && at.getUTCMinutes() < 15) daily();
     ctx.waitUntil(runScheduledPoll(env.DB, platformFetchFor(env)));
+    ctx.waitUntil(backfillImportedMentions(env.DB).catch(() => {
+      console.warn('Imported mentions backfill failed');
+    }));
     // Outbound mentions retry here (§2.3.4): the publish path tries once
     // immediately, and a receiver that was down gets it on a later tick.
     ctx.waitUntil(drainOutbound(env.DB, mentionFetchFor(env)).catch(() => {}));

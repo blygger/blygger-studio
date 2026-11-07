@@ -2,7 +2,7 @@
   "openapi": "3.1.0",
   "info": {
     "title": "Blygger Studio API",
-    "version": "5.6.0",
+    "version": "5.7.0",
     "description": "Private authoring and reading API. Protocol files remain a separate public interface."
   },
   "servers": [
@@ -15825,6 +15825,19 @@
             "required": false,
             "name": "background",
             "in": "query"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "enum": [
+                "true"
+              ],
+              "description": "Only imported entries whose own h-cards name the owner (author URL or this blyg's address). A find on the reading side: nothing was verified or received."
+            },
+            "required": false,
+            "description": "Only imported entries whose own h-cards name the owner (author URL or this blyg's address). A find on the reading side: nothing was verified or received.",
+            "name": "mentions",
+            "in": "query"
           }
         ],
         "responses": {
@@ -16072,6 +16085,19 @@
             "required": false,
             "description": "Only withdrawn entries.",
             "name": "background",
+            "in": "query"
+          },
+          {
+            "schema": {
+              "type": "string",
+              "enum": [
+                "true"
+              ],
+              "description": "Only imported entries whose own h-cards name the owner (author URL or this blyg's address). A find on the reading side: nothing was verified or received."
+            },
+            "required": false,
+            "description": "Only imported entries whose own h-cards name the owner (author URL or this blyg's address). A find on the reading side: nothing was verified or received.",
+            "name": "mentions",
             "in": "query"
           }
         ],

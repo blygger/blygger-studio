@@ -9,7 +9,7 @@ test('Studio uses real collection batches for Mentions and preserves the fixture
   await page.locator('[name=password]').fill('test-password');
   await page.getByRole('button', { name: 'log in', exact: true }).click();
   await expect(page.locator('#composer-text')).toBeVisible();
-  await page.getByRole('link', { name: 'mentions', exact: true }).click();
+  await page.getByRole('link', { name: 'responses', exact: true }).click();
   const fixture = page.locator('.mention-group').filter({ hasText: 'Mention target fixture' });
   await expect(fixture).toHaveCount(1);
   await expect(fixture.locator('.mention-row')).toHaveCount(2);

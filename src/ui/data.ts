@@ -560,7 +560,7 @@ export type Reading = Omit<z.infer<typeof sourceSchemas.reading>, 'view'>;
  * counts by kind; "background" and "smart" are placeholders for features that
  * are not built yet (procedural updates with ignyr; the AI-ranked feed).
  */
-export const LENSES = ['all', 'threads', 'fragments', 'background', 'smart'] as const;
+export const LENSES = ['all', 'threads', 'fragments', 'mentions', 'background', 'smart'] as const;
 export type Lens = (typeof LENSES)[number];
 export const lensKind = (lens: Lens | undefined): 'thread' | 'fragment' | undefined =>
   lens === 'threads' ? 'thread' : lens === 'fragments' ? 'fragment' : undefined;
@@ -569,7 +569,7 @@ export const lensKind = (lens: Lens | undefined): 'thread' | 'fragment' | undefi
  * unfiltered view (so every existing key is unchanged), `sub~kind` otherwise.
  */
 export const readingKey = (sub: string, lens?: Lens) => {
-  if (lens === 'background') return `${sub}~background`;
+  if (lens === 'background' || lens === 'mentions') return `${sub}~${lens}`;
   const kind = lensKind(lens);
   return kind ? `${sub}~${kind}` : sub;
 };
@@ -601,8 +601,8 @@ function readingDomains(view: string): readonly ChangeDomain[] {
   return view.startsWith('hopper:') ? ['reading', 'subscriptions', 'hoppers'] : ['reading', 'subscriptions'];
 }
 export function readingQuery(view: string) {
-  const [sub, filter] = view.split('~') as [string, 'thread' | 'fragment' | 'background' | undefined];
-  return { ...(sub.startsWith('hopper:') ? { hopper: sub.slice('hopper:'.length) } : { sub }), ...(filter === 'background' ? { background: 'true' as const } : filter ? { kind: filter } : {}) };
+  const [sub, filter] = view.split('~') as [string, 'thread' | 'fragment' | 'background' | 'mentions' | undefined];
+  return { ...(sub.startsWith('hopper:') ? { hopper: sub.slice('hopper:'.length) } : { sub }), ...(filter === 'background' ? { background: 'true' as const } : filter === 'mentions' ? { mentions: 'true' as const } : filter ? { kind: filter } : {}) };
 }
 export const readingSummaries = createCollection(queryCollectionOptions({
   ...collectionPollingOptions, schema: sourceSchemas.readingSummaries, id: 'reading-summary', syncMode: 'on-demand',

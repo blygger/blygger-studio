@@ -694,7 +694,7 @@ export function MentionsPage() {
   );
   return (
     <>
-      <h2 className="view-h">mentions</h2>
+      <h2 className="view-h">responses</h2>
       <p className="view-sub mentions-note">
         Verified responses from other blygs.
       </p>
@@ -730,7 +730,7 @@ type MentionReadResult = {
 function MentionReadFailure({ result }: { result: MentionReadResult }) {
   if (!result.isLoadingError && !result.isSyncError && !result.isCrashed) return null;
   return <>
-    <Failure error={new Error('Could not load mentions.')} />
+    <Failure error={new Error('Could not load responses.')} />
     {!result.isCrashed && result.collection ? <Button className="btn btn-ghost btn-mini" onClick={() => void result.collection?.reload().catch(() => {})}>retry reads</Button> : null}
   </>;
 }
@@ -739,12 +739,12 @@ function InboundMentions({ defaultShowing }: { defaultShowing: boolean }) {
   const groups = useLiveInfiniteQuery(mentionGroupItemsView, { pageSize: 10 });
   return <>
     <MentionReadFailure result={groups} />
-    {groups.isLoading ? <p className="h-hint">Loading mentions…</p> : null}
+    {groups.isLoading ? <p className="h-hint">Loading responses…</p> : null}
     {groups.data.map(row => <MentionGroup key={row.group.targetItemId} row={row} defaultShowing={defaultShowing} />)}
     {!groups.isLoading && !groups.isLoadingError && !groups.isCrashed && !groups.data.length ? (
       <div className="empty">
         <span className="em" aria-hidden="true">↩</span>
-        No verified mentions.
+        No verified responses.
       </div>
     ) : null}
     {groups.hasNextPage ? <Button disabled={groups.isFetchingNextPage} onClick={() => void groups.fetchNextPage().catch(() => {})}>load more groups</Button> : null}
@@ -778,7 +778,7 @@ function MentionGroup({ row: { group, item }, defaultShowing }: {
       </p>
       <ResponseVisibility id={id} revision={item?.revision ?? 0} mode={mode} defaultShowing={defaultShowing} disabled={!item} />
       <MentionReadFailure result={receipts} />
-      {receipts.isLoading ? <p className="h-hint">Loading mentions…</p> : null}
+      {receipts.isLoading ? <p className="h-hint">Loading responses…</p> : null}
       {receipts.data.map(mention => <MentionRow key={mention.id} mention={mention} />)}
       {receipts.hasNextPage ? <Button className="btn btn-ghost btn-mini" disabled={receipts.isFetchingNextPage} onClick={() => void receipts.fetchNextPage().catch(() => {})}>load more mentions</Button> : null}
     </section>
@@ -801,7 +801,7 @@ function OutboundMentions({ hasSiteUrl }: { hasSiteUrl: boolean }) {
           </div>
         </div>
       ) : null}
-      {outgoing.isLoading ? <p className="h-hint">Loading mentions…</p> : null}
+      {outgoing.isLoading ? <p className="h-hint">Loading responses…</p> : null}
       {outgoing.data.length ? (
         <div className="card">
           {outgoing.data.map((mention) => (
