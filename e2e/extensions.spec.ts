@@ -90,14 +90,14 @@ test('an extension page can ask for the main menu, above compose, and leaves whe
   await login(page);
   const zone = await timezone(page);
   const labels = () => page.locator('nav.tabbar .tl').allTextContents();
-  const reference = ['reading', 'compose', 'hoppers', 'mentions', 'updates', 'more'];
+  const reference = ['reading', 'compose', 'hoppers', 'mentions', 'responses', 'updates', 'more'];
   try {
     await page.goto('/studio/reading');
     await expect.poll(labels).toEqual(reference);
 
     await patchSettings(page, { extensions: ['example', 'menu-example'], timezone: zone });
     await page.goto('/studio/reading');
-    await expect.poll(labels).toEqual(['reading', 'menu example', 'compose', 'hoppers', 'mentions', 'updates', 'more']);
+    await expect.poll(labels).toEqual(['reading', 'menu example', 'compose', 'hoppers', 'mentions', 'responses', 'updates', 'more']);
 
     // The tab opens the page and is the current one there; the page has no way back to More.
     const tab = page.locator('nav.tabbar').getByRole('link', { name: 'menu example' });
