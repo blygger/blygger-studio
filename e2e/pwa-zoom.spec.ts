@@ -67,7 +67,7 @@ test('every field on the main screens is at least 16px', async ({ page }) => {
     ['/studio/access', 'access', false],
     ['/studio/hoppers', 'hoppers', true],
     ['/studio/hoppers/parity-hopper', 'hopper', false],
-    ['/studio/mentions', 'mentions', false],
+    ['/studio/mentions', 'responses', false],
     ['/studio/signals', 'signals', false],
     ['/studio/reading?view=sources', 'sources', false],
   ] as const) {

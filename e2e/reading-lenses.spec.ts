@@ -24,7 +24,7 @@ test('lenses filter by kind, keep themselves across screens, keep withdrawn post
 
   await page.goto('/studio/reading?view=sources');
   const bar = page.getByRole('group', { name: 'reading lens' });
-  await expect(bar.getByRole('button')).toHaveText(['All', 'Threads', 'Fragments', 'Background', 'Smart Feed']);
+  await expect(bar.getByRole('button')).toHaveText(['All', 'Threads', 'Fragments', 'Mentions', 'Background', 'Smart Feed']);
 
   await bar.getByRole('button', { name: 'Threads' }).click();
   await expect(page).toHaveURL(/lens=threads/);

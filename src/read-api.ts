@@ -11,6 +11,7 @@ import { sanitizeHtml } from "./importer/sanitize.ts";
 import { renderMarkdown, plainTextFromHtml } from "./markdown.ts";
 import { clampText } from "./preview.ts";
 import { consumeHandles, withMentionCards } from "./contacts.ts";
+import { ownMentionTargets } from "./mention-targets.ts";
 import { injectNestedProvenance, injectProvenance, transclusionProvenance } from "./pages.ts";
 import { applyInternalLinks, previewInternalLinks, previewTransclusions, resolveBlockLinks } from "./transclusion.ts";
 import { siteOrigin } from "./protocol.ts";
@@ -210,8 +211,13 @@ const listThumbsOperation = async (context: OperationContext, input: OperationIn
 };
 // `read_state: true` advertises that imported entries carry the owner's
 // readVersion, so a client can tell "unread" from "this server keeps none".
-const listReadingOperation = async (context: OperationContext, input: OperationInput) => success({ ...await readingData(context.env.DB, { ...input.query, limit: input.query.limit ?? 25 }, input.query.sub, readingKind(input.query.kind), input.query.background === 'true', input.query.hopper), readState: true as const, readStateClear: true as const });
-const getReadingSummaryOperation = async (context: OperationContext, input: OperationInput) => success(await readingSummary(context.env.DB, input.query.sub, readingKind(input.query.kind), input.query.background === 'true', input.query.hopper));
+const mentioning = async (context: OperationContext, input: OperationInput) => {
+  if (input.query.mentions !== 'true') return undefined;
+  const settings = await getSettings(context.env.DB);
+  return ownMentionTargets(settings.author_url, siteOrigin(settings, context.url, normalizeMount(context.env.MOUNT)));
+};
+const listReadingOperation = async (context: OperationContext, input: OperationInput) => success({ ...await readingData(context.env.DB, { ...input.query, limit: input.query.limit ?? 25 }, input.query.sub, readingKind(input.query.kind), input.query.background === 'true', input.query.hopper, await mentioning(context, input)), readState: true as const, readStateClear: true as const });
+const getReadingSummaryOperation = async (context: OperationContext, input: OperationInput) => success(await readingSummary(context.env.DB, input.query.sub, readingKind(input.query.kind), input.query.background === 'true', input.query.hopper, await mentioning(context, input)));
 // Imported items only, keyset-paged, for clients that author from what they read (studio#11).
 const listImportedReadingOperation = async (context: OperationContext, input: OperationInput) => {
   return success(await importedReading(context.env.DB, input.query.cursor, Number(input.query.limit ?? IMPORTED_READING_DEFAULT)));

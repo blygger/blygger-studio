@@ -18,6 +18,25 @@ not have its own repo until session 26.
 
 ---
 
+## 0.56.0 — Mentions means people now
+
+**A Mentions lens in the reader** (#134, `tn-6`). Reading's new lens lists items you
+already read whose own h-cards name you: your author URL or your blyg's address. The
+mention is highlighted wherever you read it, and in this lens the card scrolls to it.
+It is a find, not a notification: nobody told you, nothing is verified, nothing is sent,
+and it shows no tally. Quotes of someone else's words don't count, feeds you don't read
+aren't searched, and legacy RSS items aren't indexed. Items imported earlier are read
+by a backfill, 500 every 15 minutes, so older mentions appear over a while.
+
+**The old mentions tab is now "responses".** Only the label changes: `/mentions`, the
+API and the protocol's own term stay.
+
+Private contract **5.7.0** (additive: `mentions=true` on `GET /reading` and
+`/reading/summary`); SDK **0.13.0**. Protocol version unchanged (`"0.4"`).
+
+**Migrations:** `0043` (`imported_mentions`, `imported_mentions_backfill`). Apply it
+before deploying.
+
 ## 0.55.3 — Item pages say who wrote them, to software
 
 **Item pages are microformats2 h-entries** (#132, `tn-6`). Live and pinned-version

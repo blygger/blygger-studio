@@ -180,8 +180,14 @@ async function flattenQuote(n: Extract<Node, object>, ctx: FlattenContext): Prom
   const body = (await blocks(n.children, { ...ctx, origin })).join("\n\n");
   let host = origin;
   try { host = new URL(origin).host; } catch { /* keep the raw origin */ }
-  const label = `${host}${version ? ` · v${version}` : ""}`;
-  const attribution = id ? `— quoted from [${label}](${await ctx.link(origin, id)})` : `— quoted from ${label}`;
+  const where = `${host}${version ? ` · v${version}` : ""}`;
+  // The quoter's label, when the directive carried one, is the anchor (§10.2,
+  // decision #81); host and version follow as plain text, so the label never
+  // stands in for the source, and it is never the target's title (#46).
+  const named = (n.attrs["data-blyg-label"] ?? "").replace(/\s+/g, " ").trim();
+  const anchor = named ? escapeText(named) : where;
+  const tail = named ? ` · ${where}` : "";
+  const attribution = id ? `— quoted from [${anchor}](${await ctx.link(origin, id)})${tail}` : `— quoted from ${anchor}${tail}`;
   return quote(`${body}\n\n${attribution}`);
 }
 

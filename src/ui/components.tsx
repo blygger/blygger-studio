@@ -136,7 +136,7 @@ const tabs = [
   { label: 'reading', to: '/reading', icon: '◫' },
   { label: 'compose', to: '/', icon: '✎' },
   { label: 'hoppers', to: '/hoppers', icon: '▤' },
-  { label: 'mentions', to: '/mentions', icon: '↩' },
+  { label: 'responses', to: '/mentions', icon: '↩' },
   { label: 'updates', to: '/updates', icon: '↻' },
   { label: 'more', to: '/more', icon: '⋯' },
 
@@ -148,7 +148,7 @@ export function tabFor(path: string): Tab | null {
   if (p === '/' || p.startsWith('/edit/')) return 'compose';
   if (p === '/reading' || p.startsWith('/reading/') || p === '/subs' || p === '/fork') return 'reading';
   if (p === '/hoppers' || p.startsWith('/hoppers/')) return 'hoppers';
-  if (p === '/mentions') return 'mentions';
+  if (p === '/mentions') return 'responses';
   if (p === '/updates') return 'updates';
   if (p === '/more' || p === '/settings' || p === '/syntax' || p === '/signals' || p === '/access') return 'more';
   return null;
@@ -302,7 +302,7 @@ export function Layout({ children }: { children: ReactNode }) {
             <Link
               key={tab.label}
               to={tab.to}
-              preload={tab.label === 'mentions' ? 'viewport' : undefined}
+              preload={tab.label === 'responses' ? 'viewport' : undefined}
               className={tab.label === active ? 'tab is-active' : 'tab'}
               aria-current={tab.label === active ? 'page' : undefined}
             >

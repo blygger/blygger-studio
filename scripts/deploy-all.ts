@@ -19,6 +19,7 @@ import { spawnSync } from "node:child_process";
 import path from "node:path";
 import {
   crossCheckTarget,
+  envArgs,
   describeVerifyFailure,
   hasPendingMigrations,
   stripJsonComments,
@@ -118,7 +119,7 @@ if (!skipTests && !dryRun) {
 console.log("\n— migration preflight");
 const pending = new Map<string, string>();
 for (const t of targets) {
-  const res = run("npx", ["wrangler", "d1", "migrations", "list", "DB", "--remote", "--config", configFile, "--env", t.env], {
+  const res = run("npx", ["wrangler", "d1", "migrations", "list", "DB", "--remote", "--config", configFile, ...envArgs(t.env)], {
     CLOUDFLARE_ACCOUNT_ID: t.account_id,
   });
   const out = `${res.stdout ?? ""}${res.stderr ?? ""}`;
@@ -151,7 +152,7 @@ for (const t of targets) {
     console.log(`— applying migrations (${t.account_label})`);
     const res = runInherit(
       "npx",
-      ["wrangler", "d1", "migrations", "apply", "DB", "--remote", "--config", configFile, "--env", t.env],
+      ["wrangler", "d1", "migrations", "apply", "DB", "--remote", "--config", configFile, ...envArgs(t.env)],
       { CLOUDFLARE_ACCOUNT_ID: t.account_id },
     );
     if (res.status !== 0) {
@@ -160,7 +161,7 @@ for (const t of targets) {
     }
   }
 
-  const normalized = runInherit("node", ["--import", "tsx", "scripts/normalize-import-dates.ts", "--remote", "--config", configFile, "--env", t.env], { CLOUDFLARE_ACCOUNT_ID: t.account_id });
+  const normalized = runInherit("node", ["--import", "tsx", "scripts/normalize-import-dates.ts", "--remote", "--config", configFile, ...envArgs(t.env)], { CLOUDFLARE_ACCOUNT_ID: t.account_id });
   if (normalized.status !== 0) {
     results.push({ env: t.env, ok: false, detail: "date normalization failed — worker NOT deployed" });
     continue;
@@ -170,7 +171,7 @@ for (const t of targets) {
   // CLOUDFLARE_ACCOUNT_ID is pinned here in addition to the config's own
   // account_id: belt and braces against the wrong-account deploy of
   // incident 2026-09-12-01.
-  const deployed = runInherit("npx", ["wrangler", "deploy", "--config", configFile, "--env", t.env], {
+  const deployed = runInherit("npx", ["wrangler", "deploy", "--config", configFile, ...envArgs(t.env)], {
     CLOUDFLARE_ACCOUNT_ID: t.account_id,
   });
   if (deployed.status !== 0) {

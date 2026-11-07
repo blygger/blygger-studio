@@ -69,8 +69,16 @@ export interface WranglerEnvConfig {
 
 /** Pull one named environment's block out of a parsed wrangler config. */
 export function wranglerEnv(config: unknown, env: string): WranglerEnvConfig | undefined {
+  // An empty env is the config's top level: a single-node self-host deploys
+  // with no named environment, and its name and account_id sit at the root.
+  if (env === "") return (config ?? undefined) as WranglerEnvConfig | undefined;
   const envs = (config as { env?: Record<string, WranglerEnvConfig> } | null)?.env;
   return envs?.[env];
+}
+
+/** The `--env` arguments for a target: none for the top-level config. */
+export function envArgs(env: string): string[] {
+  return env === "" ? [] : ["--env", env];
 }
 
 /**
@@ -85,7 +93,11 @@ export function crossCheckTarget(target: DeployTarget, config: unknown): string[
   const problems: string[] = [];
   const envConfig = wranglerEnv(config, target.env);
   if (!envConfig) {
-    problems.push(`wrangler.jsonc has no env "${target.env}" (manifest target "${target.label}")`);
+    problems.push(
+      target.env === ""
+        ? `wrangler.jsonc has no top-level config (manifest target "${target.label}")`
+        : `wrangler.jsonc has no env "${target.env}" (manifest target "${target.label}")`,
+    );
     return problems;
   }
   if (envConfig.name !== target.worker) {

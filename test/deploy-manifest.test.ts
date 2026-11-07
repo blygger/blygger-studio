@@ -28,6 +28,7 @@ import exampleManifest from "../deploy-targets.example.json";
 import {
   crossCheckTarget,
   describeVerifyFailure,
+  envArgs,
   hasPendingMigrations,
   stripJsonComments,
   verifyUrl,
@@ -139,7 +140,7 @@ describe.runIf(havePrivate)("our own live targets still cross-check", () => {
     }
   });
 
-  it("spans more than one Cloudflare account", () => {
+  it.runIf(liveTargets.length > 1)("spans more than one Cloudflare account", () => {
     // Not a style preference: the nodes really are billed to different
     // accounts, which is what made the wrong-account deploy possible and why
     // each env pins its own (checked above). Nodes may share an account —
@@ -152,6 +153,25 @@ describe.runIf(havePrivate)("our own live targets still cross-check", () => {
     for (const marker of ["PASSWORD=", "SECRET=", "sk-ant", "-----BEGIN"]) {
       expect(serialized).not.toContain(marker);
     }
+  });
+});
+
+describe("a single-node config with no named env", () => {
+  const config = { name: "blyg-solo", account_id: "acct-solo" };
+  const target = { ...targets[0], env: "", worker: "blyg-solo", account_id: "acct-solo" };
+
+  it("resolves env \"\" to the top level", () => {
+    expect(wranglerEnv(config, "")?.account_id).toBe("acct-solo");
+    expect(crossCheckTarget(target, config)).toEqual([]);
+  });
+
+  it("still catches an account mismatch at the top level", () => {
+    expect(crossCheckTarget({ ...target, account_id: "acct-other" }, config).join(" ")).toMatch(/account_id mismatch/);
+  });
+
+  it("passes no --env to wrangler", () => {
+    expect(envArgs("")).toEqual([]);
+    expect(envArgs("production")).toEqual(["--env", "production"]);
   });
 });
 

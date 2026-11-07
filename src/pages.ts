@@ -9,6 +9,7 @@
 import { listBlogrollSubscriptions, listPublicHoppers } from "./importer/store.ts";
 import { listPublicResponses } from "./mentions/store.ts";
 import { sanitizeHtml } from "./importer/sanitize.ts";
+import { decodeHTMLAttribute } from "entities";
 import { blygItemUrl } from "./importer/util.ts";
 import { isBlygStub, parseStoredCite, parseStoredFork, parseStoredStub } from "./stub.ts";
 import { linkLabel } from "./link-label.ts";
@@ -1252,6 +1253,30 @@ export async function transclusionProvenance(db: D1Database, transclusions: Tran
 }
 
 /**
+ * A baked quote's `data-blyg-label` (§10.1, §10.2, decision #81): the quoting
+ * author's own name for what they quoted, decoded from the attribute and
+ * flattened to one short line. Null when the tag carries none, which is every
+ * quote baked before the label was, and every unlabelled directive.
+ */
+export function bakedLabel(tag: string): string | null {
+  const raw = /\sdata-blyg-label="([^"]*)"/.exec(tag)?.[1];
+  if (raw === undefined) return null;
+  const text = clampForeign(decodeHTMLAttribute(raw), 120);
+  return text || null;
+}
+
+/**
+ * A provenance line with the quoter's label as its anchor text (decision #81:
+ * RECOMMENDED as the attribution anchor). What the anchor said before — the
+ * source blyg's name, or the local kind — stays beside it as plain text, so a
+ * label never stands in for the source, and never for the target's title
+ * (#46): it is the quoter's words, shown where the quoter's reference is.
+ */
+function labelledProvenance(line: string, label: string): string {
+  return line.replace(/(<a\b[^>]*>)([\s\S]*?)(?: ↗)?<\/a>/, (_all, open: string, was: string) => `${open}${escapeHtml(label)} ↗</a> · ${was}`);
+}
+
+/**
  * Inject a provenance paragraph inside each *top-level* baked transclusion
  * blockquote, in document order. Presentation only — this is never stored in
  * the protocol content_html (§2.9 specifies only the blockquote + data
@@ -1269,6 +1294,7 @@ export function injectProvenance(html: string, provenance: string[]): string {
   let last = 0;
   let depth = 0;
   let inTransclusion = false;
+  let label: string | null = null;
   let i = 0;
   let m: RegExpExecArray | null;
   while ((m = re.exec(html))) {
@@ -1276,11 +1302,12 @@ export function injectProvenance(html: string, provenance: string[]): string {
       depth = Math.max(0, depth - 1);
       if (depth === 0 && inTransclusion) {
         const p = provenance[i++];
-        out += html.slice(last, m.index) + (p ? `\n${p}` : "");
+        out += html.slice(last, m.index) + (p ? `\n${label ? labelledProvenance(p, label) : p}` : "");
         last = m.index;
         inTransclusion = false;
       }
     } else {
+      if (depth === 0) label = bakedLabel(m[0]);
       // Match the class **token**, not the literal attribute. A partial
       // transclusion's class is `blyg-transclusion blyg-partial` (§10.1–§10.3), so a
       // substring test on the whole attribute misses it — and missing it does
@@ -1310,7 +1337,7 @@ export function injectProvenance(html: string, provenance: string[]): string {
  */
 export async function injectNestedProvenance(db: D1Database, html: string, mount: string): Promise<string> {
   if (!html.includes("data-blyg-id=")) return html;
-  type Layer = { transclusion: boolean; id: string | null; version: string | null; origin: string | null; partial: boolean; nested: boolean };
+  type Layer = { transclusion: boolean; id: string | null; version: string | null; origin: string | null; partial: boolean; nested: boolean; label: string | null };
   const attr = (tag: string, name: string) => new RegExp(`\\b${name}="([^"]*)"`).exec(tag)?.[1] ?? null;
   const stack: Layer[] = [];
   const closes: Array<{ at: number; layer: Layer }> = [];
@@ -1332,6 +1359,7 @@ export async function injectNestedProvenance(db: D1Database, html: string, mount
       origin: attr(m[0], "data-blyg-origin") ?? (enclosing ? enclosing.origin : null),
       partial: /\bblyg-partial\b/.test(cls),
       nested: !!enclosing,
+      label: transclusion ? bakedLabel(m[0]) : null,
     });
   }
   if (!closes.length) return html;
@@ -1364,7 +1392,8 @@ export async function injectNestedProvenance(db: D1Database, html: string, mount
   for (const { at, layer } of closes.sort((a, b) => b.at - a.at)) {
     const link = lines.get(`${layer.origin ?? ""}\u0000${layer.id}`)!;
     const what = layer.partial ? "excerpt of" : "snapshot of";
-    out = `${out.slice(0, at)}\n<p class="provenance nested">${link} · ${what} v${escapeHtml(layer.version ?? "?")}</p>${out.slice(at)}`;
+    const line = `<p class="provenance nested">${link} · ${what} v${escapeHtml(layer.version ?? "?")}</p>`;
+    out = `${out.slice(0, at)}\n${layer.label ? labelledProvenance(line, layer.label) : line}${out.slice(at)}`;
   }
   return out;
 }

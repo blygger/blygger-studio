@@ -62,6 +62,60 @@ test('unpublished edits show as the draft count beside the published one', async
   await expect(count).toHaveAttribute('title', /Published: \d+ words\.\nDraft: \d+ words\./);
 });
 
+test('the full editor shows the same counts as the byline and follows autosave', async ({ page }) => {
+  const run = marker();
+  const chapter = await publish(page, `Editor ${run}: one two.`, 'fragment');
+  const contents = await publish(page, `Contents ${run}\n\n- [[${chapter} | The chapter]]`, 'thread');
+
+  await page.goto(`/studio/edit/${chapter}`);
+  const count = page.locator('.ed-foot [data-extension=word-count]');
+  await expect(count).toHaveText('· 4 words');
+
+  // Typing moves the draft count once autosave lands, leaving the published one.
+  await page.locator('#md-input').fill(`Editor ${run}: one two three four five.`);
+  await expect(count).toHaveText('· 4 words (draft 7 words)');
+
+  // The reading view agrees.
+  await page.goto('/studio/reading?sub=own');
+  const byline = page.locator('.reading-entry').filter({ hasText: `Editor ${run}` }).locator('[data-extension=word-count]');
+  await expect(byline).toHaveText('· 4 words (draft 7 words)');
+
+  // A contents thread's editor carries the roll-up too, with the chapter's draft in it.
+  await page.goto(`/studio/edit/${contents}`);
+  await expect(page.locator('.ed-foot [data-extension=word-count]')).toHaveText(/^· \d+ words · \d+ words in document \(draft \d+ words\)$/);
+});
+
+test('the composer counts as typed, beside the character count', async ({ page }) => {
+  await page.goto('/studio/');
+  const count = page.locator('.composer-actions [data-extension=word-count]');
+  await expect(count).toHaveCount(0);
+  await page.locator('#composer-text').fill('one two [the label](https://example.com/a/b) ![alt](https://example.com/i.png) [[abc | three]] [[abc]]');
+  await expect(count).toHaveText('· 5 words');
+  await expect(page.locator('#composer-count + .counter')).toContainText('5 words');
+  // A long count stays on one line and the buttons on one row, at phone width too.
+  await page.locator('#composer-text').fill('word '.repeat(1500));
+  await expect(count).toHaveText('· 1,500 words');
+  const [save, send] = await Promise.all([page.locator('#save-draft-btn').boundingBox(), page.locator('#publish-btn').boundingBox()]);
+  expect(save!.y).toBe(send!.y);
+  expect((await count.boundingBox())!.height).toBeLessThan(30);
+  await page.locator('#composer-text').fill('');
+  await expect(count).toHaveCount(0);
+});
+
+test('off, the editor carries no count', async ({ page }) => {
+  await setExtensions(page, []);
+  const run = marker();
+  const id = await publish(page, `Off editor ${run}: nothing to show.`, 'fragment');
+  await page.goto(`/studio/edit/${id}`);
+  await expect(page.locator('.ed-foot .counter')).toContainText('/ 1000');
+  await expect(page.locator('[data-extension=word-count]')).toHaveCount(0);
+  await page.goto('/studio/');
+  await page.locator('#composer-text').fill('one two three');
+  await expect(page.locator('#composer-count')).toContainText('13');
+  await expect(page.locator('#composer-count + .counter')).toHaveCount(0);
+  await page.locator('#composer-text').fill('');
+});
+
 test('off, bylines carry no count', async ({ page }) => {
   await setExtensions(page, []);
   const run = marker();

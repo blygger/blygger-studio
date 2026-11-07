@@ -16,6 +16,7 @@
  * do not subscribe to opens at /peek, fetched from its origin. Either way the
  * step is recorded on the trail (browse.ts) so back retraces it.
  */
+import { markOwnMentions, useOwnMentionTargets } from './own-mentions.ts';
 import { clearBrowse } from './server-mutations.ts';
 import { useEffect, useMemo, useRef, useState, type ReactNode, type MouseEvent } from 'react';
 import { createPortal } from 'react-dom';
@@ -99,6 +100,7 @@ export function ReaderBody({
   onClick?: (event: React.MouseEvent<HTMLDivElement>) => void;
 }) {
   const box = useRef<HTMLDivElement>(null);
+  const self = useOwnMentionTargets();
   const subs = useSubscriptionRows();
   const [links, setLinks] = useState<{ node: HTMLElement; origin: string; id: string; via: 'quote' | 'link'; html: string; className: string }[]>([]);
   const titleFor = useMemo(() => {
@@ -112,6 +114,7 @@ export function ReaderBody({
     // Stored HTML stays outside React; portals give its reader targets real
     // Router links, including intent preload and native new-tab behavior.
     root.innerHTML = html;
+    markOwnMentions(root, self);
     const targets: typeof links = [];
     const replace = (a: HTMLAnchorElement, origin: string, id: string, via: 'quote' | 'link') => {
       const node = document.createElement('span');
@@ -130,7 +133,11 @@ export function ReaderBody({
       const line = document.createElement('p');
       line.className = 'layer-ref';
       const a = document.createElement('a');
-      a.textContent = `↳ ${layer.classList.contains('blyg-partial') ? 'excerpt of' : 'snapshot of'} v${layer.dataset.blygVersion ?? '?'} from ${titleFor(layerOrigin)} — open in reader`;
+      // The quoter's label leads, when the bake carries one (§10.2, decision
+      // #81): their own name for what they quoted, never the target's title
+      // (#46), so whose it is and which version still follow it.
+      const named = layer.dataset.blygLabel?.replace(/\s+/g, ' ').trim();
+      a.textContent = `↳ ${named ? `${named} · ` : ''}${layer.classList.contains('blyg-partial') ? 'excerpt of' : 'snapshot of'} v${layer.dataset.blygVersion ?? '?'} from ${titleFor(layerOrigin)} — open in reader`;
       line.append(a);
       layer.prepend(line);
       replace(a, layerOrigin, id, 'quote');
@@ -168,7 +175,7 @@ export function ReaderBody({
     return () => {
       live = false;
     };
-  }, [html, origin, titleFor]);
+  }, [html, origin, titleFor, self]);
 
   return (
     <>

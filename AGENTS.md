@@ -95,6 +95,8 @@ npm run deploy:vgr    # wrangler deploy --config wrangler.private.jsonc --env ve
 npm run deploy:pi     # wrangler deploy --config wrangler.private.jsonc --env protocolInstitute
 ```
 
+**New Nature is not deployed from here** (Venkat, 2026-11-06). `newnature` is in the deploy manifest, but that node is migrated, deployed and changed only from `Publishing/newnature/` sessions: it vendors a private dashboard at build time, and a deploy from this checkout would remove it. So don't run `deploy:all`; roll out with the per-node commands above and the `blyggerOrg` deploy.
+
 **If you lose the private files:** every value in them is readable from the Cloudflare
 dashboard, but rebuilding by hand is how incident `2026-09-12-01` happened. `test/
 deploy-manifest.test.ts` cross-checks them on every `npm test` — and note *how* it
@@ -156,6 +158,7 @@ saying so.
 
 ## Status
 
+**0.56.0** (session 60, 2026-11-07): the Mentions lens (#134; tn-6 section 6, #91 B4): `src/importer/mention-index.ts` records h-card identifiers at import, `imported_mentions`, cron backfill; match on `author_url` plus the blyg's address until a member record exists; `.mention-you` highlight (`src/ui/own-mentions.ts`). The old mentions tab is labelled responses; route and API unchanged. Private contract 5.7.0, SDK 0.13.0. **Migration 0043.**
 **0.55.3** (session 60, 2026-11-06): item pages are h-entries with a `p-author h-card` byline (#132; `asHEntry` in `pages.ts`, hidden, page chrome only). Contract and SDK unchanged. No migration.
 **0.55.2** (session 60, 2026-11-06): fragment-mode cues (#128; `--fragment-bg`, `boxClass`, `CharCount`); Cmd/Ctrl+B, I, K (#129; `src/ui/format-shortcuts.ts`, `insertText` for undo); the toolbar above both panes and public-styled preview quotes with provenance lines (#130); one subscribe sheet through the address book offer (#127). Contract and SDK unchanged. No migration.
 **0.55.1** (session 60, 2026-11-06): the address book offers a blyg on a manual subscribe and an author from the reading menu (#124; `customSheet` in `src/ui/sheets.tsx`, the manifest read from the browser with a fallback); help text; the section has its own form outside the settings form. Contract and SDK unchanged. No migration.
