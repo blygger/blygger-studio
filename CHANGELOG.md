@@ -18,6 +18,17 @@ not have its own repo until session 26.
 
 ---
 
+## 0.55.3 — Item pages say who wrote them, to software
+
+**Item pages are microformats2 h-entries** (#132, `tn-6`). Live and pinned-version
+pages mark up the URL, date, content and author, with the byline as a `p-author
+h-card`, so a parser gets the author and any mentions from one read. It is hidden, so
+pages look as they did. It is page markup only: nothing reaches item documents or feeds.
+
+Private contract and SDK unchanged. Protocol version unchanged (`"0.4"`).
+
+**Migrations:** none. A node coming from before 0.55.0 needs `0042`.
+
 ## 0.55.2 — Knowing which mode you are in, and the editors' keyboard
 
 **Fragment or thread at a glance** (#128). In the composer, full editor and quick
