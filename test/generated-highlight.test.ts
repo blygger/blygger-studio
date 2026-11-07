@@ -14,7 +14,8 @@ const setDefault = (cookie: string, on: boolean) =>
   apiJson(cookie, "PATCH", "/blyg/api/settings", { highlightGeneratedDefault: on });
 const setItem = (cookie: string, id: string, mode: string) =>
   apiJson(cookie, "PATCH", `/blyg/api/items/${id}`, { highlight: mode });
-const article = async (id: string) => /<article class="([^"]*)"/.exec(await (await getPublic(`/blyg/f/${id}/`)).text())![1];
+// The h-entry class is the page's microformats (test/byline-hcard.test.ts), not the highlight's.
+const article = async (id: string) => /<article class="([^"]*)"/.exec(await (await getPublic(`/blyg/f/${id}/`)).text())![1].replace(/^h-entry /, "");
 const css = async () => (await getPublic("/blyg/style.css")).text();
 const GENERATED = "Some words [TK]impyrt=pasted from elsewhere[/TK] and mine.";
 

@@ -18,6 +18,56 @@ not have its own repo until session 26.
 
 ---
 
+## 0.55.3 — Item pages say who wrote them, to software
+
+**Item pages are microformats2 h-entries** (#132, `tn-6`). Live and pinned-version
+pages mark up the URL, date, content and author, with the byline as a `p-author
+h-card`, so a parser gets the author and any mentions from one read. It is hidden, so
+pages look as they did. It is page markup only: nothing reaches item documents or feeds.
+
+Private contract and SDK unchanged. Protocol version unchanged (`"0.4"`).
+
+**Migrations:** none. A node coming from before 0.55.0 needs `0042`.
+
+## 0.55.2 — Knowing which mode you are in, and the editors' keyboard
+
+**Fragment or thread at a glance** (#128). In the composer, full editor and quick
+edit, a fragment's box takes a light tint of the theme's accent. Thread-only tools stay
+in the row, greyed, so nothing shifts when the kind changes. The count is bolder and
+now appears in quick edit; past 1000 in a fragment, it and the text go red. The full
+editor's count never went red before: a stylesheet rule cancelled it.
+
+**Bold, italics and links from the keyboard** (#129). Cmd/Ctrl+B, I and K in all three
+editors. Pressing again takes the formatting off, and undo works. Macs use Cmd only, so
+Ctrl+B and Ctrl+K keep their system meanings.
+
+**The full editor's panes start level, and its preview's quotes look like the public
+page's** (#130). The toolbar sits above both panes. Quotes take the public styling, and
+a thread preview shows the line under each one.
+
+**Subscribing stays in one sheet** (#127). After subscribing to a blyg, the sheet
+carries on to the address book offer instead of closing and opening another.
+
+Private contract and SDK unchanged. Protocol version unchanged (`"0.4"`).
+
+**Migrations:** none.
+
+## 0.55.1 — The address book meets you where you find people
+
+**Subscribing offers the blyg** (#124). Subscribe to one blyg by hand and the Studio
+asks "Add this blyg to address book?", filled in from its manifest. It doesn't ask for
+OPML imports, RSS feeds or hopper subscriptions, or when the URL is already in the book.
+
+**The reading menu's "add author to address book"** does the same for an entry's author.
+
+**Help text on each field, and the address book has its own form.** It used to sit
+inside the settings form, so "save settings" sat beside it and did nothing for it, and
+Enter would have saved settings. "Name" is now "Display name".
+
+Private contract and SDK unchanged. Protocol version unchanged (`"0.4"`).
+
+**Migrations:** none.
+
 ## 0.55.0 — An address book, and @mentions that become links at publish
 
 **Type `@handle` while writing** (#123, `tn-6`). Add people in Settings → Address

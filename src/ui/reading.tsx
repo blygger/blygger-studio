@@ -67,6 +67,7 @@ import { EntryBylineSlot, EntrySheetSlot, entryActionRows, enabledExtensions, ty
 import { compiledExtensions } from '../../build/extensions.ui.ts';
 import { More, ThumbDown, ThumbUp } from './icons.tsx';
 import { SearchBox, SearchResults, type SearchFilters } from './search.tsx';
+import { addAuthorContact } from './contacts.tsx';
 import './reading.css';
 
 
@@ -547,6 +548,12 @@ function useEntryActions({
             label: historyOpen ? 'hide history' : 'history',
             onSelect: () => setHistoryOpen((open) => !open),
           },
+        !!imported && {
+          key: 'add-author',
+          icon: '@',
+          label: 'add author to address book',
+          onSelect: () => void authorSeed(imported).then(addAuthorContact),
+        },
         ...entryActionRows(extensions, extensionContext),
       ],
     });
@@ -568,6 +575,22 @@ function useEntryActions({
   };
 }
 type EntryActions = ReturnType<typeof useEntryActions>;
+
+/**
+ * Who wrote an imported entry, as far as it says. A reading row does not carry
+ * its author, so this reads the item when asked. An rss subscription's origin is
+ * its feed, so it falls back to the site.
+ */
+async function authorSeed(imported: NonNullable<Reading['imported']>) {
+  const item = await unwrap(BlyggerApi.getImportedItem({ client, path: { sub: imported.subscriptionId, id: imported.remoteId } })).catch(() => null);
+  const author = (item?.author ?? {}) as { name?: unknown; url?: unknown };
+  const origin = subscriptions.get(imported.subscriptionId)?.origin ?? imported.sourceUrl ?? '';
+  const site = imported.l0 && origin ? new URL(origin).origin + '/' : origin;
+  return {
+    name: typeof author.name === 'string' && author.name ? author.name : imported.subscriptionTitle,
+    url: typeof author.url === 'string' && author.url.startsWith('https:') ? author.url : site,
+  };
+}
 
 /** The byline: kind, legacy rss, source and date, plus the extensions' slot. */
 function Byline({ entry, a, children }: { entry: Reading; a: EntryActions; children?: ReactNode }) {
@@ -1231,9 +1254,9 @@ function SubscribeSheet({
   return (
     <Sheet open={open} onClose={onClose} title="subscribe">
       <AddFeedForm
-        onSubscribed={() => {
+        onSubscribed={(told) => {
           onClose();
-          toast('subscribed');
+          if (!told) toast('subscribed');
         }}
       />
       <div className="sheet-actions add-sub-more">

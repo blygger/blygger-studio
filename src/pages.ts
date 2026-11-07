@@ -1153,6 +1153,26 @@ ${permalinkLink(item.id, false, mount)}
 }
 
 /**
+ * An item's page as a microformats2 h-entry, with its byline as a p-author
+ * h-card (tn-6 section 5.4), so a parser gets the author and the mentions from
+ * one read. Page chrome, not the item: nothing here reaches the document or the
+ * feed. Hidden, because these pages show no byline of their own. It goes last so
+ * the article's first-child rules still reach the first thing you see. A
+ * withdrawn item is not an entry. No h-cite or responses markup, ever (tn-7).
+ */
+export function asHEntry(article: string, settings: Settings, origin: string, url: string, published: string): string {
+  if (!article.startsWith('<article class="') || /^<article class="[^"]*\bwithdrawn\b/.test(article)) return article;
+  const author = settings.author_name
+    ? `<a class="p-author h-card" href="${escapeHtml(settings.author_url || origin)}" hidden>${escapeHtml(settings.author_name)}</a>\n`
+    : "";
+  const meta = `<a class="u-url" href="${escapeHtml(url)}" hidden></a>\n<time class="dt-published" datetime="${escapeHtml(published)}" hidden></time>\n${author}`;
+  return article
+    .replace('<article class="', '<article class="h-entry ')
+    .replace('<div class="item-content', '<div class="e-content item-content')
+    .replace(/<\/article>$/, () => `${meta}</article>`);
+}
+
+/**
  * `titleLink` is set on the feed page and unset on the permalink page: on the
  * item's own page the title would link to the page you are already reading.
  */
@@ -1970,7 +1990,7 @@ export async function permalinkPage(db: D1Database, settings: Settings, item: It
   const latest = await publishedVersion(db, item);
   const media = await listVersionMedia(db, item.id, item.version);
   const head = itemHead(latest?.content_html ?? "", settings);
-  const body = `${await blygPage(db, settings, mount, `${await fragmentBlock(db, item, mount, settings.timezone)}
+  const body = `${await blygPage(db, settings, mount, `${asHEntry(await fragmentBlock(db, item, mount, settings.timezone), settings, origin, url, item.created)}
 ${await localMentionsSection(db, item, settings, mount, origin)}
 ${await responsesSection(db, item, settings, mount)}`)}
 <script>${VERSION_NAV_SCRIPT}</script>`;
@@ -2006,7 +2026,7 @@ export async function threadPage(db: D1Database, settings: Settings, item: ItemR
   const latest = await publishedVersion(db, item);
   const media = await listVersionMedia(db, item.id, item.version);
   const head = itemHead(latest?.content_html ?? "", settings, respondsToLabel(latest));
-  const body = `${await blygPage(db, settings, mount, `${await threadBlock(db, item, mount, settings.timezone)}
+  const body = `${await blygPage(db, settings, mount, `${asHEntry(await threadBlock(db, item, mount, settings.timezone), settings, origin, url, item.created)}
 ${await localMentionsSection(db, item, settings, mount, origin)}
 ${await responsesSection(db, item, settings, mount)}`)}
 <script>${VERSION_NAV_SCRIPT}</script>`;
@@ -2063,13 +2083,13 @@ export async function pinnedVersionPage(
   const cite = isThread ? stubCitation(row, tz) : "";
   const body = await blygPage(db, settings, mount, `<p class="pinned-banner">📌 Pinned v${row.version} — a frozen snapshot from ${formatDate(row.published_at, tz)}.
 <a href="${live}">latest version</a> &middot; <a href="${mount}/items/${item.id}/v${row.version}.json">citable JSON</a></p>
-<article class="${isThread ? "thread" : "fragment"}${highlightClass(item)}"${generatedAttr(row.generated_json)}>
+${asHEntry(`<article class="${isThread ? "thread" : "fragment"}${highlightClass(item)}"${generatedAttr(row.generated_json)}>
 ${cite}
 ${forkLineage(item, tz)}
 <div class="item-content">${html}</div>
 ${noteHtml}
 <p class="timestamps"><span>Published: ${formatDate(row.published_at, tz)}</span></p>
-</article>`);
+</article>`, settings, origin, `${origin}${isThread ? "t" : "f"}/${item.id}/v${row.version}/`, row.published_at)}`);
   // Canonical points at the live permalink (absolute — origin is the blyg
   // base URL, trailing slash included): the frozen page is a version of the
   // same work, and the living one is the page that should be indexed.

@@ -208,6 +208,7 @@ function SettingsForm({ initial }: { initial: Settings }) {
   return (
     <div className="settings-layout">
     <SettingsNav />
+    <div className="settings-main">
     <form
       className="settings-form"
       id="settings-form"
@@ -780,10 +781,6 @@ function SettingsForm({ initial }: { initial: Settings }) {
         )}
       </section>
       </section>
-      <section className="settings-section" id="contacts" aria-labelledby="contacts-h">
-        <h2 className="section-title" id="contacts-h">Address book</h2>
-        <AddressBook />
-      </section>
       {compiledExtensions.length ? (
         <section className="settings-section" id="extensions" aria-labelledby="extensions-h">
           <h2 className="section-title" id="extensions-h">Extensions</h2>
@@ -829,6 +826,12 @@ function SettingsForm({ initial }: { initial: Settings }) {
         </Button>
       </div>
     </form>
+    {/* Its own form and its own save: "save settings" does not reach it. */}
+    <section className="settings-section" id="contacts" aria-labelledby="contacts-h">
+      <h2 className="section-title" id="contacts-h">Address book</h2>
+      <AddressBook />
+    </section>
+    </div>
     </div>
   );
 }
@@ -841,8 +844,8 @@ const SECTIONS = [
   ['links', 'Links'],
   ['ai', 'AI'],
   ['network', 'Network'],
-  ['contacts', 'Address book'],
   ...(compiledExtensions.length ? [['extensions', 'Extensions'] as const] : []),
+  ['contacts', 'Address book'],
 ] as const;
 
 /**
