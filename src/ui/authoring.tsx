@@ -7,7 +7,7 @@
  * optional on-device reader is ocr.tsx), ⧉ copy + link and share…
  * (plain-text.ts), list filters, and the published banner.
  */
-import { createHopper, addHopperItem, uploadMedia } from './server-mutations.ts';
+import { createHopper, createItem, addHopperItem, uploadMedia } from './server-mutations.ts';
 import type { ReactNode, RefObject } from 'react';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useLiveQuery, useLiveInfiniteQuery, and, eq } from '@tanstack/react-db';
@@ -21,6 +21,7 @@ import { previewFromHtml } from '../preview.ts';
 import { CHANGE_CATEGORIES, composeNote, noteIsGenerated, recategorize, type ChangeCategory } from '../change-category.ts';
 import type { ListItemsResponses, Version } from '../../sdk/dist/browser.js';
 import { BlyggerApi, unwrap } from '../../sdk/dist/browser.js';
+import type { DraftCounterContext } from './extension-api.ts';
 import type { Detail } from './data.ts';
 import { client, items, itemVersions, itemSummary, itemDetail, createDraftAction, settings as settingsCollection, listViews, preloadView } from './data.ts';
 import {
@@ -35,6 +36,8 @@ import {
   publicPath,
 } from './components.tsx';
 import { Sheet, confirm, menu, prompt, toast } from './sheets.tsx';
+import { compiledExtensions } from '../../build/extensions.ui.ts';
+import { DraftCounterSlot, enabledExtensions } from './extensions.tsx';
 import { HandlePicker } from './contacts.tsx';
 import { onFormatKey } from './format-shortcuts.ts';
 import { BracketPicker } from './picker.tsx';
@@ -1122,6 +1125,7 @@ export function Compose({ q }: { q?: string } = {}) {
               {saved ? 'saved' : ''}
             </span>
             <CharCount id="composer-count" fragment={kind === 'fragment'} length={text.length} />
+            <DraftCounter text={text} run={action.run} />
             <span className="spacer" />
             {text.includes('[TK]') ? (
               <Button
@@ -1579,6 +1583,24 @@ function ItemRow({
       )}
     </li>
   );
+}
+
+/** The extension slot beside a character count (docs/extensions.md). */
+function DraftCounter({ text, item, run }: { text: string; item?: DraftCounterContext['item']; run: (action: () => Promise<unknown>) => Promise<unknown> }) {
+  const settings = useSettings();
+  const navigate = useNavigate();
+  const context: DraftCounterContext = {
+    client,
+    openDraft: async (body) => {
+      const created = await createItem(body);
+      await navigate({ to: '/edit/$id', params: { id: created.id } });
+    },
+    navigate: (location) => navigate(location as never),
+    run: async (action) => void (await run(async () => action())),
+    text,
+    item,
+  };
+  return <DraftCounterSlot extensions={enabledExtensions(compiledExtensions, settings?.extensions)} context={context} />;
 }
 
 /* ---------------- EDITOR ---------------- */
@@ -2106,6 +2128,7 @@ function Editor({ item, onDiscarding }: { item: Detail; onDiscarding?: (active: 
           </div>
           <div className="row ed-foot">
             <CharCount fragment={!isThread} length={text.length} />
+            <DraftCounter text={text} item={{ id: item.id, kind: item.kind, status: item.status, version: item.version, revision: item.revision }} run={action.run} />
             <span className="spacer" />
             {isPublic ? (
               <a href={publicPath(shareable)} target="_blank" rel="noreferrer">

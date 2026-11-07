@@ -66,6 +66,21 @@ export interface EntryContext extends StudioContext {
   openSheet(render: (close: () => void) => ReactNode): void;
 }
 
+/** What is being written, wherever the Studio shows a character count. */
+export interface DraftCounterContext extends StudioContext {
+  /** The text as it stands now, saved or not. */
+  text: string;
+  /** The item open in the full editor. Absent in the composer, whose text may have no server copy yet. */
+  item?: {
+    id: string;
+    kind: 'fragment' | 'thread';
+    status: 'draft' | 'public' | 'withdrawn';
+    version: number;
+    /** Moves each time the working copy reaches the server, so autosave is what a slot re-reads on. */
+    revision: number;
+  };
+}
+
 /** A row an extension adds to an entry's ⋯ sheet, below the Studio's own. */
 export interface EntryAction {
   icon?: ReactNode;
@@ -85,6 +100,8 @@ export interface StudioExtension {
   entryByline?: ComponentType<{ context: EntryContext }>;
   /** Rows for a reading entry's ⋯ sheet. Called when the sheet opens. */
   entryActions?: (context: EntryContext) => EntryAction[];
+  /** Rendered beside the character count, in the composer and the full editor. */
+  draftCounter?: ComponentType<{ context: DraftCounterContext }>;
   /** A page of its own at /studio/ext/<name>, linked from More. */
   page?: { title: string; component: ComponentType<{ context: StudioContext }> };
 }
