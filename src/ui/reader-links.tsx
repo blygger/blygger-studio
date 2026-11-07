@@ -16,6 +16,7 @@
  * do not subscribe to opens at /peek, fetched from its origin. Either way the
  * step is recorded on the trail (browse.ts) so back retraces it.
  */
+import { markOwnMentions, useOwnMentionTargets } from './own-mentions.ts';
 import { clearBrowse } from './server-mutations.ts';
 import { useEffect, useMemo, useRef, useState, type ReactNode, type MouseEvent } from 'react';
 import { createPortal } from 'react-dom';
@@ -99,6 +100,7 @@ export function ReaderBody({
   onClick?: (event: React.MouseEvent<HTMLDivElement>) => void;
 }) {
   const box = useRef<HTMLDivElement>(null);
+  const self = useOwnMentionTargets();
   const subs = useSubscriptionRows();
   const [links, setLinks] = useState<{ node: HTMLElement; origin: string; id: string; via: 'quote' | 'link'; html: string; className: string }[]>([]);
   const titleFor = useMemo(() => {
@@ -112,6 +114,7 @@ export function ReaderBody({
     // Stored HTML stays outside React; portals give its reader targets real
     // Router links, including intent preload and native new-tab behavior.
     root.innerHTML = html;
+    markOwnMentions(root, self);
     const targets: typeof links = [];
     const replace = (a: HTMLAnchorElement, origin: string, id: string, via: 'quote' | 'link') => {
       const node = document.createElement('span');
@@ -168,7 +171,7 @@ export function ReaderBody({
     return () => {
       live = false;
     };
-  }, [html, origin, titleFor]);
+  }, [html, origin, titleFor, self]);
 
   return (
     <>

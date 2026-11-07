@@ -17,7 +17,7 @@ import { readingPage } from '../paging.ts';
 import { linkSource } from '../grammar.ts';
 import { linkLabel } from '../link-label.ts';
 import type { ReactNode } from 'react';
-import { createContext, useContext, useEffect, useMemo, useRef, useState } from 'react';
+import { createContext, useContext, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { useLiveQuery } from '@tanstack/react-db';
 import { Link, useNavigate } from '@tanstack/react-router';
 import type {
@@ -68,6 +68,7 @@ import { compiledExtensions } from '../../build/extensions.ui.ts';
 import { More, ThumbDown, ThumbUp } from './icons.tsx';
 import { SearchBox, SearchResults, type SearchFilters } from './search.tsx';
 import { addAuthorContact } from './contacts.tsx';
+import { markOwnMentions, useOwnMentionTargets } from './own-mentions.ts';
 import './reading.css';
 
 
@@ -273,6 +274,23 @@ function Body({ html, url, l0, onMore }: { html: string; url?: string; l0: boole
       element.removeEventListener('load', measure, true);
     };
   }, [content.html]);
+  const self = useOwnMentionTargets();
+  const lens = useContext(LensContext);
+  useLayoutEffect(() => {
+    const element = body.current;
+    const first = element && markOwnMentions(element, self);
+    if (!element || !first || lens !== 'mentions') return;
+    // The mention may sit below the clamp: bring it into the part the card shows,
+    // and again whenever the text reflows (a late font, a loaded image, a resize).
+    const focus = () => {
+      element.scrollTop = Math.max(0, first.offsetTop - element.clientHeight / 3);
+    };
+    focus();
+    const observer = new ResizeObserver(focus);
+    observer.observe(element);
+    for (const child of element.children) observer.observe(child);
+    return () => observer.disconnect();
+  }, [content.html, self, lens]);
   return (
     <>
       <EntryTitle title={content.title} url={url} />
@@ -1286,6 +1304,7 @@ const LENS_LABELS: Record<Lens, string> = {
   all: 'All',
   threads: 'Threads',
   fragments: 'Fragments',
+  mentions: 'Mentions',
   background: 'Background',
   smart: 'Smart Feed',
 };
@@ -1333,6 +1352,7 @@ function LensBar({ sub, hopper, sources }: { sub?: string; hopper?: string; sour
     </div>
   );
 }
+const MENTIONS_NOTE = 'Items you already read that name you. A find, not a notification: nobody told you, and nothing here is verified.';
 /** Withdrawn posts are background: every other lens leaves them out. */
 export const BACKGROUND_NOTE = 'Withdrawn posts, yours and the blygs you read. They are kept out of the other views.';
 export const SMART_FEED_NOTE = 'Coming soon. Feed sorted and filtered by your AI agent. You can already set its prompt in Settings.';
@@ -1487,6 +1507,8 @@ function Sources() {
   const buckets =
     useLiveQuery({ query: (q) => q.from({ hopper: hoppers }) }).data ?? [];
   const counts = summary.data?.[0]?.counts;
+  // No tally of who named you (tn-6 section 6, rule 3).
+  const shown = (count: number | undefined) => (lens === 'mentions' ? undefined : count);
   const inspected = sources.find((source) => source.id === inspect);
   return (
     <>
@@ -1506,8 +1528,8 @@ function Sources() {
         <span>sources</span>
       </div>
       <ul className="feeds" aria-label="sources">
-        <SmartSource sub="all" icon="◫" title="all" count={counts?.all} />
-        <SmartSource sub="own" icon="❝" title="my blyg" count={counts?.own} />
+        <SmartSource sub="all" icon="◫" title="all" count={shown(counts?.all)} />
+        <SmartSource sub="own" icon="❝" title="my blyg" count={shown(counts?.own)} />
       </ul>
       <div className="list-h">
         <span>hoppers · {buckets.length}</span>
@@ -1536,7 +1558,7 @@ function Sources() {
               <SubscriptionRow
                 key={source.id}
                 source={source}
-                count={counts?.subscriptions[source.id]}
+                count={shown(counts?.subscriptions[source.id])}
                 onInspect={() => setInspect(source.id)}
                 onToggle={() => void toggle(source)}
               />
@@ -1558,7 +1580,7 @@ function Sources() {
       )}
       <Inspector
         source={inspected}
-        count={inspected ? counts?.subscriptions[inspected.id] : undefined}
+        count={inspected ? shown(counts?.subscriptions[inspected.id]) : undefined}
         onClose={() => setInspect(undefined)}
         actions={actions}
       />
@@ -1791,7 +1813,7 @@ function Timeline({ sub, offset }: { sub: string; offset: number }) {
   const read = useReadSelection(key, offset, entries.data ?? [], actions, title, lens);
   return (
     <ReadContext.Provider value={read.ui}>
-      <ReadingHead title={title} count={metadata?.total}>
+      <ReadingHead title={title} count={lens === 'mentions' ? undefined : metadata?.total}>
         {readable ? read.button : null}
         {selected ? (
           <Button
@@ -1818,6 +1840,7 @@ function Timeline({ sub, offset }: { sub: string; offset: number }) {
       ) : (
         <>
           {lens === 'background' ? <p className="view-sub">{BACKGROUND_NOTE}</p> : null}
+          {lens === 'mentions' ? <p className="view-sub">{MENTIONS_NOTE}</p> : null}
           {entries.isLoading ? <p className="view-sub">Loading reading…</p> : null}
           <EntryList entries={entries.data ?? []} actions={actions} />
           {!entries.isLoading && !entries.data?.length ? (
@@ -1825,7 +1848,7 @@ function Timeline({ sub, offset }: { sub: string; offset: number }) {
               <span className="em" aria-hidden="true">
                 ◫
               </span>
-              {lens === 'background' ? 'Nothing withdrawn.' : 'No items yet.'}
+              {lens === 'background' ? 'Nothing withdrawn.' : lens === 'mentions' ? 'Nothing you read mentions you yet.' : 'No items yet.'}
             </div>
           ) : null}
           <Pager

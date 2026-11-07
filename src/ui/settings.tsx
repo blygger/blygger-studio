@@ -752,7 +752,7 @@ function SettingsForm({ initial }: { initial: Settings }) {
           <>
             Applies to items that have not decided for themselves. An item’s
             override keeps winning if you change this later. Set overrides and
-            hide individual responses in the mentions tab. A response list is a
+            hide individual responses in the responses tab. A response list is a
             citation trail with no count.
           </>,
         )}

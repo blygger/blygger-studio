@@ -5814,6 +5814,10 @@ export type GetReadingSummaryData = {
         hopper?: string;
         kind?: 'thread' | 'fragment';
         background?: 'true';
+        /**
+         * Only imported entries whose own h-cards name the owner (author URL or this blyg's address). A find on the reading side: nothing was verified or received.
+         */
+        mentions?: 'true';
     };
     url: '/reading/summary';
 };
@@ -5908,6 +5912,10 @@ export type ListReadingData = {
          * Only withdrawn entries.
          */
         background?: 'true';
+        /**
+         * Only imported entries whose own h-cards name the owner (author URL or this blyg's address). A find on the reading side: nothing was verified or received.
+         */
+        mentions?: 'true';
     };
     url: '/reading';
 };
