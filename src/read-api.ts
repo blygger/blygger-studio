@@ -3,6 +3,8 @@ import { itemResource, versionResource, mediaResource, subscriptionResource, hop
 import { settingsResource } from "./settings-resource.ts";
 import { fetchOnSurface, itemUrl } from "./surface.ts";
 import { annotateTkPreview, scopeSummariesWithSources } from "./authoring.ts";
+import { previewComments, withoutComments } from "./comments.ts";
+import { parseScopes } from "./tk.ts";
 import { getItem, getSettings, getSettingsMap, getVersion, listVersions } from "./model.ts";
 import { getHopper, getImportedItem, listSubscriptions, getSubscription } from "./importer/store.ts";
 import { sanitizeHtml } from "./importer/sanitize.ts";
@@ -296,7 +298,7 @@ const previewOperation = async (context: OperationContext, input: OperationInput
   const mount = normalizeMount(context.env.MOUNT);
   const body = (input.body as { contentMd?: string });
   if ((body as { kind?: string }).kind === "thread") return threadPreview(context, input);
-  const handles = await consumeHandles(context.env.DB, body.contentMd ?? "");
+  const handles = await consumeHandles(context.env.DB, previewComments(body.contentMd ?? ""));
   const tk = annotateTkPreview(handles.text);
   // `[[id]]` resolves in the preview too, so an unresolvable link is visible
   // before publish rejects it — same contract as an unresolvable directive.
@@ -305,7 +307,7 @@ const previewOperation = async (context: OperationContext, input: OperationInput
   // Links inside generated blocks resolve here too, as at publish (studio#14).
   const blocks = await resolveBlockLinks(tk, async (md) => withMentionCards(await previewInternalLinks(context.env.DB, md, origin), handles.cards));
   const html = [links, ...blocks.docs].reduce((acc, doc) => applyInternalLinks(acc, doc), tk.finish(renderMarkdown(links.text)));
-  return success({ html, scopes: await scopeSummariesWithSources(context.env.DB, tk.scopes), linkErrors: [...links.errors, ...blocks.errors], ...(handles.unresolved.length ? { unresolvedHandles: handles.unresolved } : {}) });
+  return success({ html, scopes: await scopeSummariesWithSources(context.env.DB, parseScopes(body.contentMd ?? "").scopes), linkErrors: [...links.errors, ...blocks.errors], ...(handles.unresolved.length ? { unresolvedHandles: handles.unresolved } : {}) });
 };
 
 /**
@@ -390,7 +392,7 @@ const searchOperation = async (context: OperationContext, input: OperationInput)
     // From rendered HTML, not markdown source — the picker showed literal
     // "#"/"*" markers otherwise, same bug class as the index rows.
     // A draft has no rendered HTML yet: its excerpt comes from the working copy.
-    const html = r.draft_md !== null ? renderMarkdown(r.draft_md) : r.html ?? "";
+    const html = r.draft_md !== null ? renderMarkdown(withoutComments(r.draft_md)) : r.html ?? "";
     const excerpt = clampText(plainTextFromHtml(html), 140);
     const label = linkLabel(html, r.kind);
     const sourceTitle = r.source === "mine" ? null : r.source_title || (r.origin ? new URL(r.origin).host : null);
@@ -415,7 +417,7 @@ const searchOperation = async (context: OperationContext, input: OperationInput)
 
 async function threadPreview(context: OperationContext, input: OperationInput) {
   const body = (input.body as { contentMd?: string; itemId?: string });
-  const handles = await consumeHandles(context.env.DB, body.contentMd ?? "");
+  const handles = await consumeHandles(context.env.DB, previewComments(body.contentMd ?? ""));
   const tk = annotateTkPreview(handles.text);
   // item_id is the thread being edited — the DAG check needs it, so the
   // preview rejects a circular quote at exactly the point publish would.
@@ -433,7 +435,9 @@ async function threadPreview(context: OperationContext, input: OperationInput) {
       : await injectNestedProvenance(context.env.DB, injectProvenance(html, await transclusionProvenance(context.env.DB, resolved.transclusions, mount)), mount),
     errors: [...resolved.errors, ...links.errors, ...blocks.errors],
     transclusions: resolved.transclusions,
-    scopes: await scopeSummariesWithSources(context.env.DB, tk.scopes),
+    // Every scope in the working copy, comments included: generate addresses
+    // them by that order, and a scope in a note can be generated like any other.
+    scopes: await scopeSummariesWithSources(context.env.DB, parseScopes(body.contentMd ?? "").scopes),
     ...(handles.unresolved.length ? { unresolvedHandles: handles.unresolved } : {}),
   });
 }

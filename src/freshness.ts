@@ -21,6 +21,7 @@ import { fetchOnSurface, itemUrl } from "./surface.ts";
 import type { ItemRow, Transclusion } from "./types.ts";
 import { resolveTarget, locateSelection } from "./transclusion.ts";
 import type { FetchLike } from "./importer/http.ts";
+import { withoutComments } from "./comments.ts";
 
 export type QuoteStatus =
   /** Baked at the newest version anyone knows of. */
@@ -140,7 +141,7 @@ export function holdsPublishedWords(
   published: { content_md: string; generated_json: string | null } | null,
 ): boolean {
   if (item.dirty !== 1) return true;
-  return !!published && item.content_md === published.content_md && !published.generated_json;
+  return !!published && withoutComments(item.content_md) === published.content_md && !published.generated_json;
 }
 
 /**

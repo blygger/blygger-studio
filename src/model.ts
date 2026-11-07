@@ -10,6 +10,7 @@ import { parseCustomTheme } from "./themes.ts";
 import { consumeHandles, withMentionCards } from "./contacts.ts";
 import { renderMarkdown } from "./markdown.ts";
 import { annotateGenerated, applyGeneratedWrappers, parseScopes, stripToOutput, TkPublishError, unresolvedScopes } from "./tk.ts";
+import { CommentPublishError, parseComments, sameOutsideComments, type CommentRange } from "./comments.ts";
 import { recordPublishInteractions } from "./interactions.ts";
 import { applyVersionAgreement, composeStubCite, composeTransclusionCite, parseStoredStub } from "./stub.ts";
 import {
@@ -270,6 +271,23 @@ export function itemShowsResponses(item: ItemRow, settings: Settings): boolean {
 }
 
 /** Save the working copy. Does not touch `updated` for ever-published items — that field is publish-facing. */
+/**
+ * Does saving `next` leave the working copy holding the published words? Only
+ * when comments are what changed: a note to self is not an unpublished change,
+ * and treating it as one would invite a new public version with the same words.
+ * The second case is a clean item back from a half-typed comment, whose unclosed
+ * opener hid the text after it. A version that disclosed generation is excluded
+ * for the reason in holdsPublishedWords.
+ */
+export async function keepsPublishedWords(db: D1Database, item: ItemRow, next: string): Promise<boolean> {
+  if (item.status !== "public" || item.version === 0) return false;
+  if (item.dirty === 0 && sameOutsideComments(item.content_md, next)) return true;
+  const comments = parseComments(next);
+  if (comments.errors.length || !comments.ranges.length) return false;
+  const published = await publishedVersion(db, item);
+  return !!published && published.content_md === authoredText(comments.text) && !published.generated_json;
+}
+
 export async function saveWorkingCopy(db: D1Database, id: string, contentMd: string): Promise<void> {
   await db
     .prepare("UPDATE items SET content_md = ?, dirty = 1, updated = CASE WHEN version = 0 THEN ? ELSE updated END, revision = revision + 1 WHERE id = ?")
@@ -301,6 +319,19 @@ export function getTkProvenance(item: ItemRow): (ScopeProvenance | null)[] {
 }
 
 /**
+ * The provenance cache lines up with every scope in the working copy, and
+ * publish() sees only those outside comments. A scope in a comment publishes
+ * nothing, so its record is dropped, not handed to the scope after it.
+ */
+function publishedProvenance(item: ItemRow, working: string, ranges: CommentRange[]): (ScopeProvenance | null)[] {
+  const cache = getTkProvenance(item);
+  if (!ranges.length) return cache;
+  const { scopes, errors } = parseScopes(working);
+  if (errors.length) throw new TkPublishError(errors);
+  return scopes.flatMap((scope, i) => (ranges.some((r) => scope.start >= r.start && scope.start < r.end) ? [] : [cache[i] ?? null]));
+}
+
+/**
  * Publish the working copy as version N+1. First strips every TK scope (§2.4)
  * down to its bare output — content_md and the hash cover exactly that
  * stripped text, never the studio grammar (decision #20). Fragments then
@@ -323,7 +354,15 @@ export async function publish(db: D1Database, item: ItemRow, note: string | null
   // (studio#15). The working copy keeps whatever was typed.
   // `@handle` is consumed here, on every write path (tn-6 section 5.2, #91): the
   // working copy keeps it and `content_md` never carries it.
-  const authored = authoredText(item.content_md);
+  // Comments to self go first, before anything can act on their contents: no
+  // handle consumed, no directive resolved, no scope required to have output.
+  const working = authoredText(item.content_md);
+  const comments = parseComments(working);
+  if (comments.errors.length) throw new CommentPublishError(comments.errors);
+  if (comments.ranges.length && !comments.text.trim()) {
+    throw new CommentPublishError([{ at: 0, reason: "this holds only comments, so there is nothing to publish" }]);
+  }
+  const authored = comments.text;
   const handles = await consumeHandles(db, authored);
   const source = handles.text;
   const { scopes, errors: parseErrors } = parseScopes(source);
@@ -345,7 +384,7 @@ export async function publish(db: D1Database, item: ItemRow, note: string | null
   // An `impyrt` scope carries its provenance in the grammar (decision #37):
   // generated elsewhere, so no sources are declared and `model` appears only if
   // the author wrote it. Never `at` — when it was generated is not known here.
-  const cache = getTkProvenance(item);
+  const cache = publishedProvenance(item, working, comments.ranges);
   const provenanceCache: (ScopeProvenance | null)[] = scopes.map((s, i) =>
     s.imported ? { sources: [], ...(s.imported.model ? { model: s.imported.model } : {}) } : cache[i] ?? null,
   );

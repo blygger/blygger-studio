@@ -2,6 +2,7 @@ import { excerptFromHtml, plainTextFromHtml, renderMarkdown } from "./markdown.t
 import { clampText } from "./preview.ts";
 import { annotateGenerated, applyGeneratedWrappers, parseScopes, previewStrip, type TkScope } from "./tk.ts";
 import { resolveTarget } from "./transclusion.ts";
+import { previewComments } from "./comments.ts";
 
 /** One `![[id]]` in a scope's instruction, as generate would resolve it: named for the editor, or why it would fail. */
 export interface ScopeSourceSummary {
@@ -78,8 +79,9 @@ export function annotateTkPreview(contentMd: string): {
   blockSources: Map<string, string>;
   finish: (renderedHtml: string) => string;
 } {
-  const { scopes } = parseScopes(contentMd);
-  const { text, spans } = previewStrip(contentMd, scopes);
+  const visible = previewComments(contentMd);
+  const { scopes } = parseScopes(visible);
+  const { text, spans } = previewStrip(visible, scopes);
   const annotated = annotateGenerated(text, spans, spans.map(() => true));
   return {
     scopes,
