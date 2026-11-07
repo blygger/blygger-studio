@@ -1,8 +1,9 @@
 // The label — `[[id | text]]` and `![[id | text]]` (0.4 §10.1, decision #70).
 //
 // An optional author's label after the id, ignored by resolution. On a link it
-// is the anchor text; on a directive it is a note for the author that never
-// reaches the bake, `transclusions[]` or provenance. The id is positional, so
+// is the anchor text; on a directive it is the author's name for the quoted
+// item, baked as `data-blyg-label` and nowhere else (decision #81; its own
+// tests are in directive-label.test.ts). The id is positional, so
 // the first pipe after it separates and the label may itself contain a pipe;
 // there is no escape, so a label ends at the first `]]`.
 import { describe, expect, it } from "vitest";
@@ -119,14 +120,15 @@ describe("a labelled link", () => {
 });
 
 describe("a labelled directive", () => {
-  it("quotes as if unlabelled: the label reaches neither the bake nor the record", async () => {
+  it("quotes as if unlabelled, the label baked only as data-blyg-label (#81)", async () => {
     const cookie = await login();
     const target = await createAndPublish(cookie, "Words worth quoting.");
     const id = await publish(cookie, { kind: "thread", contentMd: `Intro.\n\n![[${target} | note to self]]\n\nOutro.` });
     const d = await doc(id);
     expect(d.content_html).toContain(`data-blyg-id="${target}"`);
     expect(d.content_html).toContain("Words worth quoting.");
-    expect(d.content_html).not.toContain("note to self");
+    expect(d.content_html).toContain(`data-blyg-label="note to self"`);
+    expect(d.content_html.split("note to self")).toHaveLength(2);
     expect(d.transclusions).toEqual([expect.objectContaining({ id: target, version: 1 })]);
     expect(JSON.stringify(d.transclusions)).not.toContain("note to self");
   });
@@ -159,7 +161,7 @@ describe("fork flattening", () => {
   const ctx = { origin: OURS, link: async (o: string, id: string) => `${o}items/${id}.json` };
   const ID1 = "1111111111111111111111111a", ID2 = "2222222222222222222222222b";
 
-  it("flattens a labelled link to its baked anchor, and a labelled directive like any other (#63)", async () => {
+  it("flattens a labelled link to its baked anchor, and a directive from its bake, not its markdown (#63)", async () => {
     const md = `See [[${ID1} | my name for it]].\n\n![[${ID2} | a note]]\n\nAfter.`;
     const html =
       `<p>See <a href="${OURS}f/${ID1}/">my name for it</a>.</p>\n` +

@@ -133,7 +133,11 @@ export function ReaderBody({
       const line = document.createElement('p');
       line.className = 'layer-ref';
       const a = document.createElement('a');
-      a.textContent = `↳ ${layer.classList.contains('blyg-partial') ? 'excerpt of' : 'snapshot of'} v${layer.dataset.blygVersion ?? '?'} from ${titleFor(layerOrigin)} — open in reader`;
+      // The quoter's label leads, when the bake carries one (§10.2, decision
+      // #81): their own name for what they quoted, never the target's title
+      // (#46), so whose it is and which version still follow it.
+      const named = layer.dataset.blygLabel?.replace(/\s+/g, ' ').trim();
+      a.textContent = `↳ ${named ? `${named} · ` : ''}${layer.classList.contains('blyg-partial') ? 'excerpt of' : 'snapshot of'} v${layer.dataset.blygVersion ?? '?'} from ${titleFor(layerOrigin)} — open in reader`;
       line.append(a);
       layer.prepend(line);
       replace(a, layerOrigin, id, 'quote');

@@ -9,7 +9,8 @@
 // label, pipes included. Whitespace around the pipe is optional and trimmed; an
 // empty label is no label; there is no escape, so a label cannot contain `]]`.
 // Resolution ignores the label: on a link it is the anchor text, on a
-// directive a note for the author that never reaches the bake.
+// directive the author's name for the quoted item, baked as `data-blyg-label`
+// (decision #81) and used only as an attribution anchor, never as a title.
 //
 // Every site that reads the grammar builds its pattern from here, so the label
 // cannot be honoured in one place and silently missed in another.

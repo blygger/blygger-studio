@@ -94,6 +94,20 @@ test('a stack of quotes opens layer by layer in the reader, back retraces it, an
   expect(again.trail).not.toBe(steps[0].trail);
 });
 
+test("a quote's line leads with the quoter's label, never the target's title (#81)", async ({ page }) => {
+  await login(page);
+  const tag = `Label${Date.now()}`;
+  const leaf = await publish(page, `# ${tag} leaf title\n\nThe leaf text.`, 'fragment');
+  const labelled = await publish(page, `![[${leaf} | my <name> for it]]\n\n![[${leaf}]]\n\nComment.`, 'thread');
+
+  await page.goto(`/studio/reading/~own/${labelled}`);
+  const lines = page.locator('.article-body .layer-ref');
+  await expect(lines).toHaveCount(2);
+  await expect(lines.nth(0)).toHaveText(/^↳ my <name> for it · snapshot of v1 from /);
+  await expect(lines.nth(1)).toHaveText(/^↳ snapshot of v1 from /);
+  await expect(lines.nth(0)).not.toContainText('leaf title');
+});
+
 test('an item of a blyg you do not hold opens at /peek, says so, and is not stored', async ({ page }) => {
   await login(page);
   // An origin that cannot be reached reports the failure in the reader, with the walk intact.
