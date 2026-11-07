@@ -45,6 +45,8 @@ const lastLineOffCentre = (page: Page, middle?: number) =>
     const y = el.scrollHeight - parseFloat(style.paddingBottom) - lineHeight / 2 - el.scrollTop;
     return Math.abs(y - (middle ?? el.clientHeight / 2)) / lineHeight;
   }, middle);
+/** Scrollbars that take up room, as on Linux and Windows: macOS's overlay ones hide layout mistakes. */
+const roomyScrollbars = (page: Page) => page.addStyleTag({ content: '::-webkit-scrollbar { width: 15px; height: 15px; }' });
 const longDraft = Array.from({ length: 120 }, (_, i) => `Line ${i}.`).join('\n');
 const box = (page: Page) => page.locator('#md-input');
 /** Whether the caret's line is inside the textarea's visible window. */
@@ -57,13 +59,15 @@ const caretInView = (page: Page) =>
 
 test('focus view shows only the text, fills the window, and leaves everything as it was', async ({ page }) => {
   await open(page, 'Only the text.');
+  await roomyScrollbars(page);
   await enter(page);
   const size = page.viewportSize()!;
   await expect(page.locator('.editor')).toHaveClass(/is-focus/);
   const rect = (await box(page).boundingBox())!;
   expect(rect.width).toBeGreaterThanOrEqual(size.width - 1);
-  expect(rect.height).toBeGreaterThanOrEqual(size.height - 1);
-  for (const hidden of ['.topbar', '.ed-head', '.ed-tools', '.ed-foot', '.preview-pane', '.ed-cards', '.actionbar', '.pane-toggle', '.syntax-help']) await expect(page.locator(hidden)).toBeHidden();
+  expect(rect.height).toBeGreaterThanOrEqual(size.height - 40);
+  expect(await page.evaluate(() => document.documentElement.clientWidth)).toBe(size.width);
+  for (const hidden of ['.topbar', '.ed-head', '.ed-tools', '.preview-pane', '.ed-cards', '.actionbar', '.pane-toggle', '.syntax-help']) await expect(page.locator(hidden)).toBeHidden();
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
   await exit(page);
   await expect(page.locator('.editor')).not.toHaveClass(/is-focus/);
@@ -182,9 +186,9 @@ test('entering from the phone preview pane shows the draft, not nothing', async 
 test('leaving the editor does not strand the studio in the view', async ({ page }) => {
   await open(page, 'Back.');
   await enter(page);
-  await expect(page.locator('body')).toHaveClass(/focus-view/);
+  await expect(page.locator('html')).toHaveClass(/focus-view/);
   await page.goBack();
-  await expect(page.locator('body')).not.toHaveClass(/focus-view/);
+  await expect(page.locator('html')).not.toHaveClass(/focus-view/);
   await expect(page.locator('.topbar')).toBeVisible();
 });
 
@@ -227,12 +231,22 @@ test('the view goes browser-fullscreen, and leaving fullscreen leaves the view',
 
 test('typewriter: the line being written stays mid-window, across soft wraps and at the end of the text', async ({ page }) => {
   await open(page, longDraft + '\n');
+  await roomyScrollbars(page);
   await enter(page);
   await box(page).evaluate((el: HTMLTextAreaElement) => el.setSelectionRange(el.value.length, el.value.length));
   const words = 'The ooze hardens slowly and then all at once, which is the whole trouble with it. '.repeat(3);
-  for (const char of words) {
-    await page.keyboard.type(char);
-    expect(await lastLineOffCentre(page)).toBeLessThan(1);
+  // Where each word falls at the end of a line depends on the width and the font,
+  // so try several: a space hanging off the end of a line is the hard case.
+  const right = await box(page).evaluate((el) => parseFloat(getComputedStyle(el).paddingRight));
+  for (const narrower of [0, 7, 13, 29]) {
+    await box(page).evaluate((el: HTMLTextAreaElement, padding) => {
+      el.style.paddingRight = `${padding}px`;
+      el.setSelectionRange(el.value.length, el.value.length);
+    }, right + narrower);
+    for (const char of words) {
+      await page.keyboard.type(char);
+      expect(await lastLineOffCentre(page)).toBeLessThan(0.75);
+    }
   }
   // It really wrapped: the last logical line takes several lines on screen.
   expect(await box(page).evaluate((el: HTMLTextAreaElement) => {
@@ -295,8 +309,7 @@ test('typewriter: the caret keys recentre, a click and a selection do not, and s
 
 // No browser here raises a real on-screen keyboard. This stands in for what one
 // reports: a visual viewport shorter than the window, and a resize event.
-test('typewriter: an on-screen keyboard moves the middle up to what can still be seen', async ({ page }, info) => {
-  test.skip(info.project.name !== 'mobile', 'only a touch screen keeps the extra space below for this');
+test('typewriter: an on-screen keyboard moves the middle up to what can still be seen', async ({ page }) => {
   await open(page, longDraft);
   await page.evaluate(() => {
     const view = Object.assign(new EventTarget(), { height: innerHeight, offsetTop: 0, scale: 1 });
@@ -491,4 +504,144 @@ test('on a phone the picker dock pushes the writing line above it', async ({ pag
     return el.scrollHeight - parseFloat(style.paddingBottom) - el.scrollTop;
   })).toBeLessThan(dockTop);
   await api(page, 'PATCH', '/settings', { pickerTyping: 'auto' });
+});
+
+test('re-entering straight after leaving is not thrown out by the late exit from fullscreen', async ({ page }, info) => {
+  test.skip(info.project.name !== 'desktop', 'iPhone has no Fullscreen API');
+  await open(page, 'Quick.');
+  await box(page).focus();
+  for (let i = 0; i < 4; i++) {
+    await page.keyboard.press('Control+Shift+Enter');
+    await expect(page.locator('.editor')).toHaveClass(/is-focus/);
+    await page.keyboard.press('Control+Shift+Enter');
+    await expect(page.locator('.editor')).not.toHaveClass(/is-focus/);
+    await page.keyboard.press('Control+Shift+Enter');
+    await page.waitForTimeout(400);
+    await expect(page.locator('.editor')).toHaveClass(/is-focus/);
+    await page.keyboard.press('Control+Shift+Enter');
+    await expect(page.locator('.editor')).not.toHaveClass(/is-focus/);
+  }
+  // However quick the visits, the browser does not stay fullscreen after the last.
+  await expect.poll(() => page.evaluate(() => !!document.fullscreenElement)).toBe(false);
+});
+
+test('the counts stay faintly in a corner on both tabs, clear of the text', async ({ page }) => {
+  await open(page, longDraft);
+  await roomyScrollbars(page);
+  await enter(page);
+  const counter = page.locator('.ed-foot .counter');
+  await expect(counter).toBeVisible();
+  await expect(counter).toHaveText(`${longDraft.length} chars`);
+  expect(Number(await counter.evaluate((el) => getComputedStyle(el).opacity))).toBeLessThan(1);
+  await expect(page.locator('.ed-foot > a')).toBeHidden();
+  const size = page.viewportSize()!;
+  const foot = (await page.locator('.ed-foot').boundingBox())!;
+  const count = (await counter.boundingBox())!;
+  expect(count.x + count.width).toBeLessThanOrEqual(size.width);
+  expect(count.x).toBeGreaterThan(size.width / 2);
+  expect(foot.y + foot.height).toBeLessThanOrEqual(size.height);
+  // The text ends where the strip begins, so it can't run underneath.
+  const text = (await box(page).boundingBox())!;
+  expect(text.y + text.height).toBeLessThanOrEqual(foot.y + 1);
+  // It keeps counting while typing, and what an extension sets beside it shows too.
+  await box(page).evaluate((el: HTMLTextAreaElement) => { el.focus(); el.setSelectionRange(0, 0); });
+  await page.keyboard.type('abc');
+  await expect(counter).toHaveText(`${longDraft.length + 3} chars`);
+  await page.locator('.ed-foot .counter').evaluate((el) => {
+    const beside = document.createElement('span');
+    beside.className = 'counter extension-count';
+    beside.textContent = '240 words';
+    el.after(beside);
+  });
+  const words = page.locator('.ed-foot .extension-count');
+  await expect(words).toBeVisible();
+  const [chars, added] = [(await counter.first().boundingBox())!, (await words.boundingBox())!];
+  expect(added.x).toBeGreaterThanOrEqual(chars.x + chars.width);
+  expect(added.x + added.width).toBeLessThanOrEqual(size.width);
+  expect(added.y).toBe(chars.y);
+  await reveal(page);
+  await tab(page, 'preview').click();
+  await expect(page.locator('.ed-foot .counter').first()).toBeVisible();
+  await expect(words).toBeVisible();
+  const preview = (await page.locator('#preview-pane').boundingBox())!;
+  expect(preview.y + preview.height).toBeLessThanOrEqual(foot.y + 1);
+  await words.evaluate((el) => el.remove());
+});
+
+test('a fragment over its limit still shouts in the view', async ({ page }) => {
+  await login(page);
+  const { json } = await api(page, 'POST', '/items', { contentMd: 'x'.repeat(100), kind: 'fragment' });
+  await page.goto(`/studio/edit/${json.id}`);
+  await expect(box(page)).toBeVisible();
+  await enter(page);
+  await box(page).fill('x'.repeat(5000));
+  const counter = page.locator('.ed-foot .counter');
+  await expect(counter).toHaveClass(/over/);
+  expect(await counter.evaluate((el) => getComputedStyle(el).opacity)).toBe('1');
+});
+
+test('the counts sit above an on-screen keyboard', async ({ page }, info) => {
+  test.skip(info.project.name !== 'mobile', 'a keyboard rises on a touch screen');
+  await open(page, longDraft);
+  await page.evaluate(() => {
+    const view = Object.assign(new EventTarget(), { height: innerHeight, offsetTop: 0, scale: 1 });
+    Object.defineProperty(window, 'visualViewport', { value: view, configurable: true });
+  });
+  await enter(page);
+  const height = await page.evaluate(() => {
+    const view = window.visualViewport as unknown as EventTarget & { height: number };
+    view.height = Math.round(innerHeight * 0.55);
+    view.dispatchEvent(new Event('resize'));
+    return view.height;
+  });
+  await expect.poll(async () => { const b = (await page.locator('.ed-foot').boundingBox())!; return b.y + b.height; }).toBeLessThanOrEqual(height + 1);
+  const foot = (await page.locator('.ed-foot').boundingBox())!;
+  const text = (await box(page).boundingBox())!;
+  expect(text.y + text.height).toBeLessThanOrEqual(foot.y + 1);
+  await expect(page.locator('.ed-foot .counter')).toBeVisible();
+  // Keyboard down, and the view has the whole window back.
+  await page.evaluate(() => {
+    const view = window.visualViewport as unknown as EventTarget & { height: number };
+    view.height = innerHeight;
+    view.dispatchEvent(new Event('resize'));
+  });
+  const size = page.viewportSize()!;
+  await expect.poll(async () => { const b = (await page.locator('.ed-foot').boundingBox())!; return b.y + b.height; }).toBeGreaterThan(size.height - 2);
+  await exit(page);
+  expect(await page.evaluate(() => document.documentElement.style.getPropertyValue('--focus-keyboard'))).toBe('');
+});
+
+test('an editor whose caret was never placed opens the view at the end of the text, centred', async ({ page }) => {
+  await open(page, longDraft);
+  await enter(page);
+  await expect(box(page)).toBeFocused();
+  expect(await box(page).evaluate((el: HTMLTextAreaElement) => [el.selectionStart, el.selectionEnd])).toEqual([longDraft.length, longDraft.length]);
+  await expect.poll(() => lastLineOffCentre(page)).toBeLessThan(1);
+  await box(page).evaluate((el: HTMLTextAreaElement) => el.focus());
+  await page.keyboard.type(' more');
+  await expect(box(page)).toHaveValue(`${longDraft} more`);
+});
+
+test('a caret the author placed stays where it is, even at the very start', async ({ page }, info) => {
+  await open(page, longDraft);
+  // Placed mid-text.
+  const at = longDraft.indexOf('Line 60.');
+  await box(page).evaluate((el: HTMLTextAreaElement, at) => { el.focus(); el.setSelectionRange(at, at); }, at);
+  await enter(page);
+  expect(await box(page).evaluate((el: HTMLTextAreaElement) => el.selectionStart)).toBe(at);
+  await exit(page);
+  // Back again, moved to the very start on purpose: the first visit counted as placing it too.
+  await box(page).evaluate((el: HTMLTextAreaElement) => { el.focus(); el.setSelectionRange(0, 0); });
+  await enter(page);
+  expect(await box(page).evaluate((el: HTMLTextAreaElement) => el.selectionStart)).toBe(0);
+  await exit(page);
+  if (info.project.name !== 'desktop') return;
+  // On a fresh load, a click on the first character is a placement like any other.
+  await page.reload();
+  await expect(box(page)).toBeVisible();
+  const rect = (await box(page).boundingBox())!;
+  await page.mouse.click(rect.x + 18, rect.y + 18);
+  await box(page).evaluate((el: HTMLTextAreaElement) => el.setSelectionRange(0, 0));
+  await enter(page);
+  expect(await box(page).evaluate((el: HTMLTextAreaElement) => el.selectionStart)).toBe(0);
 });

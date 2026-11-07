@@ -147,24 +147,31 @@
    of the studio. Failures still show (#error-banner-slot); sheets, toasts and the
    picker sit above it. The textarea stays full width, its padding making the
    measure, so the scrollbar is at the window's edge and the margins scroll too.
-   The space below the text lets its last line reach the middle of the window. */
-body.focus-view .topbar, body.focus-view .views > :not(.screen) { display: none; }
-.editor.is-focus { position: fixed; inset: 0; z-index: 40; display: flex; flex-direction: column; background: var(--card); color: var(--ink); }
-.editor.is-focus > :not(.editor-grid, #error-banner-slot, .focus-bar, .focus-hot), .editor.is-focus .editor-pane > :not(.ta-wrap) { display: none; }
+   The space below the text lets its last line reach the middle of the window.
+   The root gives up its scrollbar and the gutter kept for it, or a stripe of page
+   would show down the side wherever scrollbars take up room. */
+html.focus-view { overflow: hidden; scrollbar-gutter: auto; }
+.focus-view .topbar, .focus-view .views > :not(.screen) { display: none; }
+.editor.is-focus { --focus-foot: calc(26px + env(safe-area-inset-bottom)); position: fixed; inset: 0 0 var(--focus-keyboard, 0px); z-index: 40; display: flex; flex-direction: column; background: var(--card); color: var(--ink); }
+.editor.is-focus > :not(.editor-grid, #error-banner-slot, .focus-bar, .focus-hot), .editor.is-focus .editor-pane > :not(.ta-wrap, .ed-foot) { display: none; }
 .editor.is-focus #error-banner-slot:not(:empty) { padding: 60px var(--s4) var(--s2); padding-top: calc(60px + env(safe-area-inset-top)); }
 .editor.is-focus .editor-grid { position: relative; }
 .editor.is-focus .editor-grid, .editor.is-focus .editor-grid .editor-pane, .editor.is-focus .ta-wrap { display: flex; flex-direction: column; align-items: stretch; flex: 1; min-height: 0; }
 .editor.is-focus textarea.md { flex: 1; min-height: 0; resize: none; background: transparent; border: none; border-radius: 0; box-shadow: none; font-family: var(--sans); font-size: 1.15rem; line-height: 1.7;
-  padding: max(48px, env(safe-area-inset-top)) max(var(--s4), calc((100% - 68ch) / 2)) 55vh; }
-/* An on-screen keyboard moves the middle up, so a touch screen needs more below. */
-@media (any-pointer: coarse) { .editor.is-focus textarea.md { padding-bottom: 85vh; } }
+  padding: max(48px, env(safe-area-inset-top)) max(var(--s4), calc((100% - 68ch) / 2)) calc((100vh - var(--focus-keyboard, 0px)) * .55); }
 .editor.is-focus textarea.md:focus { outline: none; box-shadow: none; }
 /* The preview tab lies over the text, which stays laid out: hiding it with display
    would lose its scroll position and, in some browsers, its undo history. */
 .editor.is-focus .editor-grid[data-pane=preview] .editor-pane { visibility: hidden; }
 .editor.is-focus .editor-grid[data-pane=draft] .preview-pane { display: none; }
-.editor.is-focus .editor-grid[data-pane=preview] .preview-pane { display: block; position: absolute; inset: 0; min-height: 0; overflow-y: auto; border: none; border-radius: 0; background: transparent; font-size: 1.15rem; line-height: 1.7; outline: none;
+.editor.is-focus .editor-grid[data-pane=preview] .preview-pane { display: block; position: absolute; inset: 0 0 var(--focus-foot); min-height: 0; overflow-y: auto; border: none; border-radius: 0; background: transparent; font-size: 1.15rem; line-height: 1.7; outline: none;
   padding: 72px max(var(--s4), calc((100% - 68ch) / 2)) 25vh; }
+/* The counts stay, faintly, in a strip of their own under either tab, so the text
+   never runs beneath them. Whatever an extension sets beside them is a .counter too. */
+.editor.is-focus .ed-foot { visibility: visible; flex: 0 0 var(--focus-foot); box-sizing: border-box; margin: 0; padding: 0 var(--s3) env(safe-area-inset-bottom); justify-content: flex-end; gap: var(--s3); }
+.editor.is-focus .ed-foot > a, .editor.is-focus .ed-foot > .spacer { display: none; }
+.editor.is-focus .ed-foot .counter { margin-left: 0; font-size: .72rem; font-weight: 400; }
+.editor.is-focus .ed-foot .counter:not(.over) { color: var(--ink-soft); opacity: .6; }
 /* The controls fade rather than leave, so the keyboard can still reach them. */
 .focus-bar { position: absolute; top: 0; left: 0; right: 0; z-index: 2; display: flex; align-items: center; justify-content: space-between; gap: var(--s3); padding: var(--s2) var(--s3); padding-top: max(var(--s2), env(safe-area-inset-top));
   background: var(--card); border-bottom: 1px solid var(--rule); opacity: 0; pointer-events: none; transition: opacity .3s .2s; }

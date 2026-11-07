@@ -42,7 +42,8 @@ let above: { el: HTMLTextAreaElement; text: string; width: number; height: numbe
 export function revealCaret(el: HTMLTextAreaElement) {
   const style = getComputedStyle(el);
   const width = el.clientWidth;
-  /** Where `rest` would end up after `text`, from the top of `text`. */
+  const lineHeight = parseFloat(style.lineHeight);
+  /** The top of the line `rest` would end up on after `text`, from the top of `text`. */
   const measure = (text: string, rest: string) => {
     const copy = document.createElement('div');
     Object.assign(copy.style, {
@@ -54,10 +55,13 @@ export function revealCaret(el: HTMLTextAreaElement) {
     });
     copy.textContent = text;
     const mark = document.createElement('span');
-    mark.textContent = rest || '\u200b';
+    // A line needs something on it to exist, but after a space hanging off the end
+    // of a line a character would wrap where the caret does not.
+    mark.textContent = rest || (!text || text.endsWith('\n') ? '\u200b' : '');
     copy.append(mark);
     document.body.append(copy);
-    const y = mark.offsetTop;
+    // An inline box is only as tall as its font: its top is below the line's.
+    const y = mark.offsetTop - (lineHeight - mark.offsetHeight) / 2;
     copy.remove();
     return y;
   };
@@ -67,7 +71,7 @@ export function revealCaret(el: HTMLTextAreaElement) {
   if (above?.el !== el || above.width !== width || above.text !== text)
     above = { el, text, width, height: measure(text, '') };
   const word = /^\S*/.exec(el.value.slice(caret, caret + 200))![0];
-  const caretY = parseFloat(style.paddingTop) + above.height + measure(el.value.slice(start, caret), word) + parseFloat(style.lineHeight) / 2;
+  const caretY = parseFloat(style.paddingTop) + above.height + measure(el.value.slice(start, caret), word) + lineHeight / 2;
   const box = el.getBoundingClientRect();
   const view = window.visualViewport;
   const top = Math.max(box.top, view?.offsetTop ?? box.top);

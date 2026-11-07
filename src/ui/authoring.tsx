@@ -1640,13 +1640,42 @@ function useFocusView(
   const toggled = useRef(false);
   const pointerY = useRef(Infinity);
   const caretFrame = useRef(0);
+  const placed = useRef(false);
+  const visit = useRef<{ fullscreen: boolean } | null>(null);
+  useEffect(() => {
+    input.current?.addEventListener('focus', () => { placed.current = true; }, { once: true });
+  }, []);
   const writing = active && pane === 'draft';
+  const exiting = useRef<Promise<void> | null>(null);
+  const leaveFullscreen = () => {
+    if (!document.fullscreenElement) return;
+    const done = document.exitFullscreen().catch(() => {}).then(() => {
+      if (exiting.current === done) exiting.current = null;
+    });
+    exiting.current = done;
+  };
   const go = (next: boolean) => {
     toggled.current = true;
+    // An author who hasn't placed the caret yet is here to carry on from the end.
+    const el = input.current;
+    if (next && el && !placed.current && !el.selectionEnd) el.setSelectionRange(el.value.length, el.value.length);
     setActive(next);
     setPane('draft');
     setShown(next);
-    if (next) document.documentElement.requestFullscreen?.().catch(() => {});
+    const mine = next ? { fullscreen: false } : null;
+    visit.current = mine;
+    if (next) {
+      const request = () =>
+        document.documentElement.requestFullscreen?.().then(() => {
+          if (visit.current === mine) mine!.fullscreen = true;
+          // Left while the browser was still going fullscreen: come back out.
+          else if (!visit.current) leaveFullscreen();
+        }).catch(() => {});
+      // Asked for while a quick previous visit's exit is still running, the browser
+      // says yes at once and the exit then lands on this visit.
+      if (exiting.current) void exiting.current.then(request);
+      else void request();
+    }
   };
   const toggle = () => go(!active);
   const center = () => {
@@ -1685,11 +1714,19 @@ function useFocusView(
   useEffect(() => {
     const view = window.visualViewport;
     if (!writing || !view) return;
+    const root = document.documentElement;
     const onResize = () => {
-      if (view.scale < 1.01) center();
+      if (view.scale >= 1.01) return;
+      // The view stops above the keyboard, so nothing in it ends up behind one.
+      root.style.setProperty('--focus-keyboard', `${Math.max(0, innerHeight - view.height - view.offsetTop)}px`);
+      center();
     };
+    onResize();
     view.addEventListener('resize', onResize);
-    return () => view.removeEventListener('resize', onResize);
+    return () => {
+      view.removeEventListener('resize', onResize);
+      root.style.removeProperty('--focus-keyboard');
+    };
   }, [writing]);
   // A tab switch takes the keyboard along; the text keeps its caret and scroll.
   useEffect(() => {
@@ -1699,22 +1736,25 @@ function useFocusView(
   }, [active, pane]);
   useEffect(() => {
     if (!active) return;
-    document.body.classList.add('focus-view');
+    const root = document.documentElement;
+    root.classList.add('focus-view');
     // Shown on the way in, so the writer learns they exist.
     const introduced = setTimeout(() => {
       if (pointerY.current >= FOCUS_ZONE) setShown(false);
     }, 2500);
     // The browser keeps Escape for itself in fullscreen, so its exit is how that
     // key arrives here. With a picker or sheet open, that Escape was meant for it.
+    // Only once this visit's own request has gone through: an exit before then is
+    // left over from a quick previous visit.
     const onFullscreen = () => {
-      if (!document.fullscreenElement && !document.querySelector('[data-pane=draft] .picker, .sheet')) go(false);
+      if (!document.fullscreenElement && visit.current?.fullscreen && !document.querySelector('[data-pane=draft] .picker, .sheet')) go(false);
     };
     document.addEventListener('fullscreenchange', onFullscreen);
     return () => {
       clearTimeout(introduced);
       document.removeEventListener('fullscreenchange', onFullscreen);
-      document.body.classList.remove('focus-view');
-      if (document.fullscreenElement) void document.exitFullscreen().catch(() => {});
+      root.classList.remove('focus-view');
+      leaveFullscreen();
     };
   }, [active]);
   // Bring the writer back to their caret, once the box has its new shape; going
