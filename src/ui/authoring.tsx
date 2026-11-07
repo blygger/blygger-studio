@@ -9,7 +9,7 @@
  */
 import { createHopper, addHopperItem, uploadMedia } from './server-mutations.ts';
 import type { ReactNode, RefObject } from 'react';
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { useLiveQuery, useLiveInfiniteQuery, and, eq } from '@tanstack/react-db';
 import { Link, useNavigate, useBlocker } from '@tanstack/react-router';
 import { formatDateIn } from '../dates.ts';
@@ -38,7 +38,7 @@ import { Sheet, confirm, menu, prompt, toast } from './sheets.tsx';
 import { HandlePicker } from './contacts.tsx';
 import { onFormatKey } from './format-shortcuts.ts';
 import { BracketPicker } from './picker.tsx';
-import { setTextAt } from './caret.ts';
+import { revealCaret, setTextAt } from './caret.ts';
 import { Draft } from './draft.ts';
 
 import { stripStaleUploads, uploadToken } from './upload-tokens.ts';
@@ -47,7 +47,7 @@ import { insertLink, isUrl, linkToast } from './links.ts';
 import { itemTitle, permalink, plainText, textWithLink } from './plain-text.ts';
 import { OcrScan } from './ocr.tsx';
 import { addStubQuote, passageCount, quoteCount, stubQuoteForm, withStubQuote } from './stub-quote.ts';
-import { Image as ImageIcon, LinkIcon, More, Scan, Sparkle, Swap } from './icons.tsx';
+import { EnterFocus, ExitFocus, Image as ImageIcon, LinkIcon, More, Scan, Sparkle, Swap } from './icons.tsx';
 import { SearchBox, SearchResults, store, stored } from './search.tsx';
 import './authoring.css';
 
@@ -1632,6 +1632,185 @@ function Card({
   );
 }
 const initiallyOpen = (hash: string) => location.hash === `#${hash}`;
+/** How near the top of the window the pointer brings the focus view's controls back. */
+const FOCUS_ZONE = 72;
+const CARET_KEYS = new Set(['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'Home', 'End', 'PageUp', 'PageDown']);
+/**
+ * The editor's focus view: only the text, filling the screen. It is a CSS state
+ * of the editor (authoring.css), not a second textarea, so the text, caret, undo
+ * history and autosave all carry straight through; its preview tab is the editor's
+ * own preview pane, on the same `pane` state phones use. Browser fullscreen is on
+ * top where the browser has it, and the view works the same where it doesn't (iPhone).
+ *
+ * The line being written stays mid-window: typing and the caret keys recentre it.
+ * A click doesn't, since the text would jump from under the pointer, and scrolling
+ * away is left alone until the next keystroke brings the writer back.
+ */
+function useFocusView(
+  input: RefObject<HTMLTextAreaElement | null>,
+  text: string,
+  pane: 'draft' | 'preview',
+  setPane: (pane: 'draft' | 'preview') => void,
+) {
+  const [active, setActive] = useState(false);
+  const [shown, setShown] = useState(false);
+  const toggled = useRef(false);
+  const pointerY = useRef(Infinity);
+  const caretFrame = useRef(0);
+  const placed = useRef(false);
+  const visit = useRef<{ fullscreen: boolean } | null>(null);
+  useEffect(() => {
+    input.current?.addEventListener('focus', () => { placed.current = true; }, { once: true });
+  }, []);
+  const writing = active && pane === 'draft';
+  const exiting = useRef<Promise<void> | null>(null);
+  const leaveFullscreen = () => {
+    if (!document.fullscreenElement) return;
+    const done = document.exitFullscreen().catch(() => {}).then(() => {
+      if (exiting.current === done) exiting.current = null;
+    });
+    exiting.current = done;
+  };
+  const go = (next: boolean) => {
+    toggled.current = true;
+    // An author who hasn't placed the caret yet is here to carry on from the end.
+    const el = input.current;
+    if (next && el && !placed.current && !el.selectionEnd) el.setSelectionRange(el.value.length, el.value.length);
+    setActive(next);
+    setPane('draft');
+    setShown(next);
+    const mine = next ? { fullscreen: false } : null;
+    visit.current = mine;
+    if (next) {
+      const request = () =>
+        document.documentElement.requestFullscreen?.().then(() => {
+          if (visit.current === mine) mine!.fullscreen = true;
+          // Left while the browser was still going fullscreen: come back out.
+          else if (!visit.current) leaveFullscreen();
+        }).catch(() => {});
+      // Asked for while a quick previous visit's exit is still running, the browser
+      // says yes at once and the exit then lands on this visit.
+      if (exiting.current) void exiting.current.then(request);
+      else void request();
+    }
+  };
+  const toggle = () => go(!active);
+  const center = () => {
+    const el = input.current;
+    if (el && writing && document.activeElement === el && el.selectionStart === el.selectionEnd) revealCaret(el);
+  };
+  useEffect(() => {
+    const onKey = (event: KeyboardEvent) => {
+      if ((event.target as Element).closest?.('.sheet')) return;
+      const mod = event.metaKey || event.ctrlKey;
+      if (active && event.key === 'Enter' && mod && event.altKey) {
+        event.preventDefault();
+        setPane(pane === 'draft' ? 'preview' : 'draft');
+        return;
+      }
+      const chord = event.key === 'Enter' && event.shiftKey && mod;
+      // The picker takes Escape first (preventDefault): it dismisses the picker only.
+      if (chord || (active && event.key === 'Escape' && !event.defaultPrevented)) {
+        event.preventDefault();
+        toggle();
+        return;
+      }
+      // After the browser has moved the caret. Shift extends a selection: leave it be.
+      if (writing && CARET_KEYS.has(event.key) && !event.shiftKey) caretFrame.current = requestAnimationFrame(center);
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  });
+  // Every edit, however it came (typing, paste, undo, the picker), before it paints.
+  useLayoutEffect(center, [text]);
+  // The controls fade once the writer is typing.
+  useEffect(() => {
+    if (active) setShown(false);
+  }, [text]);
+  // An on-screen keyboard shortens the window. Pinch zoom also resizes it: leave that.
+  useEffect(() => {
+    const view = window.visualViewport;
+    if (!writing || !view) return;
+    const root = document.documentElement;
+    const onResize = () => {
+      if (view.scale >= 1.01) return;
+      // The view stops above the keyboard, so nothing in it ends up behind one.
+      root.style.setProperty('--focus-keyboard', `${Math.max(0, innerHeight - view.height - view.offsetTop)}px`);
+      center();
+    };
+    onResize();
+    view.addEventListener('resize', onResize);
+    return () => {
+      view.removeEventListener('resize', onResize);
+      root.style.removeProperty('--focus-keyboard');
+    };
+  }, [writing]);
+  // A tab switch takes the keyboard along; the text keeps its caret and scroll.
+  useEffect(() => {
+    if (!active) return;
+    if (pane === 'draft') input.current?.focus({ preventScroll: true });
+    else document.getElementById('preview-pane')?.focus({ preventScroll: true });
+  }, [active, pane]);
+  useEffect(() => {
+    if (!active) return;
+    const root = document.documentElement;
+    root.classList.add('focus-view');
+    // Shown on the way in, so the writer learns they exist.
+    const introduced = setTimeout(() => {
+      if (pointerY.current >= FOCUS_ZONE) setShown(false);
+    }, 2500);
+    // The browser keeps Escape for itself in fullscreen, so its exit is how that
+    // key arrives here. With a picker or sheet open, that Escape was meant for it.
+    // Only once this visit's own request has gone through: an exit before then is
+    // left over from a quick previous visit.
+    const onFullscreen = () => {
+      if (!document.fullscreenElement && visit.current?.fullscreen && !document.querySelector('[data-pane=draft] .picker, .sheet')) go(false);
+    };
+    document.addEventListener('fullscreenchange', onFullscreen);
+    return () => {
+      clearTimeout(introduced);
+      document.removeEventListener('fullscreenchange', onFullscreen);
+      root.classList.remove('focus-view');
+      leaveFullscreen();
+    };
+  }, [active]);
+  // Bring the writer back to their caret, once the box has its new shape; going
+  // fullscreen resizes it again a moment later. On a touch screen, leaving does
+  // not take focus, or the keyboard would rise over the buttons being returned to.
+  useEffect(() => {
+    const el = input.current;
+    if (!toggled.current || !el) return;
+    if (active || matchMedia('(hover: hover)').matches) el.focus({ preventScroll: true });
+    const observer = new ResizeObserver(() => revealCaret(el));
+    observer.observe(el);
+    const settled = setTimeout(() => observer.disconnect(), 1500);
+    return () => {
+      clearTimeout(settled);
+      observer.disconnect();
+    };
+  }, [active]);
+  return {
+    active,
+    toggle,
+    // Nothing to type on the preview tab, and the way back must stay in sight.
+    controls: shown || pane === 'preview',
+    toggleControls: () => setShown((value) => !value),
+    surface: active
+      ? {
+          onPointerMove: (event: React.PointerEvent) => {
+            if (event.pointerType !== 'mouse' || event.buttons) return;
+            pointerY.current = event.clientY;
+            setShown(event.clientY < FOCUS_ZONE);
+          },
+          onPointerDown: (event: React.PointerEvent) => {
+            // A click must not be recentred by a key pressed just before it.
+            cancelAnimationFrame(caretFrame.current);
+            if (event.pointerType !== 'mouse' && !(event.target as Element).closest('.focus-bar, .focus-hot')) setShown(false);
+          },
+        }
+      : {},
+  };
+}
 function Editor({ item, onDiscarding }: { item: Detail; onDiscarding?: (active: boolean) => void }) {
   const navigate = useNavigate();
   const settings = useSettings();
@@ -1827,6 +2006,7 @@ function Editor({ item, onDiscarding }: { item: Detail; onDiscarding?: (active: 
       setPublished({ id: item.id, kind: item.kind, md, version: result.version });
       return result;
     });
+  const focus = useFocusView(input, text, pane, setPane);
   const isThread = item.kind === 'thread';
   const isPublic = item.status === 'public';
   // Attachments the live version lists that the working copy no longer has.
@@ -1962,8 +2142,46 @@ function Editor({ item, onDiscarding }: { item: Detail; onDiscarding?: (active: 
         },
       ],
     });
+  const writingInFocus = focus.active && pane === 'draft';
   return (
-    <div className="editor">
+    <div className={focus.active ? 'editor is-focus' : 'editor'} {...focus.surface}>
+      {focus.active ? (
+        <>
+          {/* A tap here brings the controls back, without moving the caret. */}
+          <div className="focus-hot" aria-hidden="true" onClick={focus.toggleControls} />
+          <div className="focus-bar" data-shown={focus.controls}>
+            <div className="segmented compact" role="group" aria-label="focus view tab">
+              {(
+                [
+                  ['draft', 'write'],
+                  ['preview', 'preview'],
+                ] as const
+              ).map(([value, label]) => (
+                <button
+                  key={value}
+                  type="button"
+                  data-tab={value}
+                  aria-pressed={pane === value}
+                  className={pane === value ? 'seg is-active' : 'seg'}
+                  title="Switch tab (⌘⌥↩ or Ctrl+Alt+Enter)"
+                  onClick={() => setPane(value)}
+                >
+                  {label}
+                </button>
+              ))}
+            </div>
+            <Button
+              className="act icon-only focus-exit"
+              data-action="exit-focus"
+              aria-label="exit focus view"
+              title="Exit focus view (Esc)"
+              onClick={focus.toggle}
+            >
+              <ExitFocus />
+            </Button>
+          </div>
+        </>
+      ) : null}
       <p className="ed-head">
         <Link to="/">← compose</Link> · {item.kind} · {item.status} · v
         {item.version}
@@ -1975,6 +2193,15 @@ function Editor({ item, onDiscarding }: { item: Detail; onDiscarding?: (active: 
             </span>
           </>
         ) : null}
+        <Button
+          className="act icon-only tool focus-enter"
+          data-action="enter-focus"
+          aria-label="focus view"
+          title="Focus view: only your text, full screen (⌘⇧↩ or Ctrl+Shift+Enter)"
+          onClick={focus.toggle}
+        >
+          <EnterFocus />
+        </Button>
       </p>
       <PublishedBanner published={published} dismiss={() => setPublished(undefined)} />
       <div id="error-banner-slot">
@@ -1984,16 +2211,17 @@ function Editor({ item, onDiscarding }: { item: Detail; onDiscarding?: (active: 
             {action.warning}
           </p>
         ) : null}
-        {preview?.unresolvedHandles?.length ? (
+        {!writingInFocus && preview?.unresolvedHandles?.length ? (
           <p role="status" className="publish-warning">
             {preview.unresolvedHandles.map((h) => `@${h}`).join(', ')} {preview.unresolvedHandles.length === 1 ? 'is' : 'are'} not in your
             address book and will stay plain text. <Link to="/settings" hash="contacts">add contact</Link>
           </p>
         ) : null}
-        {preview?.linkErrors?.map((e, i) => (
+        {/* Half-typed links are errors until they're finished: they wait for the preview tab. A failed save always shows. */}
+        {writingInFocus ? null : preview?.linkErrors?.map((e, i) => (
           <Failure key={`link:${i}`} error={e.reason} />
         ))}
-        {preview?.errors?.map((e, i) => <Failure key={i} error={e.reason} />)}
+        {writingInFocus ? null : preview?.errors?.map((e, i) => <Failure key={i} error={e.reason} />)}
       </div>
       {item.stubOf ? (
         <p className="stub-head">
@@ -2117,7 +2345,7 @@ function Editor({ item, onDiscarding }: { item: Detail; onDiscarding?: (active: 
             <Help thread={isThread} className="hint" />
           </SyntaxHelp>
         </div>
-        <div className="preview-pane preview" id="preview-pane" aria-label="preview">
+        <div className="preview-pane preview" id="preview-pane" aria-label="preview" tabIndex={focus.active ? 0 : undefined}>
           <Html id="preview-body" html={preview?.html ?? ''} />
         </div>
       </div>

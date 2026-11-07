@@ -65,6 +65,16 @@ export const Sparkle = () => (
     <path d="M12 3v4M12 17v4M3 12h4M17 12h4M6.3 6.3l2.5 2.5M15.2 15.2l2.5 2.5M6.3 17.7l2.5-2.5M15.2 8.8l2.5-2.5" />
   </Svg>
 );
+export const EnterFocus = () => (
+  <Svg>
+    <path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5" />
+  </Svg>
+);
+export const ExitFocus = () => (
+  <Svg>
+    <path d="M9 4v5H4M15 4v5h5M9 20v-5H4M15 20v-5h5" />
+  </Svg>
+);
 export const Swap = () => (
   <Svg>
     <path d="M7 4 3 8l4 4M3 8h13M17 20l4-4-4-4M21 16H8" />
