@@ -71,7 +71,7 @@ export function DraftCounterSlot({ extensions, context }: { extensions: readonly
         const Counter = extension.draftCounter!;
         return (
           <ExtensionBoundary key={extension.name} name={extension.name} slot="draftCounter">
-            <span className="counter">
+            <span className="counter counter-slot">
               <Counter context={context} />
             </span>
           </ExtensionBoundary>

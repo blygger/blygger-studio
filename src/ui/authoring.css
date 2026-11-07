@@ -32,6 +32,15 @@
 .save-state { font-size: .78rem; color: var(--ok); font-weight: 600; }
 .composer-actions { display: flex; gap: var(--s2); align-items: center; flex-wrap: wrap; margin-left: auto; padding: var(--s1) var(--s2); }
 .composer-actions .counter { margin-left: 0; }
+/* An extension's addition beside the count (extensions.tsx), lighter than the
+   count. On a phone the counts take a row and the buttons the next, so a long
+   count never splits the buttons. Without an extension nothing here applies. */
+.counter-slot { font-weight: 400; }
+@media (max-width: 480px) {
+  .composer-actions:has(.counter-slot) { width: 100%; margin-left: 0; justify-content: flex-end; }
+  .composer-actions .counter-slot { flex: 1 1 auto; min-width: 0; }
+  .composer-actions .counter-slot + .spacer { flex: 0 0 100%; margin-top: calc(-1 * var(--s2)); }
+}
 /* The resize grip helps with a mouse; on touch it is a stray target. */
 @media (hover: hover) and (pointer: fine) { .composer textarea { resize: vertical; } }
 /* "syntax help": the long syntax paragraph, folded (open state per device). */

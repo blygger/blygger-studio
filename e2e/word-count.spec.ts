@@ -92,6 +92,12 @@ test('the composer counts as typed, beside the character count', async ({ page }
   await page.locator('#composer-text').fill('one two [the label](https://example.com/a/b) ![alt](https://example.com/i.png) [[abc | three]] [[abc]]');
   await expect(count).toHaveText('· 5 words');
   await expect(page.locator('#composer-count + .counter')).toContainText('5 words');
+  // A long count stays on one line and the buttons on one row, at phone width too.
+  await page.locator('#composer-text').fill('word '.repeat(1500));
+  await expect(count).toHaveText('· 1,500 words');
+  const [save, send] = await Promise.all([page.locator('#save-draft-btn').boundingBox(), page.locator('#publish-btn').boundingBox()]);
+  expect(save!.y).toBe(send!.y);
+  expect((await count.boundingBox())!.height).toBeLessThan(30);
   await page.locator('#composer-text').fill('');
   await expect(count).toHaveCount(0);
 });
