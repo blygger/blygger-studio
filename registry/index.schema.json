@@ -1,0 +1,121 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "properties": {
+    "$schema": {
+      "type": "string"
+    },
+    "version": {
+      "type": "number",
+      "const": 1
+    },
+    "extensions": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string",
+            "maxLength": 40,
+            "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*$"
+          },
+          "label": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 40
+          },
+          "description": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 280
+          },
+          "author": {
+            "type": "object",
+            "properties": {
+              "name": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 80
+              },
+              "url": {
+                "type": "string",
+                "format": "uri"
+              }
+            },
+            "required": [
+              "name"
+            ],
+            "additionalProperties": false
+          },
+          "homepage": {
+            "type": "string",
+            "format": "uri"
+          },
+          "license": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 64,
+            "description": "An SPDX license expression, e.g. MIT"
+          },
+          "source": {
+            "type": "object",
+            "properties": {
+              "repo": {
+                "type": "string",
+                "pattern": "^https:\\/\\/[^\\s]+$",
+                "description": "A git URL the operator's machine fetches at ext:add time, never the Studio"
+              },
+              "commit": {
+                "type": "string",
+                "pattern": "^(?:[0-9a-f]{40}|[0-9a-f]{64})$"
+              },
+              "path": {
+                "default": "",
+                "type": "string",
+                "pattern": "^(?:[A-Za-z0-9_-][A-Za-z0-9._-]*(?:\\/[A-Za-z0-9_-][A-Za-z0-9._-]*)*)?$"
+              }
+            },
+            "required": [
+              "repo",
+              "commit"
+            ],
+            "additionalProperties": false
+          },
+          "sha256": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{64}$"
+          },
+          "studio": {
+            "type": "string",
+            "pattern": "^(?:(?:>=|<=|>|<|=)?\\d+\\.\\d+\\.\\d+)(?: (?:>=|<=|>|<|=)?\\d+\\.\\d+\\.\\d+)*$",
+            "description": "The Studio versions this extension targets"
+          },
+          "server": {
+            "type": "boolean",
+            "const": false
+          }
+        },
+        "required": [
+          "name",
+          "label",
+          "description",
+          "author",
+          "homepage",
+          "license",
+          "source",
+          "sha256",
+          "studio",
+          "server"
+        ],
+        "additionalProperties": false
+      }
+    }
+  },
+  "required": [
+    "version",
+    "extensions"
+  ],
+  "additionalProperties": false,
+  "$id": "https://github.com/blygger/blygger-studio/blob/main/registry/index.schema.json",
+  "title": "Blygger Studio extension registry index (proposal)"
+}
