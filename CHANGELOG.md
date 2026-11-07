@@ -18,6 +18,29 @@ not have its own repo until session 26.
 
 ---
 
+## 0.55.2 — Knowing which mode you are in, and the editors' keyboard
+
+**Fragment or thread at a glance** (#128). In the composer, full editor and quick
+edit, a fragment's box takes a light tint of the theme's accent. Thread-only tools stay
+in the row, greyed, so nothing shifts when the kind changes. The count is bolder and
+now appears in quick edit; past 1000 in a fragment, it and the text go red. The full
+editor's count never went red before: a stylesheet rule cancelled it.
+
+**Bold, italics and links from the keyboard** (#129). Cmd/Ctrl+B, I and K in all three
+editors. Pressing again takes the formatting off, and undo works. Macs use Cmd only, so
+Ctrl+B and Ctrl+K keep their system meanings.
+
+**The full editor's panes start level, and its preview's quotes look like the public
+page's** (#130). The toolbar sits above both panes. Quotes take the public styling, and
+a thread preview shows the line under each one.
+
+**Subscribing stays in one sheet** (#127). After subscribing to a blyg, the sheet
+carries on to the address book offer instead of closing and opening another.
+
+Private contract and SDK unchanged. Protocol version unchanged (`"0.4"`).
+
+**Migrations:** none.
+
 ## 0.55.1 — The address book meets you where you find people
 
 **Subscribing offers the blyg** (#124). Subscribe to one blyg by hand and the Studio

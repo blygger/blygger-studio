@@ -1,6 +1,6 @@
 {
   "name": "@blygger/studio",
-  "version": "0.55.1",
+  "version": "0.55.2",
   "private": true,
   "description": "Blygger Studio — reference client for the Blygger protocol (publish, subscribe, thread, transclude, respond)",
   "license": "MIT",
