@@ -12,7 +12,7 @@ import {
 } from './components.tsx';
 import { CLIENT } from '../client.ts';
 import { compiledExtensions } from '../../build/extensions.ui.ts';
-import { enabledExtensions } from './extensions.tsx';
+import { enabledExtensions, mainMenuPage } from './extensions.tsx';
 
 /** The fifth tab: update notices, the less-used screens, the public page, log out. */
 export function MorePage() {
@@ -21,8 +21,9 @@ export function MorePage() {
   const update = useUpdateState();
   const [error, setError] = useState<unknown>();
   const publicUrl = new URL(`${mount}/`, location.origin).href;
-  const pages = enabledExtensions(compiledExtensions, settings?.extensions).filter(
-    (extension) => extension.page,
+  const enabled = enabledExtensions(compiledExtensions, settings?.extensions);
+  const pages = enabled.filter(
+    (extension) => extension.page && extension !== mainMenuPage(enabled),
   );
   return (
     <>

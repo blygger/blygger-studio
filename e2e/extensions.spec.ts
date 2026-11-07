@@ -86,6 +86,56 @@ test('a compiled-in extension starts off, fills its slots once enabled, and leav
   }
 });
 
+test('an extension page can ask for the main menu, above compose, and leaves when turned off', async ({ page }) => {
+  await login(page);
+  const zone = await timezone(page);
+  const labels = () => page.locator('nav.tabbar .tl').allTextContents();
+  const reference = ['reading', 'compose', 'hoppers', 'mentions', 'updates', 'more'];
+  try {
+    await page.goto('/studio/reading');
+    await expect.poll(labels).toEqual(reference);
+
+    await patchSettings(page, { extensions: ['example', 'menu-example'], timezone: zone });
+    await page.goto('/studio/reading');
+    await expect.poll(labels).toEqual(['reading', 'menu example', 'compose', 'hoppers', 'mentions', 'updates', 'more']);
+
+    // The tab opens the page and is the current one there; the page has no way back to More.
+    const tab = page.locator('nav.tabbar').getByRole('link', { name: 'menu example' });
+    await tab.click();
+    await expect(page).toHaveURL(/\/studio\/ext\/menu-example$/);
+    await expect(page.locator('[data-extension-page=menu-example]')).toBeVisible();
+    await expect(tab).toHaveAttribute('aria-current', 'page');
+    await expect(page.locator('nav.tabbar a[aria-current=page]')).toHaveCount(1);
+    await expect(page.getByRole('link', { name: '← more' })).toHaveCount(0);
+
+    // The tab fits: seven on a phone, no sideways scroll.
+    const fit = await page.evaluate(() => {
+      const bar = document.querySelector('nav.tabbar')!.getBoundingClientRect();
+      const tabs = [...document.querySelectorAll('nav.tabbar .tab')].map((el) => el.getBoundingClientRect());
+      return { overflow: document.documentElement.scrollWidth - innerWidth, inside: tabs.every((t) => t.left >= bar.left - 1 && t.right <= bar.right + 1) };
+    });
+    expect(fit.overflow).toBeLessThanOrEqual(0);
+    expect(fit.inside).toBe(true);
+
+    // It moved rather than doubled: More lists only the page that did not ask.
+    await page.goto('/studio/more');
+    const listed = page.getByRole('list', { name: 'extensions' }).getByRole('link');
+    await expect(listed).toHaveCount(1);
+    await expect(listed).toContainText('example');
+    await expect(listed).not.toContainText('menu example');
+    await listed.click();
+    await expect(page.getByRole('link', { name: '← more' })).toBeVisible();
+
+    // Off again: the reference menu, and a bookmark says so.
+    await patchSettings(page, { extensions: [], timezone: zone });
+    await page.goto('/studio/ext/menu-example');
+    await expect(page.getByText('This extension is not enabled here.')).toBeVisible();
+    await expect.poll(labels).toEqual(reference);
+  } finally {
+    await patchSettings(page, { extensions: [], timezone: zone });
+  }
+});
+
 test('the extensions releases carry: reading time in the byline, inspect in the ⋯ sheet', async ({ page }) => {
   await login(page);
   const zone = await timezone(page);

@@ -22,6 +22,8 @@ import { readState } from '../versions.ts';
 import { displayUrl } from '../importer/util.ts';
 import { Sheet } from './sheets.tsx';
 import { SetupBanner } from './setup.tsx';
+import { compiledExtensions } from '../../build/extensions.ui.ts';
+import { enabledExtensions, mainMenuPage } from './extensions.tsx';
 import { applyTheme } from './theme.ts';
 import { applyTitle } from './tab.ts';
 import type { CustomTheme } from '../themes.ts';
@@ -247,6 +249,8 @@ export function Layout({ children }: { children: ReactNode }) {
     editedItem?.status === 'public' ? publicPath(editedItem) : `${mount}/`;
   const behind = !!(settings?.updateCheck && update?.behind);
   const unacked = !!(settings?.updateCheck && !settings.updateNoticeAck);
+  const menuExtension = mainMenuPage(enabledExtensions(compiledExtensions, settings?.extensions));
+  const menuActive = menuExtension && path.replace(/\/+$/, '') === `/ext/${menuExtension.name}`;
   return (
     <ChromeContext.Provider value={setChrome}>
       <header className="topbar">
@@ -297,8 +301,22 @@ export function Layout({ children }: { children: ReactNode }) {
         <div className={framed ? 'screen framed' : 'screen'}>{children}</div>
       </main>
       {showTabs ? (
-        <nav className="tabbar" aria-label="studio">
-          {tabs.map((tab) => (
+        <nav className={menuExtension ? 'tabbar has-extension-tab' : 'tabbar'} aria-label="studio">
+          {tabs.flatMap((tab) => [
+            tab.label === 'compose' && menuExtension ? (
+              <Link
+                key={`ext-${menuExtension.name}`}
+                to="/ext/$name"
+                params={{ name: menuExtension.name }}
+                className={menuActive ? 'tab is-active' : 'tab'}
+                aria-current={menuActive ? 'page' : undefined}
+              >
+                <span className="ti" aria-hidden="true">
+                  {menuExtension.page!.mainMenu!.icon}
+                </span>
+                <span className="tl">{menuExtension.page!.title}</span>
+              </Link>
+            ) : null,
             <Link
               key={tab.label}
               to={tab.to}
@@ -313,8 +331,8 @@ export function Layout({ children }: { children: ReactNode }) {
               {tab.label === 'more' && (behind || unacked) ? (
                 <span className="flag" aria-hidden="true" />
               ) : null}
-            </Link>
-          ))}
+            </Link>,
+          ])}
         </nav>
       ) : null}
     </ChromeContext.Provider>

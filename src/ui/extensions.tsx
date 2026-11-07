@@ -24,6 +24,14 @@ export function enabledExtensions(compiled: readonly StudioExtension[], enabled:
   return compiled.filter((extension) => enabled.includes(extension.name));
 }
 
+/**
+ * The one enabled extension page in the main menu: the first in compiled order that asks.
+ * One, because a phone's tab bar has room for one more tab and no more.
+ */
+export function mainMenuPage(extensions: readonly StudioExtension[]) {
+  return extensions.find((extension) => extension.page?.mainMenu);
+}
+
 function report(name: string, slot: string, error: unknown) {
   console.error(`Studio extension "${name}" failed in ${slot}; it is skipped there until the page reloads.`, error);
 }
