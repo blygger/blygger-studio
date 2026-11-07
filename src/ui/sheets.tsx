@@ -13,7 +13,7 @@
  *    content (a publish flow, an inspector).
  */
 import type { ReactNode } from 'react';
-import { useEffect, useRef, useState, useSyncExternalStore } from 'react';
+import { Fragment, useEffect, useRef, useState, useSyncExternalStore } from 'react';
 import { Button } from '@base-ui/react/button';
 import { Dialog } from '@base-ui/react/dialog';
 
@@ -67,7 +67,8 @@ export interface ToastOptions {
 type Request =
   | { id: number; kind: 'confirm'; options: ConfirmOptions; resolve: (v: boolean) => void }
   | { id: number; kind: 'prompt'; options: PromptOptions; resolve: (v: string | null) => void }
-  | { id: number; kind: 'menu'; options: MenuOptions; resolve: (v: string | null) => void };
+  | { id: number; kind: 'menu'; options: MenuOptions; resolve: (v: string | null) => void }
+  | { id: number; kind: 'custom'; render: (done: () => void) => ReactNode; resolve: () => void };
 interface ToastState {
   id: number;
   message: string;
@@ -109,6 +110,12 @@ export function prompt(options: PromptOptions): Promise<string | null> {
 export function menu(options: MenuOptions): Promise<string | null> {
   return new Promise((resolve) =>
     push({ id: nextId++, kind: 'menu', options, resolve }),
+  );
+}
+/** A queued sheet with its own content; `render` returns a <Sheet>. Resolves when it calls `done`. */
+export function customSheet(render: (done: () => void) => ReactNode): Promise<void> {
+  return new Promise((resolve) =>
+    push({ id: nextId++, kind: 'custom', render, resolve }),
   );
 }
 /** A short, non-blocking message at the bottom of the screen (replaces alert). */
@@ -376,6 +383,13 @@ export function SheetHost() {
         <PromptSheet key={head.id} request={head} />
       ) : head?.kind === 'menu' ? (
         <MenuSheet key={head.id} request={head} />
+      ) : head?.kind === 'custom' ? (
+        <Fragment key={head.id}>
+          {head.render(() => {
+            settle(head.id);
+            head.resolve();
+          })}
+        </Fragment>
       ) : null}
       <Toast />
     </>

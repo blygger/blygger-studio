@@ -424,7 +424,7 @@ describe("pinned-version carousel (session 19)", () => {
     const feed = await (await getPublic("/blyg/")).text();
     expect(feed).toContain('<div class="item-content">');
     // The permalink page gets the wrapper too, so the markup is one shape.
-    expect(await (await getPublic(`/blyg/f/${id}/`)).text()).toContain('<div class="item-content">');
+    expect(await (await getPublic(`/blyg/f/${id}/`)).text()).toContain('<div class="e-content item-content">');
   });
 
   // Session 21: the script moved from feed-only to every page that renders an
