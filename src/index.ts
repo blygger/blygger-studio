@@ -42,6 +42,32 @@ import { pruneFailedInbound } from "./mentions/store.ts";
 import type { Env, Settings } from "./types.ts";
 import { FEED_PAGE_SIZE, WEBMENTION_PATH } from "./types.ts";
 import { normalizeMount, deploymentPaths } from "./util.ts";
+import type { ItemRow } from "./types.ts";
+import { meaningful, ownChangelog, ownSubject, storedSummary, summarizeChangelog } from "./changelog-summary.ts";
+
+/**
+ * An item page in summary mode (Settings' changelog_display) whose summary is
+ * not written yet asks for one after the response, so a visitor never waits on
+ * a model. The page shows the full changelog meanwhile. One call per item
+ * version: summarizeChangelog claims the row first, and a failure is retried
+ * only after an hour (src/changelog-summary.ts).
+ */
+function summarizeInBackground(c: Context<{ Bindings: Env }>, settings: Settings, item: ItemRow): void {
+  if (settings.changelog_display !== "summary" || item.kind === "withdrawn" || item.version === 0) return;
+  const env = c.env;
+  const work = (async () => {
+    if (await storedSummary(env.DB, ownSubject(item.id), item.version)) return;
+    const entries = await ownChangelog(env.DB, item.id);
+    if (!meaningful(entries)) return;
+    const r = await summarizeChangelog(env, ownSubject(item.id), item.version, entries);
+    if (!r.ok && r.status !== 409) console.warn("changelog summary", item.id, r.error);
+  })().catch((e) => console.error("changelog summary failed", item.id, e));
+  try {
+    c.executionCtx.waitUntil(work);
+  } catch {
+    // No execution context (some tests): the promise still runs to completion.
+  }
+}
 
 const cors = (c: { header: (k: string, v: string) => void }) =>
   c.header("Access-Control-Allow-Origin", "*");
@@ -154,6 +180,7 @@ export function makeApp(mount: string) {
     const front = await resolveFrontPage(c.env.DB, settings);
     if (front) {
       webmentionLink(c, settings);
+      summarizeInBackground(c, settings, front);
       return c.html(await threadPage(c.env.DB, settings, front, mount, siteOrigin(settings, c.req.url, mount)));
     }
     return latestItems(c, settings, false);
@@ -312,6 +339,7 @@ export function makeApp(mount: string) {
     if ((await authoredKind(c.env.DB, item)) !== "fragment") return c.notFound();
     const settings = await getSettings(c.env.DB);
     webmentionLink(c, settings);
+    summarizeInBackground(c, settings, item);
     return c.html(await permalinkPage(c.env.DB, settings, item, mount, siteOrigin(settings, c.req.url, mount)));
   });
 
@@ -343,6 +371,7 @@ export function makeApp(mount: string) {
     if ((await authoredKind(c.env.DB, item)) !== "thread") return c.notFound();
     const settings = await getSettings(c.env.DB);
     webmentionLink(c, settings);
+    summarizeInBackground(c, settings, item);
     return c.html(await threadPage(c.env.DB, settings, item, mount, siteOrigin(settings, c.req.url, mount)));
   });
 

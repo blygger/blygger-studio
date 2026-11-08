@@ -159,6 +159,18 @@ export type Settings = {
     changeCategoryInNote: boolean;
     feedPrompt: string;
     aiStylePrompt: string;
+    /**
+     * What an item's own public page shows of its changelog: the latest note (the default), every note, or an AI summary of them. A summary is written once per new version with the change-notes model, and is studio-private: it never reaches the item document or the feed.
+     */
+    changelogDisplay: 'latest' | 'history' | 'summary';
+    /**
+     * The same choice for blyg items in the reader. In summary mode a card shows the latest note and the summary is written when the item is opened.
+     */
+    readerChangelogDisplay: 'latest' | 'history' | 'summary';
+    /**
+     * Owner instructions for changelog summaries: the public-page and reader summaries, and a change note drafted with "summarize full history to date".
+     */
+    changelogSummaryPrompt: string;
     acceptMentions: boolean;
     updateCheck: boolean;
     showResponsesDefault: boolean;
@@ -1829,6 +1841,10 @@ export type ClassifyChangeResponse = ClassifyChangeResponses[keyof ClassifyChang
 export type DraftNoteData = {
     body: {
         expectedRevision: number;
+        /**
+         * Summarize the item's whole revision history to date, ending with this change, from the earlier notes and the two texts; longer than a plain note (at most 400 characters). Off by default.
+         */
+        history?: boolean;
     };
     path: {
         id: string;
@@ -1903,6 +1919,88 @@ export type DraftNoteResponses = {
 };
 
 export type DraftNoteResponse = DraftNoteResponses[keyof DraftNoteResponses];
+
+export type SummarizeChangelogData = {
+    /**
+     * An own item by itemId, or an imported blyg item by its subscription and remote id. The summary reads the changelog's notes only, is written once per version with the change-notes model and kept, and is studio-private.
+     */
+    body: {
+        itemId: string;
+    } | {
+        subscriptionId: string;
+        remoteId: string;
+    };
+    path?: never;
+    query?: never;
+    url: '/changelog-summary';
+};
+
+export type SummarizeChangelogErrors = {
+    /**
+     * Request failed
+     */
+    400: ApiError;
+    /**
+     * Request failed
+     */
+    401: ApiError;
+    /**
+     * Request failed
+     */
+    403: ApiError;
+    /**
+     * Request failed
+     */
+    404: ApiError;
+    /**
+     * Request failed
+     */
+    405: ApiError;
+    /**
+     * Request failed
+     */
+    409: ApiError;
+    /**
+     * Request failed
+     */
+    413: ApiError;
+    /**
+     * Request failed
+     */
+    415: ApiError;
+    /**
+     * Request failed
+     */
+    422: ApiError;
+    /**
+     * Request failed
+     */
+    429: ApiError;
+    /**
+     * Request failed
+     */
+    500: ApiError;
+    /**
+     * Request failed
+     */
+    502: ApiError;
+};
+
+export type SummarizeChangelogError = SummarizeChangelogErrors[keyof SummarizeChangelogErrors];
+
+export type SummarizeChangelogResponses = {
+    /**
+     * Success
+     */
+    200: {
+        summary: string;
+        model: string;
+        version: number;
+        cached: boolean;
+    };
+};
+
+export type SummarizeChangelogResponse = SummarizeChangelogResponses[keyof SummarizeChangelogResponses];
 
 export type GenerateItemData = {
     body: {
@@ -2487,6 +2585,18 @@ export type UpdateSettingsData = {
         changeCategoryInNote?: boolean;
         feedPrompt?: string;
         aiStylePrompt?: string;
+        /**
+         * What an item's own public page shows of its changelog: the latest note (the default), every note, or an AI summary of them. A summary is written once per new version with the change-notes model, and is studio-private: it never reaches the item document or the feed.
+         */
+        changelogDisplay?: 'latest' | 'history' | 'summary';
+        /**
+         * The same choice for blyg items in the reader. In summary mode a card shows the latest note and the summary is written when the item is opened.
+         */
+        readerChangelogDisplay?: 'latest' | 'history' | 'summary';
+        /**
+         * Owner instructions for changelog summaries: the public-page and reader summaries, and a change note drafted with "summarize full history to date".
+         */
+        changelogSummaryPrompt?: string;
         acceptMentions?: boolean;
         updateCheck?: boolean;
         showResponsesDefault?: boolean;

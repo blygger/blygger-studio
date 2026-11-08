@@ -673,6 +673,28 @@
           "aiStylePrompt": {
             "type": "string"
           },
+          "changelogDisplay": {
+            "type": "string",
+            "enum": [
+              "latest",
+              "history",
+              "summary"
+            ],
+            "description": "What an item's own public page shows of its changelog: the latest note (the default), every note, or an AI summary of them. A summary is written once per new version with the change-notes model, and is studio-private: it never reaches the item document or the feed."
+          },
+          "readerChangelogDisplay": {
+            "type": "string",
+            "enum": [
+              "latest",
+              "history",
+              "summary"
+            ],
+            "description": "The same choice for blyg items in the reader. In summary mode a card shows the latest note and the summary is written when the item is opened."
+          },
+          "changelogSummaryPrompt": {
+            "type": "string",
+            "description": "Owner instructions for changelog summaries: the public-page and reader summaries, and a change note drafted with \"summarize full history to date\"."
+          },
           "acceptMentions": {
             "type": "boolean"
           },
@@ -836,6 +858,9 @@
           "changeCategoryInNote",
           "feedPrompt",
           "aiStylePrompt",
+          "changelogDisplay",
+          "readerChangelogDisplay",
+          "changelogSummaryPrompt",
           "acceptMentions",
           "updateCheck",
           "showResponsesDefault",
@@ -5812,6 +5837,10 @@
                     "type": "integer",
                     "exclusiveMinimum": 0,
                     "maximum": 9007199254740991
+                  },
+                  "history": {
+                    "type": "boolean",
+                    "description": "Summarize the item's whole revision history to date, ending with this change, from the earlier notes and the two texts; longer than a plain note (at most 400 characters). Off by default."
                   }
                 },
                 "required": [
@@ -5850,6 +5879,217 @@
                     "model",
                     "pinnedPrior",
                     "revision"
+                  ]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Request failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Request failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Request failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Request failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "405": {
+            "description": "Request failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Request failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "413": {
+            "description": "Request failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "415": {
+            "description": "Request failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Request failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Request failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Request failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "502": {
+            "description": "Request failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/changelog-summary": {
+      "post": {
+        "operationId": "summarizeChangelog",
+        "tags": [
+          "studio"
+        ],
+        "security": [
+          {
+            "ownerSession": []
+          },
+          {
+            "ownerOAuth": [
+              "owner:draft"
+            ]
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "anyOf": [
+                  {
+                    "type": "object",
+                    "properties": {
+                      "itemId": {
+                        "type": "string"
+                      }
+                    },
+                    "required": [
+                      "itemId"
+                    ],
+                    "additionalProperties": false
+                  },
+                  {
+                    "type": "object",
+                    "properties": {
+                      "subscriptionId": {
+                        "type": "string"
+                      },
+                      "remoteId": {
+                        "type": "string"
+                      }
+                    },
+                    "required": [
+                      "subscriptionId",
+                      "remoteId"
+                    ],
+                    "additionalProperties": false
+                  }
+                ],
+                "description": "An own item by itemId, or an imported blyg item by its subscription and remote id. The summary reads the changelog's notes only, is written once per version with the change-notes model and kept, and is studio-private."
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "summary": {
+                      "type": "string"
+                    },
+                    "model": {
+                      "type": "string"
+                    },
+                    "version": {
+                      "type": "integer",
+                      "exclusiveMinimum": 0
+                    },
+                    "cached": {
+                      "type": "boolean"
+                    }
+                  },
+                  "required": [
+                    "summary",
+                    "model",
+                    "version",
+                    "cached"
                   ]
                 }
               }
@@ -7375,6 +7615,28 @@
                   },
                   "aiStylePrompt": {
                     "type": "string"
+                  },
+                  "changelogDisplay": {
+                    "type": "string",
+                    "enum": [
+                      "latest",
+                      "history",
+                      "summary"
+                    ],
+                    "description": "What an item's own public page shows of its changelog: the latest note (the default), every note, or an AI summary of them. A summary is written once per new version with the change-notes model, and is studio-private: it never reaches the item document or the feed."
+                  },
+                  "readerChangelogDisplay": {
+                    "type": "string",
+                    "enum": [
+                      "latest",
+                      "history",
+                      "summary"
+                    ],
+                    "description": "The same choice for blyg items in the reader. In summary mode a card shows the latest note and the summary is written when the item is opened."
+                  },
+                  "changelogSummaryPrompt": {
+                    "type": "string",
+                    "description": "Owner instructions for changelog summaries: the public-page and reader summaries, and a change note drafted with \"summarize full history to date\"."
                   },
                   "acceptMentions": {
                     "type": "boolean"

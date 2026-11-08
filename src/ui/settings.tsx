@@ -60,6 +60,9 @@ const fields = [
   "aiModelClassify",
   "feedPrompt",
   "aiStylePrompt",
+  "changelogDisplay",
+  "readerChangelogDisplay",
+  "changelogSummaryPrompt",
   "acceptMentions",
   "updateCheck",
   "showResponsesDefault",
@@ -143,6 +146,7 @@ function SettingsForm({ initial }: { initial: Settings }) {
       | "siteUrl"
       | "aiStylePrompt"
       | "feedPrompt"
+      | "changelogSummaryPrompt"
       | "updateFeedUrl",
     label: string,
     multiline = false,
@@ -155,7 +159,7 @@ function SettingsForm({ initial }: { initial: Settings }) {
       {multiline ? (
         <textarea
           id={key}
-          rows={key === "feedPrompt" ? 4 : 3}
+          rows={key === "feedPrompt" || key === "changelogSummaryPrompt" ? 4 : 3}
           value={form[key]}
           placeholder={placeholder}
           onChange={(event) => change(key, event.target.value)}
@@ -417,6 +421,47 @@ function SettingsForm({ initial }: { initial: Settings }) {
         </div>
         <FrontPageFields form={form} change={change} />
       </section>
+      <section className="card" id="changelog-display">
+        <h3 className="card-h">changelog</h3>
+        {(
+          [
+            ['changelogDisplay', 'On your item pages, show', 'changelog_display'],
+            ['readerChangelogDisplay', 'In your reader, for blyg items, show', 'reader_changelog_display'],
+          ] as const
+        ).map(([key, legend, id]) => (
+          <div className="field" role="radiogroup" aria-labelledby={`${id}-label`} key={key}>
+            <span id={`${id}-label`}>{legend}</span>
+            {(
+              [
+                ['latest', 'The latest note', 'the note for the current version, as before'],
+                ['history', 'The full history', 'every version\u2019s note, newest first'],
+                ['summary', 'An AI summary', 'written from the notes by the change-notes model; uses tokens'],
+              ] as const
+            ).map(([value, label, hint]) => (
+              <label className="check" key={value}>
+                <input
+                  type="radio"
+                  name={key}
+                  value={value}
+                  checked={form[key] === value}
+                  onChange={() => change(key, value)}
+                />
+                <span>
+                  {label} <span className="hint">{hint}</span>
+                </span>
+              </label>
+            ))}
+          </div>
+        ))}
+        <p className="hint">
+          A summary reads only the notes, never the text, and is written once
+          per new version and kept: on your pages when a version is first
+          viewed, in your reader when you open an item. Until it exists, the
+          full history shows. It is labelled as AI-written and never goes into
+          your feed or your item files. An item with one version and no note
+          shows just its version line.
+        </p>
+      </section>
       </section>
       <section className="settings-section" id="appearance" aria-labelledby="appearance-h">
       <h2 className="section-title" id="appearance-h">Appearance</h2>
@@ -675,6 +720,20 @@ function SettingsForm({ initial }: { initial: Settings }) {
             anything is published. A note published exactly as drafted is
             marked as generated in the changelog.
           </>,
+        )}
+      </section>
+      <section className="card" id="ai-changelog-summary">
+        <h3 className="card-h">changelog summaries</h3>
+        <p className="hint">
+          Uses the change-notes model above. Applies to the summaries chosen
+          under Feed → changelog, and to a change note drafted with{' '}
+          <em>summarize full history to date</em>.
+        </p>
+        {field(
+          "changelogSummaryPrompt",
+          'Instructions for roll-up summaries (optional)',
+          true,
+          'e.g. One short paragraph. Say which versions were substantial rewrites and which were small corrections, and what the piece argues now.',
         )}
       </section>
       <section className="card" id="ai-classify">

@@ -799,6 +799,8 @@ function useNoteConfirm(write: ReturnType<typeof createDraftAction>) {
     item: { id: string; version: number },
     note: string,
     drafted?: string,
+    /** Draft a summary of the history to date rather than of this change (session 61). */
+    history = false,
   ): Promise<NoteChoice | null> => {
     const typed = note.trim();
     if (item.version === 0) return Promise.resolve({ note: typed, generated: false });
@@ -818,7 +820,7 @@ function useNoteConfirm(write: ReturnType<typeof createDraftAction>) {
         resolve,
       });
       if (auto)
-        write({ type: 'draft-note' })
+        write({ type: 'draft-note', history })
           .then((r) =>
             setState((s) => s && { ...s, drafted: r.note, loading: false, text: s.inNote ? composeNote(r.note, s.classify?.category ?? null) : r.note }),
           )
@@ -1857,6 +1859,8 @@ function Editor({ item, onDiscarding }: { item: Detail; onDiscarding?: (active: 
   // The note the studio drafted (#40); `generated` is sent only while the
   // field still holds exactly that text — an edit makes the words the author's.
   const [drafted, setDrafted] = useState<string>();
+  // Off by default and not remembered: a history-to-date note is a choice per version.
+  const [historyNote, setHistoryNote] = useState(false);
   const confirmNote = useNoteConfirm(write);
   const [preview, setPreview] =
     useState<Awaited<ReturnType<typeof getPreview>>>();
@@ -2025,7 +2029,7 @@ function Editor({ item, onDiscarding }: { item: Detail; onDiscarding?: (active: 
   };
   const publish = () =>
     operation(async () => {
-      const choice = await confirmNote.request(item, note, drafted);
+      const choice = await confirmNote.request(item, note, drafted, historyNote);
       if (!choice) return;
       const md = draft.current!.text;
       const result = await write({ type: 'publish', note: choice.note, generated: choice.generated, category: choice.category });
@@ -2406,7 +2410,7 @@ function Editor({ item, onDiscarding }: { item: Detail; onDiscarding?: (active: 
                 title="Describe the change from the published version; you can edit it before publishing"
                 onClick={() =>
                   operation(async () => {
-                    const result = await write({ type: 'draft-note' });
+                    const result = await write({ type: 'draft-note', history: historyNote });
                     setNote(result.note);
                     setDrafted(result.note);
                   })
@@ -2416,6 +2420,21 @@ function Editor({ item, onDiscarding }: { item: Detail; onDiscarding?: (active: 
               </Button>
             ) : null}
           </div>
+          {item.version > 0 ? (
+            <label className="check" id="note-history">
+              <input
+                type="checkbox"
+                checked={historyNote}
+                onChange={(e) => setHistoryNote(e.target.checked)}
+              />
+              <span>
+                summarize full history to date{' '}
+                <span className="hint">
+                  a drafted note covers every version so far, this one included (up to 400 characters)
+                </span>
+              </span>
+            </label>
+          ) : null}
           {drafted !== undefined && note.trim() === drafted ? (
             <p className="hint" id="note-generated-hint">
               drafted — published as generated unless you edit it

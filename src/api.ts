@@ -52,12 +52,16 @@ import { parseScopes, unrequestedOutputDirectives } from './tk.ts';
 import { CommentPublishError, withoutComments } from './comments.ts';
 import { runGenerateScope } from "./tk-generate.ts";
 import type { ItemRow, SubscriptionRow } from "./types.ts";
+import { CHANGELOG_DISPLAYS } from "./types.ts";
 import { BLOCKING, staleThreads, threadFreshness } from "./freshness.ts";
 import { draftChangeNote } from "./change-note.ts";
 import { classifyChange, settleChangeClass } from "./change-class.ts";
 import type { ChangeCategory } from "./change-category.ts";
 import { isDecisionModel } from "./ai/models.ts";
 import { platformFetchFor } from "./importer/http.ts";
+import { importedSubject, ownChangelog, ownSubject, summarizeChangelog, type ChangelogEntry } from "./changelog-summary.ts";
+import { blygSubscription } from "./read-api.ts";
+import { fetchImportedHistory } from "./imported-history.ts";
 import { reconcileIndex } from "./importer/poll.ts";
 import { deploymentPaths, hex, isFollowableUrl, isValidTimeZone, newMediaId, normalizeMount, nowIso } from "./util.ts";
 
@@ -306,10 +310,39 @@ const classifyChangeOperation = async (context: OperationContext, input: Operati
 const draftNoteOperation = async (context: OperationContext, input: OperationInput) => {
   const item = await observedItem(context, input);
   if (!item) return failure('not-found', { error: "not found" });
-  const result = await draftChangeNote(context.env, item);
+  const result = await draftChangeNote(context.env, item, undefined, { history: (input.body as { history?: boolean }).history === true });
   if (!result.ok) return modelFailure({ error: result.error }, result.status);
   await assertCurrentRevision(context.env.DB, item);
   return success({ revision: item.revision, note: result.note, model: result.model, pinnedPrior: result.pinnedPrior });
+};
+
+// A changelog summary for the reader (session 61): an own item from its
+// versions, an imported one from its origin's changelog, read now.
+const summarizeChangelogOperation = async (context: OperationContext, input: OperationInput) => {
+  const body = input.body as { itemId?: string; subscriptionId?: string; remoteId?: string };
+  let subject: string;
+  let version: number;
+  let entries: ChangelogEntry[];
+  if (body.itemId) {
+    const item = await getItem(context.env.DB, body.itemId);
+    if (!item || item.version === 0) return failure('not-found', { error: "no published item with that id" });
+    if (item.kind === "withdrawn") return failure('conflict', { error: "a withdrawn item's changelog is not summarized" });
+    subject = ownSubject(item.id);
+    version = item.version;
+    entries = await ownChangelog(context.env.DB, item.id);
+  } else {
+    const sub = await blygSubscription(context.env.DB, body.subscriptionId!);
+    if (!sub) return failure('not-found', { error: "not a blyg subscription" });
+    const got = await fetchImportedHistory(platformFetchFor(context.env), sub, body.remoteId!);
+    if (!got.ok) return modelFailure({ error: got.error }, got.status);
+    if (got.value.withdrawn) return failure('conflict', { error: "a withdrawn item's changelog is not summarized" });
+    subject = importedSubject(sub.id, body.remoteId!);
+    version = got.value.current;
+    entries = got.value.changelog;
+  }
+  const result = await summarizeChangelog(context.env, subject, version, entries);
+  if (!result.ok) return modelFailure({ error: result.error }, result.status);
+  return success({ summary: result.summary, model: result.model, version: result.version, cached: result.cached });
 };
 
 // --- Snapshot freshness (decision #33's direct check; #38: detect always,
@@ -545,6 +578,9 @@ const SETTINGS_KEYS = [
   "ai_model_classify",
   "feed_prompt",
   "ai_style_prompt",
+  "changelog_display",
+  "reader_changelog_display",
+  "changelog_summary_prompt",
   "picker_typing",
   "feed_order",
   "front_page",
@@ -575,6 +611,9 @@ const updateSettingsOperation = async (context: OperationContext, input: Operati
     if (patch[key]?.trim() && isDecisionModel(patch[key].trim())) return failure('invalid-input', { error: `${field} cannot be a decision model ("${patch[key]}"): decision models write no text` });
   }
   if (typeof patch.picker_typing === "string" && !["auto", "editor", "panel"].includes(patch.picker_typing)) return failure('invalid-input', { error: "pickerTyping must be auto, editor or panel" });
+  for (const [field, key] of [["changelogDisplay", "changelog_display"], ["readerChangelogDisplay", "reader_changelog_display"]] as const) {
+    if (typeof patch[key] === "string" && !(CHANGELOG_DISPLAYS as readonly string[]).includes(patch[key])) return failure('invalid-input', { error: `${field} must be latest, history or summary` });
+  }
   if (typeof patch.timezone === "string" && !isValidTimeZone(patch.timezone)) return failure('invalid-input', { error: `unknown timezone: ${patch.timezone}` });
   if (patch.author_url && !(URL.canParse(patch.author_url) && ["http:", "https:"].includes(new URL(patch.author_url).protocol))) return failure('invalid-input', { error: "authorUrl must be an absolute http(s) URL" });
   if (patch.site_url && !(URL.canParse(patch.site_url) && ["http:", "https:"].includes(new URL(patch.site_url).protocol))) return failure('invalid-input', { error: "siteUrl must be an absolute http(s) URL" });
@@ -715,6 +754,7 @@ export const itemOperations = {
   publishItem: publishItemOperation,
   classifyChange: classifyChangeOperation,
   draftNote: draftNoteOperation,
+  summarizeChangelog: summarizeChangelogOperation,
   listStaleThreads: listStaleThreadsOperation,
   getItemFreshness: getItemFreshnessOperation,
   refreshItem: refreshItemOperation,

@@ -231,7 +231,7 @@ const getImportedItemOperation = async (context: OperationContext, input: Operat
 };
 // History of an imported item (#40), read from its origin on demand. Blyg
 // subscriptions only: an L0 feed has no item documents and no versions.
-async function blygSubscription(db: D1Database, id: string) {
+export async function blygSubscription(db: D1Database, id: string) {
   const sub = await getSubscription(db, id);
   return sub && sub.kind === "blyg" ? sub : null;
 }

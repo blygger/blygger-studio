@@ -21,7 +21,7 @@ import {
   resolveTransclusions,
   TransclusionResolveError,
 } from "./transclusion.ts";
-import type { ForkedFrom, ItemRow, MediaRow, ScopeProvenance, Settings, StubCite, StubOf, Transclusion, VersionRow } from "./types.ts";
+import type { ChangelogDisplay, ForkedFrom, ItemRow, MediaRow, ScopeProvenance, Settings, StubCite, StubOf, Transclusion, VersionRow } from "./types.ts";
 import { FRAGMENT_MAX_CHARS } from "./types.ts";
 import { parseEnabledExtensions } from "./extensions/names.ts";
 import { absolutizeHtml, authoredText, contentHash, isFollowableUrl, newId, nowIso, visibleMedia } from "./util.ts";
@@ -143,6 +143,10 @@ export function settingsFromMap(map: Record<string, string>): Settings {
     change_category_in_note: map.change_category_in_note !== "off",
     feed_prompt: map.feed_prompt ?? "",
     ai_style_prompt: map.ai_style_prompt ?? "",
+    // The latest note, as every item page showed before session 61.
+    changelog_display: changelogDisplay(map.changelog_display),
+    reader_changelog_display: changelogDisplay(map.reader_changelog_display),
+    changelog_summary_prompt: map.changelog_summary_prompt ?? "",
     // Default on: an existing deployment's behaviour must not change under it.
     accept_mentions: map.accept_mentions !== "off",
     // On by default (Venkat, session 28). The argument for off was that a
@@ -181,6 +185,10 @@ export function settingsFromMap(map: Record<string, string>): Settings {
     // (migration 0029), done once either is finished or dismissed.
     setup: map.setup === "done" || map.setup === "notice" ? map.setup : "pending",
   };
+}
+
+function changelogDisplay(value: string | undefined): ChangelogDisplay {
+  return value === "history" || value === "summary" ? value : "latest";
 }
 
 export async function putSettings(db: D1Database, patch: Partial<Record<string, string>>): Promise<void> {

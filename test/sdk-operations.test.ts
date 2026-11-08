@@ -96,6 +96,8 @@ it("exercises every declared operation through its named SDK method, including a
     ["refreshItem", 409, async client => api.refreshItem({ client, path: { id } , body: { expectedRevision: await testItemRevision(id) } })],
     ["deleteMedia", 404, async client => api.deleteMedia({ client, path: { id: "missing-media" } , body: { expectedRevision: await testMediaRevision("missing-media") } })],
     ["draftNote", 409, async client => api.draftNote({ client, path: { id } , body: { expectedRevision: await testItemRevision(id) } })],
+    // A first version with no note has nothing to summarize (409); no model is called.
+    ["summarizeChangelog", 409, async client => api.summarizeChangelog({ client, body: { itemId: id } })],
     // Off (409) until Settings names a decision model, as it does not here.
     ["classifyChange", 409, async client => api.classifyChange({ client, path: { id } , body: { expectedRevision: await testItemRevision(id) } })],
     ["getImportedHistory", 404, async client => api.getImportedHistory({ client, path: { sub: sub.id, id: "remote" } })],

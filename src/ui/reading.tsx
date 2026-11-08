@@ -795,62 +795,148 @@ function Entry({
 
 /* ---------------- what changed (new versions in the feed) ---------------- */
 
-// The note for one held version, read from the origin's changelog once a card
-// has been on screen (decision #40's reader half: the importer stores the
-// latest state, not the changelog). Failures are not kept, so a blyg that was
-// briefly unreachable is asked again.
-const changeNotes = new Map<string, Promise<string | null>>();
-function changeNote(sub: string, id: string, version: number): Promise<string | null> {
-  const key = JSON.stringify([sub, id, version]);
-  let note = changeNotes.get(key);
-  if (!note) {
-    note = loadHistory(sub, id).then(
-      (history) => history.changelog.find((entry) => entry.version === version)?.note?.trim() || null,
-    );
-    note.catch(() => changeNotes.delete(key));
-    changeNotes.set(key, note);
+type LogEntry = { version: number; at: string; note: string | null; pinned: boolean };
+type Changelog = { current: number; entries: LogEntry[] };
+
+// One read per item and version, kept for the session; failures are not kept.
+const changelogs = new Map<string, Promise<Changelog>>();
+function loadChangelog(entry: Reading): Promise<Changelog> {
+  const imported = entry.imported;
+  const key = imported
+    ? JSON.stringify(['imp', imported.subscriptionId, imported.remoteId, imported.version])
+    : JSON.stringify(['own', entry.own!.id, entry.own!.updated]);
+  let got = changelogs.get(key);
+  if (!got) {
+    got = imported
+      ? loadHistory(imported.subscriptionId, imported.remoteId).then((h) => ({
+          current: h.current,
+          entries: h.changelog.map(({ version, at, note, pinned }) => ({ version, at, note, pinned })),
+        }))
+      : unwrap(BlyggerApi.listItemVersions({ client, path: { id: entry.own!.id }, query: { limit: 100 } })).then((page) => {
+          const entries = page.items
+            .filter((v) => v.kind !== 'withdrawn')
+            .map((v) => ({ version: v.version, at: v.publishedAt, note: v.note, pinned: v.pinned }))
+            .sort((a, b) => a.version - b.version);
+          return { current: entries.at(-1)?.version ?? 0, entries };
+        });
+    got.catch(() => changelogs.delete(key));
+    changelogs.set(key, got);
   }
-  return note;
+  return got;
 }
+const meaningfulLog = (entries: LogEntry[]) => entries.length > 1 || entries.some((e) => !!e.note?.trim());
+
+/** Every note, newest first; on a card the newest three and a count of the rest. */
+function ChangeHistory({ entries, limit }: { entries: LogEntry[]; limit?: number }) {
+  const settings = useSettings();
+  const newest = [...entries].reverse();
+  const shown = limit ? newest.slice(0, limit) : newest;
+  return (
+    <ol className="change-history" data-change-history>
+      {shown.map((e) => (
+        <li key={e.version}>
+          <strong>V{e.version}</strong>
+          {Number.isNaN(Date.parse(e.at)) ? null : <span className="h-hint"> {formatDateIn(e.at, settings?.timezone || 'UTC')}</span>}:{' '}
+          {e.note?.trim() || <span className="h-hint">no note</span>}
+          {e.pinned ? <span className="h-hint"> · pinned</span> : null}
+        </li>
+      ))}
+      {shown.length < newest.length ? (
+        <li className="h-hint">and {newest.length - shown.length} earlier, in history</li>
+      ) : null}
+    </ol>
+  );
+}
+
 /**
- * A revised post leads with its latest changelog entry: "V3: note". When the
- * origin gave none for that version (or cannot be reached) it says so rather
- * than showing nothing, so a changed post never reads like an unchanged one.
- * Only a held, blyg-native, live item past its first version has one.
+ * The changelog above an entry's body, as Settings' reader_changelog_display
+ * asks (session 61): the latest note ("V3: note"), every note, or an AI
+ * summary. Read from the item's changelog once the entry is on screen: an
+ * imported item's from its origin (the importer keeps the latest state, not
+ * the changelog), an own item's from its versions. A summary is asked for
+ * only when the item is opened, and kept per version on the server; a card in
+ * summary mode shows the latest note meanwhile. Only blyg-native, live items
+ * have one, and an item whose changelog says nothing beyond its first version
+ * shows none.
  */
-function ChangeLead({ entry }: { entry: Reading }) {
+function ChangeLead({ entry, opened = false }: { entry: Reading; opened?: boolean }) {
+  const settings = useSettings();
+  const mode = settings?.readerChangelogDisplay ?? 'latest';
   const imported = entry.imported;
   const version = imported?.version ?? 0;
-  const eligible = !!imported && !entry.l0 && !entry.withdrawn && version > 1;
-  const line = useRef<HTMLParagraphElement>(null);
-  const [note, setNote] = useState<string | null | undefined>();
+  // The latest note is what the reader showed before session 61, imported items only.
+  const eligible = !entry.l0 && !entry.withdrawn && (imported ? mode !== 'latest' || version > 1 : mode !== 'latest' && !!entry.own);
+  const line = useRef<HTMLDivElement>(null);
+  const [log, setLog] = useState<Changelog | null | undefined>();
+  const [summary, setSummary] = useState<{ text?: string; model?: string; error?: string } | undefined>();
   useEffect(() => {
-    setNote(undefined);
+    setLog(undefined);
+    setSummary(undefined);
     const element = line.current;
     if (!eligible || !element) return;
     let live = true;
-    const load = () =>
-      changeNote(imported!.subscriptionId, imported!.remoteId, version).then(
-        (value) => live && setNote(value),
-        () => live && setNote(null),
+    const load = () => {
+      loadChangelog(entry).then(
+        (value) => live && setLog(value),
+        () => live && setLog(null),
       );
-    // Only cards that come on screen ask their origin.
+      if (opened && mode === 'summary') {
+        const body = imported ? { subscriptionId: imported.subscriptionId, remoteId: imported.remoteId } : { itemId: entry.own!.id };
+        unwrap(BlyggerApi.summarizeChangelog({ client, body })).then(
+          (r) => live && setSummary({ text: r.summary, model: r.model }),
+          (e) => live && setSummary({ error: e instanceof Error ? e.message : String(e) }),
+        );
+      }
+    };
+    // Only entries that come on screen read a changelog.
     const observer = new IntersectionObserver((seen) => {
       if (!seen.some((s) => s.isIntersecting)) return;
       observer.disconnect();
-      void load();
+      load();
     });
     observer.observe(element);
     return () => {
       live = false;
       observer.disconnect();
     };
-  }, [entry.key, version, eligible]);
+  }, [entry.key, version, eligible, mode, opened]);
   if (!eligible) return null;
-  return (
-    <p ref={line} className={`change-lead${note === null ? ' none' : ''}`} data-change-lead>
-      <strong>V{version}:</strong> {note === undefined ? '…' : note ?? 'No changelog entry available'}
+  const latest = log?.entries.find((e) => e.version === (imported ? version : log.current));
+  const latestLine = (
+    <p className={`change-lead${log === null || (log && !latest?.note?.trim()) ? ' none' : ''}`} data-change-lead>
+      <strong>V{imported ? version : log?.current ?? ''}:</strong>{' '}
+      {log === undefined ? '…' : latest?.note?.trim() || 'No changelog entry available'}
     </p>
+  );
+  let body: ReactNode = null;
+  if (log === undefined) body = mode === 'latest' ? latestLine : <p className="change-lead none" data-change-lead>…</p>;
+  else if (mode === 'latest') body = latestLine;
+  else if (!log || !meaningfulLog(log.entries)) body = null;
+  else if (mode === 'history' || (mode === 'summary' && !opened)) body = mode === 'history' ? <ChangeHistory entries={log.entries} limit={opened ? undefined : 3} /> : latestLine;
+  else if (summary?.text) {
+    body = (
+      <p className="change-lead change-summary" data-change-summary>
+        <strong>Changes so far</strong>{' '}
+        <span className="badge tc-chip" title={`written by ${summary.model || 'a model'} from the changelog notes; not the author's words`}>
+          AI summary
+        </span>{' '}
+        {summary.text}
+      </p>
+    );
+  } else {
+    body = (
+      <>
+        <p className="change-lead none" data-change-summary>
+          {summary?.error ? `No summary: ${summary.error}` : 'Summarizing the changelog…'}
+        </p>
+        <ChangeHistory entries={log.entries} />
+      </>
+    );
+  }
+  return (
+    <div ref={line} className="change-log">
+      {body}
+    </div>
   );
 }
 
@@ -1024,6 +1110,7 @@ function Article({ entry, actions, origin }: { entry: Reading; actions: Actions;
       <div className="entry-in">
         <Byline entry={entry} a={a} />
         <Tomb entry={entry} />
+        <ChangeLead entry={entry} opened />
         <EntryTitle title={content.title} url={a.url} as="h2" className="entry-title article-title" />
         <ReaderBody html={content.html} origin={origin} className="content entry-body article-body" />
         <SourceLink url={a.url} />

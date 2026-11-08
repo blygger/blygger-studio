@@ -20,7 +20,8 @@ export const draftWriteSchema = z.discriminatedUnion('type', [
   z.object({ type: z.literal('delete') }),
   z.object({ type: z.literal('withdraw') }),
   z.object({ type: z.literal('pin'), version: z.number().int().positive() }),
-  z.object({ type: z.literal('draft-note') }),
+  // history: summarize the whole revision history to date (session 61), not just this change.
+  z.object({ type: z.literal('draft-note'), history: z.boolean().optional() }),
   z.object({ type: z.literal('classify') }),
   z.object({ type: z.literal('update'), changes: z.object({
     kind: kind.optional(),

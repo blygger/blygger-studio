@@ -187,6 +187,17 @@ export const zSettings = z.object({
     changeCategoryInNote: z.boolean(),
     feedPrompt: z.string(),
     aiStylePrompt: z.string(),
+    changelogDisplay: z.enum([
+        'latest',
+        'history',
+        'summary'
+    ]),
+    readerChangelogDisplay: z.enum([
+        'latest',
+        'history',
+        'summary'
+    ]),
+    changelogSummaryPrompt: z.string(),
     acceptMentions: z.boolean(),
     updateCheck: z.boolean(),
     showResponsesDefault: z.boolean(),
@@ -1006,7 +1017,8 @@ export const zClassifyChangeResponse = z.object({
 });
 
 export const zDraftNoteBody = z.object({
-    expectedRevision: z.int().gt(0).lte(9007199254740991)
+    expectedRevision: z.int().gt(0).lte(9007199254740991),
+    history: z.boolean().optional()
 }).strict();
 
 export const zDraftNotePath = z.object({
@@ -1021,6 +1033,29 @@ export const zDraftNoteResponse = z.object({
     model: z.string(),
     pinnedPrior: z.boolean(),
     revision: z.int().gt(0).lte(9007199254740991)
+});
+
+/**
+ * An own item by itemId, or an imported blyg item by its subscription and remote id. The summary reads the changelog's notes only, is written once per version with the change-notes model and kept, and is studio-private.
+ */
+export const zSummarizeChangelogBody = z.union([
+    z.object({
+        itemId: z.string()
+    }).strict(),
+    z.object({
+        subscriptionId: z.string(),
+        remoteId: z.string()
+    }).strict()
+]);
+
+/**
+ * Success
+ */
+export const zSummarizeChangelogResponse = z.object({
+    summary: z.string(),
+    model: z.string(),
+    version: z.int().gt(0),
+    cached: z.boolean()
 });
 
 export const zGenerateItemBody = z.object({
@@ -1169,6 +1204,17 @@ export const zUpdateSettingsBody = z.object({
     changeCategoryInNote: z.boolean().optional(),
     feedPrompt: z.string().optional(),
     aiStylePrompt: z.string().optional(),
+    changelogDisplay: z.enum([
+        'latest',
+        'history',
+        'summary'
+    ]).optional(),
+    readerChangelogDisplay: z.enum([
+        'latest',
+        'history',
+        'summary'
+    ]).optional(),
+    changelogSummaryPrompt: z.string().optional(),
     acceptMentions: z.boolean().optional(),
     updateCheck: z.boolean().optional(),
     showResponsesDefault: z.boolean().optional(),

@@ -15,7 +15,8 @@ import { versionState } from './version-state.ts';
 // is a request and this is a rule.
 
 import { complete, ProviderError, AiBudgetError, type ProviderFetchLike, platformProviderFetch } from "./ai/provider.ts";
-import { getVersion } from "./model.ts";
+import { getSettings, getVersion } from "./model.ts";
+import { changelogLines, ownChangelog, ownerInstructions, capText } from "./changelog-summary.ts";
 import { parseScopes, stripToOutput } from "./tk.ts";
 import { parseComments } from "./comments.ts";
 import type { Env, ItemRow } from "./types.ts";
@@ -52,6 +53,19 @@ const SYSTEM = [
   "Output ONLY the note text: no quotation marks around it, no preamble.",
 ].join(" ");
 
+/** A note that summarizes the history to date (session 61): longer, because it covers every version. */
+export const HISTORY_NOTE_MAX_CHARS = 400;
+
+const SYSTEM_HISTORY = [
+  "You write the changelog note for a new version of a short published piece of writing, and this",
+  "note summarizes the piece's whole revision history to date, including the new version. You get",
+  "the earlier versions' notes, oldest first, and the text of the previous and new versions. Write",
+  `two to four plain sentences, under ${HISTORY_NOTE_MAX_CHARS - 40} characters: how the piece has`,
+  "developed across its versions, ending with what this version changes. It is read in feed readers",
+  "next to the new version, so write it for a reader, in the past tense, without praise and without",
+  "restating the whole piece. Output ONLY the note text: no quotation marks around it, no preamble.",
+].join(" ");
+
 const WITHHELD =
   "The previous version is private. Describe the change in your own words and never quote, " +
   "paraphrase closely, or reproduce any wording that appears only in the previous version.";
@@ -73,6 +87,7 @@ export async function draftChangeNote(
   env: Env,
   item: ItemRow,
   fetchImpl: ProviderFetchLike = platformProviderFetch,
+  opts: { history?: boolean } = {},
 ): Promise<DraftNoteResult> {
   if (item.version === 0) return { ok: false, status: 409, error: "a first version has no previous version to describe" };
   const prior = await getVersion(env.DB, item.id, item.version);
@@ -82,7 +97,16 @@ export async function draftChangeNote(
   if (next === prior.content_md) return { ok: false, status: 409, error: "the working copy is the same as the published version" };
 
   const pinnedPrior = prior.pinned === 1;
+  // History to date reads the earlier notes, which are public, and the same
+  // two texts as a plain note; the depth rule below binds it unchanged.
+  const history = opts.history
+    ? [
+        `Earlier versions' notes, oldest first:\n${changelogLines(await ownChangelog(env.DB, item.id))}`,
+        ...ownerInstructions((await getSettings(env.DB)).changelog_summary_prompt),
+      ]
+    : [];
   const user = [
+    ...history,
     `Previous version (v${prior.version}${pinnedPrior ? ", pinned and public" : ", private"}):\n${prior.content_md}`,
     `New version (v${item.version + 1}):\n${next}`,
     ...(pinnedPrior ? [] : [WITHHELD]),
@@ -90,13 +114,13 @@ export async function draftChangeNote(
 
   let result;
   try {
-    result = await complete(env, SYSTEM, user, fetchImpl, "changelog");
+    result = await complete(env, opts.history ? SYSTEM_HISTORY : SYSTEM, user, fetchImpl, "changelog");
   } catch (e) {
     if (e instanceof AiBudgetError) return { ok: false, status: 429, error: e.message };
     if (e instanceof ProviderError) return { ok: false, status: 502, error: e.message };
     throw e;
   }
-  const note = result.text.trim().replace(/^["“]|["”]$/g, "").trim();
+  const note = opts.history ? capText(result.text, HISTORY_NOTE_MAX_CHARS) : result.text.trim().replace(/^["“]|["”]$/g, "").trim();
   if (!note) return { ok: false, status: 502, error: "the model returned an empty note" };
   if (!pinnedPrior && quotesWithheld(note, prior.content_md, next)) {
     return {

@@ -19,6 +19,7 @@ import { authoredKind, getMedia, itemShowsResponses, listVersionMedia, published
 import type { ItemRow, MediaRow, Settings, SubscriptionRow, Transclusion, VersionRow } from "./types.ts";
 import { loadFeedData, sourceKey, type FeedCardData, type FeedProvenance, type FeedItem } from "./public-feed.ts";
 import { WEBMENTION_PATH } from "./types.ts";
+import { meaningful, ownChangelog, ownSubject, storedSummary, type ChangelogEntry } from "./changelog-summary.ts";
 import { escapeHtml, escapeHref, formatDateIn, unplacedMedia, visibleMedia } from "./util.ts";
 import { graphemePrefix } from "./text.ts";
 import { EMBED_CSS, EMBED_SCRIPT } from "./embeds.ts";
@@ -246,6 +247,14 @@ article.fragment > :first-child, article.thread > :first-child { margin-top: 0; 
 .version-line .pins a { color: var(--pencil); text-decoration: none; border-bottom: 1px solid var(--rule); }
 .version-line .pins a:hover { border-bottom-color: currentColor; }
 .version-note { font-style: italic; margin: 0.4rem 0 0; max-width: 52ch; }
+/* The changelog in full or summarized (session 61, Settings → changelog on item pages). */
+.changelog { font: var(--apparatus); color: var(--ink-soft); margin: 0.6rem 0 0; max-width: 60ch; }
+.changelog-h { margin: 0 0 0.25rem; }
+.changelog ol { list-style: none; padding: 0; margin: 0; display: flex; flex-direction: column; gap: 0.2rem; }
+.changelog .cl-note { font-style: italic; }
+.changelog .cl-pin a { color: var(--pencil); text-decoration: none; border-bottom: 1px solid var(--rule); }
+.changelog .cl-summary { font-style: italic; margin: 0; }
+.changelog .ai-label { border: 1px solid var(--rule); border-radius: 2px; padding: 0 0.3rem; margin-left: 0.3rem; cursor: help; }
 p.permalink, p > a.permalink { margin-top: 0.3rem; }
 a.permalink { color: var(--ink-soft); text-decoration: none; border-bottom: 1px solid var(--rule); }
 a.permalink:hover { color: var(--pencil); border-bottom-color: currentColor; }
@@ -1128,6 +1137,56 @@ function mediaHtml(media: MediaRow[], mount: string, contentHtml: string): strin
     .join("\n");
 }
 
+/**
+ * What an item's own page shows of its changelog beyond the version line
+ * (Settings' changelog_display, session 61). "latest" is the note in the
+ * version line, as before. "history" lists every note, newest first, a pinned
+ * version linking to its page. "summary" shows the AI summary written for this
+ * version (src/changelog-summary.ts), labelled as such; until it exists the page
+ * shows the history, and index.ts asks for one in the background. In both of
+ * the longer modes the version line leaves out the latest note, which the
+ * section repeats. An item whose changelog has nothing worth more than that
+ * line shows the line alone.
+ */
+export interface ChangelogSection { html: string; noteless: boolean }
+const NO_SECTION: ChangelogSection = { html: "", noteless: false };
+
+export function changelogHistoryHtml(entries: readonly ChangelogEntry[], kindSeg: string, id: string, mount: string, tz: string): string {
+  const rows = [...entries].reverse().map((e) => {
+    const pin = e.pinned ? ` &middot; <span class="cl-pin"><a href="${mount}/${kindSeg}/${id}/v${e.version}/">pinned</a></span>` : "";
+    const note = e.note?.trim() ? `<span class="cl-note">&ldquo;${escapeHtml(e.note.trim())}&rdquo;</span>` : `<span class="cl-none">no note</span>`;
+    return `<li><span class="cl-v">v${e.version}</span> &middot; ${escapeHtml(formatDate(e.at, tz))} &middot; ${note}${pin}</li>`;
+  });
+  return `<section class="changelog" aria-label="changelog">
+<p class="changelog-h">Changelog</p>
+<ol>
+${rows.join("\n")}
+</ol>
+</section>`;
+}
+
+export async function changelogSection(db: D1Database, settings: Settings, item: ItemRow, isThread: boolean, mount: string): Promise<ChangelogSection> {
+  const mode = settings.changelog_display;
+  if (mode === "latest" || item.kind === "withdrawn") return NO_SECTION;
+  const entries = await ownChangelog(db, item.id);
+  if (!meaningful(entries)) return NO_SECTION;
+  const kindSeg = isThread ? "t" : "f";
+  if (mode === "summary") {
+    const stored = await storedSummary(db, ownSubject(item.id), item.version);
+    if (stored) {
+      const label = `written by ${stored.model || "a model"} from this item's changelog notes; not the author's words`;
+      return {
+        noteless: true,
+        html: `<section class="changelog summary" aria-label="changelog summary">
+<p class="changelog-h">Changes so far <span class="ai-label" title="${escapeHtml(label)}">AI summary</span></p>
+<p class="cl-summary">${escapeHtml(stored.summary)}</p>
+</section>`,
+      };
+    }
+  }
+  return { noteless: true, html: changelogHistoryHtml(entries, kindSeg, item.id, mount, settings.timezone) };
+}
+
 export function renderFragment(
   item: FeedItem,
   contentHtml: string,
@@ -1141,6 +1200,7 @@ export function renderFragment(
   compactCitations = false,
   tz: string,
   generatedJson: string | null = null,
+  changelog: ChangelogSection = NO_SECTION,
 ): string {
   return `<article class="fragment${highlightClass(item)}">
 ${forkLineage(item, tz, { compact: compactCitations })}
@@ -1148,7 +1208,8 @@ ${forkLineage(item, tz, { compact: compactCitations })}
 ${contentHtml}
 </div>
 ${mediaHtml(media, mount, contentHtml)}
-${itemMeta(item, note, pins, mount, false, tz)}
+${itemMeta(item, changelog.noteless ? null : note, pins, mount, false, tz)}
+${changelog.html}
 ${permalinkLink(item.id, false, mount)}
 </article>`;
 }
@@ -1177,7 +1238,7 @@ export function asHEntry(article: string, settings: Settings, origin: string, ur
  * `titleLink` is set on the feed page and unset on the permalink page: on the
  * item's own page the title would link to the page you are already reading.
  */
-async function fragmentBlock(db: D1Database, item: FeedItem, mount: string, tz: string, titleLink = false, loaded?: FeedCardData): Promise<string> {
+async function fragmentBlock(db: D1Database, item: FeedItem, mount: string, tz: string, titleLink = false, loaded?: FeedCardData, changelog?: ChangelogSection): Promise<string> {
   const latest = loaded ? loaded.latest : await publishedVersion(db, item);
   const media = loaded ? loaded.media : await listVersionMedia(db, item.id, item.version);
   const html = latest?.content_html ?? "";
@@ -1191,6 +1252,7 @@ async function fragmentBlock(db: D1Database, item: FeedItem, mount: string, tz: 
     titleLink,
     tz,
     latest?.generated_json ?? null,
+    changelog,
   );
 }
 
@@ -1451,7 +1513,7 @@ ${itemMeta(item, latest?.note ?? null, loaded ? loaded.pins : await pinnedVersio
 </article>`;
 }
 
-async function threadBlock(db: D1Database, item: ItemRow, mount: string, tz: string): Promise<string> {
+async function threadBlock(db: D1Database, item: ItemRow, mount: string, tz: string, changelog: ChangelogSection = NO_SECTION): Promise<string> {
   const latest = await publishedVersion(db, item);
   const transclusions = parseTransclusions(latest?.transclusions);
   const html = await injectNestedProvenance(db, injectProvenance(await sanitizeHtml(latest?.content_html ?? ""), await transclusionProvenance(db, transclusions, mount)), mount);
@@ -1463,7 +1525,8 @@ ${forkLineage(item, tz)}
 ${html}
 </div>
 ${mediaHtml(media, mount, html)}
-${itemMeta(item, latest?.note ?? null, await pinnedVersions(db, item.id), mount, true, tz)}
+${itemMeta(item, changelog.noteless ? null : latest?.note ?? null, await pinnedVersions(db, item.id), mount, true, tz)}
+${changelog.html}
 ${permalinkLink(item.id, true, mount)}
 </article>`;
 }
@@ -2019,7 +2082,7 @@ export async function permalinkPage(db: D1Database, settings: Settings, item: It
   const latest = await publishedVersion(db, item);
   const media = await listVersionMedia(db, item.id, item.version);
   const head = itemHead(latest?.content_html ?? "", settings);
-  const body = `${await blygPage(db, settings, mount, `${asHEntry(await fragmentBlock(db, item, mount, settings.timezone), settings, origin, url, item.created)}
+  const body = `${await blygPage(db, settings, mount, `${asHEntry(await fragmentBlock(db, item, mount, settings.timezone, false, undefined, await changelogSection(db, settings, item, false, mount)), settings, origin, url, item.created)}
 ${await localMentionsSection(db, item, settings, mount, origin)}
 ${await responsesSection(db, item, settings, mount)}`)}
 <script>${VERSION_NAV_SCRIPT}</script>`;
@@ -2055,7 +2118,7 @@ export async function threadPage(db: D1Database, settings: Settings, item: ItemR
   const latest = await publishedVersion(db, item);
   const media = await listVersionMedia(db, item.id, item.version);
   const head = itemHead(latest?.content_html ?? "", settings, respondsToLabel(latest));
-  const body = `${await blygPage(db, settings, mount, `${asHEntry(await threadBlock(db, item, mount, settings.timezone), settings, origin, url, item.created)}
+  const body = `${await blygPage(db, settings, mount, `${asHEntry(await threadBlock(db, item, mount, settings.timezone, await changelogSection(db, settings, item, true, mount)), settings, origin, url, item.created)}
 ${await localMentionsSection(db, item, settings, mount, origin)}
 ${await responsesSection(db, item, settings, mount)}`)}
 <script>${VERSION_NAV_SCRIPT}</script>`;
