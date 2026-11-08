@@ -1,5 +1,5 @@
 {
-  "description": "A withdrawn item leaves the order and takes no tick, but its pinned versions still lend weight to what they quote: f sinks at half speed and ends above g.",
+  "description": "A withdrawn item leaves the order and takes no tick, but its pinned versions still lend weight to what they quote: f sinks at half speed and ends above g. f and g are published an hour before the threads, so this tests pin weight, not a burst (RFC-3 R3).",
   "history": {
     "items": [
       {
@@ -9,7 +9,7 @@
         "versions": [
           {
             "version": 1,
-            "at": "2026-10-01T00:01:00Z",
+            "at": "2026-09-30T23:01:00Z",
             "note": null,
             "pinned": false,
             "quotes": []
@@ -23,7 +23,7 @@
         "versions": [
           {
             "version": 1,
-            "at": "2026-10-01T00:02:00Z",
+            "at": "2026-09-30T23:02:00Z",
             "note": null,
             "pinned": false,
             "quotes": []

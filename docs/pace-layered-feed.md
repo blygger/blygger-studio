@@ -22,8 +22,14 @@ Time is counted in **ticks**: one tick each time a new item enters the feed.
   matters. The other direction (a thread inheriting from what it quotes) would reward
   quoting popular things, so it does not count.
 - **Climbing.** A new version moves the item past the one directly above it, `climbFor`
-  times. `climbFor(version, note)` returns 1 today; it is the stub where changelog-driven
-  climbing goes (a major revision climbs further).
+  times: 1, and 0 for a version the loader judged maintenance — the same text as the
+  version before it, or a near-same edit (`src/change-size.ts`; RFC-3 R2, decision #97).
+  `climbFor` is also where changelog-driven climbing would go: a classification the
+  reader derives itself, or one the owner's own instruction asks for (#96).
+- **Bursts.** A thread version and the own items it is the first to name, first published
+  within 15 minutes before it, are one publication (§13.7) and take one tick: the thread
+  on top, its fragments beneath it in publication order (RFC-3 R3). A withdrawn thread is
+  no burst.
 - **Withdrawn** items leave the ordering.
 
 In the limit, an item that is heavily pinned barely sinks and climbs with every revision,
@@ -53,7 +59,9 @@ should re-send its mentions, so quoted blygs hear of it, is a §16 question for 
 - `src/feeds/index.ts` — the registry. Extensions add algorithms here (phase 2).
 - `src/feeds/history.ts` — builds a `FeedHistory` from D1.
 - `test/fixtures/feeds/*.json` — fixed histories with their expected orderings: the
-  conformance suite other clients can check themselves against.
+  conformance suite other clients check themselves against. **Canonical in blygger-spec
+  `conformance/feeds/`** (RFC-3 R4); `npm run check:fixtures` (CI only) fails if this copy
+  differs.
 
 ## Phases
 
@@ -66,7 +74,7 @@ should re-send its mentions, so quoted blygs hear of it, is a §16 question for 
    current value and "reset to default"; runs on fresh install, re-runnable from Settings;
    existing installs get a one-time notice instead.
 
-Outside the studio: an RFC recommending the model to other clients (Fable queue), and the
-§16 pin-mention question (Fable queue).
+Outside the studio: RFC-3 (blygger-spec `docs/rfcs/rfc-3-pace-layered-order.md`) recommends the
+model to other clients, ruled as decision #97; the §16 pin-mention question was ruled as #73.
 
 Only the home page follows the algorithm. RSS, Atom and the archive stay newest-first.

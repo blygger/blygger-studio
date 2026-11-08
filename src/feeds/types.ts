@@ -14,6 +14,14 @@ export interface FeedVersion {
   pinned: boolean;
   /** Own-origin items this version quotes (`transclusions` without an `origin`). */
   quotes: string[];
+  /**
+   * The client judged this version maintenance: the same text as the version
+   * before it (same `content_hash`, #77) or under its near-sameness threshold
+   * (#83). Not on the wire — the changelog carries no hash — so the client
+   * derives it: from its own versions for its own blyg, at reconciliation for
+   * an imported one. Absent means no. RFC-3 R2 (decision #97): it climbs zero.
+   */
+  maintenance?: boolean;
 }
 
 export interface FeedHistoryItem {

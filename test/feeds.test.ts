@@ -22,7 +22,7 @@ const fixtures: Record<string, Fixture> = Object.fromEntries(
 );
 
 describe("pace-layered: the reference fixtures", () => {
-  it("has fixtures to run", () => expect(Object.keys(fixtures).length).toBeGreaterThanOrEqual(6));
+  it("has fixtures to run", () => expect(Object.keys(fixtures).length).toBeGreaterThanOrEqual(9));
   for (const [path, fixture] of Object.entries(fixtures)) {
     it(`${path.split("/").pop()}: ${fixture.description}`, () => {
       expect(paceLayeredOrder(fixture.history)).toEqual(fixture.expected);
@@ -200,5 +200,35 @@ describe("feed orders from extensions", () => {
     const squatter = { name: "squat", routes() {}, feeds: [{ id: "pace-layered", title: "", description: "", order: () => [] }] };
     const items = await listHomeItems(env.DB, { feed_order: "pace-layered", extensions: ["squat"] }, 100, [squatter]);
     expect(items.length).toBeGreaterThan(0); // the core order ran, not the squatter's empty one
+  });
+});
+
+describe("RFC-3 R2 and R3 (decision #97)", () => {
+  it("a withdrawn thread is no burst: its fragments enter on their own", () => {
+    const thread: FeedHistoryItem = { id: "t", kind: "thread", withdrawn: true, versions: [{ version: 1, at: at(4), note: null, pinned: false, quotes: ["a", "b"] }] };
+    // Without the thread to fold into, a and b take their own ticks.
+    expect(paceLayeredOrder({ items: [plain("a", 1), plain("b", 2), thread, plain("c", 5)] })).toEqual(["c", "b", "a"]);
+  });
+
+  it("the edit span counts the changed stretch and errs towards 'changed'", async () => {
+    const { editSpan, isNearSame } = await import("../src/change-size.ts");
+    expect(editSpan("the cat sat", "the cat sat")).toBe(0);
+    expect(editSpan("the cat sat", "the bat sat")).toBe(1);
+    expect(editSpan("abc", "abcdef")).toBe(3);
+    const long = "word ".repeat(400);
+    expect(isNearSame(long, long.replace("word", "werd"))).toBe(true);
+    // One word can negate a sentence: a short text never has room for a near-same edit.
+    expect(isNearSame("It is true.", "It is not true.")).toBe(false);
+  });
+
+  it("the loader marks a same-text republish as maintenance, and an edit as not", async () => {
+    const cookie = await login();
+    const id = await createAndPublish(cookie, "A fragment to republish unchanged.");
+    expect((await apiJson(cookie, "POST", `/blyg/api/items/${id}/publish`, {})).status).toBe(200);
+    await apiJson(cookie, "PATCH", `/blyg/api/items/${id}`, { contentMd: "A fragment now rewritten, with a different claim entirely." });
+    expect((await apiJson(cookie, "POST", `/blyg/api/items/${id}/publish`, {})).status).toBe(200);
+    const { loadFeedHistory } = await import("../src/feeds/history.ts");
+    const versions = (await loadFeedHistory(env.DB)).items.find((i) => i.id === id)!.versions;
+    expect(versions.map((v) => !!v.maintenance)).toEqual([false, true, false]);
   });
 });

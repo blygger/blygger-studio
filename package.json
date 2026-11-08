@@ -28,6 +28,7 @@
     "test:oauth:conformance": "node --import tsx scripts/verify-oidc-conformance.ts",
     "test:upgrade": "node --import tsx scripts/verify-upgrade.ts",
     "check:template": "node --import tsx scripts/check-template.ts",
+    "check:fixtures": "node --import tsx scripts/check-feed-fixtures.ts",
     "predev": "npm run build",
     "predeploy": "npm run build",
     "pretest": "npm run build",
