@@ -13,6 +13,7 @@ Extensions are one of three places a mod can live; [`mods.md`](mods.md) says whi
 | `inspect` | Adds "inspect" to each reading entry's ⋯ sheet: the record this Studio holds for it, and its JSON. Browser only; shipped in `extensions.json`. |
 | `lineage-glyph` | The lineage glyph, hex view and action ring from #35. A glyph in each reading byline counts what a post draws on and what draws on it here. It opens a hex view of one hop of ancestors and descendants, where each corner previews what stub, quote a passage, fork, link post, history and open would make, and a second press runs that action. The actions are the Studio's own (or drafts and navigation through the extension context), so they write through the owner's session like the ⋯ sheet does. Its server routes are owner reads: `GET /api/ext/lineage-glyph/lineage` and `/summaries`. `scripts/lineage-demo.ts` runs a seeded local node with it enabled. |
 | `menu-example` | A page with an entry in the main menu, and nothing else. The template to copy for one. |
+| `menu-top-example` | A page that asks for the top of the main menu, and shows where it was placed. The template to copy for a page an owner starts from. |
 | `reading-time` | An estimated reading time and word count at the end of each reading entry's byline. Browser only; shipped in `extensions.json`. |
 | `word-count` | Each reading entry's word count at the end of its byline and beside the character count in the composer (counted in the browser) and the full editor (re-read after each autosave), published and in draft (the working copy as publish would bake it now), and for a thread whose outline links (list items that are just an `[[id]]` link, as a table of contents is written) form a strict tree of your own items (published or draft), the words in the whole document under it. Inline links (navigation, citations) are never followed; transclusions are already in a thread's own count. Its server route is an owner read: `GET /api/ext/word-count/counts`. |
 
@@ -25,7 +26,7 @@ Extensions are one of three places a mod can live; [`mods.md`](mods.md) says whi
 | Draft counter | Something beside the character count, in the composer and the full editor | `draftCounter` (a component) |
 | Sheets | A sheet of its own, opened from a reading byline or reading actions | `context.openSheet(render)` |
 | A page | A screen at `/studio/ext/<name>`, linked from More | `page` |
-| A main-menu entry | Links that page from the main menu instead, above compose. The menu holds one: the first enabled extension in compiled order that asks. Any other stays in More | `page.mainMenu` (an icon); the label is `page.title` |
+| A main-menu entry | Asks for a link to that page in a menu zone: `top` (above the Studio's own tabs), `visible` (among them, where the Studio puts it: above compose) or `hidden` (More). The Studio decides; see "Menu zones" below | `page.mainMenu` (an icon, a `zone`, a `reason`); the label is `page.title` |
 | Owner reads | `GET /api/ext/<name>/…` routes, in the documented contract and the SDK | `extensions/<name>/contract.ts` + `server.ts` |
 | Feed orders | An order for the public home page, chosen in Settings → home page | `feeds` in `server.ts` (see "Feed orders" below) |
 
@@ -43,6 +44,26 @@ Extensions do not get the router, the query cache, the data collections or any o
 
 Each slot renders inside an error boundary. If an extension throws, that slot renders nothing until the page reloads, and the console names the extension. A throwing `entryActions()` or row handler is caught the same way. The rest of the Studio carries on.
 
+
+## Menu zones
+
+Many extensions may want a place in the main menu, so an extension makes its case and the Studio decides.
+What an extension asks for may not be what it gets.
+
+```ts
+page: { title: 'Dashboard', mainMenu: { icon: '⌂', zone: 'top', reason: 'the book’s home' }, component: Page }
+```
+
+- **Zones:** `top` holds one page, above reading. `visible` holds one page, at a spot the Studio picks (above
+  compose). `hidden` is More and holds any number. A page with no `mainMenu` is in More.
+- **No zone** means `visible`, the placement `mainMenu: { icon }` had before zones.
+- **Granting:** a zone is filled first by pages that asked for it, then by pages moved down from a full zone above,
+  each in compiled order. What doesn't fit moves down a zone. A page gets the zone it asked for or a lower one,
+  never a higher one, and at worst lands in More.
+- **`reason`** is one sentence for the owner. Settings → extensions shows each request and its reason, and says so
+  when a page was placed lower than it asked.
+- **The page is told** where it landed: its context carries `menu: { asked, zone }`.
+- A page in `top` or `visible` leaves More and has no "← more" link.
 ## What is not offered, on purpose
 
 - **Runtime loading.** No extension is fetched, evaluated or configured by URL at run time. The Studio runs with the owner's session cookie, so any script that runs there can act as the owner: publish, mint tokens, read drafts. Remote code in that session would be a credential-theft surface. Only code compiled into the build runs, and every extension is code in this repository that the operator chose to compile in.

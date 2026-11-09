@@ -16,7 +16,7 @@
  */
 import type { ErrorInfo, ReactNode } from 'react';
 import { Component } from 'react';
-import type { DraftCounterContext, EntryAction, EntryContext, StudioExtension } from './extension-api.ts';
+import type { DraftCounterContext, EntryAction, EntryContext, MenuZone, StudioExtension } from './extension-api.ts';
 import type { MenuRow } from './sheets.tsx';
 
 /** The compiled-in extensions this node has enabled, in compiled order. */
@@ -25,12 +25,33 @@ export function enabledExtensions(compiled: readonly StudioExtension[], enabled:
   return compiled.filter((extension) => enabled.includes(extension.name));
 }
 
+/** How many extension pages each menu zone holds. Hidden (More) holds any number. */
+export const MENU_CAPACITY = { top: 1, visible: 1 } as const;
+
+/** The zone an extension page asks for. A page that does not ask is in More. */
+export function askedZone(extension: StudioExtension): MenuZone {
+  const menu = extension.page?.mainMenu;
+  return menu ? (menu.zone ?? 'visible') : 'hidden';
+}
+
 /**
- * The one enabled extension page in the main menu: the first in compiled order that asks.
- * One, because a phone's tab bar has room for one more tab and no more.
+ * Where each enabled extension page links from. An extension asks; the Studio decides.
+ * A zone is filled first by the pages that asked for it, then by pages a full zone above
+ * moved down, each in compiled order; whatever does not fit goes down a zone. So a page
+ * gets the zone it asked for or a lower one, never a higher one, and ends at worst in More.
  */
-export function mainMenuPage(extensions: readonly StudioExtension[]) {
-  return extensions.find((extension) => extension.page?.mainMenu);
+export function menuPlacement(extensions: readonly StudioExtension[]) {
+  const pages = extensions.filter((extension) => extension.page);
+  const placed = { top: [] as StudioExtension[], visible: [] as StudioExtension[] };
+  let moved: StudioExtension[] = [];
+  for (const zone of ['top', 'visible'] as const) {
+    const candidates = [...pages.filter((extension) => askedZone(extension) === zone), ...moved];
+    placed[zone] = candidates.slice(0, MENU_CAPACITY[zone]);
+    moved = candidates.slice(MENU_CAPACITY[zone]);
+  }
+  const zoneOf = (extension: StudioExtension): MenuZone =>
+    placed.top.includes(extension) ? 'top' : placed.visible.includes(extension) ? 'visible' : 'hidden';
+  return { ...placed, hidden: pages.filter((extension) => zoneOf(extension) === 'hidden'), zoneOf };
 }
 
 function report(name: string, slot: string, error: unknown) {

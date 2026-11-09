@@ -23,7 +23,8 @@ import { displayUrl } from '../importer/util.ts';
 import { Sheet } from './sheets.tsx';
 import { SetupBanner } from './setup.tsx';
 import { compiledExtensions } from '../../build/extensions.ui.ts';
-import { enabledExtensions, mainMenuPage } from './extensions.tsx';
+import type { StudioExtension } from './extension-api.ts';
+import { enabledExtensions, menuPlacement } from './extensions.tsx';
 import { applyTheme } from './theme.ts';
 import { applyTitle } from './tab.ts';
 import type { CustomTheme } from '../themes.ts';
@@ -249,8 +250,24 @@ export function Layout({ children }: { children: ReactNode }) {
     editedItem?.status === 'public' ? publicPath(editedItem) : `${mount}/`;
   const behind = !!(settings?.updateCheck && update?.behind);
   const unacked = !!(settings?.updateCheck && !settings.updateNoticeAck);
-  const menuExtension = mainMenuPage(enabledExtensions(compiledExtensions, settings?.extensions));
-  const menuActive = menuExtension && path.replace(/\/+$/, '') === `/ext/${menuExtension.name}`;
+  const menu = menuPlacement(enabledExtensions(compiledExtensions, settings?.extensions));
+  const extensionTab = (extension: StudioExtension) => {
+    const current = path.replace(/\/+$/, '') === `/ext/${extension.name}`;
+    return (
+      <Link
+        key={`ext-${extension.name}`}
+        to="/ext/$name"
+        params={{ name: extension.name }}
+        className={current ? 'tab is-active' : 'tab'}
+        aria-current={current ? 'page' : undefined}
+      >
+        <span className="ti" aria-hidden="true">
+          {extension.page!.mainMenu!.icon}
+        </span>
+        <span className="tl">{extension.page!.title}</span>
+      </Link>
+    );
+  };
   return (
     <ChromeContext.Provider value={setChrome}>
       <header className="topbar">
@@ -301,22 +318,11 @@ export function Layout({ children }: { children: ReactNode }) {
         <div className={framed ? 'screen framed' : 'screen'}>{children}</div>
       </main>
       {showTabs ? (
-        <nav className={menuExtension ? 'tabbar has-extension-tab' : 'tabbar'} aria-label="studio">
+        <nav className={menu.top.length || menu.visible.length ? 'tabbar has-extension-tab' : 'tabbar'} aria-label="studio">
+          {menu.top.map(extensionTab)}
           {tabs.flatMap((tab) => [
-            tab.label === 'compose' && menuExtension ? (
-              <Link
-                key={`ext-${menuExtension.name}`}
-                to="/ext/$name"
-                params={{ name: menuExtension.name }}
-                className={menuActive ? 'tab is-active' : 'tab'}
-                aria-current={menuActive ? 'page' : undefined}
-              >
-                <span className="ti" aria-hidden="true">
-                  {menuExtension.page!.mainMenu!.icon}
-                </span>
-                <span className="tl">{menuExtension.page!.title}</span>
-              </Link>
-            ) : null,
+            // The Studio's spot for visible extension pages: just above compose.
+            ...(tab.label === 'compose' ? menu.visible.map(extensionTab) : []),
             <Link
               key={tab.label}
               to={tab.to}

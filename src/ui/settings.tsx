@@ -28,6 +28,8 @@ import { DEFAULT_FEED_ORDER, FEED_ALGORITHMS } from '../feeds/index.ts';
 import { CLIENT } from '../client.ts';
 import { AddressBook } from './contacts.tsx';
 import { compiledExtensions } from '../../build/extensions.ui.ts';
+import type { MenuZone, StudioExtension } from './extension-api.ts';
+import { askedZone, enabledExtensions, menuPlacement } from './extensions.tsx';
 
 const fields = [
   "siteTitle",
@@ -871,6 +873,7 @@ function SettingsForm({ initial }: { initial: Settings }) {
               </label>
               <p className="hint check-hint" id={`extension-${extension.name}-hint`}>
                 {extension.description}
+                <MenuRequest extension={extension} enabled={form.extensions} />
               </p>
             </div>
           ))}
@@ -1476,5 +1479,22 @@ function ThreadSearch({
         )
       ) : null}
     </div>
+  );
+}
+
+const zoneNames: Record<MenuZone, string> = { top: 'the top of the main menu', visible: 'the main menu', hidden: 'More' };
+
+/** An extension's case for a main-menu link, and where it lands with the extensions as checked now. */
+function MenuRequest({ extension, enabled }: { extension: StudioExtension; enabled: readonly string[] }) {
+  const menu = extension.page?.mainMenu;
+  if (!menu) return null;
+  const asked = askedZone(extension);
+  const on = enabled.includes(extension.name);
+  const zone = on ? menuPlacement(enabledExtensions(compiledExtensions, enabled)).zoneOf(extension) : null;
+  return (
+    <span className="menu-request" data-menu-request={extension.name}>
+      {' '}Asks for {zoneNames[asked]}{menu.reason ? `: ${menu.reason}` : ''}.
+      {zone && zone !== asked ? ` Placed in ${zoneNames[zone]}, because that spot is taken.` : ''}
+    </span>
   );
 }
