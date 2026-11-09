@@ -161,12 +161,6 @@ test('menu zones: a page that asks for the top sits above reading, beside one in
     expect(fit.overflow).toBeLessThanOrEqual(0);
     expect(fit.inside).toBe(true);
 
-    // Settings shows each extension's case for the menu.
-    await page.goto('/studio/settings');
-    await expect(page.locator('[data-menu-request=menu-top-example]')).toContainText('Asks for the top of the main menu: a page to start from.');
-    await expect(page.locator('[data-menu-request=menu-example]')).toContainText('Asks for the main menu.');
-    await expect(page.locator('[data-menu-request=example]')).toHaveCount(0);
-
     // Alone, the top page stays at the top: an empty visible zone does not pull it down.
     await patchSettings(page, { extensions: ['menu-top-example'], timezone: zone });
     await page.goto('/studio/reading');

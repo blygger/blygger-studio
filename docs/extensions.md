@@ -26,7 +26,7 @@ Extensions are one of three places a mod can live; [`mods.md`](mods.md) says whi
 | Draft counter | Something beside the character count, in the composer and the full editor | `draftCounter` (a component) |
 | Sheets | A sheet of its own, opened from a reading byline or reading actions | `context.openSheet(render)` |
 | A page | A screen at `/studio/ext/<name>`, linked from More | `page` |
-| A main-menu entry | Asks for a link to that page in a menu zone: `top` (above the Studio's own tabs), `visible` (among them, where the Studio puts it: above compose) or `hidden` (More). The Studio decides; see "Menu zones" below | `page.mainMenu` (an icon, a `zone`, a `reason`); the label is `page.title` |
+| A main-menu entry | Asks for a link to that page in a menu zone: `top` (above the Studio's own tabs), `visible` (among them, where the Studio puts it: above compose) or `hidden` (More). The Studio decides; see "Menu zones" below | `page.mainMenu` (an icon and a `zone`); the label is `page.title` |
 | Owner reads | `GET /api/ext/<name>/…` routes, in the documented contract and the SDK | `extensions/<name>/contract.ts` + `server.ts` |
 | Feed orders | An order for the public home page, chosen in Settings → home page | `feeds` in `server.ts` (see "Feed orders" below) |
 
@@ -51,7 +51,7 @@ Many extensions may want a place in the main menu, so an extension makes its cas
 What an extension asks for may not be what it gets.
 
 ```ts
-page: { title: 'Dashboard', mainMenu: { icon: '⌂', zone: 'top', reason: 'the book’s home' }, component: Page }
+page: { title: 'Dashboard', mainMenu: { icon: '⌂', zone: 'top' }, component: Page }
 ```
 
 - **Zones:** `top` holds one page, above reading. `visible` holds one page, at a spot the Studio picks (above
@@ -60,8 +60,6 @@ page: { title: 'Dashboard', mainMenu: { icon: '⌂', zone: 'top', reason: 'the b
 - **Granting:** a zone is filled first by pages that asked for it, then by pages moved down from a full zone above,
   each in compiled order. What doesn't fit moves down a zone. A page gets the zone it asked for or a lower one,
   never a higher one, and at worst lands in More.
-- **`reason`** is one sentence for the owner. Settings → extensions shows each request and its reason, and says so
-  when a page was placed lower than it asked.
 - **The page is told** where it landed: its context carries `menu: { asked, zone }`.
 - A page in `top` or `visible` leaves More and has no "← more" link.
 ## What is not offered, on purpose

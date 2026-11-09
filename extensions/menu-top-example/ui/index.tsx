@@ -8,7 +8,7 @@ export const extension: StudioExtension = {
   description: 'Adds a page to the top of the main menu, above reading. For trying menu zones.',
   page: {
     title: 'top example',
-    mainMenu: { icon: '◆', zone: 'top', reason: 'a page to start from' },
+    mainMenu: { icon: '◆', zone: 'top' },
     component: ({ context }) => (
       <p data-extension-page="menu-top-example" data-zone={context.menu.zone}>
         Asked for {context.menu.asked}; placed in {context.menu.zone}.

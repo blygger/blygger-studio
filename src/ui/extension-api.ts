@@ -121,8 +121,8 @@ export interface StudioExtension {
     /**
      * Ask for a link in the main menu, under `title` with this icon. `zone` is a request
      * (default `visible`); the Studio decides, and a full zone moves the page down
-     * (see menuPlacement). `reason` is one sentence for the owner, shown in Settings.
+     * (see menuPlacement).
      */
-    mainMenu?: { icon: string; zone?: MenuZone; reason?: string };
+    mainMenu?: { icon: string; zone?: MenuZone };
   };
 }
