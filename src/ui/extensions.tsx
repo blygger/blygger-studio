@@ -16,7 +16,8 @@
  */
 import type { ErrorInfo, ReactNode } from 'react';
 import { Component } from 'react';
-import type { DraftCounterContext, EntryAction, EntryContext, StudioExtension } from './extension-api.ts';
+import type { EditorRegion } from './editor-regions.ts';
+import type { DraftCounterContext, EditorRegionsContext, EntryAction, EntryContext, StudioExtension } from './extension-api.ts';
 import type { MenuRow } from './sheets.tsx';
 
 /** The compiled-in extensions this node has enabled, in compiled order. */
@@ -87,6 +88,20 @@ export function DraftCounterSlot({ extensions, context }: { extensions: readonly
       })}
     </>
   );
+}
+
+/** Every enabled extension's held-out regions for this text. A throwing extension holds out nothing. */
+export function editorRegions(extensions: readonly StudioExtension[], context: EditorRegionsContext): EditorRegion[] {
+  return extensions
+    .filter((extension) => extension.editorRegions)
+    .flatMap((extension) => {
+      try {
+        return extension.editorRegions!(context);
+      } catch (error) {
+        report(extension.name, 'editorRegions', error);
+        return [];
+      }
+    });
 }
 
 /** The ⋯ sheet's extension rows, after the Studio's own. A throwing extension contributes none. */

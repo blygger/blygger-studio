@@ -12,6 +12,9 @@
  */
 import type { ComponentType, ReactNode } from 'react';
 import type { BlyggerClient, CreateItemData, ReadingEntry } from '../../sdk/dist/browser.js';
+import type { EditorRegion } from './editor-regions.ts';
+
+export type { EditorRegion } from './editor-regions.ts';
 
 export { BlyggerApi, unwrap } from '../../sdk/dist/browser.js';
 export { Sheet, confirm, toast } from './sheets.tsx';
@@ -81,6 +84,12 @@ export interface DraftCounterContext extends StudioContext {
   };
 }
 
+/** What `editorRegions` is handed: the full text, and the item open in the editor. */
+export interface EditorRegionsContext {
+  text: string;
+  item: NonNullable<DraftCounterContext['item']>;
+}
+
 /** A row an extension adds to an entry's ⋯ sheet, below the Studio's own. */
 export interface EntryAction {
   icon?: ReactNode;
@@ -102,6 +111,14 @@ export interface StudioExtension {
   entryActions?: (context: EntryContext) => EntryAction[];
   /** Rendered beside the character count, in the composer and the full editor. */
   draftCounter?: ComponentType<{ context: DraftCounterContext }>;
+  /**
+   * Parts of the full editor's text to keep out of its text box: hidden each time the
+   * editor opens, read-only when the author shows them. The draft, preview, counts and
+   * publish still have the whole text. Called on every change, so keep it quick and pure.
+   * A region should start with its own separator (a leading blank line): text typed
+   * where it was cut lands before it.
+   */
+  editorRegions?: (context: EditorRegionsContext) => EditorRegion[];
   /** A page of its own at /studio/ext/<name>, linked from More. */
   page?: {
     title: string;

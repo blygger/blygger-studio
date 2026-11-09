@@ -38,7 +38,9 @@ import {
 } from './components.tsx';
 import { Sheet, confirm, menu, prompt, toast } from './sheets.tsx';
 import { compiledExtensions } from '../../build/extensions.ui.ts';
-import { DraftCounterSlot, enabledExtensions } from './extensions.tsx';
+import { DraftCounterSlot, editorRegions, enabledExtensions } from './extensions.tsx';
+import { join, rebase, split, toFull, toShown, touches } from './editor-regions.ts';
+import type { EditorRegion } from './editor-regions.ts';
 import { HandlePicker } from './contacts.tsx';
 import { onFormatKey } from './format-shortcuts.ts';
 import { BracketPicker } from './picker.tsx';
@@ -1685,6 +1687,74 @@ function Card({
   );
 }
 const initiallyOpen = (hash: string) => location.hash === `#${hash}`;
+/**
+ * The full editor's held-out regions (`editorRegions`, docs/extensions.md). `box` is
+ * what the text box shows; every edit made there goes through `change`, which puts
+ * the regions back before the draft sees it. Hidden each time the editor opens;
+ * shown, they are read-only, and an edit that touches one is refused. If a join
+ * does not give back what the author sees, the edit is still saved whole and the
+ * editor stops holding anything out until it is opened again.
+ */
+function useHeldOut(
+  text: string,
+  current: () => string,
+  item: Detail,
+  edit: (text: string) => void,
+  input: RefObject<HTMLTextAreaElement | null>,
+) {
+  const settings = useSettings();
+  const [showing, setShowing] = useState(false);
+  const [failed, setFailed] = useState(false);
+  const [, refuse] = useState(0);
+  const regionsOf = (full: string): EditorRegion[] =>
+    failed
+      ? []
+      : editorRegions(enabledExtensions(compiledExtensions, settings?.extensions), {
+          text: full,
+          item: { id: item.id, kind: item.kind, status: item.status, version: item.version, revision: item.revision },
+        });
+  const regions = regionsOf(text);
+  const parts = split(text, regions);
+  const hiding = regions.length > 0 && !showing;
+  /** `caret` is the text box's caret after a typed edit; tools that set the text leave it out. */
+  const change = (next: string, caret?: number) => {
+    const full = current();
+    const now = regionsOf(full);
+    if (!now.length) return edit(next);
+    if (!hiding) {
+      const hit = touches(now, full, next, caret);
+      if (!hit) return edit(next);
+      toast(`The ${hit.label} is read-only here.`);
+      // The text box is controlled; a render puts back what it showed.
+      refuse((n) => n + 1);
+      return;
+    }
+    const before = split(full, now);
+    const joined = join(next, rebase(before.held, before.shown, next, caret));
+    if (split(joined, regionsOf(joined)).shown !== next) {
+      setFailed(true);
+      toast('The editor is showing the whole text now: a hidden part could not be kept apart from this edit.');
+    }
+    edit(joined);
+  };
+  const toggle = () => {
+    const el = input.current;
+    const caret = el ? (hiding ? toFull(el.selectionStart, parts.held) : toShown(el.selectionStart, text, regions)) : 0;
+    setShowing(hiding);
+    requestAnimationFrame(() => input.current?.setSelectionRange(caret, caret));
+  };
+  const labels = [...new Set(parts.held.flatMap((region) => region.label.split(', ')))].join(', ');
+  const notice = regions.length ? (
+    <span className="held-out" data-held-out={hiding ? 'hidden' : 'shown'}>
+      {hiding ? `${labels} hidden` : `${labels} read-only`}{' '}
+      <button type="button" className="link-btn" onClick={toggle}>
+        {hiding ? 'show' : 'hide'}
+      </button>
+    </span>
+  ) : null;
+  return { box: hiding ? parts.shown : text, change, notice };
+}
+
 /** How near the top of the window the pointer brings the focus view's controls back. */
 const FOCUS_ZONE = 72;
 const CARET_KEYS = new Set(['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'Home', 'End', 'PageUp', 'PageDown']);
@@ -1936,6 +2006,7 @@ function Editor({ item, onDiscarding }: { item: Detail; onDiscarding?: (active: 
     saveTimer.current = setTimeout(() => void action.background(save), 400);
   };
   useEffect(() => () => clearTimeout(saveTimer.current), []);
+  const held = useHeldOut(text, () => draft.current!.text, item, edit, input);
   useEffect(() => {
     const controller = new AbortController();
     const timer = setTimeout(() => {
@@ -1960,8 +2031,8 @@ function Editor({ item, onDiscarding }: { item: Detail; onDiscarding?: (active: 
       controller.abort();
     };
   }, [text, item.id, item.kind]);
-  const upload = useUpload(item.id, input, edit, write);
-  const tools = useTextTools(input, edit);
+  const upload = useUpload(item.id, input, held.change, write);
+  const tools = useTextTools(input, held.change);
   const operation = (fn: () => Promise<unknown>) =>
     void action.run(async () => {
       if (!(await save())) return;
@@ -2063,7 +2134,7 @@ function Editor({ item, onDiscarding }: { item: Detail; onDiscarding?: (active: 
       setPublished({ id: item.id, kind: item.kind, md, version: result.version });
       return result;
     });
-  const focus = useFocusView(input, text, pane, setPane);
+  const focus = useFocusView(input, held.box, pane, setPane);
   const isThread = item.kind === 'thread';
   const isPublic = item.status === 'public';
   // Attachments the live version lists that the working copy no longer has.
@@ -2302,8 +2373,8 @@ function Editor({ item, onDiscarding }: { item: Detail; onDiscarding?: (active: 
         <StubQuote
           setPane={setPane}
           target={item.stubOf.id}
-          text={text}
-          edit={edit}
+          text={held.box}
+          edit={held.change}
           input={input}
           fresh={item.version === 0}
         />
@@ -2356,13 +2427,13 @@ function Editor({ item, onDiscarding }: { item: Detail; onDiscarding?: (active: 
             onClick={() => {
               const el = input.current;
               if (!el) return;
-              const value = draft.current!.text;
+              const value = el.value;
               const [from, to] = [el.selectionStart, el.selectionEnd];
               if (from === to) {
                 toast('Select the pasted generated text first, then mark it.');
                 return;
               }
-              edit(markImported(value, from, to));
+              held.change(markImported(value, from, to));
             }}
           >
             <Sparkle />
@@ -2377,24 +2448,29 @@ function Editor({ item, onDiscarding }: { item: Detail; onDiscarding?: (active: 
               aria-label="draft"
               readOnly={replacing}
               ref={input}
-              value={text}
+              value={held.box}
               {...textareaProps(upload, tools)}
-              onChange={(event) => edit(upload.command(event.target.value))}
+              onChange={(event) => {
+                const typed = event.target.value;
+                const next = upload.command(typed);
+                held.change(next, next === typed ? event.target.selectionEnd : undefined);
+              }}
             />
             {!replacing ? (
               <BracketPicker
                 input={input}
-                text={text}
-                change={edit}
+                text={held.box}
+                change={held.change}
                 allowTransclude={isThread}
               />
             ) : null}
-            {!replacing ? <HandlePicker input={input} text={text} change={edit} /> : null}
+            {!replacing ? <HandlePicker input={input} text={held.box} change={held.change} /> : null}
             {tools.coach}
           </div>
           <div className="row ed-foot">
             <CharCount fragment={!isThread} length={length} />
             <DraftCounter text={visible} item={{ id: item.id, kind: item.kind, status: item.status, version: item.version, revision: item.revision }} run={action.run} />
+            {held.notice}
             <span className="spacer" />
             {isPublic ? (
               <a href={publicPath(shareable)} target="_blank" rel="noreferrer">

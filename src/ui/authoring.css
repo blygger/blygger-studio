@@ -133,6 +133,7 @@
 .editor-pane .syntax-help { margin-top: var(--s1); }
 .ed-foot .counter { margin-left: 0; color: inherit; }
 .ed-foot a { color: var(--page-ink); }
+.ed-foot .held-out { color: var(--ink-soft); }
 .editor-pane .hint { color: var(--page-ink-soft); }
 .preview-pane { background: var(--card); color: var(--ink); border: 1px solid var(--rule); border-radius: var(--radius); padding: 14px 16px; min-height: 46vh; font-size: 1.02rem; overflow-wrap: anywhere; }
 .preview-pane h1 { font-size: 1.35rem; margin: 0 0 10px; }

@@ -15,7 +15,7 @@ import { routes as lineageGlyph } from "./lineage-glyph/contract.ts";
 import { routes as wordCount } from "./word-count/contract.ts";
 
 /** Names: lowercase, digits and hyphens; also the directory under extensions/ and the /api/ext/<name>/ prefix. */
-export const EXTENSIONS = ["example", "feed-example", "inspect", "lineage-glyph", "menu-example", "reading-time", "word-count"] as const;
+export const EXTENSIONS = ["example", "feed-example", "inspect", "lineage-glyph", "menu-example", "reading-time", "regions-example", "word-count"] as const;
 export type ExtensionName = (typeof EXTENSIONS)[number];
 
 /** Read routes contributed by extensions, keyed by operationId (see src/extensions/contract.ts). */

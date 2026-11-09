@@ -87,6 +87,7 @@ function harness(component: 'ItemRow' | 'Editor') {
     useNavigate: () => async () => {}, useLiveQuery: () => ({}), hoppers: {},
     stripStaleUploads: (text: string) => text, initiallyOpen: () => false,
     useUpload: () => ({}), useTextTools: () => ({}),
+    useHeldOut: (_text: string, _current: unknown, _item: unknown, edit: (text: string) => void) => ({ box: _text, change: edit, notice: null }),
     confirm: async () => true,
   };
   const node = declaration(component);

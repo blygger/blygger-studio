@@ -16,6 +16,7 @@ Extensions are one of three places a mod can live; [`mods.md`](mods.md) says whi
 | `lineage-glyph` | The lineage glyph, hex view and action ring from #35. A glyph in each reading byline counts what a post draws on and what draws on it here. It opens a hex view of one hop of ancestors and descendants, where each corner previews what stub, quote a passage, fork, link post, history and open would make, and a second press runs that action. The actions are the Studio's own (or drafts and navigation through the extension context), so they write through the owner's session like the ⋯ sheet does. Its server routes are owner reads: `GET /api/ext/lineage-glyph/lineage` and `/summaries`. `scripts/lineage-demo.ts` runs a seeded local node with it enabled. |
 | `menu-example` | A page with an entry in the main menu, and nothing else. The template to copy for one. |
 | `reading-time` | An estimated reading time and word count at the end of each reading entry's byline. Browser only; shipped in `extensions.json`. |
+| `regions-example` | Holds paragraphs that start with `[held]: #` out of the full editor's text box. The template to copy for keeping generated lines out of the author's way. |
 | `word-count` | Each reading entry's word count at the end of its byline and beside the character count in the composer (counted in the browser) and the full editor (re-read after each autosave), published and in draft (the working copy as publish would bake it now), and for a thread whose outline links (list items that are just an `[[id]]` link, as a table of contents is written) form a strict tree of your own items (published or draft), the words in the whole document under it. Inline links (navigation, citations) are never followed; transclusions are already in a thread's own count. Its server route is an owner read: `GET /api/ext/word-count/counts`. |
 
 ## What an extension can do
@@ -25,6 +26,7 @@ Extensions are one of three places a mod can live; [`mods.md`](mods.md) says whi
 | Reading byline | Something at the end of each reading entry's byline, such as a badge or a button | `entryByline` (a component) |
 | Reading actions | Rows after the Studio's own in an entry's ⋯ sheet | `entryActions(context)` |
 | Draft counter | Something beside the character count, in the composer and the full editor | `draftCounter` (a component) |
+| Editor regions | Parts of the full editor's text kept out of its text box: hidden each time the editor opens, read-only when shown | `editorRegions(context)` (see "Editor regions" below) |
 | Sheets | A sheet of its own, opened from a reading byline or reading actions | `context.openSheet(render)` |
 | A page | A screen at `/studio/ext/<name>`, linked from More | `page` |
 | A main-menu entry | Links that page from the main menu instead, above compose. The menu holds one: the first enabled extension in compiled order that asks. Any other stays in More | `page.mainMenu` (an icon); the label is `page.title` |
@@ -45,13 +47,35 @@ Extensions do not get the router, the query cache, the data collections or any o
 
 Each slot renders inside an error boundary. If an extension throws, that slot renders nothing until the page reloads, and the console names the extension. A throwing `entryActions()` or row handler is caught the same way. The rest of the Studio carries on.
 
+## Editor regions
+
+For text an extension writes and the author shouldn't edit by hand, such as navigation a tool regenerates.
+`editorRegions({ text, item })` returns ranges of the full text (`start`, `end`, `label`), and the full
+editor keeps them out of its text box.
+
+- **The draft is always the whole text.** Autosave, the preview, counts, publish and the server see
+  everything; only the text box leaves the regions out. Each edit made there is joined with the regions
+  before the draft gets it.
+- **Hidden each time the editor opens.** A notice beside the counts ("chapter navigation hidden · show")
+  shows them. Showing is not remembered.
+- **Read-only when shown.** An edit that touches a region is refused with a toast. Typing right at a
+  region's edge is fine.
+- **Where typed text goes:** text typed where a region was cut lands before it. So start a region with
+  its own separator (the blank line before it), and text typed at the end of the paragraph above stays in
+  that paragraph. Replacing text that surrounds a cut puts the region after the replacement.
+- **Fail-safe:** if joining an edit doesn't give back what the box shows, the edit is still saved whole
+  and the editor shows the whole text until it is opened again.
+- Called on every change: keep it quick and pure. Overlapping regions are merged. A throwing
+  extension holds nothing out. The full editor only; the composer and quick edit show everything.
+- A text box can't style part of its text, so this hides; it can't dim.
+
 ## What is not offered, on purpose
 
 - **Runtime loading.** No extension is fetched, evaluated or configured by URL at run time. The Studio runs with the owner's session cookie, so any script that runs there can act as the owner: publish, mint tokens, read drafts. Remote code in that session would be a credential-theft surface. Only code compiled into the build runs, and every extension is code the operator chose to compile in, from this repository or vendored at a pinned commit. [Vendoring](extension-vendoring.md) keeps this rule: it copies pinned source into the build on the operator's machine and never loads anything at run time.
 - **Writes.** Extension routes are GETs under `/api/ext/<name>/`. The permission model classifies them as `owner:read`, and a route registered with any other method or prefix is refused when the Worker starts. An extension that wants to change something uses the existing contract through `client`, under the same scopes as any client.
 - **The wire.** An extension does not reach `blyg.json`, public pages, feeds, `content_html` or mentions. It is studio furniture for one owner. The one exception is order: a feed order may decide the sequence of the home page's cards, and nothing else (session 46; see "Feed orders").
 - **Changing the Studio's own controls.** No slot rewrites, hides or annotates a built-in button, row or label. #35 needed this (hover previews on `stub ↗`, tips on ⋯ rows), and it was left out because it would make the base UI's markup depend on extension code. See the open questions in the extension PR.
-- **Other screens.** The slots are on the reading view and beside the composer's and full editor's character count, plus an extension's own page. New slots should be added when an extension needs them, not before.
+- **Other screens.** The slots are on the reading view, beside the composer's and full editor's character count and in the full editor's text box (held-out regions), plus an extension's own page. New slots should be added when an extension needs them, not before.
 
 ## Writing one
 
