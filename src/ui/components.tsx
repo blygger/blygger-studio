@@ -1,4 +1,5 @@
 import type { ReactNode } from 'react';
+import { componentGalleryEnabled } from './build-flags.ts';
 import {
   createContext,
   useContext,
@@ -152,7 +153,7 @@ export function tabFor(path: string): Tab | null {
   if (p === '/hoppers' || p.startsWith('/hoppers/')) return 'hoppers';
   if (p === '/mentions') return 'responses';
   if (p === '/updates') return 'updates';
-  if (p === '/more' || p === '/settings' || p === '/syntax' || p === '/signals' || p === '/access' || p === '/components') return 'more';
+  if (p === '/more' || p === '/settings' || p === '/syntax' || p === '/signals' || p === '/access' || (componentGalleryEnabled && p === '/components')) return 'more';
   return null;
 }
 function relativePath(pathname: string) {

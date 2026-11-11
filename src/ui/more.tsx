@@ -13,6 +13,7 @@ import {
 import { CLIENT } from '../client.ts';
 import { compiledExtensions } from '../../build/extensions.ui.ts';
 import { enabledExtensions, mainMenuPage } from './extensions.tsx';
+import { componentGalleryEnabled } from './build-flags.ts';
 
 /** The fifth tab: update notices, the less-used screens, the public page, log out. */
 export function MorePage() {
@@ -122,20 +123,22 @@ export function MorePage() {
             </span>
           </Link>
         </li>
-        <li>
-          <Link to="/components">
-            <span className="mi" aria-hidden="true">
-              ◫
-            </span>
-            <span className="ml">
-              components
-              <span className="md">the Studio interface reference</span>
-            </span>
-            <span className="chev" aria-hidden="true">
-              ›
-            </span>
-          </Link>
-        </li>
+        {componentGalleryEnabled ? (
+          <li>
+            <Link to="/components">
+              <span className="mi" aria-hidden="true">
+                ◫
+              </span>
+              <span className="ml">
+                components
+                <span className="md">the Studio interface reference</span>
+              </span>
+              <span className="chev" aria-hidden="true">
+                ›
+              </span>
+            </Link>
+          </li>
+        ) : null}
       </ul>
       {pages.length ? (
         <ul className="nav-list" aria-label="extensions">

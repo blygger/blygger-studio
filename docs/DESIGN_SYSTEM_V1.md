@@ -1,5 +1,12 @@
 # Blygger Studio design system — V1
 
+## Maintainer gallery
+
+The live component gallery is intentionally excluded from ordinary Studio
+builds and routes. It is for contributors working on the interface, not for
+people operating a Studio node. To include it in a local development build,
+run `BLYG_COMPONENT_GALLERY=1 npm run dev` and visit `/studio/components`.
+
 This first pass turns the existing Studio visual language into reusable, accessible
 primitives. It is intentionally an extraction, not a visual redesign. Foundations
 (semantic colour tokens, type scale, spacing, radii, shadows, and icon rules) are
