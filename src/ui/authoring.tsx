@@ -36,6 +36,7 @@ import {
   useSettings,
   publicPath,
 } from './components.tsx';
+import { Button as DesignButton, Toggle, ToggleGroup } from './buttons.tsx';
 import { Sheet, confirm, menu, prompt, toast } from './sheets.tsx';
 import { compiledExtensions } from '../../build/extensions.ui.ts';
 import { DraftCounterSlot, enabledExtensions } from './extensions.tsx';
@@ -1072,21 +1073,18 @@ export function Compose({ q }: { q?: string } = {}) {
       </SyntaxHelp>
       <PublishedBanner published={published} dismiss={() => setPublished(undefined)} />
       <div className="card composer">
-        <div className="segmented compact" role="radiogroup" aria-label="kind">
+        <ToggleGroup aria-label="kind" value={[kind]}>
           {(['fragment', 'thread'] as const).map((value) => (
-            <button
+            <Toggle
               key={value}
-              type="button"
-              role="radio"
-              aria-checked={kind === value}
               data-kind={value}
-              className={kind === value ? 'seg is-active' : 'seg'}
+              value={value}
               onClick={() => setKindTo(value)}
             >
               {value}
-            </button>
+            </Toggle>
           ))}
-        </div>
+        </ToggleGroup>
         <div className="ta-wrap">
           <textarea
             ref={input}
@@ -1141,22 +1139,23 @@ export function Compose({ q }: { q?: string } = {}) {
                 generate in editor →
               </Button>
             ) : null}
-            <Button
+            <DesignButton
+              size="medium"
               id="save-draft-btn"
-              className="btn btn-compact btn-neutral"
               disabled={action.busy}
               onClick={() => void action.run(save)}
             >
               save draft
-            </Button>
-            <Button
+            </DesignButton>
+            <DesignButton
+              size="medium"
               id="publish-btn"
-              className="btn btn-compact btn-primary"
+              variant="primary"
               disabled={action.busy}
               onClick={() => void action.run(publish)}
             >
               publish
-            </Button>
+            </DesignButton>
           </div>
         </div>
         {over ? (
@@ -1180,22 +1179,20 @@ export function Compose({ q }: { q?: string } = {}) {
         <div className="page-search-row">
           <SearchBox value={q ?? ''} onChange={setQuery} label="search your items" />
           {q ? (
-            <div className="segmented" role="group" aria-label="search scope">
+            <ToggleGroup aria-label="search scope" value={[scope]}>
               {(['mine', 'all'] as const).map((value) => (
-                <button
+                <Toggle
                   key={value}
-                  type="button"
-                  aria-pressed={scope === value}
-                  className={scope === value ? 'seg is-active' : 'seg'}
+                  value={value}
                   onClick={() => {
                     setScope(value);
                     store('blyg.compose.searchScope', value);
                   }}
                 >
                   {value === 'mine' ? 'this blyg only' : 'everything'}
-                </button>
+                </Toggle>
               ))}
-            </div>
+            </ToggleGroup>
           ) : null}
         </div>
       ) : null}
@@ -1203,21 +1200,19 @@ export function Compose({ q }: { q?: string } = {}) {
         <SearchResults filters={{ q, source: scope, include: 'drafts' }} ownOpens="editor" />
       ) : <>
       {totals?.all ? (
-        <div className="segmented filters" role="group" aria-label="show">
+        <ToggleGroup className="filters" aria-label="show" value={[filter]}>
           {(Object.keys(FILTERS) as Filter[]).map((key) => (
-            <button
+            <Toggle
               key={key}
-              type="button"
               data-filter={key}
-              aria-pressed={filter === key}
-              className={filter === key ? 'seg is-active' : 'seg'}
+              value={key}
+              count={totals[key]}
               onClick={() => setFilter(key)}
             >
               {FILTERS[key].label}
-              <span className="n">{totals[key]}</span>
-            </button>
+            </Toggle>
           ))}
-        </div>
+        </ToggleGroup>
       ) : null}
       {!result.isLoading && !rows.length && filter === 'all' ? (
         <p className="empty">
@@ -2313,20 +2308,18 @@ function Editor({ item, onDiscarding }: { item: Detail; onDiscarding?: (active: 
           fork of {item.forkedFrom.id} v{item.forkedFrom.version}
         </p>
       ) : null}
-      <div className="segmented compact pane-toggle" role="group" aria-label="pane">
+      <ToggleGroup className="pane-toggle" aria-label="pane" value={[pane]}>
         {(['draft', 'preview'] as const).map((value) => (
-          <button
+          <Toggle
             key={value}
-            type="button"
             data-pane={value}
-            aria-pressed={pane === value}
-            className={pane === value ? 'seg is-active' : 'seg'}
+            value={value}
             onClick={() => setPane(value)}
           >
             {value}
-          </button>
+          </Toggle>
         ))}
-      </div>
+      </ToggleGroup>
       <div className="editor-grid" data-pane={pane}>
         {/* Above both panes, so the text box and the preview start level. */}
         <ToolRow
@@ -2679,22 +2672,23 @@ function Editor({ item, onDiscarding }: { item: Detail; onDiscarding?: (active: 
         >
           <More />
         </Button>
-        <Button
+        <DesignButton
+          size="medium"
           id="save-draft-btn"
-          className="btn btn-compact btn-neutral"
           disabled={action.busy}
           onClick={() => void action.run(save)}
         >
           save draft
-        </Button>
-        <Button
+        </DesignButton>
+        <DesignButton
+          size="medium"
           id="publish-btn"
-          className="btn btn-compact btn-primary"
+          variant="primary"
           disabled={action.busy}
           onClick={publish}
         >
           {item.status === 'withdrawn' ? 'republish' : 'publish'}
-        </Button>
+        </DesignButton>
       </ActionBar>
     </div>
   );

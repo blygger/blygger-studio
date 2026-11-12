@@ -9,6 +9,7 @@ import { useLiveInfiniteQuery, useLiveQuery, eq } from '@tanstack/react-db';
 import { formatDateIn } from '../dates.ts';
 import { thumbs, interactions, signalSummary } from './data.ts';
 import { Button, Failure, useChrome, useSettings } from './components.tsx';
+import { Tab, Tabs } from './primitives.tsx';
 
 const VIEWS = ['liked', 'disliked', 'activity'] as const;
 type View = (typeof VIEWS)[number];
@@ -63,14 +64,14 @@ export function SignalsPage() {
         and responded to. It is never published. A future feed agent will read it,
         with the prompt you set in Settings, to sort your Smart Feed.
       </p>
-      <div className="segmented" role="group" aria-label="signals view">
+      <Tabs label="signals view" value={view} onValueChange={(value) => setView(value as View)}>
         {VIEWS.map((v) => (
-          <Button key={v} className={view === v ? 'seg is-active' : 'seg'} aria-pressed={view === v} onClick={() => setView(v)}>
+          <Tab key={v} value={v}>
             {v}
             {count(v) !== undefined ? <span className="n">{count(v)}</span> : null}
-          </Button>
+          </Tab>
         ))}
-      </div>
+      </Tabs>
       {view === 'activity' ? <ActivitySignals when={when} /> : <ThumbSignals key={view} view={view} when={when} />}
     </>
   );

@@ -22,8 +22,8 @@ describe("studio login theme", () => {
     await putSettings(env.DB, { theme: "nord" });
     const html = await page();
     expect(html).toContain('data-theme="fixed"');
-    expect(html).toContain("--page:#242933;");
-    expect(html).toContain("--pencil:#88c0d0;");
+    expect(html).toContain("--primitive-page:#242933;");
+    expect(html).toContain("--primitive-accent:#88c0d0;");
     expect(html).toContain("color-scheme:dark}");
     expect(html).toContain('<meta name="theme-color" content="#88c0d0">');
     expect(html.match(/<meta name="theme-color"/g)).toHaveLength(1);
@@ -35,6 +35,6 @@ describe("studio login theme", () => {
     await putSettings(env.DB, { theme: "nord" });
     const html = await page({ method: "POST", body: new URLSearchParams({ password: "not-it" }) });
     expect(html).toContain("Wrong password.");
-    expect(html).toContain("--page:#242933;");
+    expect(html).toContain("--primitive-page:#242933;");
   });
 });
