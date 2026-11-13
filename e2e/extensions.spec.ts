@@ -136,6 +136,40 @@ test('an extension page can ask for the main menu, above compose, and leaves whe
   }
 });
 
+test('menu zones: a page that asks for the top sits above reading, beside one in the visible zone', async ({ page }) => {
+  await login(page);
+  const zone = await timezone(page);
+  const labels = () => page.locator('nav.tabbar .tl').allTextContents();
+  try {
+    await patchSettings(page, { extensions: ['example', 'menu-example', 'menu-top-example'], timezone: zone });
+    await page.goto('/studio/reading');
+    await expect.poll(labels).toEqual(['top example', 'reading', 'menu example', 'compose', 'hoppers', 'responses', 'updates', 'more']);
+
+    // The page is told where it was placed, and has no way back to More.
+    await page.locator('nav.tabbar').getByRole('link', { name: 'top example' }).click();
+    await expect(page).toHaveURL(/\/studio\/ext\/menu-top-example$/);
+    await expect(page.locator('[data-extension-page=menu-top-example]')).toHaveAttribute('data-zone', 'top');
+    await expect(page.locator('nav.tabbar a[aria-current=page]')).toHaveCount(1);
+    await expect(page.getByRole('link', { name: '← more' })).toHaveCount(0);
+
+    // Eight tabs fit on a phone: no sideways scroll.
+    const fit = await page.evaluate(() => {
+      const bar = document.querySelector('nav.tabbar')!.getBoundingClientRect();
+      const tabs = [...document.querySelectorAll('nav.tabbar .tab')].map((el) => el.getBoundingClientRect());
+      return { overflow: document.documentElement.scrollWidth - innerWidth, inside: tabs.every((t) => t.left >= bar.left - 1 && t.right <= bar.right + 1) };
+    });
+    expect(fit.overflow).toBeLessThanOrEqual(0);
+    expect(fit.inside).toBe(true);
+
+    // Alone, the top page stays at the top: an empty visible zone does not pull it down.
+    await patchSettings(page, { extensions: ['menu-top-example'], timezone: zone });
+    await page.goto('/studio/reading');
+    await expect.poll(labels).toEqual(['top example', 'reading', 'compose', 'hoppers', 'responses', 'updates', 'more']);
+  } finally {
+    await patchSettings(page, { extensions: [], timezone: zone });
+  }
+});
+
 test('the extensions releases carry: reading time in the byline, inspect in the ⋯ sheet', async ({ page }) => {
   await login(page);
   const zone = await timezone(page);

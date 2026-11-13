@@ -9,8 +9,8 @@ import { Link, useNavigate } from '@tanstack/react-router';
 import { compiledExtensions } from '../../build/extensions.ui.ts';
 import { client } from './data.ts';
 import { Failure, useChrome, useSettings } from './components.tsx';
-import type { StudioContext } from './extension-api.ts';
-import { ExtensionBoundary, enabledExtensions, mainMenuPage } from './extensions.tsx';
+import type { PageContext } from './extension-api.ts';
+import { ExtensionBoundary, askedZone, enabledExtensions, menuPlacement } from './extensions.tsx';
 
 export function ExtensionPage({ name }: { name: string }) {
   useChrome({ framed: false });
@@ -29,7 +29,8 @@ export function ExtensionPage({ name }: { name: string }) {
         <p className="view-sub">This extension is not enabled here.</p>
       </>
     );
-  const context: StudioContext = {
+  const zone = menuPlacement(enabled).zoneOf(extension);
+  const context: PageContext = {
     client,
     openDraft: async (body) => {
       const created = await createItem(body);
@@ -44,11 +45,12 @@ export function ExtensionPage({ name }: { name: string }) {
         setError(failure);
       }
     },
+    menu: { asked: askedZone(extension), zone },
   };
   const Page = extension.page.component;
   return (
     <>
-      {extension === mainMenuPage(enabled) ? null : (
+      {zone !== 'hidden' ? null : (
         <Link className="back-link" to="/more">
           ← more
         </Link>

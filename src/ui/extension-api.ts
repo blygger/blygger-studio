@@ -39,6 +39,18 @@ export interface StudioContext {
 }
 
 /**
+ * Where an extension page links from: `top`, above the Studio's own tabs; `visible`, among
+ * them, at a spot the Studio picks; `hidden`, under More.
+ */
+export type MenuZone = 'top' | 'visible' | 'hidden';
+
+/** What an extension's page is handed: the verbs, and where its link ended up. */
+export interface PageContext extends StudioContext {
+  /** The zone the page asked for, and the one it got. A full zone moves a page down, never up. */
+  menu: { asked: MenuZone; zone: MenuZone };
+}
+
+/**
  * The Studio's own handlers for one reading entry, so an extension can offer
  * them again in its own presentation without reimplementing them. A missing
  * handler is one the Studio does not offer for this entry.
@@ -122,11 +134,12 @@ export interface StudioExtension {
   /** A page of its own at /studio/ext/<name>, linked from More. */
   page?: {
     title: string;
-    component: ComponentType<{ context: StudioContext }>;
+    component: ComponentType<{ context: PageContext }>;
     /**
-     * Link it from the main menu instead, above compose, under `title` with this icon.
-     * The menu holds one such entry (see mainMenuPage); any other stays in More.
+     * Ask for a link in the main menu, under `title` with this icon. `zone` is a request
+     * (default `visible`); the Studio decides, and a full zone moves the page down
+     * (see menuPlacement).
      */
-    mainMenu?: { icon: string };
+    mainMenu?: { icon: string; zone?: MenuZone };
   };
 }
