@@ -15579,9 +15579,11 @@
           },
           {
             "schema": {
-              "type": "string"
+              "type": "string",
+              "description": "Omit or leave blank to browse by date. A nonblank query returns hits only when at least one of its first eight terms has three or more Unicode characters. Shorter terms can narrow those hits."
             },
             "required": false,
+            "description": "Omit or leave blank to browse by date. A nonblank query returns hits only when at least one of its first eight terms has three or more Unicode characters. Shorter terms can narrow those hits.",
             "name": "q",
             "in": "query"
           },

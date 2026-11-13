@@ -42,4 +42,20 @@ describe("GET /api/search?include=drafts", () => {
     const hits = await search("q=quandoplex&source=imported&include=drafts");
     expect(hits).toEqual([]);
   });
+
+  it("replaces the published search terms on republish and removes both copies on withdrawal", async () => {
+    const id = await createAndPublish(cookie, 'indexprevious publication');
+    const path = `/blyg/api/items/${id}`;
+    const find = (q: string, drafts = false) => search(`q=${q}&source=mine${drafts ? '&include=drafts' : ''}`);
+    expect((await apiJson(cookie, 'PATCH', path, { contentMd: 'indexreplacement working copy' })).status).toBe(200);
+    expect(await find('indexprevious')).toMatchObject([{ id }]);
+    expect(await find('indexprevious', true)).toEqual([]);
+    expect(await find('indexreplacement')).toEqual([]);
+    expect((await apiJson(cookie, 'POST', `${path}/publish`)).status).toBe(200);
+    expect(await find('indexprevious')).toEqual([]);
+    expect(await find('indexreplacement')).toMatchObject([{ id }]);
+    expect((await apiJson(cookie, 'POST', `${path}/withdraw`)).status).toBe(200);
+    expect(await find('indexreplacement')).toEqual([]);
+    expect(await find('indexreplacement', true)).toEqual([]);
+  });
 });

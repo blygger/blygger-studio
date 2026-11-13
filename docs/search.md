@@ -16,8 +16,7 @@ an extra *this blyg only* filter on the compose page.
 
 The picker already has the search. `GET {mount}/api/search` (`searchOperation`
 in `src/read-api.ts`) matches every word (up to 8) anywhere in an item's
-`content_md` or id, case-folded with `instr`, never `LIKE` (D1 caps patterns at
-50 bytes). Its scope is deliberately what `resolveTarget` accepts at publish:
+`content_md` or id, ignoring ASCII case. Its scope follows what `resolveTarget` accepts at publish:
 own **published** items of both kinds, plus imported blyg items that are current
 or keep a pinned version (no L0 rows). It already takes `source=all|mine|imported`,
 `sub` (one subscription), `sort=newest|oldest` and a cursor, and it returns
@@ -63,8 +62,8 @@ cannot drift apart. That is the reason the route has one name today.
 - The status filter row applies to your own items only, so it is disabled
   while searching *everything*.
 
-**Shared behaviour.** Requests are debounced (250 ms) and sent only for two or
-more characters, or for any query once Enter is pressed. Each hit row shows the
+**Shared behaviour.** Search waits for a pause in typing and at least one term
+with three characters. An empty picker query still browses recent items. Each hit row shows the
 excerpt and `source · kind · age · vN`, with the matched words marked in the
 excerpt client-side. The `source` and `sort` choices are remembered per surface
 in localStorage, as the picker's already are.
@@ -86,11 +85,17 @@ in localStorage, as the picker's already are.
 
 ## Cost
 
-Each search reads every candidate row: `instr` cannot use an index. #113 is the
-reminder that free-plan D1 counts rows read. Debouncing and the two-character
-minimum keep this to one query per pause in typing. If it ever matters, FTS5 is
-the upgrade the route's comment already names, and it would serve all three
-surfaces at once. Not for now.
+Migration `0046_search_index.sql` builds the FTS5 trigram index from existing
+items. SQLite triggers keep it current as drafts, publications, and imports
+change. Search starts from the index, applies any subscription filter there,
+and reads the matching source rows by key. A query
+with a term of at least three Unicode characters can also contain shorter
+terms, which filter the indexed hits. A query made up entirely of shorter
+terms returns no hits. A blank query still lists items in date order.
+
+For a full database restore on D1, use Time Travel. Cloudflare's SQL dump
+format for databases with virtual tables targets the SQLite CLI. [D1 export
+support for virtual tables](https://developers.cloudflare.com/changelog/post/2026-11-12-d1-export-virtual-tables/)
 
 ## Tests
 

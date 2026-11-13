@@ -15,6 +15,8 @@ export interface CursorSource<Row, Result = Row> {
   binds?: readonly Key[];
   /** Aggregate sources must be evaluated once before filtering their page. */
   materialize?: boolean;
+  /** Apply cursor ranges together when evaluating the source costs more than seeking each range. */
+  combineRanges?: boolean;
   order: readonly CursorOrder[];
   project?: (rows: Row[]) => Result[] | Promise<Result[]>;
 }
@@ -97,7 +99,7 @@ export async function cursorPage<Row extends object, Result = Row>(
     const predicate = ranges ? ` WHERE ${ranges.length ? ranges.map(range => `(${range.sql})`).join(' OR ') : '0'}` : '';
     const sql = source.materialize
       ? `WITH cursor_source AS MATERIALIZED (${source.sql}) SELECT * FROM cursor_source${predicate} ORDER BY ${order} LIMIT ?`
-      : ranges && ranges.length <= 5
+      : ranges && ranges.length <= 5 && !source.combineRanges
       ? `WITH cursor_source AS NOT MATERIALIZED (${source.sql}) ${ranges.length
         ? ranges.map(range => `SELECT * FROM cursor_source WHERE ${range.sql}`).join(' UNION ALL ')
         : 'SELECT * FROM cursor_source WHERE 0'} ORDER BY ${order} LIMIT ?`

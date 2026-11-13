@@ -287,9 +287,12 @@ describe('trigger revision oracle', () => {
     expect(Boolean(changed.meta.changes)).toBe(true);
   });
   it('receives the prototype write-amplification witness without calling it deployed billing', async () => {
+    // L0 imports do not enter the search index. Measure only polling-cache
+    // tracking here, independent of FTS segment writes and merges.
+    const imports = (subscription: string) => Array.from({ length: 100 }, (_, i) => env.DB.prepare("INSERT INTO imported_items(subscription_id,remote_id,kind,state,version,observed_at,l0) VALUES(?,?,'fragment','current',1,'now',1)").bind(subscription, `r${i}`));
     const cookie = await login(), before = await changes(cookie);
     const start = await env.DB.prepare('SELECT total_changes() AS value').first<{ value: number }>();
-    await env.DB.batch(Array.from({ length: 100 }, (_, i) => env.DB.prepare("INSERT INTO imported_items(subscription_id,remote_id,kind,state,version,observed_at) VALUES('bulk',?,'fragment','current',1,'now')").bind(`r${i}`)));
+    await env.DB.batch(imports('bulk'));
     const end = await env.DB.prepare('SELECT total_changes() AS value').first<{ value: number }>();
     const after = await changes(cookie); expect(after.domains.reading - before.domains.reading).toBe(100);
     // Native D1 adds bookkeeping changes beyond the source+trigger rows counted
@@ -297,7 +300,7 @@ describe('trigger revision oracle', () => {
     // that cancels provider overhead instead of labelling it application work.
     await env.DB.prepare('DROP TRIGGER change_imported_items_insert').run();
     const controlStart = await env.DB.prepare('SELECT total_changes() AS value').first<{ value: number }>();
-    await env.DB.batch(Array.from({ length: 100 }, (_, i) => env.DB.prepare("INSERT INTO imported_items(subscription_id,remote_id,kind,state,version,observed_at) VALUES('control',?,'fragment','current',1,'now')").bind(`r${i}`)));
+    await env.DB.batch(imports('control'));
     const controlEnd = await env.DB.prepare('SELECT total_changes() AS value').first<{ value: number }>();
     atCheckpoint('trigger source and tracking writes', () => expect((end!.value - start!.value) - (controlEnd!.value - controlStart!.value)).toBe(100));
     expect((await changes(cookie)).domains).toEqual(after.domains);

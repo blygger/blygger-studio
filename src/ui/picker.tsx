@@ -4,7 +4,7 @@ import { Button, Failure, useSettings } from './components.tsx';
 import { paletteTrigger, paletteInsert } from '../palette.ts';
 import { setTextAt } from './caret.ts';
 import './picker.css';
-import { ago, store, stored, useSearch, type Hit } from './search.tsx';
+import { ago, canSearchText, SEARCH_PROMPT, store, stored, useSearch, type Hit } from './search.tsx';
 
 /**
  * The `[[` / `![[` picker (0.29). Typing either bracket form opens a panel at
@@ -87,8 +87,9 @@ export function BracketPicker({
       .catch(() => {});
   }, [open, subs.length]);
 
+  const needsLongerTerm = !!query?.trim() && !canSearchText(query);
   const { hits, hasMore, loading, error, loadMore, cancel } = useSearch(
-    query === undefined ? undefined : { q: query, source, sort, ...(source === 'imported' && sub ? { sub } : {}) },
+    query === undefined || needsLongerTerm ? undefined : { q: query, source, sort, ...(source === 'imported' && sub ? { sub } : {}) },
   );
   useEffect(() => setSelected(0), [query, source, sort, sub]);
   const backToEditor = (at: number) =>
@@ -234,7 +235,7 @@ export function BracketPicker({
       </div>
       <Failure error={error} />
       <div className="picker-count" aria-live="polite">
-        {loading && !hits.length ? 'searching…' : `${hits.length.toLocaleString()}${hasMore ? '+' : ''} item${hits.length === 1 && !hasMore ? '' : 's'}`}
+        {needsLongerTerm ? SEARCH_PROMPT : loading && !hits.length ? 'searching…' : `${hits.length.toLocaleString()}${hasMore ? '+' : ''} item${hits.length === 1 && !hasMore ? '' : 's'}`}
       </div>
       <ul role="listbox" aria-label="items" className="picker-list">
         {hits.map((hit, i) => (

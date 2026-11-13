@@ -5743,6 +5743,9 @@ export type SearchData = {
          */
         cursor?: string;
         limit?: number;
+        /**
+         * Omit or leave blank to browse by date. A nonblank query returns hits only when at least one of its first eight terms has three or more Unicode characters. Shorter terms can narrow those hits.
+         */
         q?: string;
         source?: 'all' | 'mine' | 'imported';
         sub?: string;
