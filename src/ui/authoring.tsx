@@ -42,6 +42,7 @@ import { DraftCounterSlot, editorRegions, enabledExtensions, type HostContext } 
 import { join, rebase, split, toFull, toShown, touches } from './editor-regions.ts';
 import type { EditorRegion } from './editor-regions.ts';
 import { HandlePicker } from './contacts.tsx';
+import { ownEntry, Shelf, shelfLabel, toggleShelf, useShelf } from './shelf.tsx';
 import { applyEdit, breakEdit, codeBlockEdit, indentEdit, onFormatKey } from './format-shortcuts.ts';
 import { BracketPicker } from './picker.tsx';
 import { revealCaret, setTextAt } from './caret.ts';
@@ -1206,6 +1207,7 @@ export function Compose({ q }: { q?: string } = {}) {
       {q ? (
         <SearchResults filters={{ q, source: scope, include: 'drafts' }} ownOpens="editor" />
       ) : <>
+      <Shelf />
       {totals?.all ? (
         <div className="segmented filters" role="group" aria-label="show">
           {(Object.keys(FILTERS) as Filter[]).map((key) => (
@@ -1258,6 +1260,7 @@ function ItemRow({
   const settings = useSettings();
   const sharing = useSharing();
   const action = useAction();
+  const shelved = useShelf();
   const [expanded, setExpanded] = useState(false);
   const [open, setOpen] = useState(false);
   const [text, setText] = useState(item.contentMd);
@@ -1517,6 +1520,16 @@ function ItemRow({
             <Link className="btn btn-ghost btn-mini" to="/edit/$id" params={{ id: item.id }}>
               full editor
             </Link>
+            {item.status !== 'withdrawn' ? (
+              <Button
+                className="btn btn-ghost btn-mini"
+                data-action="shelf"
+                disabled={action.busy}
+                onClick={() => void action.run(() => toggleShelf(shelved, ownEntry(item.id)))}
+              >
+                {shelfLabel(shelved, ownEntry(item.id))}
+              </Button>
+            ) : null}
             {item.version === 0 || item.dirty || item.status === 'withdrawn' ? (
               <Button
                 className="btn btn-primary btn-mini"
@@ -2195,6 +2208,7 @@ function Editor({ item, onDiscarding }: { item: Detail; onDiscarding?: (active: 
   useEffect(() => {
     if (upload.attached) setMediaOpen(true);
   }, [upload.attached]);
+  const shelved = useShelf();
   const shareable: Shareable = {
     id: item.id,
     kind: item.kind,
@@ -2241,6 +2255,13 @@ function Editor({ item, onDiscarding }: { item: Detail; onDiscarding?: (active: 
               }).when('settled');
               toast(front ? 'This thread is now your front page' : 'Your home page shows your latest items again', { tone: 'ok' });
             }),
+        },
+        item.status !== 'withdrawn' && {
+          icon: '⊤',
+          label: shelfLabel(shelved, ownEntry(item.id)),
+          description: shelved.includes(item.id) ? undefined : 'keep it at the top of your compose list, in your order',
+          disabled: action.busy,
+          onSelect: () => void action.run(() => toggleShelf(shelved, ownEntry(item.id))),
         },
         item.status !== 'withdrawn' && {
           icon: '▤',

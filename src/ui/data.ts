@@ -281,6 +281,48 @@ export const settings = createCollection(
     },
   }),
 );
+/** The shelf (#135): one row, the owner's ordered entries ({ sub, remoteId }). Edits replace the
+ * whole list on the revision they were made against, so a change from another
+ * client rolls this one back rather than being overwritten. */
+export const shelf = createCollection(
+  queryCollectionOptions({
+    ...collectionPollingOptions,
+    schema: sourceSchemas.shelf,
+    id: 'shelf',
+    syncMode: 'on-demand',
+    queryKey: ['shelf'],
+    queryClient,
+    getKey: (row) => row.key,
+    queryFn: (context) =>
+      cachedQuery(context, 'shelf', sourceSchemas.shelf.array(), async ({ signal }) => [
+        { ...(await unwrap(BlyggerApi.getShelf({ client, signal }))), key: 'shelf' as const },
+      ]),
+    select: (response) => response.data,
+    onUpdate: async ({ transaction, collection }) => {
+      try {
+        for (const { original, modified } of transaction.mutations)
+          await unwrap(BlyggerApi.putShelf({ client, body: { entries: modified.entries, expectedRevision: original.revision } }));
+      } catch (error) {
+        // A revision conflict means another client moved the shelf: show its
+        // list, and let the owner make the change again on top of it.
+        await collection.utils.refetch().catch(() => undefined);
+        throw error;
+      }
+      await collection.utils.refetch({ throwOnError: true });
+      assertNotPaused(['shelf']);
+    },
+  }),
+);
+export const SHELF_MAX = 50;
+export type ShelfEntry = { sub: string; remoteId: string };
+/** Replace the shelf's order; resolves once the server has it. */
+export async function setShelf(entries: ShelfEntry[]) {
+  await preloadView(listViews.shelf);
+  if (!shelf.has('shelf')) throw new Error('The shelf has not loaded. Try again.');
+  await shelf.update('shelf', (row) => {
+    row.entries = entries;
+  }).when('settled');
+}
 export const subscriptions = createCollection(
   queryCollectionOptions({
     ...collectionPollingOptions,
@@ -991,6 +1033,7 @@ export const mentionSource = scoped((id) => createLiveQueryCollection({
 export const listViews = {
   items: createLiveQueryCollection((q) => q.from({ item: items }).orderBy(({ item }) => item.orderKey, { direction: 'asc', stringSort: 'lexical' }).limit(25)),
   settings: createLiveQueryCollection((q) => q.from({ setting: settings })),
+  shelf: createLiveQueryCollection((q) => q.from({ row: shelf })),
   updates: createLiveQueryCollection((q) => q.from({ update: updates })),
   subscriptions: createLiveQueryCollection((q) => q.from({ subscription: subscriptions })),
   hoppers: createLiveQueryCollection((q) => q.from({ hopper: hoppers })),

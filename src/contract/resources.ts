@@ -2,6 +2,7 @@ import { INTERACTION_KINDS, type InteractionView, type listThumbs } from '../int
 import { BROWSE_VIA, type BrowseRow } from '../browse-log.ts';
 import { versionState } from '../version-state.ts';
 import { z } from '@hono/zod-openapi';
+import { OWN_SUBSCRIPTION } from '../own-subscription.ts';
 import { ItemRevisionSchema } from './schemas.ts';
 import { CHANGE_CATEGORIES } from '../change-category.ts';
 import type { ItemRow, VersionRow, MediaRow, SubscriptionRow, HopperRow, ImportedItemRow, MentionInRow, MentionOutRow, HopperItemRow, SignalRow } from '../types.ts';
@@ -99,6 +100,16 @@ export const ContactSchema = z.object({
   created: z.string(),
   updated: z.string(),
 }).openapi("Contact");
+
+export const ShelfEntrySchema = z.object({
+  sub: z.string().min(1).max(128).describe(`The subscription the item is held under, or "${OWN_SUBSCRIPTION}" (OWN_SUBSCRIPTION) for one of the owner's own items.`),
+  remoteId: z.string().min(1).max(256).describe(`The item's id: the own item's id under "${OWN_SUBSCRIPTION}", else the imported item's remote id.`),
+}).strict().openapi("ShelfEntry");
+
+export const ShelfSchema = z.object({
+  entries: z.array(ShelfEntrySchema).describe(`The shelved items, in the owner's order, each named as hopper membership names an item. Own drafts may be shelved; a withdrawn own item, or an imported tombstone with no retained pin, is omitted. A discarded draft, an imported item no longer held, and every entry of a deleted subscription leave the shelf. Studio-private for good: never in an item document, feed, manifest or public page, and the shelf never gains a public mode.`),
+  revision: z.number().int().nonnegative().describe("The shelf's revision. Send it back as expectedRevision for a conditional replace; every successful PUT bumps it."),
+}).openapi("Shelf");
 
 export const ImportedItemSchema = z.object({
   subscriptionId: z.string(),

@@ -160,6 +160,7 @@ Consult `openapi.json` for every field and response.
 | Signals | `GET /signals` | `PUT` or `DELETE /signals/{sub}/{remoteId}` |
 | Mentions | `GET /mentions?direction=inbound` or `outbound` | `PATCH /mentions/{id}` with `hidden` |
 | Settings | `GET /settings` | `PATCH /settings` |
+| Shelf | `GET /shelf` | `PUT /shelf` (replaces the whole list; see [Shelf](#shelf)) |
 | Media | Included in item detail: `media` is the working copy's attachments, `publishedMedia` what the live version lists | `POST /media` with a multipart file (`inline=true` when the client places it in the text; the same file sent again to the same item in the same placement returns the existing row with `200` and `duplicate: true`). Attachments are per version: one added to a published item is listed from its next version on. `DELETE /media/{id}` detaches it from the working copy, so the next version goes without it while the versions that listed it keep it; the file is deleted only when no published version lists or shows it |
 | Imported items | `GET /imports/{sub}/{id}`, `GET /imports/{sub}/{id}/history`, `GET /imports/{sub}/{id}/versions/{v}` (history and public versions, read from the origin) | The subscription importer manages these items |
 | Reading | `GET /reading`, `GET /reading/imported` (imported items only; see below) | Read only |
@@ -177,6 +178,71 @@ Publication, withdrawal, restoration, and generation remain explicit operations:
 - `POST /items/{id}/note-draft` drafts a changelog note from the change between the published version and the working copy. It never publishes. When the published version is unpinned, the note must not reproduce wording that only that version had; a draft that does returns 422. Send `noteGenerated: true` with `POST /items/{id}/publish` only when the note is that draft, unedited: it becomes `changelog[].generated` on the wire.
 - `POST /items/{id}/classify` asks the optional change classifier what kind of change the working copy would publish. See [Change classifier](#change-classifier).
 - `POST /items/{id}/refresh` republishes a thread to re-bake quotes whose source has a newer version. See below.
+
+## Shelf
+
+The shelf is a short list of items in the owner's order: living threads kept
+at the top of a writing list, and posts from blygs the owner reads. Studio and
+other clients (Blygger Desktop) share it. It is studio-private: it never
+reaches an item document, a feed, the manifest, a public page or the static
+export, and it never gains a public mode. A featured list on public pages, if
+one is ever wanted, would be a separate presentation setting, not a flag on
+the shelf.
+
+An entry names an item the way hopper membership does, as `{ sub, remoteId }`:
+
+- an own item is `{ sub: "~own", remoteId: <item id> }`. The SDK exports the
+  sentinel as `OWN_SUBSCRIPTION`;
+- an imported item is `{ sub: <subscription id>, remoteId: <its remote id> }`.
+
+A bare id would not tell two origins apart.
+
+- `GET /shelf` (`owner:read`) returns `{ entries, revision }`, in order.
+- `PUT /shelf` (`owner:manage`) takes `{ entries, expectedRevision }` and
+  replaces the whole list. It returns the stored `{ entries, revision }`
+  after dropping and deduplicating, so a client can reconcile without a second
+  `GET`.
+
+Rules:
+
+- Any of this blyg's own items can be shelved, drafts included, and so can
+  any item held under a subscription.
+- An entry has to resolve to be kept: an own item that is not withdrawn, or an
+  imported item that is current or a tombstone with a retained pin (the rule
+  `[[id]]` and `![[id]]` resolve by). `GET` omits entries that do not.
+- A `PUT` **drops entries that do not resolve quietly and never refuses them**.
+  That covers a `sub` that names no subscription, a `remoteId` not held under
+  it, a withdrawn own item, and an imported tombstone with no retained pin. A
+  repeated entry keeps its first position. Check the response to see what was
+  kept. A withdrawn item's place is kept until the next `PUT`, so republishing
+  it before then puts it back where it was. The same holds for an imported
+  item that turns into a tombstone and comes back.
+- Discarding a draft takes it off the shelf. So does an imported item that is
+  no longer held, and unsubscribing removes every entry of that subscription.
+- At most 50 entries per `PUT`. A longer list, a malformed entry (`sub` or
+  `remoteId` missing, empty or not a string, or an unknown field), unknown
+  fields in the body, or a missing or negative `expectedRevision` returns 400
+  `invalid-input`.
+- Every successful `PUT` bumps `revision`, even when the list is unchanged.
+  `expectedRevision` is required: read the shelf first (a never-written shelf
+  is at revision 0), and the replace applies only if nobody else has written
+  since. A stale one returns 409 `revision-conflict` with the full current list
+  in `details.current: { entries, revision }`: merge and retry. There is no
+  unconditional replace, because one client's `PUT` would silently undo
+  another's reorder.
+- The `shelf` change domain in `GET /changes` moves on every `PUT`, when a
+  shelved own item is withdrawn or republished, when a shelved imported item
+  becomes a tombstone without a retained pin or comes back, and when a shelved
+  entry's row is deleted (discarded draft, unsubscribe).
+- Shelving is not an interaction: nothing goes in the interaction log.
+- The Studio's compose list shows the `~own` entries. Reordering or removing
+  them there leaves imported entries where they are.
+
+```ts
+import { OWN_SUBSCRIPTION } from "@blygger/sdk";
+const { entries, revision } = await unwrap(BlyggerApi.getShelf({ client }));
+await unwrap(BlyggerApi.putShelf({ client, body: { entries: [{ sub: OWN_SUBSCRIPTION, remoteId: id }, ...entries], expectedRevision: revision } }));
+```
 
 ## Change classifier
 
@@ -243,7 +309,7 @@ document keys as an unclassified one.
 Preview and search use `/preview` and `/search`.
 `GET /changes` returns `{ epoch, domains }`, with revision counters for items,
 Reading, subscriptions, hoppers, signals, settings, the public feed, mentions,
-responses, interactions and browsing history. It uses
+responses, interactions, browsing history and the shelf. It uses
 the same current owner/delegated read authorization as other private reads.
 Clients can skip unchanged data refreshes, but must capture their target before
 loading and acknowledge it only after successful installation. These are change

@@ -2,7 +2,7 @@
   "openapi": "3.1.0",
   "info": {
     "title": "Blygger Studio API",
-    "version": "5.8.0",
+    "version": "5.9.0",
     "description": "Private authoring and reading API. Protocol files remain a separate public interface."
   },
   "servers": [
@@ -324,6 +324,11 @@
                 "type": "integer",
                 "minimum": 0,
                 "maximum": 9007199254740991
+              },
+              "shelf": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 9007199254740991
               }
             },
             "required": [
@@ -337,7 +342,8 @@
               "mentions",
               "responses",
               "interactions",
-              "browse"
+              "browse",
+              "shelf"
             ]
           }
         },
@@ -1035,6 +1041,49 @@
           "titleFollowsSource",
           "hopperFeedUrl"
         ]
+      },
+      "Shelf": {
+        "type": "object",
+        "properties": {
+          "entries": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ShelfEntry"
+            },
+            "description": "The shelved items, in the owner's order, each named as hopper membership names an item. Own drafts may be shelved; a withdrawn own item, or an imported tombstone with no retained pin, is omitted. A discarded draft, an imported item no longer held, and every entry of a deleted subscription leave the shelf. Studio-private for good: never in an item document, feed, manifest or public page, and the shelf never gains a public mode."
+          },
+          "revision": {
+            "type": "integer",
+            "minimum": 0,
+            "description": "The shelf's revision. Send it back as expectedRevision for a conditional replace; every successful PUT bumps it."
+          }
+        },
+        "required": [
+          "entries",
+          "revision"
+        ]
+      },
+      "ShelfEntry": {
+        "type": "object",
+        "properties": {
+          "sub": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 128,
+            "description": "The subscription the item is held under, or \"~own\" (OWN_SUBSCRIPTION) for one of the owner's own items."
+          },
+          "remoteId": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 256,
+            "description": "The item's id: the own item's id under \"~own\", else the imported item's remote id."
+          }
+        },
+        "required": [
+          "sub",
+          "remoteId"
+        ],
+        "additionalProperties": false
       },
       "Contact": {
         "type": "object",
@@ -9222,6 +9271,334 @@
                     "ok",
                     "changed"
                   ]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Request failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Request failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Request failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Request failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "405": {
+            "description": "Request failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Request failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "413": {
+            "description": "Request failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "415": {
+            "description": "Request failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Request failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Request failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Request failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "502": {
+            "description": "Request failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/shelf": {
+      "get": {
+        "operationId": "getShelf",
+        "tags": [
+          "studio"
+        ],
+        "security": [
+          {
+            "ownerSession": []
+          },
+          {
+            "ownerOAuth": [
+              "owner:read"
+            ]
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Shelf"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Request failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Request failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Request failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Request failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "405": {
+            "description": "Request failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Request failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "413": {
+            "description": "Request failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "415": {
+            "description": "Request failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Request failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Request failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Request failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "502": {
+            "description": "Request failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "put": {
+        "operationId": "putShelf",
+        "tags": [
+          "studio"
+        ],
+        "security": [
+          {
+            "ownerSession": []
+          },
+          {
+            "ownerOAuth": [
+              "owner:manage"
+            ]
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "entries": {
+                    "type": "array",
+                    "items": {
+                      "$ref": "#/components/schemas/ShelfEntry"
+                    },
+                    "maxItems": 50,
+                    "description": "The whole list, in order (at most 50). Replaces the stored list. An entry that does not resolve (an unknown subscription, an item not held under it, a withdrawn own item, an imported tombstone with no retained pin) is dropped quietly, never refused, and a repeated entry keeps its first position; the response is what was stored."
+                  },
+                  "expectedRevision": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "description": "Required. Replace only if the shelf is still at this revision (read it with GET /shelf; a never-written shelf is at 0); otherwise 409 revision-conflict with the current { entries, revision } in details.current. There is no unconditional replace: several clients share the shelf, and one must not silently undo another's reorder."
+                  }
+                },
+                "required": [
+                  "entries",
+                  "expectedRevision"
+                ],
+                "additionalProperties": false
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Shelf"
                 }
               }
             }

@@ -1,6 +1,7 @@
 import { retainedMediaSql } from './media-retention.ts';
 import { assertCurrentRevision, assertItemRevision, ItemRevisionConflict } from './item-revision.ts';
 import { consumeHandles, contactResource, createContact, deleteContact, getContact, handleTaken, HANDLE, listContacts, resolveContact, updateContact } from './contacts.ts';
+import { readShelf, replaceShelf, type ShelfEntry } from './shelf.ts';
 import { success, created, failure, modelFailure, type OperationContext, type OperationInput } from './operation-types.ts';
 import { versionState } from './version-state.ts';
 import { isFont } from "./fonts.ts";
@@ -743,7 +744,19 @@ const resolveContactOperation = async (context: OperationContext, input: Operati
 const deleteContactOperation = async (context: OperationContext, input: OperationInput) =>
   await deleteContact(context.env.DB, input.path.id) ? success({ ok: true }) : failure('not-found', { error: "not found" });
 
+// The shelf (#135): see src/shelf.ts for the rules both operations share.
+const getShelfOperation = async (context: OperationContext) => success(await readShelf(context.env.DB));
+const putShelfOperation = async (context: OperationContext, input: OperationInput) => {
+  const body = input.body as { entries: ShelfEntry[]; expectedRevision: number };
+  const stored = await replaceShelf(context.env.DB, body.entries, body.expectedRevision);
+  if (stored) return success(stored);
+  // The current list rides in the error so a client can merge and retry.
+  return failure('conflict', { error: 'shelf revision conflict; reload and try again', code: 'revision-conflict', current: await readShelf(context.env.DB) });
+};
+
 export const itemOperations = {
+  getShelf: getShelfOperation,
+  putShelf: putShelfOperation,
   listContacts: listContactsOperation,
   createContact: createContactOperation,
   updateContact: updateContactOperation,

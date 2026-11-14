@@ -484,7 +484,7 @@ export async function deleteHopper(db: D1Database, id: string): Promise<void> {
  * id alphabet, so it never names a real subscription. Such rows are not in the
  * interaction log, which records reading: LOG_HOPPER finds no subscription.
  */
-export const OWN_SUBSCRIPTION = "~own";
+export { OWN_SUBSCRIPTION } from "../own-subscription.ts";
 
 export async function addHopperItem(db: D1Database, hopperId: string, subscriptionId: string, remoteId: string): Promise<void> {
   const at = nowIso();

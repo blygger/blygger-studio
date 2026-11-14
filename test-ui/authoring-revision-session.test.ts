@@ -59,6 +59,7 @@ function harness(component: 'ItemRow' | 'Editor') {
     useEffect() {},
     useSettings: () => null,
     useSharing: () => ({}),
+    useShelf: () => [], ownEntry: (remoteId: string) => ({ sub: '~own', remoteId }), shelfLabel: () => 'add to shelf', toggleShelf: async () => {},
     useAction: () => action,
     useNoteConfirm: () => ({}),
     useBlocker(value: unknown) { blocker = value; },

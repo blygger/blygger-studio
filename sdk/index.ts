@@ -21,3 +21,10 @@ export async function unwrap<T>(pending: Promise<{ data?: T; error?: unknown; re
   if (!result.response.ok) throw new BlyggerApiError(result.response.status, result.error);
   return result.data as T;
 }
+
+/**
+ * The subscription id that names one of the owner's own items wherever the API
+ * names an item by subscription and remote id (hopper membership, shelf entries):
+ * the remote id is then the item id.
+ */
+export const OWN_SUBSCRIPTION = "~own";

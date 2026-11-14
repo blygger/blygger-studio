@@ -6,6 +6,15 @@ tables. Relevant source writes and counter changes commit or roll back together.
 Missing state and unsafe counter overflow reject writes rather than silently
 lose notifications. No application mutation caller needs an invalidation hook.
 
+### Shelf domain (migration 0044)
+
+`0044_shelf.sql` adds the `shelf` counter and the `shelf` and `shelf_revision`
+tables (#135), each with insert, update and delete `change_*` triggers, plus
+`change_items_shelf_status` (a shelved item withdrawn or republished: `GET
+/shelf` omits withdrawn items) and `shelf_items_delete`, which takes a discarded
+draft off the shelf and so moves the domain through `change_shelf_delete`. The
+shelf is Studio-private and moves nothing public.
+
 ### Mentions and responses domains (migration 0032)
 
 `0032_mentions_change_domain.sql` adds two counters to `change_state` and six
