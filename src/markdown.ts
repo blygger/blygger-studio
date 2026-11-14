@@ -1,8 +1,9 @@
 import MarkdownIt from "markdown-it";
 import { graphemePrefix } from "./text.ts";
+import { mathErrors as findMathErrors, mathPlugin } from "./math.ts";
 
 // Safe mode: raw HTML in markdown is escaped, never passed through (§3).
-const md = new MarkdownIt({ html: false, linkify: true, typographer: false });
+const md = new MarkdownIt({ html: false, linkify: true, typographer: false }).use(mathPlugin);
 
 // Image alt text from every text-bearing child (studio#6). markdown-it 14
 // emits an escape (`\*`) or an entity as a `text_special` token, and the
@@ -32,9 +33,31 @@ export function renderMarkdown(contentMd: string): string {
   return md.render(contentMd);
 }
 
+/** Formulas in `contentMd` that do not parse (#105): publish refuses them. */
+export function mathErrors(contentMd: string) {
+  return findMathErrors(md, contentMd);
+}
+
+/**
+ * A formula as presentation text: its TeX in dollars, from the annotation the
+ * renderer keeps (§5.2). For excerpts, titles and labels only, where stripped
+ * MathML would be a run of symbols. Never for the §2 text content, which has no
+ * exception for a formula: `selectionText` strips tags and nothing else.
+ */
+const MATH = /<math\b([^>]*)>([\s\S]*?)<\/math>/gi;
+function mathAsTex(html: string): string {
+  if (!html.includes("<math")) return html;
+  return html.replace(MATH, (whole, attrs: string, inner: string) => {
+    const tex = /<annotation encoding="application\/x-tex">([\s\S]*?)<\/annotation>/.exec(inner)?.[1];
+    if (tex === undefined) return whole;
+    const mark = /display="block"/.test(attrs) ? "$$" : "$";
+    return ` ${mark}${tex.trim()}${mark} `;
+  });
+}
+
 /** Plain text of rendered markdown, for feed titles and excerpts. */
 export function plainText(contentMd: string): string {
-  const html = md.render(contentMd);
+  const html = mathAsTex(md.render(contentMd));
   return html
     .replace(/<[^>]+>/g, " ")
     .replace(/&amp;/g, "&")
@@ -82,7 +105,7 @@ export function decodeEntities(s: string): string {
  */
 export function plainTextFromHtml(html: string): string {
   return decodeEntities(
-    html
+    mathAsTex(html)
       .replace(/<(script|style)[^>]*>[\s\S]*?<\/\1>/gi, " ")
       .replace(BLOCK_BOUNDARY, " ")
       .replace(/<[^>]+>/g, ""),
@@ -146,6 +169,19 @@ export function selectionText(html: string): string {
  * disagreement between them would be an affordance that reliably produces
  * unpublishable drafts.
  */
+/**
+ * Whether a selection found in `html`'s text content takes in any part of a
+ * formula (#105). The §2 text of a formula is what stripping its tags leaves,
+ * which no reader would choose as a quote, so the studio refuses one rather
+ * than bake it: the selection is in the text, and is not once every formula is
+ * cut out.
+ */
+export function selectionTouchesMath(html: string, selection: string): boolean {
+  if (!html.includes("<math")) return false;
+  const holed = selectionText(html.replace(/<math\b[\s\S]*?<\/math>/gi, "\uFFFC"));
+  return selectionText(html).includes(selection) && !holed.includes(selection);
+}
+
 export function normalizeSelection(text: string): string {
   return normalizeBlocks(text.split("\n"));
 }

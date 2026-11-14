@@ -36,6 +36,7 @@ import {
   putSettings,
   RestoreVersionError,
   restoreVersion,
+  MathPublishError,
   TkPublishError,
   TransclusionResolveError,
   withdraw,
@@ -269,6 +270,9 @@ async function publishAndNotify(context: OperationContext, item: ItemRow, note: 
     }
     if (e instanceof TkPublishError) {
       return failure('invalid-input', { error: "one or more TK scopes are not publish-ready", errors: e.issues });
+    }
+    if (e instanceof MathPublishError) {
+      return failure('invalid-input', { error: `a formula does not parse: ${e.errors.map((m) => `${m.formula} (${m.reason})`).join("; ")}`, errors: e.errors });
     }
     if (e instanceof FragmentTooLongError) {
       return failure('invalid-input', { error: `fragment exceeds ${e.max} characters` });

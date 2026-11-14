@@ -101,6 +101,11 @@ export const CodeBlock = () => (
     <path d="m8 7-5 5 5 5M16 7l5 5-5 5M13.5 5l-3 14" />
   </Svg>
 );
+export const Formula = () => (
+  <Svg>
+    <path d="M17 5H7l6 7-6 7h10" />
+  </Svg>
+);
 export const Expand = () => (
   <Svg>
     <path d="M14 4h6v6M20 4l-7 7M10 20H4v-6M4 20l7-7" />

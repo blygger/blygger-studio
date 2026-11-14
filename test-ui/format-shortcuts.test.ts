@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { breakEdit, codeBlockEdit, formatEdit, formatKey, indentEdit, structureKey, type FormatEdit, type FormatKind } from '../src/ui/format-shortcuts.ts';
+import { breakEdit, codeBlockEdit, formatEdit, formatKey, formulaEdit, indentEdit, structureKey, type FormatEdit, type FormatKind } from '../src/ui/format-shortcuts.ts';
 
 /** `«` and `»` mark the selection; `|` a caret. */
 function run(marked: string, kind: FormatKind): string {
@@ -185,4 +185,14 @@ describe('which keys are structure', () => {
     expect(key('Tab', { ctrlKey: true })).toBeNull();
     expect(key('Tab', { altKey: true })).toBeNull();
   });
+});
+
+describe('the formula button', () => {
+  const formula = (marked: string) => apply(marked, formulaEdit);
+  it.each([
+    ['|', '$|$'],
+    ['area «pi r^2» here', 'area $«pi r^2»$ here'],
+    ['«\\int f\ndx»', '$$«\\int f\ndx»$$'],
+    ['a « x » b', 'a $«x»$ b'],
+  ])('%j becomes %j', (before, after) => expect(formula(before)).toBe(after));
 });

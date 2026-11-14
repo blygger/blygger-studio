@@ -157,6 +157,20 @@ export function codeBlockEdit(text: string, from: number, to: number): FormatEdi
   return { from, to, insert, start: inside, end: inside + body.length };
 }
 
+/**
+ * A formula (#105): the selection between dollars, or an empty pair with the
+ * caret inside. A selection that runs over a line break, or one already in
+ * dollars, is displayed (`$$…$$`); a word or two is inline.
+ */
+export function formulaEdit(text: string, from: number, to: number): FormatEdit {
+  const picked = text.slice(from, to);
+  const mark = picked.includes('\n') ? '$$' : '$';
+  const inner = picked.trim() ? picked.trim() : '';
+  const insert = `${mark}${inner}${mark}`;
+  const start = from + mark.length;
+  return { from, to, insert, start, end: start + inner.length };
+}
+
 const KEYS: Record<string, FormatKind> = { b: 'bold', i: 'italic', k: 'link' };
 
 /**

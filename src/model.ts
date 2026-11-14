@@ -8,7 +8,8 @@ import { parseCustomTheme } from "./themes.ts";
 // Data access + publish-flow semantics — v0.1-plan §3.1.
 
 import { consumeHandles, withMentionCards } from "./contacts.ts";
-import { renderMarkdown } from "./markdown.ts";
+import { mathErrors, renderMarkdown } from "./markdown.ts";
+import { MathPublishError } from "./math.ts";
 import { annotateGenerated, applyGeneratedWrappers, parseScopes, stripToOutput, TkPublishError, unresolvedScopes } from "./tk.ts";
 import { CommentPublishError, parseComments, sameOutsideComments, type CommentRange } from "./comments.ts";
 import { recordPublishInteractions } from "./interactions.ts";
@@ -26,7 +27,7 @@ import { FRAGMENT_MAX_CHARS } from "./types.ts";
 import { parseEnabledExtensions } from "./extensions/names.ts";
 import { absolutizeHtml, authoredText, contentHash, isFollowableUrl, newId, nowIso, visibleMedia } from "./util.ts";
 
-export { TkPublishError, TransclusionResolveError };
+export { MathPublishError, TkPublishError, TransclusionResolveError };
 
 /** Thrown by publish() when the *published* (TK-stripped) fragment length exceeds the studio cap (§2.7). */
 export class FragmentTooLongError extends Error {
@@ -383,6 +384,9 @@ export async function publish(db: D1Database, item: ItemRow, note: string | null
   }
 
   const { text: strippedMd, spans } = stripToOutput(source, scopes);
+  // A formula that does not parse is refused like a link that does not resolve (#105).
+  const badMath = mathErrors(strippedMd);
+  if (badMath.length) throw new MathPublishError(badMath);
   // The cap measures the author's words, before a handle expands into a link.
   const authoredLength = handles.cards.size ? stripToOutput(authored, parseScopes(authored).scopes).text.length : strippedMd.length;
   if (kind === "fragment" && authoredLength > FRAGMENT_MAX_CHARS) {

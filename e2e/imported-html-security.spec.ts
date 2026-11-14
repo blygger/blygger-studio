@@ -10,6 +10,7 @@
  */
 import { test, expect } from './fixture';
 import { importedHtmlAttacks } from '../test/fixtures/imported-html-attacks';
+import { MATH_ATTRIBUTES, MATH_ELEMENTS } from '../src/math-render';
 test.use({ baseURL: 'http://127.0.0.1:8791' });
 
 for (const attack of importedHtmlAttacks) test('stored imported HTML cannot execute: ' + attack.id, async ({ page }) => {
@@ -30,6 +31,19 @@ for (const attack of importedHtmlAttacks) test('stored imported HTML cannot exec
   await page.evaluate(() => new Promise<void>(resolve => requestAnimationFrame(() => requestAnimationFrame(() => resolve()))));
   await expect(page.locator('html'), 'imported script must not execute in the owner document').not.toHaveAttribute('data-import-script', 'yes');
   expect(new URL(page.url()).pathname).toBe('/studio/reading');
+  // #105: a formula is redrawn from its TeX, so in the parsed document every
+  // element inside one, and every attribute on those, is the renderer's.
+  const strays = await article.evaluate((root, [elements, attributes]) => {
+    const found: string[] = [];
+    for (const math of root.querySelectorAll('math')) {
+      for (const node of [math, ...math.querySelectorAll('*')]) {
+        if (node.namespaceURI !== 'http://www.w3.org/1998/Math/MathML' || !elements.includes(node.localName)) found.push(node.localName);
+        for (const attribute of node.attributes) if (!attributes.includes(attribute.name)) found.push(`${node.localName}@${attribute.name}`);
+      }
+    }
+    return found;
+  }, [[...MATH_ELEMENTS], [...MATH_ATTRIBUTES]] as const);
+  expect(strays, 'nothing in a formula may come from the imported markup').toEqual([]);
 });
 
 // A public page is still on the owner's origin. Legacy feed imports do not gain

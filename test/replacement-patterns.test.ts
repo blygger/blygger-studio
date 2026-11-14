@@ -9,7 +9,12 @@ const NASTY = "Cost $& and $$ and $` and $' and $1 end";
 describe("replacement patterns in author text", () => {
   it("a block TK span with $-patterns publishes verbatim", async () => {
     const cookie = await login();
-    const id = (await apiJson(cookie, "POST", "/blyg/api/items", { contentMd: `Intro.\n\n[TK]impyrt=${NASTY}[/TK]\n\nOutro.` })).json.id as string;
+    // The lone dollars escaped, so the text is prose rather than a formula (#105).
+    // `$$` stays as typed (it opens nothing without a closing `$$`), and `$&`,
+    // `$1` and the rest are still in content_md for every splice to meet.
+    const escaped = NASTY.replace(/(?<!\$)\$(?!\$)/g, "\\$");
+    expect(escaped).toContain("$$");
+    const id = (await apiJson(cookie, "POST", "/blyg/api/items", { contentMd: `Intro.\n\n[TK]impyrt=${escaped}[/TK]\n\nOutro.` })).json.id as string;
     expect((await apiJson(cookie, "POST", `/blyg/api/items/${id}/publish`, {})).status).toBe(200);
     const doc = await (await getPublic(`/blyg/items/${id}.json`)).json<any>();
     // Markdown escapes the ampersand; every other character lands as written.
