@@ -42,7 +42,7 @@ import { DraftCounterSlot, editorRegions, enabledExtensions, type HostContext } 
 import { join, rebase, split, toFull, toShown, touches } from './editor-regions.ts';
 import type { EditorRegion } from './editor-regions.ts';
 import { HandlePicker } from './contacts.tsx';
-import { applyEdit, breakEdit, codeBlockEdit, indentEdit, onFormatKey } from './format-shortcuts.ts';
+import { applyEdit, breakEdit, codeBlockEdit, formulaEdit, indentEdit, onFormatKey } from './format-shortcuts.ts';
 import { BracketPicker } from './picker.tsx';
 import { revealCaret, setTextAt } from './caret.ts';
 import { Draft } from './draft.ts';
@@ -53,7 +53,7 @@ import { insertLink, isUrl, linkToast } from './links.ts';
 import { itemTitle, permalink, plainText, textWithLink } from './plain-text.ts';
 import { OcrScan } from './ocr.tsx';
 import { addStubQuote, passageCount, quoteCount, stubQuoteForm, withStubQuote } from './stub-quote.ts';
-import { CodeBlock, EnterFocus, ExitFocus, Image as ImageIcon, IndentIn, IndentOut, LineBreak, LinkIcon, More, Scan, Sparkle, Swap } from './icons.tsx';
+import { CodeBlock, EnterFocus, Formula, ExitFocus, Image as ImageIcon, IndentIn, IndentOut, LineBreak, LinkIcon, More, Scan, Sparkle, Swap } from './icons.tsx';
 import { SearchBox, SearchResults, store, stored } from './search.tsx';
 import './authoring.css';
 
@@ -132,7 +132,7 @@ function Help({ thread, className = 'compose-help' }: { thread?: boolean; classN
       paste or drop an image, to insert one there. Paste a URL over selected
       text to link it. Cmd/Ctrl+B, I and K make bold, italics and a link. Tab
       and Shift+Tab move a list item in and out; Shift+Enter breaks a line
-      without ending the paragraph.{' '}
+      without ending the paragraph. <code>$x^2$</code> writes a formula.{' '}
       <Link to="/syntax">full syntax reference</Link>
     </p>
   ) : (
@@ -2450,6 +2450,7 @@ function Editor({ item, onDiscarding }: { item: Detail; onDiscarding?: (active: 
             ['outdent', <IndentOut />, 'move list item out', 'Move the list item under the cursor out a level (Shift+Tab)'],
             ['break', <LineBreak />, 'line break', 'Break the line without ending the paragraph, for verse (Shift+Enter)'],
             ['code', <CodeBlock />, 'code block', 'Put the selected lines in a code block, or start an empty one'],
+            ['formula', <Formula />, 'formula', 'Write a formula in LaTeX between dollars: $x^2$ inline, $$…$$ on its own lines'],
           ] as const).map(([kind, icon, label, title]) => (
             <Button
               key={kind}
@@ -2464,6 +2465,7 @@ function Editor({ item, onDiscarding }: { item: Detail; onDiscarding?: (active: 
                 const change =
                   kind === 'break' ? breakEdit(el.value, from, to)
                   : kind === 'code' ? codeBlockEdit(el.value, from, to)
+                  : kind === 'formula' ? formulaEdit(el.value, from, to)
                   : indentEdit(el.value, from, to, kind === 'outdent');
                 if (change) applyEdit(el, change);
                 else toast(kind === 'indent' ? 'Put the cursor on a list item that has another above it.' : 'Put the cursor on an indented list item.');
@@ -2985,6 +2987,8 @@ function StubQuote({
   // destroy it, so it goes.
   const passages = passageCount(text, target);
   const [chosen, setChosen] = useState<{ passage: string; nth: number } | null>(null);
+  // A passage that takes in any part of a formula is refused here, as publish would (#105).
+  const [acrossFormula, setAcrossFormula] = useState(false);
   const [help, setHelp] = useState(() => fresh && !stubHelpDismissed());
   const [never, setNever] = useState(false);
   const replaceButton = useRef<HTMLButtonElement>(null);
@@ -3003,7 +3007,13 @@ function StubQuote({
         return found && pane?.contains(found) ? found : null;
       };
       const within = selection && !selection.isCollapsed ? quote(selection.anchorNode) : null;
+      setAcrossFormula(false);
       if (!within || within !== quote(selection!.focusNode) || !selection!.toString().trim()) return setChosen(null);
+      const range = selection!.getRangeAt(0);
+      if ([...within.querySelectorAll('math')].some((formula) => range.intersectsNode(formula))) {
+        setAcrossFormula(true);
+        return setChosen(null);
+      }
       // Only the target's own top-level quotes map to its directives, in order.
       const quotes = [...(pane?.querySelectorAll(`blockquote.blyg-transclusion[data-blyg-id="${CSS.escape(target)}"]`) ?? [])].filter(
         (node) => !node.parentElement?.closest('blockquote.blyg-transclusion'),
@@ -3100,6 +3110,11 @@ function StubQuote({
           how stubs work
         </button>
       </p>
+      {acrossFormula ? (
+        <p className="hint" data-note="quote-formula" role="status">
+          A passage can’t include a formula. Quote the whole post, or the prose either side of it.
+        </p>
+      ) : null}
       {chosen !== null ? (
         <div className="quote-pills">
           <button

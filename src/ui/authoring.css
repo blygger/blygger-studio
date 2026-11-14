@@ -261,3 +261,4 @@ html.focus-view { overflow: hidden; scrollbar-gutter: auto; }
 }
 .stub-help p[tabindex] { outline: none; }
 .stub-help pre code { padding: 0; background: none; border: none; font-size: inherit; }
+.preview .math-error, #preview-body .math-error { color: var(--alert); background: var(--alert-bg); border-radius: 4px; }

@@ -8,7 +8,9 @@ import { parseCustomTheme } from "./themes.ts";
 // Data access + publish-flow semantics — v0.1-plan §3.1.
 
 import { consumeHandles, withMentionCards } from "./contacts.ts";
-import { renderMarkdown } from "./markdown.ts";
+import { mathErrors, renderMarkdown } from "./markdown.ts";
+import { MathPublishError } from "./math.ts";
+import { mathFailures, withMathFailures } from "./math-render.ts";
 import { annotateGenerated, applyGeneratedWrappers, parseScopes, stripToOutput, TkPublishError, unresolvedScopes } from "./tk.ts";
 import { CommentPublishError, parseComments, sameOutsideComments, type CommentRange } from "./comments.ts";
 import { recordPublishInteractions } from "./interactions.ts";
@@ -26,7 +28,7 @@ import { FRAGMENT_MAX_CHARS } from "./types.ts";
 import { parseEnabledExtensions } from "./extensions/names.ts";
 import { absolutizeHtml, authoredText, contentHash, isFollowableUrl, newId, nowIso, visibleMedia } from "./util.ts";
 
-export { TkPublishError, TransclusionResolveError };
+export { MathPublishError, TkPublishError, TransclusionResolveError };
 
 /** Thrown by publish() when the *published* (TK-stripped) fragment length exceeds the studio cap (§2.7). */
 export class FragmentTooLongError extends Error {
@@ -353,7 +355,11 @@ function publishedProvenance(item: ItemRow, working: string, ranges: CommentRang
  * if the published fragment exceeds the studio cap, or TransclusionResolveError
  * if a thread directive fails to resolve — nothing is written in any case.
  */
-export async function publish(db: D1Database, item: ItemRow, note: string | null, ourOrigin?: string, noteGenerated = false): Promise<number> {
+export function publish(db: D1Database, item: ItemRow, note: string | null, ourOrigin?: string, noteGenerated = false): Promise<number> {
+  return withMathFailures(() => publishScoped(db, item, note, ourOrigin, noteGenerated));
+}
+
+async function publishScoped(db: D1Database, item: ItemRow, note: string | null, ourOrigin?: string, noteGenerated = false): Promise<number> {
   const now = nowIso();
   const version = item.version + 1;
   const kind = await authoredKind(db, item);
@@ -383,6 +389,9 @@ export async function publish(db: D1Database, item: ItemRow, note: string | null
   }
 
   const { text: strippedMd, spans } = stripToOutput(source, scopes);
+  // A formula that does not parse is refused like a link that does not resolve (#105).
+  const badMath = mathErrors(strippedMd);
+  if (badMath.length) throw new MathPublishError(badMath);
   // The cap measures the author's words, before a handle expands into a link.
   const authoredLength = handles.cards.size ? stripToOutput(authored, parseScopes(authored).scopes).text.length : strippedMd.length;
   if (kind === "fragment" && authoredLength > FRAGMENT_MAX_CHARS) {
@@ -448,6 +457,10 @@ export async function publish(db: D1Database, item: ItemRow, note: string | null
   } else {
     contentHtml = spliceLinks(applyGeneratedWrappers(renderMarkdown(links.text), annotated));
   }
+  // Every render above recorded the formulas that failed in it (R1): what was
+  // drawn is what is judged, and nothing has been written yet.
+  const failedMath = mathFailures();
+  if (failedMath.length) throw new MathPublishError(failedMath);
 
   // Every URL in `content_html` is made absolute against our own origin, for
   // the same reason `[[id]]` anchors are (§10.1): the HTML travels to

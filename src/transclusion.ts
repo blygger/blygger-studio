@@ -5,7 +5,7 @@ import { attachedQuote } from "./directives.ts";
 import { codeRanges, inRanges, lineOffsets } from "./code-ranges.ts";
 import { sanitizeHtml } from "./importer/sanitize.ts";
 import { blygItemUrl } from "./importer/util.ts";
-import { renderMarkdown, selectionText } from "./markdown.ts";
+import { renderMarkdown, selectionTouchesMath, selectionText } from "./markdown.ts";
 import type { ImportedItemRow, ItemRow, TextQuoteSelector, Transclusion, VersionRow } from "./types.ts";
 import { absolutizeHtml, escapeHtml } from "./util.ts";
 import { DIRECTIVE_LINE, label, LINK_INLINE, RESERVED_LINE } from "./grammar.ts";
@@ -340,6 +340,14 @@ async function walk(
         fail({
           directive: line.trim(),
           reason: `quoted passage not found in the target's version ${target.version}`,
+        });
+        continue;
+      }
+      // §5.2 (#105): a passage across a formula would bake as stripped symbols.
+      if (selectionTouchesMath(target.contentHtml, selection)) {
+        fail({
+          directive: line.trim(),
+          reason: "the quoted passage includes part of a formula; quote the whole post, or the prose either side of it",
         });
         continue;
       }
