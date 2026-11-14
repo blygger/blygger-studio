@@ -42,6 +42,7 @@ import { DraftCounterSlot, editorRegions, enabledExtensions, type HostContext } 
 import { join, rebase, split, toFull, toShown, touches } from './editor-regions.ts';
 import type { EditorRegion } from './editor-regions.ts';
 import { HandlePicker } from './contacts.tsx';
+import { editSyndication } from './syndication.tsx';
 import { applyEdit, breakEdit, codeBlockEdit, indentEdit, onFormatKey } from './format-shortcuts.ts';
 import { BracketPicker } from './picker.tsx';
 import { revealCaret, setTextAt } from './caret.ts';
@@ -2248,6 +2249,13 @@ function Editor({ item, onDiscarding }: { item: Detail; onDiscarding?: (active: 
           description: isPublic ? undefined : 'it shows on a public hopper once published',
           disabled: action.busy,
           onSelect: () => void action.run(addToHopper),
+        },
+        isPublic && {
+          icon: '⇉',
+          label: 'copies elsewhere…',
+          description: 'list where you posted this on other networks; it makes no new version',
+          disabled: action.busy,
+          onSelect: () => void editSyndication(item.id, item.version, (entries) => write({ type: 'syndication', entries })),
         },
         isPublic && {
           icon: '📌',

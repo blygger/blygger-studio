@@ -2,7 +2,7 @@
   "openapi": "3.1.0",
   "info": {
     "title": "Blygger Studio API",
-    "version": "5.8.0",
+    "version": "5.9.0",
     "description": "Private authoring and reading API. Protocol files remain a separate public interface."
   },
   "servers": [
@@ -575,6 +575,48 @@
           "id",
           "version"
         ]
+      },
+      "Syndication": {
+        "type": "object",
+        "properties": {
+          "entries": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/SyndicationEntry"
+            },
+            "description": "Copies of the item on other networks, in the owner's order. Spec 0.4 §16.14: the publisher's claim, carried on the live item document only."
+          },
+          "revision": {
+            "type": "integer",
+            "exclusiveMinimum": 0,
+            "maximum": 9007199254740991
+          }
+        },
+        "required": [
+          "entries",
+          "revision"
+        ]
+      },
+      "SyndicationEntry": {
+        "type": "object",
+        "properties": {
+          "url": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 2048,
+            "description": "An absolute https: URL at which the copy can be read. Use the most stable URL the network offers."
+          },
+          "version": {
+            "type": "integer",
+            "exclusiveMinimum": 0,
+            "description": "The version of the item the copy was made from."
+          }
+        },
+        "required": [
+          "url",
+          "version"
+        ],
+        "additionalProperties": false
       },
       "Settings": {
         "type": "object",
@@ -1503,6 +1545,16 @@
               "null"
             ],
             "items": {}
+          },
+          "syndication": {
+            "type": [
+              "array",
+              "null"
+            ],
+            "items": {
+              "$ref": "#/components/schemas/SyndicationEntry"
+            },
+            "description": "The origin's `syndication` member (spec 0.4 §16.14) as last fetched, kept to well-formed https: entries: copies the publisher says they made on other networks. The publisher's claim, never a reason to hide or merge another post. Absent or null when there are none. Fetched with the item document, so an entry added after the held version arrives with the next one."
           }
         },
         "required": [
@@ -2155,6 +2207,13 @@
                   "null"
                 ],
                 "description": "The highest version the owner has marked read; null when unread or cleared."
+              },
+              "syndication": {
+                "type": "array",
+                "items": {
+                  "$ref": "#/components/schemas/SyndicationEntry"
+                },
+                "description": "The origin's `syndication` member (spec 0.4 §16.14) as last fetched, https: entries only: copies the publisher says they made on other networks. The publisher's claim; absent when none."
               }
             },
             "required": [
@@ -2243,6 +2302,16 @@
               "null"
             ],
             "description": "The highest version the owner has marked read; null when unread or cleared."
+          },
+          "syndication": {
+            "type": [
+              "array",
+              "null"
+            ],
+            "items": {
+              "$ref": "#/components/schemas/SyndicationEntry"
+            },
+            "description": "The origin's `syndication` member (spec 0.4 §16.14) as last fetched, https: entries only. Null when none."
           },
           "origin": {
             "type": "string"
@@ -2362,6 +2431,7 @@
           "sourceUrl",
           "version",
           "readVersion",
+          "syndication",
           "origin",
           "created",
           "contentMd",
@@ -6716,6 +6786,357 @@
                     "version",
                     "already"
                   ]
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Request failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Request failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Request failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Request failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "405": {
+            "description": "Request failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Request failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "413": {
+            "description": "Request failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "415": {
+            "description": "Request failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Request failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Request failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Request failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "502": {
+            "description": "Request failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/items/{id}/syndication": {
+      "get": {
+        "operationId": "getSyndication",
+        "tags": [
+          "studio"
+        ],
+        "security": [
+          {
+            "ownerSession": []
+          },
+          {
+            "ownerOAuth": [
+              "owner:read"
+            ]
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "minLength": 1
+            },
+            "required": true,
+            "name": "id",
+            "in": "path"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Syndication"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Request failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Request failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Request failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Request failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "405": {
+            "description": "Request failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Request failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "413": {
+            "description": "Request failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "415": {
+            "description": "Request failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Request failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Request failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Request failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "502": {
+            "description": "Request failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "put": {
+        "operationId": "putSyndication",
+        "tags": [
+          "studio"
+        ],
+        "security": [
+          {
+            "ownerSession": []
+          },
+          {
+            "ownerOAuth": [
+              "owner:publish"
+            ]
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "minLength": 1
+            },
+            "required": true,
+            "name": "id",
+            "in": "path"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "entries": {
+                    "type": "array",
+                    "items": {
+                      "$ref": "#/components/schemas/SyndicationEntry"
+                    },
+                    "maxItems": 20,
+                    "description": "The whole list, in order (at most 20). Replaces the stored list; a repeated url keeps its first position. Every url must be an absolute https: URL and every version one of the item's published versions, or the request is refused."
+                  },
+                  "expectedRevision": {
+                    "type": "integer",
+                    "exclusiveMinimum": 0,
+                    "maximum": 9007199254740991,
+                    "description": "Required: the item's revision, as for a pin. A replace bumps it."
+                  }
+                },
+                "required": [
+                  "entries",
+                  "expectedRevision"
+                ],
+                "additionalProperties": false
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Syndication"
                 }
               }
             }

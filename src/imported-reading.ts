@@ -1,4 +1,5 @@
 // Imported authoring feed, with bounded generation-bound keyset pages.
+import { readSyndication } from "./syndication.ts";
 import { cursorPage } from "./cursor-page.ts";
 import { sanitizeHtml } from "./importer/sanitize.ts";
 import { sourceTitleAndUrl } from "./importer/util.ts";
@@ -59,6 +60,7 @@ async function entry(row: Row) {
     stubOf: parsed(row.stub_of_json, isObject),
     forkedFrom: parsed(row.forked_from_json, isObject),
     generated: parsed(row.generated_json, isArray),
+    syndication: readSyndication(parsed(row.syndication_json ?? null, isArray)),
   };
 }
 

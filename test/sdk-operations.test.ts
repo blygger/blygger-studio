@@ -29,6 +29,8 @@ it("exercises every declared operation through its named SDK method, including a
     ["updateItem", 200, async client => api.updateItem({ client, path: { id }, body: { ...({ contentMd: "matrix changed", responses: "hide" }), expectedRevision: await testItemRevision(id) } })],
     ["generateItem", 400, async client => api.generateItem({ client, path: { id }, body: { ...({ scope: 100 }), expectedRevision: await testItemRevision(id) } })],
     ["publishItem", 200, async client => api.publishItem({ client, path: { id } , body: { expectedRevision: await testItemRevision(id) } })],
+    ["getSyndication", 200, async client => api.getSyndication({ client, path: { id } })],
+    ["putSyndication", 200, async client => api.putSyndication({ client, path: { id }, body: { entries: [{ url: "https://bsky.app/profile/x/post/y", version: 1 }], expectedRevision: await testItemRevision(id) } })],
     ["pinItem", 200, async client => api.pinItem({ client, path: { id, version: 1 } , body: { expectedRevision: await testItemRevision(id) } })],
     ["restoreItem", 200, async client => api.restoreItem({ client, path: { id }, body: { ...({ version: 1 }), expectedRevision: await testItemRevision(id) } })],
     ["uploadMedia", 201, async client => api.uploadMedia({ client, body: { file: new File(["image"], "image.png", { type: "image/png" }), itemId: id, expectedRevision: await testItemRevision(id), alt: "matrix" } })],

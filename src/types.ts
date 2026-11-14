@@ -317,6 +317,8 @@ export interface ImportedItemRow {
   forked_from_json: string | null;
   /** JSON `generated` array as published (migration 0027); null when none or imported before it. */
   generated_json: string | null;
+  /** §16.14 `syndication` as fetched (migration 0047); null when none. */
+  syndication_json?: string | null;
 }
 
 export interface HopperRow {

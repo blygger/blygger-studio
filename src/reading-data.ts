@@ -1,3 +1,4 @@
+import { readSyndication } from "./syndication.ts";
 import { authoredItemKindSql, authoredVersionKind } from './version-state.ts';
 import { cursorPage, type CursorQuery } from "./cursor-page.ts";
 import { buildReadingFeed, type OwnEntryInput, type ImportedEntryInput } from "./importer/reading.ts";
@@ -83,8 +84,19 @@ async function readingEntries(db: D1Database, selectedRows: Identity[]) {
     }
     const row = importedById.get(JSON.stringify([identity.sub, identity.id]));
     if (!row) return null;
-    const input: ImportedEntryInput = { subscriptionId: row.subscription_id, subscriptionTitle: row.subscription_title || row.origin || row.subscription_id, remoteId: row.remote_id, sourceUrl: sourceTitleAndUrl(row, row.origin).url, kind: row.kind, withdrawn: row.state === "tombstone", l0: row.l0 === 1, updated: row.updated, observedAt: row.observed_at, contentHtml: await sanitizeHtml(row.content_html), pinnedVersionRetained: row.pinned_version_retained, version: row.version, readVersion: row.read_version ?? null };
+    const input: ImportedEntryInput = { subscriptionId: row.subscription_id, subscriptionTitle: row.subscription_title || row.origin || row.subscription_id, remoteId: row.remote_id, sourceUrl: sourceTitleAndUrl(row, row.origin).url, kind: row.kind, withdrawn: row.state === "tombstone", l0: row.l0 === 1, updated: row.updated, observedAt: row.observed_at, contentHtml: await sanitizeHtml(row.content_html), pinnedVersionRetained: row.pinned_version_retained, version: row.version, readVersion: row.read_version ?? null, ...syndicationOf(row) };
     return { ...buildReadingFeed([], [input])[0], key: `imported:${JSON.stringify([row.subscription_id, row.remote_id])}` };
   }));
   return entries.filter((e) => e !== null);
+}
+
+/** §16.14: a held item's copies, re-filtered on the way out (src/syndication.ts). */
+function syndicationOf(row: { syndication_json?: string | null }) {
+  if (!row.syndication_json) return {};
+  try {
+    const entries = readSyndication(JSON.parse(row.syndication_json));
+    return entries ? { syndication: entries } : {};
+  } catch {
+    return {};
+  }
 }

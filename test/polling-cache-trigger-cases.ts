@@ -22,6 +22,8 @@ export const triggerFamilies = [
   { table: 'mentions_out', insert: "INSERT INTO mentions_out(id,item_id,version,target,status,created) VALUES('matrix-out','matrix-item',1,'https://them/','pending','t')", update: "UPDATE mentions_out SET status='sent',attempts=1 WHERE id='matrix-out'", remove: "DELETE FROM mentions_out WHERE id='matrix-out'", domains: ['mentions'] },
   { table: 'interactions', insert: "INSERT INTO interactions(at,kind,origin,remote_id) VALUES('t','thumb_up','https://matrix-log/','remote')", update: "UPDATE interactions SET backfilled=1 WHERE origin='https://matrix-log/'", remove: "DELETE FROM interactions WHERE origin='https://matrix-log/'", domains: ['interactions'] },
   { table: 'browse_log', insert: "INSERT INTO browse_log(at,trail,origin,remote_id,via) VALUES('t','matrix-trail','https://matrix-log/','remote','start')", update: "UPDATE browse_log SET title='title' WHERE trail='matrix-trail'", remove: "DELETE FROM browse_log WHERE trail='matrix-trail'", domains: ['browse'] },
+  // 0047: a syndication row is on the live item document and its public page (§16.14); never the feed.
+  { table: 'item_syndication', insert: "INSERT INTO item_syndication(item_id,url,version,position) VALUES('matrix-item','https://copy.example/p',1,0)", update: "UPDATE item_syndication SET position=1 WHERE item_id='matrix-item'", remove: "DELETE FROM item_syndication WHERE item_id='matrix-item'", domains: ['items'] },
 ] as const;
 
 // Independent one-field branches that the SQLite prototype supplied in SQL

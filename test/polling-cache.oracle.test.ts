@@ -41,7 +41,7 @@ beforeEach(async () => {
   for (const sql of triggerDefinitions) await env.DB.prepare(sql.replace('CREATE TRIGGER ', 'CREATE TRIGGER IF NOT EXISTS ')).run();
   await env.DB.prepare('INSERT OR IGNORE INTO change_state(id) VALUES(1)').run();
   await env.DB.prepare("UPDATE change_state SET epoch=lower(hex(randomblob(16))),items=0,reading=0,subscriptions=0,hoppers=0,signals=0,settings=0,feed=0,mentions=0,responses=0,interactions=0,browse=0 WHERE id=1").run();
-  await env.DB.batch(['versions','media','items','settings','hopper_items','signals','read_state','imported_items','subscriptions','hoppers','mentions_in','mentions_out','interactions','browse_log'].map(table => env.DB.prepare(`DELETE FROM ${table}`)));
+  await env.DB.batch(['versions','media','items','settings','hopper_items','signals','read_state','imported_items','subscriptions','hoppers','mentions_in','mentions_out','interactions','browse_log','item_syndication'].map(table => env.DB.prepare(`DELETE FROM ${table}`)));
   await clearArtifacts();
 });
 afterEach(() => vi.useRealTimers());

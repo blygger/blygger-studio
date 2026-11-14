@@ -20,6 +20,7 @@ import type { ItemRow, MediaRow, Settings, SubscriptionRow, Transclusion, Versio
 import { loadFeedData, sourceKey, type FeedCardData, type FeedProvenance, type FeedItem } from "./public-feed.ts";
 import { WEBMENTION_PATH } from "./types.ts";
 import { meaningful, ownChangelog, ownSubject, storedSummary, type ChangelogEntry } from "./changelog-summary.ts";
+import { httpsUrl, listSyndication, type SyndicationEntry } from "./syndication.ts";
 import { escapeHtml, escapeHref, formatDateIn, unplacedMedia, visibleMedia } from "./util.ts";
 import { graphemePrefix } from "./text.ts";
 import { EMBED_CSS, EMBED_SCRIPT } from "./embeds.ts";
@@ -248,6 +249,7 @@ article.fragment > :first-child, article.thread > :first-child { margin-top: 0; 
 .version-line .pins a:hover { border-bottom-color: currentColor; }
 .version-note { font-style: italic; margin: 0.4rem 0 0; max-width: 52ch; }
 /* The changelog in full or summarized (session 61, Settings → changelog on item pages). */
+.syndication { font: var(--apparatus); color: var(--ink-soft); margin: 0.6rem 0 0; }
 .changelog { font: var(--apparatus); color: var(--ink-soft); margin: 0.6rem 0 0; max-width: 60ch; }
 .changelog-h { margin: 0 0 0.25rem; }
 .changelog ol { list-style: none; padding: 0; margin: 0; display: flex; flex-direction: column; gap: 0.2rem; }
@@ -1222,8 +1224,15 @@ ${permalinkLink(item.id, false, mount)}
  * the article's first-child rules still reach the first thing you see. A
  * withdrawn item is not an entry. No h-cite or responses markup, ever (tn-7).
  */
-export function asHEntry(article: string, settings: Settings, origin: string, url: string, published: string): string {
+export function asHEntry(article: string, settings: Settings, origin: string, url: string, published: string, syndication: readonly SyndicationEntry[] = []): string {
   if (!article.startsWith('<article class="') || /^<article class="[^"]*\bwithdrawn\b/.test(article)) return article;
+  // §16.14 syndication: the publisher's own copies elsewhere, as mf2
+  // u-syndication links. The live page only; the item document carries the
+  // same list, and a pinned page or an endcap never does.
+  const copies = syndication.filter(entry => httpsUrl(entry.url));
+  const also = copies.length
+    ? `<p class="syndication">also posted at ${copies.map(entry => `<a class="u-syndication" rel="syndication" href="${escapeHref(entry.url)}">${escapeHtml(new URL(entry.url).hostname)}</a>`).join(", ")}</p>\n`
+    : "";
   const author = settings.author_name
     ? `<a class="p-author h-card" href="${escapeHtml(settings.author_url || origin)}" hidden>${escapeHtml(settings.author_name)}</a>\n`
     : "";
@@ -1231,7 +1240,7 @@ export function asHEntry(article: string, settings: Settings, origin: string, ur
   return article
     .replace('<article class="', '<article class="h-entry ')
     .replace('<div class="item-content', '<div class="e-content item-content')
-    .replace(/<\/article>$/, () => `${meta}</article>`);
+    .replace(/<\/article>$/, () => `${also}${meta}</article>`);
 }
 
 /**
@@ -2082,7 +2091,7 @@ export async function permalinkPage(db: D1Database, settings: Settings, item: It
   const latest = await publishedVersion(db, item);
   const media = await listVersionMedia(db, item.id, item.version);
   const head = itemHead(latest?.content_html ?? "", settings);
-  const body = `${await blygPage(db, settings, mount, `${asHEntry(await fragmentBlock(db, item, mount, settings.timezone, false, undefined, await changelogSection(db, settings, item, false, mount)), settings, origin, url, item.created)}
+  const body = `${await blygPage(db, settings, mount, `${asHEntry(await fragmentBlock(db, item, mount, settings.timezone, false, undefined, await changelogSection(db, settings, item, false, mount)), settings, origin, url, item.created, await listSyndication(db, item.id))}
 ${await localMentionsSection(db, item, settings, mount, origin)}
 ${await responsesSection(db, item, settings, mount)}`)}
 <script>${VERSION_NAV_SCRIPT}</script>`;
@@ -2118,7 +2127,7 @@ export async function threadPage(db: D1Database, settings: Settings, item: ItemR
   const latest = await publishedVersion(db, item);
   const media = await listVersionMedia(db, item.id, item.version);
   const head = itemHead(latest?.content_html ?? "", settings, respondsToLabel(latest));
-  const body = `${await blygPage(db, settings, mount, `${asHEntry(await threadBlock(db, item, mount, settings.timezone, await changelogSection(db, settings, item, true, mount)), settings, origin, url, item.created)}
+  const body = `${await blygPage(db, settings, mount, `${asHEntry(await threadBlock(db, item, mount, settings.timezone, await changelogSection(db, settings, item, true, mount)), settings, origin, url, item.created, await listSyndication(db, item.id))}
 ${await localMentionsSection(db, item, settings, mount, origin)}
 ${await responsesSection(db, item, settings, mount)}`)}
 <script>${VERSION_NAV_SCRIPT}</script>`;

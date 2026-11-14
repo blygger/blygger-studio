@@ -35,7 +35,7 @@ export async function testMediaRevision(id: string): Promise<number | undefined>
 /** Carry current revisions only in sequential legacy fixture setup, never race probes. */
 export async function testRevisionBody(method: string, path: string, body?: unknown): Promise<unknown> {
   const pathname = new URL(path, BASE).pathname;
-  const item = /^(?:\/blyg)?\/api\/items\/([^/]+)(?:\/(?:publish|withdraw|restore|generate|refresh|classify|note-draft|versions\/\d+\/pin))?$/.exec(pathname);
+  const item = /^(?:\/blyg)?\/api\/items\/([^/]+)(?:\/(?:publish|withdraw|restore|generate|refresh|classify|note-draft|syndication|versions\/\d+\/pin))?$/.exec(pathname);
   const media = /^(?:\/blyg)?\/api\/media\/([^/]+)$/.exec(pathname);
   if (!['GET', 'HEAD'].includes(method) && (item || media) &&
       (body === undefined || body !== null && typeof body === 'object' && !Array.isArray(body)) &&

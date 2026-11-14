@@ -178,6 +178,52 @@ Publication, withdrawal, restoration, and generation remain explicit operations:
 - `POST /items/{id}/classify` asks the optional change classifier what kind of change the working copy would publish. See [Change classifier](#change-classifier).
 - `POST /items/{id}/refresh` republishes a thread to re-bake quotes whose source has a newer version. See below.
 
+## Syndication
+
+> Spec 0.4 §16.14 (decision #98) is a **ruled shape awaiting its gate**. This is
+> the publisher half of that gate.
+
+`syndication` lists copies of an item that the owner made on other networks,
+such as a Bluesky post or a Farcaster cast of it. Each entry is
+`{ url, version }`: an absolute `https:` URL at which the copy can be read, and
+the version of the item it was made from. Nothing else goes in an entry: no
+counts, no network name, no account.
+
+- `GET /items/{id}/syndication` (`owner:read`) returns `{ entries, revision }`
+  in the owner's order.
+- `PUT /items/{id}/syndication` (`owner:publish`) takes
+  `{ entries, expectedRevision }` and replaces the whole list. It returns the
+  stored `{ entries, revision }`. A repeated `url` keeps its first position.
+  At most 20 entries.
+
+Rules:
+
+- The list is **written in place** on the live item document
+  (`items/{id}.json`). It publishes no version, adds no changelog entry, adds
+  nothing to `feed.xml` and sends no mention. A pin works the same way.
+- Pinned files (`items/{id}/vN.json`) never carry it. A withdrawal endcap
+  omits it, and a withdrawn item refuses a `PUT` (409).
+- A draft has no version to copy, so a `PUT` on one is 409.
+- Each `version` must be one of the item's published versions (409 for a later
+  one). Each `url` must be an absolute `https:` URL (400 otherwise).
+- `expectedRevision` is the item's revision and is required. A `PUT` bumps it,
+  as a pin does. A stale revision is 409 `revision-conflict`.
+- The item's public page shows the copies as `u-syndication` links.
+- It moves the `items` change domain, never `feed`.
+
+Imported items keep the origin's `syndication` member as last fetched, filtered
+to well-formed `https:` entries (spec rule 5). They return it as `syndication`
+on `GET /reading` imported entries and on `GET /reading/imported`. It is the
+publisher's claim: the studio never hides or merges another post because of it,
+and never infers that the item's author is the account that posted the copy.
+The importer fetches an item document when its version moves, so a copy added
+after the held version shows up with the next one.
+
+```ts
+const { entries, revision } = await unwrap(BlyggerApi.getSyndication({ client, path: { id } }));
+await unwrap(BlyggerApi.putSyndication({ client, path: { id }, body: { entries: [...entries, { url, version: 3 }], expectedRevision: revision } }));
+```
+
 ## Change classifier
 
 Optional and **off by default**: nothing below happens until Settings → AI

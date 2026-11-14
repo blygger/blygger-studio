@@ -1,3 +1,4 @@
+import { listSyndication } from "./syndication.ts";
 import { authoredVersionKind } from './version-state.ts';
 // Protocol surface builders: item JSON, manifest, archive index, feed.xml
 // — v0.1-plan §2.3–2.6. These shapes are protocol; do not change casually.
@@ -100,6 +101,9 @@ export async function buildItemJson(db: D1Database, settings: Settings, item: It
   // the endcap also keeps. It costs nothing to keep and a withdrawn fork that
   // denied its parentage would be the protocol telling a small lie.
   const forkedFrom = withCited(parseStoredFork(item.forked_from), item.fork_cite);
+  // §16.14 syndication (decision #98): the live document only, written in
+  // place; an endcap omits it (rule 4), as pinned files always do.
+  const syndication = isWithdrawn ? [] : await listSyndication(db, item.id);
   return {
     blyg: PROTOCOL_VERSION,
     id: item.id,
@@ -122,6 +126,7 @@ export async function buildItemJson(db: D1Database, settings: Settings, item: It
     ...(stubOf ? { stub_of: stubOf } : {}),
     ...(forkedFrom ? { forked_from: forkedFrom } : {}),
     ...(generated !== undefined ? { generated } : {}),
+    ...(syndication.length ? { syndication } : {}),
     changelog,
   };
 }

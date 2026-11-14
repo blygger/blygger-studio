@@ -27,9 +27,9 @@ import { routes } from '../src/contract/routes.ts';
 
 const model = {
   authenticated: ['getCapabilities'],
-  'owner:read': ['listContacts','batchRead','getChanges','getItemSummary','listItemVersions','listHopperMemberships','getReadingSummary','getSignalSummary','listItems','getItem','getSettings','listSubscriptions','getSubscription','listHoppers','getHopper','listSignals','listMentions','listMentionGroups','getMentionSummary','search','getVersion','listReading','listImportedReading','getImportedItem','getImportedHistory','getImportedVersion','getUpdateState','getMentionSource','listStaleThreads','getItemFreshness','getForkOptions','listInteractions','listThumbs','getAiModels','peekItem','classifyLinks','listBrowse','extLineageGlyphGetLineage','extLineageGlyphListSummaries','extWordCountListCounts'],
+  'owner:read': ['getSyndication','listContacts','batchRead','getChanges','getItemSummary','listItemVersions','listHopperMemberships','getReadingSummary','getSignalSummary','listItems','getItem','getSettings','listSubscriptions','getSubscription','listHoppers','getHopper','listSignals','listMentions','listMentionGroups','getMentionSummary','search','getVersion','listReading','listImportedReading','getImportedItem','getImportedHistory','getImportedVersion','getUpdateState','getMentionSource','listStaleThreads','getItemFreshness','getForkOptions','listInteractions','listThumbs','getAiModels','peekItem','classifyLinks','listBrowse','extLineageGlyphGetLineage','extLineageGlyphListSummaries','extWordCountListCounts'],
   'owner:draft': ['createItem','updateItem','deleteItem','restoreItem','uploadMedia','generateItem','draftNote','summarizeChangelog','classifyChange','preview'],
-  'owner:publish': ['publishItem','withdrawItem','pinItem','refreshItem','deleteMedia'],
+  'owner:publish': ['publishItem','withdrawItem','pinItem','putSyndication','refreshItem','deleteMedia'],
   'owner:manage': ['createContact','updateContact','resolveContact','deleteContact','updateSettings','createSubscription','updateSubscription','resyncSubscription','pollAllSubscriptions','deleteSubscription','createHopper','updateHopper','deleteHopper','addHopperItem','removeHopperItem','setSignal','deleteSignal','updateMention'],
   'reading:state': ['markRead','markReadBatch','markUnread','markUnreadBatch','logBrowse','clearBrowse'],
 };

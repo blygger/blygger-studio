@@ -3,6 +3,7 @@
 
 import { syncImportedMentions } from "./mention-index.ts";
 import type { Surface } from "../surface.ts";
+import type { SyndicationEntry } from "../syndication.ts";
 import type { HopperItemRow, HopperRow, ImportedItemRow, SignalRow, SubscriptionRow } from "../types.ts";
 import { newId, nowIso, toIsoUtc } from "../util.ts";
 import type { LocalState, TransitionEffect } from "./transition.ts";
@@ -206,6 +207,13 @@ export function toLocalState(row: ImportedItemRow | null): LocalState {
 const lineage = (v: Record<string, unknown> | undefined) => (v ? JSON.stringify(v) : null);
 /** `generated` likewise (migration 0027): disclosure the reading view and the imports API pass on as published. */
 const generatedJson = (v: unknown[] | undefined) => (v?.length ? JSON.stringify(v) : null);
+
+/** A held item's §16.14 member (migration 0047); unchanged values write nothing. */
+export async function storeImportedSyndication(db: D1Database, subscriptionId: string, remoteId: string, entries: SyndicationEntry[] | null): Promise<void> {
+  const json = entries ? JSON.stringify(entries) : null;
+  await db.prepare("UPDATE imported_items SET syndication_json = ? WHERE subscription_id = ? AND remote_id = ? AND syndication_json IS NOT ?")
+    .bind(json, subscriptionId, remoteId, json).run();
+}
 
 export async function applyEffect(
   db: D1Database,

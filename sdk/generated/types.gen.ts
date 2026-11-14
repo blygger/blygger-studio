@@ -128,6 +128,25 @@ export type GenerationSource = {
     cited?: Citation;
 };
 
+export type Syndication = {
+    /**
+     * Copies of the item on other networks, in the owner's order. Spec 0.4 §16.14: the publisher's claim, carried on the live item document only.
+     */
+    entries: Array<SyndicationEntry>;
+    revision: number;
+};
+
+export type SyndicationEntry = {
+    /**
+     * An absolute https: URL at which the copy can be read. Use the most stable URL the network offers.
+     */
+    url: string;
+    /**
+     * The version of the item the copy was made from.
+     */
+    version: number;
+};
+
 export type Settings = {
     siteTitle: string;
     theme: string;
@@ -394,6 +413,10 @@ export type ImportedItem = {
         [key: string]: unknown;
     } | null;
     generated: Array<unknown> | null;
+    /**
+     * The origin's `syndication` member (spec 0.4 §16.14) as last fetched, kept to well-formed https: entries: copies the publisher says they made on other networks. The publisher's claim, never a reason to hide or merge another post. Absent or null when there are none. Fetched with the item document, so an entry added after the held version arrives with the next one.
+     */
+    syndication?: Array<SyndicationEntry> | null;
 };
 
 export type HopperMembership = {
@@ -558,6 +581,10 @@ export type ReadingEntry = {
          * The highest version the owner has marked read; null when unread or cleared.
          */
         readVersion: number | null;
+        /**
+         * The origin's `syndication` member (spec 0.4 §16.14) as last fetched, https: entries only: copies the publisher says they made on other networks. The publisher's claim; absent when none.
+         */
+        syndication?: Array<SyndicationEntry>;
     };
 };
 
@@ -581,6 +608,10 @@ export type ImportedReadingEntry = {
      * The highest version the owner has marked read; null when unread or cleared.
      */
     readVersion: number | null;
+    /**
+     * The origin's `syndication` member (spec 0.4 §16.14) as last fetched, https: entries only. Null when none.
+     */
+    syndication: Array<SyndicationEntry> | null;
     origin: string;
     created: string | null;
     /**
@@ -2237,6 +2268,157 @@ export type PinItemResponses = {
 };
 
 export type PinItemResponse = PinItemResponses[keyof PinItemResponses];
+
+export type GetSyndicationData = {
+    body?: never;
+    path: {
+        id: string;
+    };
+    query?: never;
+    url: '/items/{id}/syndication';
+};
+
+export type GetSyndicationErrors = {
+    /**
+     * Request failed
+     */
+    400: ApiError;
+    /**
+     * Request failed
+     */
+    401: ApiError;
+    /**
+     * Request failed
+     */
+    403: ApiError;
+    /**
+     * Request failed
+     */
+    404: ApiError;
+    /**
+     * Request failed
+     */
+    405: ApiError;
+    /**
+     * Request failed
+     */
+    409: ApiError;
+    /**
+     * Request failed
+     */
+    413: ApiError;
+    /**
+     * Request failed
+     */
+    415: ApiError;
+    /**
+     * Request failed
+     */
+    422: ApiError;
+    /**
+     * Request failed
+     */
+    429: ApiError;
+    /**
+     * Request failed
+     */
+    500: ApiError;
+    /**
+     * Request failed
+     */
+    502: ApiError;
+};
+
+export type GetSyndicationError = GetSyndicationErrors[keyof GetSyndicationErrors];
+
+export type GetSyndicationResponses = {
+    /**
+     * Success
+     */
+    200: Syndication;
+};
+
+export type GetSyndicationResponse = GetSyndicationResponses[keyof GetSyndicationResponses];
+
+export type PutSyndicationData = {
+    body: {
+        /**
+         * The whole list, in order (at most 20). Replaces the stored list; a repeated url keeps its first position. Every url must be an absolute https: URL and every version one of the item's published versions, or the request is refused.
+         */
+        entries: Array<SyndicationEntry>;
+        /**
+         * Required: the item's revision, as for a pin. A replace bumps it.
+         */
+        expectedRevision: number;
+    };
+    path: {
+        id: string;
+    };
+    query?: never;
+    url: '/items/{id}/syndication';
+};
+
+export type PutSyndicationErrors = {
+    /**
+     * Request failed
+     */
+    400: ApiError;
+    /**
+     * Request failed
+     */
+    401: ApiError;
+    /**
+     * Request failed
+     */
+    403: ApiError;
+    /**
+     * Request failed
+     */
+    404: ApiError;
+    /**
+     * Request failed
+     */
+    405: ApiError;
+    /**
+     * Request failed
+     */
+    409: ApiError;
+    /**
+     * Request failed
+     */
+    413: ApiError;
+    /**
+     * Request failed
+     */
+    415: ApiError;
+    /**
+     * Request failed
+     */
+    422: ApiError;
+    /**
+     * Request failed
+     */
+    429: ApiError;
+    /**
+     * Request failed
+     */
+    500: ApiError;
+    /**
+     * Request failed
+     */
+    502: ApiError;
+};
+
+export type PutSyndicationError = PutSyndicationErrors[keyof PutSyndicationErrors];
+
+export type PutSyndicationResponses = {
+    /**
+     * Success
+     */
+    200: Syndication;
+};
+
+export type PutSyndicationResponse = PutSyndicationResponses[keyof PutSyndicationResponses];
 
 export type RestoreItemData = {
     body: {

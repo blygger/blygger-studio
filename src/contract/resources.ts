@@ -2,6 +2,7 @@ import { INTERACTION_KINDS, type InteractionView, type listThumbs } from '../int
 import { BROWSE_VIA, type BrowseRow } from '../browse-log.ts';
 import { versionState } from '../version-state.ts';
 import { z } from '@hono/zod-openapi';
+import { readSyndication, SYNDICATION_URL_MAX } from '../syndication.ts';
 import { ItemRevisionSchema } from './schemas.ts';
 import { CHANGE_CATEGORIES } from '../change-category.ts';
 import type { ItemRow, VersionRow, MediaRow, SubscriptionRow, HopperRow, ImportedItemRow, MentionInRow, MentionOutRow, HopperItemRow, SignalRow } from '../types.ts';
@@ -100,6 +101,11 @@ export const ContactSchema = z.object({
   updated: z.string(),
 }).openapi("Contact");
 
+export const SyndicationEntrySchema = z.object({
+  url: z.string().min(1).max(SYNDICATION_URL_MAX).describe("An absolute https: URL at which the copy can be read. Use the most stable URL the network offers."),
+  version: z.number().int().positive().describe("The version of the item the copy was made from."),
+}).strict().openapi("SyndicationEntry");
+
 export const ImportedItemSchema = z.object({
   subscriptionId: z.string(),
   remoteId: z.string(),
@@ -121,6 +127,7 @@ export const ImportedItemSchema = z.object({
   stubOf: z.union([RemoteObjectSchema, z.null()]),
   forkedFrom: z.union([RemoteObjectSchema, z.null()]),
   generated: z.array(z.unknown()).nullable(),
+  syndication: z.array(SyndicationEntrySchema).nullable().optional().describe("The origin's `syndication` member (spec 0.4 §16.14) as last fetched, kept to well-formed https: entries: copies the publisher says they made on other networks. The publisher's claim, never a reason to hide or merge another post. Absent or null when there are none. Fetched with the item document, so an entry added after the held version arrives with the next one."),
 }).openapi("ImportedItem");
 
 export const MentionSchema = z.object({
@@ -285,6 +292,7 @@ export const importedResource = (row: ImportedItemRow) => ImportedItemSchema.par
   stubOf: stored(row.stub_of_json, ImportedItemSchema.shape.stubOf, null),
   forkedFrom: stored(row.forked_from_json, ImportedItemSchema.shape.forkedFrom, null),
   generated: stored(row.generated_json, ImportedItemSchema.shape.generated, null),
+  syndication: readSyndication(stored(row.syndication_json ?? null, z.unknown(), null)),
 });
 
 export const mentionResource = (row: MentionInRow) => MentionSchema.parse({

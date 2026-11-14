@@ -61,6 +61,34 @@ export function SourceLink({ url }: { url?: string | null }) {
     </a>
   ) : null;
 }
+/**
+ * §16.14: copies the publisher says they made on other networks. Shown as the
+ * publisher's claim and nothing more: never folded with another post, never
+ * read as naming the author's account. https: only (the server filters too).
+ */
+export function CopiesElsewhere({ entries }: { entries?: readonly { url: string; version: number }[] | null }) {
+  const copies = (entries ?? []).filter((entry) => {
+    try {
+      return new URL(entry.url).protocol === 'https:';
+    } catch {
+      return false;
+    }
+  });
+  if (!copies.length) return null;
+  return (
+    <p className="entry-src entry-syndication">
+      the author says it is also at{' '}
+      {copies.map((entry, index) => (
+        <span key={entry.url}>
+          {index ? ', ' : ''}
+          <a href={entry.url} target="_blank" rel="noreferrer" title={`copy of v${entry.version}`}>
+            {new URL(entry.url).hostname}
+          </a>
+        </span>
+      ))}
+    </p>
+  );
+}
 export function Html({ html, id }: { html: string; id?: string }) {
   return <div id={id} dangerouslySetInnerHTML={{ __html: html }} />;
 }

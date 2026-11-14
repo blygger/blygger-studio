@@ -11,8 +11,9 @@ import { parseFeed } from "./feed.ts";
 import type { FetchLike, FetchResult } from "./http.ts";
 import { platformFetch } from "./http.ts";
 import { pollL0Subscription } from "./l0.ts";
-import { appendFlag, applyEffect, dropImportedItemsExcept, getImportedItem, listHoppersForItem, recordIndexSync, recordPollFailure, recordPollSuccess, refreshSourceTitle, toLocalState, updateSurface } from "./store.ts";
+import { appendFlag, applyEffect, dropImportedItemsExcept, getImportedItem, listHoppersForItem, recordIndexSync, recordPollFailure, recordPollSuccess, refreshSourceTitle, storeImportedSyndication, toLocalState, updateSurface } from "./store.ts";
 import { transition } from "./transition.ts";
+import { readSyndication } from "../syndication.ts";
 import { mapLimit } from "./util.ts";
 import type { SubscriptionRow } from "../types.ts";
 
@@ -74,6 +75,13 @@ async function processItemCandidate(
     await applyEffect(db, sub.id, remoteId, result.effect, observedAt, { retainPinnedVersion });
   } else {
     await applyEffect(db, sub.id, remoteId, result.effect, observedAt);
+  }
+  // §16.14 syndication rides outside the hash and changes without a version,
+  // so it is taken from every document read here, a same-hash one included.
+  // An endcap carries none (rule 4), and a rejected document changes nothing.
+  if (result.effect.type !== "ignore") {
+    const member = (raw as { kind?: unknown; syndication?: unknown }).kind === "withdrawn" ? undefined : (raw as { syndication?: unknown }).syndication;
+    await storeImportedSyndication(db, sub.id, remoteId, readSyndication(member));
   }
   return { processed: true };
 }

@@ -52,6 +52,7 @@ import {
   useChrome,
   useSettings,
   SourceLink,
+  CopiesElsewhere,
 } from './components.tsx';
 import { Sheet, confirm, menu, prompt, toast } from './sheets.tsx';
 import { displayUrl, sourceTitleAndUrl } from '../importer/util.ts';
@@ -1114,6 +1115,7 @@ function Article({ entry, actions, origin }: { entry: Reading; actions: Actions;
         <EntryTitle title={content.title} url={a.url} as="h2" className="entry-title article-title" />
         <ReaderBody html={content.html} origin={origin} className="content entry-body article-body" />
         <SourceLink url={a.url} />
+        <CopiesElsewhere entries={entry.imported?.syndication} />
       </div>
       {a.imported && !entry.l0 && a.historyOpen ? (
         <History sub={a.imported.subscriptionId} id={a.id} />

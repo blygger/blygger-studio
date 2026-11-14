@@ -5,6 +5,8 @@ import { ErrorSchema, route } from "./route.ts";
 import { extensionRoutes } from "../../extensions/catalog.ts";
 import { ItemRevisionSchema } from "./schemas.ts";
 import { SettingsSchema } from './settings.ts';
+import { SyndicationEntrySchema } from './resources.ts';
+import { SYNDICATION_MAX } from '../syndication.ts';
 import { ContactSchema, HopperMembershipSchema, SignalSchema, OutboundMentionSchema, InteractionSchema, ThumbSchema, BrowseStepSchema } from './resources.ts';
 import { CHANGE_DOMAINS } from '../change-state.ts';
 import { CHANGE_CATEGORIES } from "../change-category.ts";
@@ -28,6 +30,10 @@ export const ItemCreateSchema = z.union([
 ]);
 const settingsBody = SettingsSchema.omit({ defaults: true, feedOrders: true }).partial().strict();
 const condition = z.object({ expectedRevision: ItemRevisionSchema });
+const SyndicationSchema = z.object({
+  entries: z.array(SyndicationEntrySchema).describe("Copies of the item on other networks, in the owner's order. Spec 0.4 §16.14: the publisher's claim, carried on the live item document only."),
+  revision: ItemRevisionSchema,
+}).openapi("Syndication");
 const note = condition.extend({ note: z.string().optional() });
 const changeCategory = z.enum(CHANGE_CATEGORIES);
 const version = condition.extend({ version: z.number().int().positive() });
@@ -40,7 +46,7 @@ const scopeSource = z.object({ id: z.string(), ok: z.boolean(), from: z.string()
 const scopes = z.array(z.object({ index: z.number(), instruction: z.string(), output: z.string().nullable(), hasOutput: z.boolean(), block: z.boolean(), imported: z.boolean(), sources: z.array(scopeSource) }));
 const preview = z.object({ html: z.string(), scopes, linkErrors: z.array(issue).optional(), errors: z.array(issue).optional(), transclusions: z.array(TransclusionSchema).optional(), unresolvedHandles: z.array(z.string()).optional() });
 const ownEntry = z.object({ id: z.string(), kind: z.enum(["fragment", "thread"]), withdrawn: z.boolean(), updated: z.string(), contentHtml: z.string() });
-const importedEntry = z.object({ subscriptionId: z.string(), subscriptionTitle: z.string(), remoteId: z.string(), kind: z.enum(["fragment", "thread"]), withdrawn: z.boolean(), l0: z.boolean(), updated: z.string().nullable(), observedAt: z.string(), contentHtml: z.string(), pinnedVersionRetained: z.number().nullable(), sourceUrl: z.string().nullable(), version: z.number().int().describe("The version of the item held here. A readVersion below it means a newer version arrived after the owner read it."), readVersion: z.number().int().nullable().describe("The highest version the owner has marked read; null when unread or cleared.") });
+const importedEntry = z.object({ subscriptionId: z.string(), subscriptionTitle: z.string(), remoteId: z.string(), kind: z.enum(["fragment", "thread"]), withdrawn: z.boolean(), l0: z.boolean(), updated: z.string().nullable(), observedAt: z.string(), contentHtml: z.string(), pinnedVersionRetained: z.number().nullable(), sourceUrl: z.string().nullable(), version: z.number().int().describe("The version of the item held here. A readVersion below it means a newer version arrived after the owner read it."), readVersion: z.number().int().nullable().describe("The highest version the owner has marked read; null when unread or cleared.") , syndication: z.array(SyndicationEntrySchema).optional().describe("The origin's `syndication` member (spec 0.4 §16.14) as last fetched, https: entries only: copies the publisher says they made on other networks. The publisher's claim; absent when none.") });
 /** One row of GET /reading/imported (studio#11): an imported entry with the fields a client authors from. */
 export const ImportedReadingEntrySchema = importedEntry.extend({
   origin: z.string(),
@@ -54,6 +60,7 @@ export const ImportedReadingEntrySchema = importedEntry.extend({
   stubOf: z.record(z.string(), z.unknown()).nullable().describe("The origin's stub_of verbatim (CitationTarget shape); remote and unvalidated. Null when none."),
   forkedFrom: z.record(z.string(), z.unknown()).nullable().describe("The origin's forked_from verbatim (VersionReference shape); remote and unvalidated. Null when none."),
   generated: z.array(z.unknown()).nullable().describe("The origin's generated[] verbatim (GenerationProvenance shape, remote sources' origin and cited included); remote and unvalidated. Null when none."),
+  syndication: z.array(SyndicationEntrySchema).nullable().describe("The origin's `syndication` member (spec 0.4 §16.14) as last fetched, https: entries only. Null when none."),
 }).openapi("ImportedReadingEntry");
 export const ReadingEntrySchema = z.object({ key: z.string(), source: z.enum(["own", "imported"]), kind: z.enum(["fragment", "thread"]), withdrawn: z.boolean(), l0: z.boolean(), contentHtml: z.string(), displayAt: z.string(), own: ownEntry.optional(), imported: importedEntry.optional() }).openapi("ReadingEntry");
 const subscribed = SubscriptionSchema;
@@ -107,6 +114,11 @@ export const routes = {
   generateItem: route("generateItem", draftOperation({"writes":["items"],"destructive":true,"network":true}), "post", "/items/{id}/generate", z.object({ text: z.string(), model: z.string(), contentMd: z.string(), revision: ItemRevisionSchema }), condition.extend({ scope: z.number().int().min(0) })),
   withdrawItem: route("withdrawItem", publishOperation({"writes":["items","publication","mentions"],"destructive":true,"network":true,"background":true}), "post", "/items/{id}/withdraw", ok.extend({ revision: ItemRevisionSchema, version: z.number() }), note, 200),
   pinItem: route("pinItem", publishOperation({"writes":["publication"]}), "put", "/items/{id}/versions/{version}/pin", ok.extend({ revision: ItemRevisionSchema, version: z.number(), already: z.boolean() }), condition),
+  getSyndication: route("getSyndication", readOperation(), "get", "/items/{id}/syndication", SyndicationSchema),
+  putSyndication: route("putSyndication", publishOperation({"writes":["publication"]}), "put", "/items/{id}/syndication", SyndicationSchema, z.object({
+    entries: z.array(SyndicationEntrySchema).max(SYNDICATION_MAX).describe(`The whole list, in order (at most ${SYNDICATION_MAX}). Replaces the stored list; a repeated url keeps its first position. Every url must be an absolute https: URL and every version one of the item's published versions, or the request is refused.`),
+    expectedRevision: ItemRevisionSchema.describe("Required: the item's revision, as for a pin. A replace bumps it."),
+  }).strict().describe("Replace the item's `syndication` list (spec 0.4 §16.14, decision #98): copies of the item that the owner made on other networks. Written in place on the live item document: no version, no changelog entry, no feed entry, no mention. Pinned files and a withdrawal endcap never carry it. Published, non-withdrawn items only (409 otherwise).")),
   restoreItem: route("restoreItem", draftOperation({"writes":["items","media"],"destructive":true}), "post", "/items/{id}/restore", ok.extend({ revision: ItemRevisionSchema, restored: z.number(), publishesAs: z.number() }), version),
   deleteItem: route("deleteItem", draftOperation({"writes":["items","media"],"destructive":true}), "delete", "/items/{id}", ok.extend({ outcome: z.literal("discarded") }), condition),
   uploadMedia: createRoute({ ...route("uploadMedia", { ...draftOperation({"writes":["media"]}), scopeNotes: 'Attaching new media to a published item also requires owner:publish. Returning an existing duplicate does not.' }, "post", "/media", z.object({ id: z.string(), url: z.string(), mime: z.string(), revision: ItemRevisionSchema.optional() }), undefined, 201), request: { body: { required: true, content: { "multipart/form-data": { schema: z.object({ file: z.custom<File>((value) => value instanceof File, "file field required (multipart)").openapi({ type: "string", format: "binary" }), itemId: z.string().optional(), expectedRevision: z.coerce.number().pipe(ItemRevisionSchema).optional(), alt: z.string().optional(), inline: z.enum(["true", "false"]).optional() }).strict() } } } } }),

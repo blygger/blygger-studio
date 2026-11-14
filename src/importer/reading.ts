@@ -46,6 +46,8 @@ export interface ImportedEntryInput {
   version: number;
   /** The highest version the owner has marked read (migration 0026); null when unread or cleared. */
   readVersion: number | null;
+  /** §16.14 copies the publisher says they made elsewhere, https: only (migration 0047); absent when none. */
+  syndication?: { url: string; version: number }[];
 }
 
 export interface ReadingFeedEntry {

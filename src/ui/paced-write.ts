@@ -3,7 +3,7 @@ import { z } from 'zod';
 import { CHANGE_CATEGORIES } from '../change-category.ts';
 import type {
   GetItemResponses, UpdateItemResponses, GenerateItemResponses, PublishItemResponses,
-  DeleteItemResponses, WithdrawItemResponses, PinItemResponses, DraftNoteResponses, ClassifyChangeResponses,
+  DeleteItemResponses, WithdrawItemResponses, PinItemResponses, PutSyndicationResponses, DraftNoteResponses, ClassifyChangeResponses,
   UploadMediaResponses, DeleteMediaResponses, RefreshItemResponses,
 } from '../../sdk/dist/browser.js';
 
@@ -20,6 +20,8 @@ export const draftWriteSchema = z.discriminatedUnion('type', [
   z.object({ type: z.literal('delete') }),
   z.object({ type: z.literal('withdraw') }),
   z.object({ type: z.literal('pin'), version: z.number().int().positive() }),
+  // §16.14 syndication: the whole list, written in place (no version).
+  z.object({ type: z.literal('syndication'), entries: z.array(z.object({ url: z.string(), version: z.number().int().positive() })) }),
   // history: summarize the whole revision history to date (session 61), not just this change.
   z.object({ type: z.literal('draft-note'), history: z.boolean().optional() }),
   z.object({ type: z.literal('classify') }),
@@ -35,7 +37,7 @@ type Results = {
   save: UpdateItemResponses[200]; generate: GenerateItemResponses[200];
   restore: GetItemResponses[200]; publish: PublishItemResponses[200];
   delete: DeleteItemResponses[200]; withdraw: WithdrawItemResponses[200];
-  pin: PinItemResponses[200]; 'draft-note': DraftNoteResponses[200]; classify: ClassifyChangeResponses[200];
+  pin: PinItemResponses[200]; syndication: PutSyndicationResponses[200]; 'draft-note': DraftNoteResponses[200]; classify: ClassifyChangeResponses[200];
   update: UpdateItemResponses[200]; upload: UploadMediaResponses[201] | UploadMediaResponses[200];
   'delete-media': DeleteMediaResponses[200]; refresh: RefreshItemResponses[200];
 };
