@@ -9,3 +9,8 @@ const escapeHtml = (s: string) =>
 export function renderTex(tex: string, display: boolean): { html: string; error?: string } {
   return { html: escapeHtml(display ? `$$${tex}$$` : `$${tex}$`) };
 }
+
+/** The browser never publishes: nothing to record. */
+export const noteMathFailure = (_failure: { formula: string; reason: string }) => {};
+/** Kept equal to math-render.ts's, which the finder in math.ts imports. */
+export const TEX_MAX = 4000;

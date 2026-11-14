@@ -12,7 +12,7 @@
 // holds the owner's session.
 import type MarkdownIt from "markdown-it";
 import type { StateInline } from "markdown-it";
-import { renderTex } from "./math-render.ts";
+import { noteMathFailure, renderTex, TEX_MAX } from "./math-render.ts";
 
 export interface MathSpan {
   /** The TeX between the delimiters, as written. */
@@ -23,29 +23,56 @@ export interface MathSpan {
   end: number;
 }
 
+// The Private Use Area, where the studio's own placeholders live (studio#3).
+const SENTINEL = /[\uE000-\uF8FF]/;
+const SENTINELS = /[\uE000-\uF8FF]+[^\uE000-\uF8FF]*?[\uE000-\uF8FF]+|[\uE000-\uF8FF]+/g;
+
 const isSpace = (c: string | undefined) => c === undefined || /\s/.test(c);
+
+/**
+ * For each position in one inline source, the next dollar that could close an
+ * inline formula and the next `$$`, both unescaped. Computed once per source in
+ * one pass, so finding a formula is linear however many lone dollars a paragraph
+ * holds (Fable's review of studio#149: per-opener scanning was quadratic).
+ */
+let closers: { src: string; inline: Int32Array; display: Int32Array } | null = null;
+function closersFor(src: string) {
+  if (closers?.src === src) return closers;
+  const n = src.length;
+  const escaped = new Uint8Array(n + 1);
+  for (let k = 0; k < n; k++) if (src[k] === "\\" && !escaped[k]) escaped[k + 1] = 1;
+  const inline = new Int32Array(n + 1).fill(-1);
+  const display = new Int32Array(n + 1).fill(-1);
+  let nextInline = -1;
+  let nextDisplay = -1;
+  for (let j = n - 1; j >= 0; j--) {
+    if (src[j] === "$" && !escaped[j]) {
+      if (!isSpace(src[j - 1]) && !/\d/.test(src[j + 1] ?? "")) nextInline = j;
+      if (src[j + 1] === "$") nextDisplay = j;
+    }
+    inline[j] = nextInline;
+    display[j] = nextDisplay;
+  }
+  closers = { src, inline, display };
+  return closers;
+}
 
 /** The formula opening at `pos` in `src`, if one does. */
 export function mathAt(src: string, pos: number): MathSpan | null {
   if (src[pos] !== "$") return null;
+  const found = closersFor(src);
+  // A formula longer than TEX_MAX is not drawn, so a closing dollar further
+  // away than that does not close one: those dollars are prose.
   if (src[pos + 1] === "$") {
-    for (let j = pos + 2; j < src.length - 1; j++) {
-      if (src[j] === "\\") { j++; continue; }
-      if (src[j] === "$" && src[j + 1] === "$") {
-        const tex = src.slice(pos + 2, j);
-        return tex.trim() ? { tex, display: true, start: pos, end: j + 2 } : null;
-      }
-    }
-    return null;
+    const j = pos + 2 <= src.length ? found.display[pos + 2] : -1;
+    if (j < 0 || j - (pos + 2) > TEX_MAX) return null;
+    const tex = src.slice(pos + 2, j);
+    return tex.trim() ? { tex, display: true, start: pos, end: j + 2 } : null;
   }
   if (isSpace(src[pos + 1])) return null;
-  for (let j = pos + 1; j < src.length; j++) {
-    if (src[j] === "\\") { j++; continue; }
-    if (src[j] !== "$") continue;
-    if (isSpace(src[j - 1]) || /\d/.test(src[j + 1] ?? "")) continue;
-    return { tex: src.slice(pos + 1, j), display: false, start: pos, end: j + 1 };
-  }
-  return null;
+  const j = found.inline[pos + 1];
+  if (j < 0 || j - (pos + 1) > TEX_MAX) return null;
+  return { tex: src.slice(pos + 1, j), display: false, start: pos, end: j + 1 };
 }
 
 function mathInline(state: StateInline, silent: boolean): boolean {
@@ -67,7 +94,18 @@ export function mathPlugin(md: MarkdownIt) {
   md.inline.ruler.after("escape", "math_inline", mathInline);
   md.renderer.rules.math_inline = (tokens, idx) => {
     const token = tokens[idx];
-    return renderTex(token.content, Boolean(token.meta?.display)).html;
+    const display = Boolean(token.meta?.display);
+    const { html, error } = renderTex(token.content, display);
+    if (error) {
+      // By the time a formula renders at publish, a link, a mention or a
+      // generated span inside it has become a private sentinel character.
+      const inner = SENTINEL.test(token.content);
+      noteMathFailure({
+        formula: `${token.markup}${token.content.replace(SENTINELS, "…")}${token.markup}`,
+        reason: inner ? "a formula cannot contain a link, a mention or a generated span" : error,
+      });
+    }
+    return html;
   };
 }
 

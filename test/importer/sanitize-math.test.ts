@@ -143,3 +143,16 @@ describe('commands temml draws with menclose (v0.4-plan §23.5)', () => {
     expect(await sanitizeHtml('<math><annotation encoding="application/x-tex">\\cancel{x}</annotation></math>')).toBe('<code class="math-source">$\\cancel{x}$</code>');
   });
 });
+
+describe('the review of studio#149, R4 and the small fixes', () => {
+  it('past 100,000 characters of TeX in one document, formulas are their TeX as text', async () => {
+    const tex = 'x+'.repeat(1900) + 'y';
+    const one = `<math><annotation encoding="application/x-tex">${tex}</annotation></math>`;
+    const out = await sanitizeHtml(one.repeat(30));
+    expect(out.match(/<math/g)).toHaveLength(26);
+    expect(out.match(/class="math-source"/g)).toHaveLength(4);
+  });
+  it('encoding and display are read whatever their case', async () => {
+    expect(await sanitizeHtml('<math DISPLAY="BLOCK"><annotation ENCODING="Application/X-TeX">x</annotation></math>')).toBe(drawing('x', true));
+  });
+});

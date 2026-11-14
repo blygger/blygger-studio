@@ -37,6 +37,8 @@ function safeUrl(raw: string, image: boolean) {
  */
 interface Formula { tex: string | null; display: boolean }
 const FORMULAS_MAX = 1000;
+/** TeX drawn per document (R4): 1,000 formulas at the cap is 4 MB and seconds of work on every display. */
+const TEX_BUDGET = 100_000;
 const nonce = () => crypto.getRandomValues(new Uint32Array(4)).reduce((acc, n) => acc + n.toString(36), '');
 
 async function collectFormulas(html: string, marker: string) {
@@ -48,7 +50,7 @@ async function collectFormulas(html: string, marker: string) {
       element(el) {
         const top = open.length === 0;
         const index = formulas.length;
-        formulas.push({ tex: null, display: top && el.getAttribute('display') === 'block' });
+        formulas.push({ tex: null, display: top && el.getAttribute('display')?.trim().toLowerCase() === 'block' });
         el.setAttribute(marker, top ? String(index) : 'nested');
         // `<math/>` has no content and no end tag to wait for.
         try {
@@ -60,7 +62,7 @@ async function collectFormulas(html: string, marker: string) {
     .on('annotation', {
       element(el) {
         const formula = open.length === 1 ? formulas[open[0]] : undefined;
-        if (!formula || formula.tex !== null || el.getAttribute('encoding') !== 'application/x-tex') return;
+        if (!formula || formula.tex !== null || el.getAttribute('encoding')?.trim().toLowerCase() !== 'application/x-tex') return;
         try {
           el.onEndTag(() => {
             if (reading) reading.formula.tex = decodeHTML(reading.text);
@@ -86,10 +88,12 @@ export async function sanitizeHtml(html: string, makeNonce: () => string = nonce
   const { marked, formulas } = await collectFormulas(html, marker);
   const out = await sanitizeMarkup(marked, { marker, token, formulas });
   let drawn = 0;
+  let spent = 0;
   return out.replace(new RegExp(`${token}(\\d+)x`, 'g'), (_, index: string) => {
     const formula = formulas[Number(index)];
     if (!formula?.tex) return '';
-    if (++drawn > FORMULAS_MAX) return texAsText(formula.tex, formula.display);
+    spent += formula.tex.length;
+    if (++drawn > FORMULAS_MAX || spent > TEX_BUDGET) return texAsText(formula.tex, formula.display);
     const { html: drawing, error } = renderTex(formula.tex, formula.display);
     return error ? texAsText(formula.tex, formula.display) : drawing;
   });

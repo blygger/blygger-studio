@@ -44,16 +44,54 @@ export function mathErrors(contentMd: string) {
  * MathML would be a run of symbols. Never for the §2 text content, which has no
  * exception for a formula: `selectionText` strips tags and nothing else.
  */
-const MATH = /<math\b([^>]*)>([\s\S]*?)<\/math>/gi;
 function mathAsTex(html: string): string {
   if (!html.includes("<math")) return html;
-  return html.replace(MATH, (whole, attrs: string, inner: string) => {
-    const tex = /<annotation encoding="application\/x-tex">([\s\S]*?)<\/annotation>/.exec(inner)?.[1];
-    if (tex === undefined) return whole;
-    const mark = /display="block"/.test(attrs) ? "$$" : "$";
+  return replaceElements(html, ["math"], true, (_, open, inner, whole) => {
+    const at = inner.indexOf('<annotation encoding="application/x-tex">');
+    const end = at < 0 ? -1 : inner.indexOf("</annotation>", at);
+    if (end < 0) return whole;
+    const tex = inner.slice(at + '<annotation encoding="application/x-tex">'.length, end);
+    const mark = /display="block"/.test(open) ? "$$" : "$";
     return ` ${mark}${tex.trim()}${mark} `;
   });
 }
+
+/**
+ * Each `<name …>…</name>` in `html`, left to right, handed to `replace`; found
+ * with indexOf and never with a lazy regex, which on hostile HTML (an opener
+ * repeated with no closer) scans to the end once per opener: 0.7 s at 160 KB,
+ * on the import and excerpt paths (Fable's review of studio#149, R3). Matches
+ * what `/<(a|b)[^>]*>[\s\S]*?<\/\1>/gi` matched, `\b` after the name if
+ * `bounded`: an opener with no closer is left alone, and so is every later
+ * opener of that name, which cannot have one either.
+ */
+function replaceElements(html: string, names: string[], bounded: boolean, replace: (name: string, open: string, inner: string, whole: string) => string): string {
+  const lower = html.toLowerCase();
+  const live = new Set(names);
+  let out = "";
+  let from = 0;
+  let pos = 0;
+  while (live.size) {
+    let at = -1;
+    let name = "";
+    for (const candidate of live) {
+      let i = lower.indexOf(`<${candidate}`, pos);
+      while (bounded && i >= 0 && /[a-z0-9_]/.test(lower[i + candidate.length + 1] ?? "")) i = lower.indexOf(`<${candidate}`, i + 1);
+      if (i < 0) { live.delete(candidate); continue; }
+      if (at < 0 || i < at) { at = i; name = candidate; }
+    }
+    if (at < 0) break;
+    const openEnd = lower.indexOf(">", at);
+    if (openEnd < 0) break;
+    const close = lower.indexOf(`</${name}>`, openEnd + 1);
+    if (close < 0) { live.delete(name); pos = at + 1; continue; }
+    const end = close + name.length + 3;
+    out += html.slice(from, at) + replace(name, html.slice(at, openEnd + 1), html.slice(openEnd + 1, close), html.slice(at, end));
+    from = pos = end;
+  }
+  return out + html.slice(from);
+}
+const withoutScripts = (html: string) => replaceElements(html, ["script", "style"], false, () => " ");
 
 /** Plain text of rendered markdown, for feed titles and excerpts. */
 export function plainText(contentMd: string): string {
@@ -105,8 +143,7 @@ export function decodeEntities(s: string): string {
  */
 export function plainTextFromHtml(html: string): string {
   return decodeEntities(
-    mathAsTex(html)
-      .replace(/<(script|style)[^>]*>[\s\S]*?<\/\1>/gi, " ")
+    withoutScripts(mathAsTex(html))
       .replace(BLOCK_BOUNDARY, " ")
       .replace(/<[^>]+>/g, ""),
   )
@@ -149,8 +186,7 @@ function normalizeBlocks(segments: string[]): string {
 export function selectionText(html: string): string {
   return normalizeBlocks(
     decodeEntities(
-      html
-        .replace(/<(script|style)[^>]*>[\s\S]*?<\/\1>/gi, " ")
+      withoutScripts(html)
         .replace(BLOCK_BOUNDARY, BLOCK_SEP)
         .replace(/<[^>]+>/g, ""),
     ).split(BLOCK_SEP),
@@ -178,7 +214,7 @@ export function selectionText(html: string): string {
  */
 export function selectionTouchesMath(html: string, selection: string): boolean {
   if (!html.includes("<math")) return false;
-  const holed = selectionText(html.replace(/<math\b[\s\S]*?<\/math>/gi, "\uFFFC"));
+  const holed = selectionText(replaceElements(html, ["math"], true, () => "\uFFFC"));
   return selectionText(html).includes(selection) && !holed.includes(selection);
 }
 

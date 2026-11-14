@@ -13,6 +13,21 @@
 //
 // The browser bundle gets math-render.browser.ts in this module's place.
 import temml from "temml";
+import { AsyncLocalStorage } from "node:async_hooks";
+
+/** A formula publish refuses, as the author wrote it, and why. */
+export interface MathFailure { formula: string; reason: string }
+/**
+ * The formulas that failed while one publish rendered (Fable's review of
+ * studio#149, R1). Recorded by the markdown render rule as it draws, so publish
+ * judges what was actually rendered, after links, mentions and generated spans
+ * went in, and never the HTML it produced, which can carry other origins' bytes.
+ * Scoped per request: two publishes in one isolate never see each other's.
+ */
+const failures = new AsyncLocalStorage<MathFailure[]>();
+export const withMathFailures = <T>(fn: () => Promise<T>): Promise<T> => failures.run([], fn);
+export const noteMathFailure = (failure: MathFailure) => { failures.getStore()?.push(failure); };
+export const mathFailures = (): MathFailure[] => failures.getStore() ?? [];
 
 // Escaped here, not imported: this module is in both the Worker and the UI
 // typecheck, and util.ts is Worker-only.
@@ -30,12 +45,30 @@ export const MATH_ATTRIBUTES = new Set(
   "display displaystyle scriptlevel mathvariant stretchy fence separator lspace rspace movablelimits accent accentunder form largeop symmetric minsize maxsize linethickness columnalign rowalign columnspan rowspan width height depth voffset encoding class".split(" "),
 );
 
-/** Whether rendered MathML uses only allowed element and attribute names. */
+/**
+ * Lengths a formula may set (Fable's review of studio#149, R2). Without a bound,
+ * `\\raisebox{-30em}` lays a quoted formula's text over someone else's paragraph
+ * and `\\hspace{9999em}` blows out the page: what stripping `style` was for. In
+ * em: at most 20, at least -2. Other units by rough equivalence.
+ */
+const LENGTHS = new Set("width height depth voffset lspace rspace minsize maxsize linethickness".split(" "));
+const EM: Record<string, number> = { em: 1, ex: 0.5, px: 1 / 16, pt: 1 / 12, "%": 0.2 };
+export function allowedLength(value: string): boolean {
+  if (value === "-1width") return true; // temml's \llap: back by its own width, never more
+  const m = /^(-?\d*\.?\d+)(em|ex|px|pt|%)?$/.exec(value.trim());
+  if (!m) return false;
+  const em = Number(m[1]) * (m[2] ? EM[m[2]] : 1);
+  return em <= 20 && em >= -2;
+}
+
+/** Whether rendered MathML uses only allowed element and attribute names, and bounded lengths. */
 export function allowedMath(html: string): boolean {
   for (const tag of html.matchAll(/<\/?([^\s/>]+)([^>]*)>/g)) {
     if (!MATH_ELEMENTS.has(tag[1].toLowerCase())) return false;
-    for (const attribute of tag[2].matchAll(/([^\s=/]+)\s*(?:=\s*(?:"[^"]*"|'[^']*'|[^\s>]+))?/g)) {
-      if (!MATH_ATTRIBUTES.has(attribute[1].toLowerCase())) return false;
+    for (const attribute of tag[2].matchAll(/([^\s=/]+)\s*(?:=\s*("[^"]*"|'[^']*'|[^\s>]+))?/g)) {
+      const name = attribute[1].toLowerCase();
+      if (!MATH_ATTRIBUTES.has(name)) return false;
+      if (LENGTHS.has(name) && !allowedLength((attribute[2] ?? "").replace(/^["']|["']$/g, ""))) return false;
     }
   }
   return true;
@@ -155,7 +188,7 @@ function drawChecked(tex: string, display: boolean, draw: (tex: string, display:
   // No formula restyles the page it lands on (§23.4): the display flag alone
   // makes a displayed formula a block.
   html = html.replace(/\sstyle="[^"]*"/g, "");
-  if (!allowedMath(html)) return failed("this formula uses MathML the Studio does not publish yet");
+  if (!allowedMath(html)) return failed("this formula uses MathML the Studio does not publish yet, or moves its text further than a formula may");
   return { html };
 }
 
