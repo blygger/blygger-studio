@@ -199,6 +199,7 @@ const barHost: BarHostContext = {
   selection: () => ({ start: 1, end: 1 }),
   insert: () => {},
   replace: () => {},
+  select: () => {},
 };
 const bars = (extensions: readonly StudioExtension[], host: BarHostContext = barHost) => {
   let owns = false;

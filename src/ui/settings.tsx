@@ -27,6 +27,7 @@ import { FONTS } from '../fonts.ts';
 import { DEFAULT_FEED_ORDER, FEED_ALGORITHMS } from '../feeds/index.ts';
 import { CLIENT } from '../client.ts';
 import { AddressBook } from './contacts.tsx';
+import { DictionaryCard } from './dictionary.tsx';
 import { ERROR_LOG_MAX, describeEntry, diagnostics, errorLog, exportLog, thisDevice } from './error-log.ts';
 import { compiledExtensions } from '../../build/extensions.ui.ts';
 import { Tab, Tabs } from './primitives.tsx';
@@ -368,6 +369,10 @@ function SettingsForm({ initial }: { initial: Settings }) {
             </label>
           ))}
         </div>
+      </section>
+      <section className="card" id="dictionary-card">
+        <h3 className="card-h">dictionary</h3>
+        <DictionaryCard />
       </section>
       <section className="card">
         <h3 className="card-h">updates</h3>

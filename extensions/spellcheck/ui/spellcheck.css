@@ -1,0 +1,13 @@
+/* The spellcheck sheet (index.tsx). */
+.spellcheck-sheet h3 { margin: var(--s3) 0 var(--s1); font-size: .9rem; }
+.spellcheck-list { list-style: none; margin: 0; padding: 0; }
+.spellcheck-list li { display: flex; flex-wrap: wrap; align-items: center; gap: var(--s1) var(--s2); padding: var(--s2) 0; border-top: 1px solid var(--rule); }
+.spellcheck-list li:first-child { border-top: none; }
+.spellcheck-list li[data-applied] { opacity: .6; }
+.spellcheck-word { font-weight: 600; text-decoration: underline wavy var(--alert); text-underline-offset: 3px; }
+.spellcheck-suggestions { display: flex; flex-wrap: wrap; gap: var(--s1); }
+.spellcheck-actions { margin-left: auto; display: flex; gap: var(--s2); font-size: .8rem; }
+.spellcheck-find { text-decoration: line-through; color: var(--ink-soft); }
+.spellcheck-replace { font-weight: 600; }
+.spellcheck-error { color: var(--alert); }
+.spellcheck-list li[data-focused] { background: color-mix(in srgb, var(--alert) 8%, transparent); border-radius: 6px; padding-left: var(--s2); padding-right: var(--s2); }

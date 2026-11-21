@@ -116,9 +116,22 @@ export type BarPlace = BarRow | 'menu';
  * The Studio's own controls an extension may replace (docs/extensions.md, "Replaceable
  * controls"). The list is short and grows one entry at a time, each with its contract.
  * `regionToggle`: the held-out notice beside the counts, which shows and hides the
- * held-out regions.
+ * held-out regions. `spellcheck`: the browser's own spellcheck in the text box.
  */
-export type ReplaceableControl = 'regionToggle';
+export type ReplaceableControl = 'regionToggle' | 'spellcheck';
+
+/**
+ * A stretch of the text box's text that a bar marks: drawn as an underline over the text,
+ * never changing it. Offsets are in `shown`. `kind` picks the underline: `spelling` (a
+ * wavy line), `grammar` (a wavy line in another colour) or `note` (a dotted one).
+ */
+export interface EditorMark {
+  start: number;
+  end: number;
+  kind: 'spelling' | 'grammar' | 'note';
+  /** Shown as a tooltip and read out on activation, such as "not in the dictionary". */
+  title?: string;
+}
 
 /**
  * What an editor bar is handed, in the composer and the full editor. Offsets are in the
@@ -139,6 +152,8 @@ export interface EditorBarContext extends StudioContext {
   insert(text: string): void;
   /** Replace [start, end) of the shown text with `text`. */
   replace(start: number, end: number, text: string): void;
+  /** Select [start, end) of the shown text in the text box, scrolled into view. */
+  select(start: number, end: number): void;
   /**
    * The held-out regions (`editorRegions`, every extension's together), in the full editor
    * while there are any. `hide` also takes the editor out of its fail-safe, where it was
@@ -147,6 +162,13 @@ export interface EditorBarContext extends StudioContext {
   regions?: { labels: string[]; hidden: boolean; show(): void; hide(): void };
   /** Open a sheet owned by this extension. `close` dismisses it. */
   openSheet(render: (close: () => void) => ReactNode): void;
+  /**
+   * Underline stretches of the text (docs/extensions.md, "Editor marks"), replacing this
+   * bar's earlier marks; `[]` clears them. The Studio moves them with each edit until the
+   * next call. Clicking inside one calls `onActivate` with it. Drawn only while this bar is
+   * in a row on screen, and never in focus view.
+   */
+  mark(marks: EditorMark[], onActivate?: (mark: EditorMark) => void): void;
   /**
    * The row and blocks this bar asked for, and what the Studio gave it. `owns` lists the
    * controls this bar replaces: those it claimed in `replaces` and won. Render a

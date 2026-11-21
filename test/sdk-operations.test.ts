@@ -39,6 +39,8 @@ it("exercises every declared operation through its named SDK method, including a
     ["pollAllSubscriptions", 200, async client => api.pollAllSubscriptions({ client })],
     ["createContact", 201, async client => api.createContact({ client, body: { handle: "matrix", name: "Matrix", url: "https://matrix.example/" } })],
     ["listContacts", 200, async client => api.listContacts({ client })],
+    ["getDictionary", 200, async client => api.getDictionary({ client })],
+    ["putDictionarySource", 200, async client => api.putDictionarySource({ client, path: { source: "owner" }, body: { words: ["blyg"], expectedRevision: (await api.getDictionary({ client })).data?.revision ?? 0 } })],
     ["getShelf", 200, async client => api.getShelf({ client })],
     ["putShelf", 200, async client => api.putShelf({ client, body: { entries: [{ sub: "~own", remoteId: id }], expectedRevision: (await api.getShelf({ client })).data?.revision ?? 0 } })],
     ["updateContact", 200, async client => api.updateContact({ client, path: { id: contact.id }, body: { name: "Matrix two" } })],
@@ -93,6 +95,8 @@ it("exercises every declared operation through its named SDK method, including a
     // Extension routes answer 404 while the extension is disabled, as it is here.
     ["extLineageGlyphGetLineage", 404, async client => api.extLineageGlyphGetLineage({ client, query: { id } })],
     ["extLineageGlyphListSummaries", 404, async client => api.extLineageGlyphListSummaries({ client, query: { keys: JSON.stringify([`own:${id}`]) } })],
+    ["extSpellcheckGetWords", 404, async client => api.extSpellcheckGetWords({ client })],
+    ["extSpellcheckProofread", 404, async client => api.extSpellcheckProofread({ client, query: { id } })],
     ["extWordCountListCounts", 404, async client => api.extWordCountListCounts({ client, query: { keys: JSON.stringify([`own:${id}`]) } })],
     ["listStaleThreads", 200, async client => api.listStaleThreads({ client })],
     ["getItemFreshness", 409, async client => api.getItemFreshness({ client, path: { id }, query: { probe: "false" } })],

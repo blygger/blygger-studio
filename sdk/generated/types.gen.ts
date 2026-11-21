@@ -304,6 +304,28 @@ export type Subscription = {
     hopperFeedUrl: string | null;
 };
 
+export type Dictionary = {
+    /**
+     * Every source that holds a word: "owner" first, then the rest by name.
+     */
+    sources: Array<DictionarySource>;
+    /**
+     * The dictionary's revision. Send it back as expectedRevision for a conditional replace; every successful PUT bumps it.
+     */
+    revision: number;
+};
+
+export type DictionarySource = {
+    /**
+     * "owner" for the words the author adds; any other name for a set an extension or client installed.
+     */
+    source: string;
+    /**
+     * The source's words, sorted without regard to case.
+     */
+    words: Array<string>;
+};
+
 export type Shelf = {
     /**
      * The shelved items, in the owner's order, each named as hopper membership names an item. Own drafts may be shelved; a withdrawn own item, or an imported tombstone with no retained pin, is omitted. A discarded draft, an imported item no longer held, and every entry of a deleted subscription leave the shelf. Studio-private for good: never in an item document, feed, manifest or public page, and the shelf never gains a public mode.
@@ -801,6 +823,21 @@ export type LineageGlyphSummary = {
         transclusion: number;
         fork: number;
     };
+};
+
+export type SpellcheckIssue = {
+    /**
+     * Text from the draft, exactly, holding the error and a little context.
+     */
+    find: string;
+    /**
+     * The same text, corrected.
+     */
+    replace: string;
+    /**
+     * A few words on what is wrong.
+     */
+    why: string;
 };
 
 export type WordCount = {
@@ -3430,6 +3467,161 @@ export type ResyncSubscriptionResponses = {
 };
 
 export type ResyncSubscriptionResponse = ResyncSubscriptionResponses[keyof ResyncSubscriptionResponses];
+
+export type GetDictionaryData = {
+    body?: never;
+    headers?: {
+        /**
+         * Previously accepted ETag for this exact resource and request context.
+         */
+        'if-none-match'?: string;
+    };
+    path?: never;
+    query?: never;
+    url: '/dictionary';
+};
+
+export type GetDictionaryErrors = {
+    /**
+     * Request failed
+     */
+    400: ApiError;
+    /**
+     * Request failed
+     */
+    401: ApiError;
+    /**
+     * Request failed
+     */
+    403: ApiError;
+    /**
+     * Request failed
+     */
+    404: ApiError;
+    /**
+     * Request failed
+     */
+    405: ApiError;
+    /**
+     * Request failed
+     */
+    409: ApiError;
+    /**
+     * Request failed
+     */
+    413: ApiError;
+    /**
+     * Request failed
+     */
+    415: ApiError;
+    /**
+     * Request failed
+     */
+    422: ApiError;
+    /**
+     * Request failed
+     */
+    429: ApiError;
+    /**
+     * Request failed
+     */
+    500: ApiError;
+    /**
+     * Request failed
+     */
+    502: ApiError;
+};
+
+export type GetDictionaryError = GetDictionaryErrors[keyof GetDictionaryErrors];
+
+export type GetDictionaryResponses = {
+    /**
+     * Success
+     */
+    200: Dictionary;
+};
+
+export type GetDictionaryResponse = GetDictionaryResponses[keyof GetDictionaryResponses];
+
+export type PutDictionarySourceData = {
+    body: {
+        /**
+         * The source's whole word list (at most 20000); replaces what it held. An empty list removes the source. A word is 1 to 64 characters with no whitespace and at least one letter, kept as written (names keep their capitals); one that isn't is refused with 400, naming it. Repeats are kept once.
+         */
+        words: Array<string>;
+        /**
+         * Required. Replace only if the dictionary is still at this revision (read it with GET /dictionary; a never-written dictionary is at 0); otherwise 409 revision-conflict with the current dictionary in details.current.
+         */
+        expectedRevision: number;
+    };
+    path: {
+        source: string;
+    };
+    query?: never;
+    url: '/dictionary/{source}';
+};
+
+export type PutDictionarySourceErrors = {
+    /**
+     * Request failed
+     */
+    400: ApiError;
+    /**
+     * Request failed
+     */
+    401: ApiError;
+    /**
+     * Request failed
+     */
+    403: ApiError;
+    /**
+     * Request failed
+     */
+    404: ApiError;
+    /**
+     * Request failed
+     */
+    405: ApiError;
+    /**
+     * Request failed
+     */
+    409: ApiError;
+    /**
+     * Request failed
+     */
+    413: ApiError;
+    /**
+     * Request failed
+     */
+    415: ApiError;
+    /**
+     * Request failed
+     */
+    422: ApiError;
+    /**
+     * Request failed
+     */
+    429: ApiError;
+    /**
+     * Request failed
+     */
+    500: ApiError;
+    /**
+     * Request failed
+     */
+    502: ApiError;
+};
+
+export type PutDictionarySourceError = PutDictionarySourceErrors[keyof PutDictionarySourceErrors];
+
+export type PutDictionarySourceResponses = {
+    /**
+     * Success
+     */
+    200: Dictionary;
+};
+
+export type PutDictionarySourceResponse = PutDictionarySourceResponses[keyof PutDictionarySourceResponses];
 
 export type GetShelfData = {
     body?: never;
@@ -7991,6 +8183,176 @@ export type ExtLineageGlyphListSummariesResponses = {
 };
 
 export type ExtLineageGlyphListSummariesResponse = ExtLineageGlyphListSummariesResponses[keyof ExtLineageGlyphListSummariesResponses];
+
+export type ExtSpellcheckGetWordsData = {
+    body?: never;
+    headers?: {
+        /**
+         * Previously accepted ETag for this exact resource and request context.
+         */
+        'if-none-match'?: string;
+    };
+    path?: never;
+    query?: never;
+    url: '/ext/spellcheck/words';
+};
+
+export type ExtSpellcheckGetWordsErrors = {
+    /**
+     * Request failed
+     */
+    400: ApiError;
+    /**
+     * Request failed
+     */
+    401: ApiError;
+    /**
+     * Request failed
+     */
+    403: ApiError;
+    /**
+     * Request failed
+     */
+    404: ApiError;
+    /**
+     * Request failed
+     */
+    405: ApiError;
+    /**
+     * Request failed
+     */
+    409: ApiError;
+    /**
+     * Request failed
+     */
+    413: ApiError;
+    /**
+     * Request failed
+     */
+    415: ApiError;
+    /**
+     * Request failed
+     */
+    422: ApiError;
+    /**
+     * Request failed
+     */
+    429: ApiError;
+    /**
+     * Request failed
+     */
+    500: ApiError;
+    /**
+     * Request failed
+     */
+    502: ApiError;
+};
+
+export type ExtSpellcheckGetWordsError = ExtSpellcheckGetWordsErrors[keyof ExtSpellcheckGetWordsErrors];
+
+export type ExtSpellcheckGetWordsResponses = {
+    /**
+     * Success
+     */
+    200: {
+        lang: 'en-US';
+        words: number;
+        /**
+         * The words, one per line, gzipped and base64-encoded.
+         */
+        gz: string;
+        /**
+         * The word list's copyright notice and terms.
+         */
+        notice: string;
+    };
+};
+
+export type ExtSpellcheckGetWordsResponse = ExtSpellcheckGetWordsResponses[keyof ExtSpellcheckGetWordsResponses];
+
+export type ExtSpellcheckProofreadData = {
+    body?: never;
+    headers?: {
+        /**
+         * Previously accepted ETag for this exact resource and request context.
+         */
+        'if-none-match'?: string;
+    };
+    path?: never;
+    query: {
+        id: string;
+    };
+    url: '/ext/spellcheck/proofread';
+};
+
+export type ExtSpellcheckProofreadErrors = {
+    /**
+     * Request failed
+     */
+    400: ApiError;
+    /**
+     * Request failed
+     */
+    401: ApiError;
+    /**
+     * Request failed
+     */
+    403: ApiError;
+    /**
+     * Request failed
+     */
+    404: ApiError;
+    /**
+     * Request failed
+     */
+    405: ApiError;
+    /**
+     * Request failed
+     */
+    409: ApiError;
+    /**
+     * Request failed
+     */
+    413: ApiError;
+    /**
+     * Request failed
+     */
+    415: ApiError;
+    /**
+     * Request failed
+     */
+    422: ApiError;
+    /**
+     * Request failed
+     */
+    429: ApiError;
+    /**
+     * Request failed
+     */
+    500: ApiError;
+    /**
+     * Request failed
+     */
+    502: ApiError;
+};
+
+export type ExtSpellcheckProofreadError = ExtSpellcheckProofreadErrors[keyof ExtSpellcheckProofreadErrors];
+
+export type ExtSpellcheckProofreadResponses = {
+    /**
+     * Success
+     */
+    200: {
+        issues: Array<SpellcheckIssue>;
+        model: string;
+        /**
+         * The draft was longer than one call reads; only its start was proofread.
+         */
+        truncated: boolean;
+    };
+};
+
+export type ExtSpellcheckProofreadResponse = ExtSpellcheckProofreadResponses[keyof ExtSpellcheckProofreadResponses];
 
 export type ExtWordCountListCountsData = {
     body?: never;

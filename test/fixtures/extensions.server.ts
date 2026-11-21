@@ -4,6 +4,7 @@
 import type { ServerExtension } from "../../src/extensions/server.ts";
 import { server as feedExample } from "../../extensions/feed-example/server.ts";
 import { server as lineageGlyph } from "../../extensions/lineage-glyph/server.ts";
+import { server as spellcheck } from "../../extensions/spellcheck/server.ts";
 import { server as wordCount } from "../../extensions/word-count/server.ts";
 
-export const compiledServerExtensions: readonly ServerExtension[] = [feedExample, lineageGlyph, wordCount];
+export const compiledServerExtensions: readonly ServerExtension[] = [feedExample, lineageGlyph, spellcheck, wordCount];

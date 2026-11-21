@@ -7,7 +7,7 @@ export const BACKUP_FORMAT_VERSION = 1;
 
 /** The owner's content and the studio's own state: what a backup holds. */
 export const BACKUP_TABLES: ReadonlySet<string> = new Set([
-  'browse_log', 'change_class', 'change_state', 'changelog_summaries', 'contacts', 'hopper_items', 'hoppers',
+  'browse_log', 'change_class', 'change_state', 'changelog_summaries', 'contacts', 'dictionary', 'dictionary_revision', 'hopper_items', 'hoppers',
   'imported_items', 'imported_mentions', 'imported_mentions_backfill', 'interactions', 'items', 'link_probe',
   'media', 'mentions_in', 'mentions_out', 'read_state', 'reading_placement', 'settings', 'shelf', 'shelf_revision', 'signals', 'subscriptions', 'version_media', 'versions',
 ]);

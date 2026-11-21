@@ -5,13 +5,14 @@ import { ErrorSchema, route } from "./route.ts";
 import { extensionRoutes } from "../../extensions/catalog.ts";
 import { ItemRevisionSchema } from "./schemas.ts";
 import { BackgroundRulesPatchSchema, SettingsSchema } from './settings.ts';
-import { ShelfEntrySchema, ShelfSchema, ContactSchema, HopperMembershipSchema, SignalSchema, OutboundMentionSchema, InteractionSchema, ThumbSchema, BrowseStepSchema } from './resources.ts';
+import { DictionarySchema, ShelfEntrySchema, ShelfSchema, ContactSchema, HopperMembershipSchema, SignalSchema, OutboundMentionSchema, InteractionSchema, ThumbSchema, BrowseStepSchema } from './resources.ts';
 import { CHANGE_CATEGORIES } from "../change-category.ts";
 import { READ_BATCH_MAX, READ_ID_MAX, READ_VERSION_MAX } from '../importer/read-state.ts';
 import { BROWSE_VIA } from "../browse-log.ts";
 import { CLASSIFY_MAX } from "../peek.ts";
 import { CURSOR_MAX } from '../cursor-page.ts';
 import { SHELF_MAX } from '../shelf.ts';
+import { SOURCE_WORDS_MAX, SOURCES_MAX, TOTAL_WORDS_MAX, WORD_MAX } from '../dictionary.ts';
 import { CHANGE_DOMAINS } from '../change-state.ts';
 import { READ_BATCH_MAX as COLLECTION_READ_BATCH_MAX, READ_BATCH_OPERATIONS, READ_BATCH_PATHS } from '../read-batch-policy.ts';
 
@@ -125,6 +126,11 @@ export const routes = {
   pollAllSubscriptions: route("pollAllSubscriptions", manageOperation({"writes":["subscriptions","imports"],"network":true,"background":true}), "post", "/subscriptions/poll", z.object({ polling: z.number().int().nonnegative() })),
   resyncSubscription: route("resyncSubscription", manageOperation({"writes":["subscriptions","imports"],"network":true}), "post", "/subscriptions/{id}/resync", ok.extend({ changed: z.number() })),
   deleteSubscription: route("deleteSubscription", manageOperation({"writes":["subscriptions","imports","hoppers","signals","readingState"],"destructive":true}), "delete", "/subscriptions/{id}", ok),
+  getDictionary: route("getDictionary", readOperation(), "get", "/dictionary", DictionarySchema),
+  putDictionarySource: route("putDictionarySource", manageOperation({"writes":["dictionary"],"destructive":true}), "put", "/dictionary/{source}", DictionarySchema, z.object({
+    words: z.array(z.string()).max(SOURCE_WORDS_MAX).describe(`The source's whole word list (at most ${SOURCE_WORDS_MAX}); replaces what it held. An empty list removes the source. A word is 1 to ${WORD_MAX} characters with no whitespace and at least one letter, kept as written (names keep their capitals); one that isn't is refused with 400, naming it. Repeats are kept once.`),
+    expectedRevision: z.number().int().nonnegative().describe("Required. Replace only if the dictionary is still at this revision (read it with GET /dictionary; a never-written dictionary is at 0); otherwise 409 revision-conflict with the current dictionary in details.current."),
+  }).describe(`Replace one source's words in the blyg's dictionary, the words its spellchecking accepts. The source is "owner" for the author's own words, or a name of the installer's choosing for a set (a technical domain, say). At most ${SOURCES_MAX} sources and ${TOTAL_WORDS_MAX} words in all. Studio-private.`)),
   getShelf: route("getShelf", readOperation(), "get", "/shelf", ShelfSchema),
   putShelf: route("putShelf", manageOperation({"writes":["shelf"],"destructive":true}), "put", "/shelf", ShelfSchema, z.object({
     entries: z.array(ShelfEntrySchema).max(SHELF_MAX).describe(`The whole list, in order (at most ${SHELF_MAX}). Replaces the stored list. An entry that does not resolve (an unknown subscription, an item not held under it, a withdrawn own item, an imported tombstone with no retained pin) is dropped quietly, never refused, and a repeated entry keeps its first position; the response is what was stored.`),

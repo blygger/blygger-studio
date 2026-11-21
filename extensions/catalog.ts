@@ -12,11 +12,12 @@
 // alone and CI's drift check cannot depend on an operator's local file. On a
 // node where the extension is not compiled in, or not enabled, its routes 404.
 import { routes as lineageGlyph } from "./lineage-glyph/contract.ts";
+import { routes as spellcheck } from "./spellcheck/contract.ts";
 import { routes as wordCount } from "./word-count/contract.ts";
 
 /** Names: lowercase, digits and hyphens; also the directory under extensions/ and the /api/ext/<name>/ prefix. */
-export const EXTENSIONS = ["bars-example", "example", "feed-example", "inspect", "lineage-glyph", "menu-example", "menu-top-example", "reading-time", "regions-example", "word-count"] as const;
+export const EXTENSIONS = ["bars-example", "example", "feed-example", "inspect", "lineage-glyph", "menu-example", "menu-top-example", "reading-time", "regions-example", "spellcheck", "word-count"] as const;
 export type ExtensionName = (typeof EXTENSIONS)[number];
 
 /** Read routes contributed by extensions, keyed by operationId (see src/extensions/contract.ts). */
-export const extensionRoutes = { ...lineageGlyph, ...wordCount };
+export const extensionRoutes = { ...lineageGlyph, ...spellcheck, ...wordCount };

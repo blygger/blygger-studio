@@ -2,6 +2,7 @@ import { retainedMediaSql } from './media-retention.ts';
 import { assertCurrentRevision, assertItemRevision, ItemRevisionConflict } from './item-revision.ts';
 import { consumeHandles, contactResource, createContact, deleteContact, getContact, handleTaken, HANDLE, listContacts, resolveContact, updateContact } from './contacts.ts';
 import { readShelf, replaceShelf, type ShelfEntry } from './shelf.ts';
+import { normalizeWords, readDictionary, replaceSource, SOURCE_PATTERN, SOURCES_MAX, TOTAL_WORDS_MAX, wordProblem } from './dictionary.ts';
 import { success, created, failure, modelFailure, type OperationContext, type OperationInput } from './operation-types.ts';
 import { versionState } from './version-state.ts';
 import { isFont } from "./fonts.ts";
@@ -931,7 +932,30 @@ const putShelfOperation = async (context: OperationContext, input: OperationInpu
   return failure('conflict', { error: 'shelf revision conflict; reload and try again', code: 'revision-conflict', current: await readShelf(context.env.DB) });
 };
 
+// The dictionary: see src/dictionary.ts for the rules both operations share.
+const getDictionaryOperation = async (context: OperationContext) => success(await readDictionary(context.env.DB));
+const putDictionarySourceOperation = async (context: OperationContext, input: OperationInput) => {
+  const source = String(input.path.source);
+  if (!SOURCE_PATTERN.test(source)) return failure('invalid-input', { error: 'a source is lowercase letters, digits and hyphens, at most 48, starting and ending with a letter or digit' });
+  const body = input.body as { words: string[]; expectedRevision: number };
+  const words = normalizeWords(body.words);
+  for (const word of words) {
+    const problem = wordProblem(word);
+    if (problem) return failure('invalid-input', { error: `the word ${JSON.stringify(word.slice(0, 80))} ${problem}`, word });
+  }
+  const current = await readDictionary(context.env.DB);
+  const others = current.sources.filter((s) => s.source !== source);
+  if (words.length && others.length + 1 > SOURCES_MAX) return failure('too-large', { error: `the dictionary holds at most ${SOURCES_MAX} sources` });
+  if (others.reduce((n, s) => n + s.words.length, 0) + words.length > TOTAL_WORDS_MAX) return failure('too-large', { error: `the dictionary holds at most ${TOTAL_WORDS_MAX} words in all` });
+  const stored = await replaceSource(context.env.DB, source, words, body.expectedRevision);
+  if (stored) return success(stored);
+  // The current dictionary rides in the error so a client can merge and retry.
+  return failure('conflict', { error: 'dictionary revision conflict; reload and try again', code: 'revision-conflict', current: await readDictionary(context.env.DB) });
+};
+
 export const itemOperations = {
+  getDictionary: getDictionaryOperation,
+  putDictionarySource: putDictionarySourceOperation,
   getShelf: getShelfOperation,
   putShelf: putShelfOperation,
   listContacts: listContactsOperation,

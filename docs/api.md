@@ -272,6 +272,41 @@ const { entries, revision } = await unwrap(BlyggerApi.getShelf({ client }));
 await unwrap(BlyggerApi.putShelf({ client, body: { entries: [{ sub: OWN_SUBSCRIPTION, remoteId: id }, ...entries], expectedRevision: revision } }));
 ```
 
+## Dictionary
+
+The dictionary holds the words this blyg's spellchecking accepts, kept on the
+server so every client and device shares them. The Studio holds the words; it
+doesn't check spelling itself. A checker reads them: the `spellcheck` extension,
+or any client. The browser's own spellcheck can't. Studio-private: it never
+reaches an item document, a feed, the manifest, a public page or the static
+export.
+
+Words belong to **sources**. `owner` holds the words the author adds (Settings →
+writing → dictionary). Any other name holds a set that an extension or client
+installs, such as a technical domain's terms, so the set can be replaced or
+removed as a whole without touching the author's words.
+
+- `GET /dictionary` (`owner:read`) returns `{ sources: [{ source, words }],
+  revision }`: `owner` first, then the rest by name, each source's words sorted without
+  regard to case.
+- `PUT /dictionary/{source}` (`owner:manage`) takes `{ words, expectedRevision }`
+  and replaces that source's words. An empty list removes the source. It returns
+  the stored dictionary.
+
+Rules:
+
+- A source name is lowercase letters, digits and hyphens, at most 48, starting
+  and ending with a letter or digit.
+- A word is 1 to 64 characters with no whitespace and at least one letter, kept
+  as written, so names keep their capitals, in Unicode NFC. A `PUT` holding one
+  that isn't is refused with `400`, naming it in `details.word`. Repeats are
+  kept once.
+- The dictionary has one revision. `expectedRevision` is required; a stale one
+  is a `409 revision-conflict` with the current dictionary in
+  `details.current`. A client that adds one word reads, adds and puts, and on a
+  conflict does it again on what came back.
+- At most 20,000 words a source, 50 sources and 100,000 words in all (`413`).
+
 ## Change classifier
 
 Optional and **off by default**: nothing below happens until Settings → AI

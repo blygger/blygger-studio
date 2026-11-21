@@ -277,6 +277,16 @@ export const zSubscription = z.object({
     hopperFeedUrl: z.string().nullable()
 });
 
+export const zDictionarySource = z.object({
+    source: z.string(),
+    words: z.array(z.string())
+});
+
+export const zDictionary = z.object({
+    sources: z.array(zDictionarySource),
+    revision: z.int().gte(0)
+});
+
 export const zShelfEntry = z.object({
     sub: z.string().min(1).max(128),
     remoteId: z.string().min(1).max(256)
@@ -726,6 +736,12 @@ export const zLineageGlyphSummary = z.object({
         transclusion: z.int().gte(0),
         fork: z.int().gte(0)
     })
+});
+
+export const zSpellcheckIssue = z.object({
+    find: z.string(),
+    replace: z.string(),
+    why: z.string()
 });
 
 export const zWordCount = z.object({
@@ -1436,6 +1452,29 @@ export const zResyncSubscriptionResponse = z.object({
     ok: z.boolean(),
     changed: z.number()
 });
+
+export const zGetDictionaryHeaders = z.object({
+    'if-none-match': z.string().optional()
+});
+
+/**
+ * Success
+ */
+export const zGetDictionaryResponse = zDictionary;
+
+export const zPutDictionarySourceBody = z.object({
+    words: z.array(z.string()).max(20000),
+    expectedRevision: z.int().gte(0)
+}).strict();
+
+export const zPutDictionarySourcePath = z.object({
+    source: z.string().min(1)
+});
+
+/**
+ * Success
+ */
+export const zPutDictionarySourceResponse = zDictionary;
 
 export const zGetShelfHeaders = z.object({
     'if-none-match': z.string().optional()
@@ -2414,6 +2453,37 @@ export const zExtLineageGlyphListSummariesQuery = z.object({
  */
 export const zExtLineageGlyphListSummariesResponse = z.object({
     summaries: z.record(z.string(), zLineageGlyphSummary)
+});
+
+export const zExtSpellcheckGetWordsHeaders = z.object({
+    'if-none-match': z.string().optional()
+});
+
+/**
+ * Success
+ */
+export const zExtSpellcheckGetWordsResponse = z.object({
+    lang: z.enum(['en-US']),
+    words: z.int().gt(0),
+    gz: z.string(),
+    notice: z.string()
+});
+
+export const zExtSpellcheckProofreadHeaders = z.object({
+    'if-none-match': z.string().optional()
+});
+
+export const zExtSpellcheckProofreadQuery = z.object({
+    id: z.string().min(1)
+});
+
+/**
+ * Success
+ */
+export const zExtSpellcheckProofreadResponse = z.object({
+    issues: z.array(zSpellcheckIssue),
+    model: z.string(),
+    truncated: z.boolean()
 });
 
 export const zExtWordCountListCountsHeaders = z.object({

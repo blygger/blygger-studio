@@ -19,6 +19,7 @@ Extensions are one of three places a mod can live; [`mods.md`](mods.md) says whi
 | `menu-top-example` | A page that asks for the top of the main menu, and shows where it was placed. The template to copy for a page an owner starts from. |
 | `reading-time` | An estimated reading time and word count at the end of each reading entry's byline. Browser only; shipped in `extensions.json`. |
 | `regions-example` | Holds paragraphs that start with `[held]: #` out of the full editor's text box. The template to copy for keeping generated lines out of the author's way. |
+| `spellcheck` | A “spelling” button in an editor bar (composer and full editor) that opens a sheet: a dictionary check against a US English word list (ESDB size 60, served by its owner read `GET /api/ext/spellcheck/words` and checked in the browser), skipping markup, links, ids, code, math and TK instructions, with suggestions, ignore, and add to the blyg's dictionary (`PUT /dictionary/owner`, whose every source it also accepts); and, in the full editor, an AI proofread of the saved draft through the blyg's TK model (`GET /api/ext/spellcheck/proofread`), each fix applied in place. `make-words.ts` regenerates the list. |
 | `word-count` | Each reading entry's word count at the end of its byline and beside the character count in the composer (counted in the browser) and the full editor (re-read after each autosave), published and in draft (the working copy as publish would bake it now), and for a thread whose outline links (list items that are just an `[[id]]` link, as a table of contents is written) form a strict tree of your own items (published or draft), the words in the whole document under it. Inline links (navigation, citations) are never followed; transclusions are already in a thread's own count. Its server route is an owner read: `GET /api/ext/word-count/counts`. |
 
 ## What an extension can do
@@ -98,8 +99,8 @@ editorBar: { label: 'Book', row: 'above', blocks: 2, replaces: ['regionToggle'],
   show it, remembered on this device, and opens a bar that had no room in a sheet. A hidden bar takes
   no room.
 - **The context:** `text` (the whole text) and `shown` (what the box shows, without held-out regions),
-  `selection()`, `insert(text)` (in place of the selection, caret after) and `replace(start, end,
-  text)`, all in `shown` offsets. Edits go through the same path as the Studio's own tools, so
+  `selection()`, `insert(text)` (in place of the selection, caret after), `replace(start, end,
+  text)` and `select(start, end)`, all in `shown` offsets. Edits go through the same path as the Studio's own tools, so
   held-out regions, autosave and the preview follow them. `item` in the full editor, as for the draft
   counter. `openSheet(render)`, and the usual verbs.
 - **Held-out regions:** in the full editor, while any extension holds text out, `context.regions` has
@@ -114,6 +115,26 @@ editorBar: { label: 'Book', row: 'above', blocks: 2, replaces: ['regionToggle'],
 - **Focus view** leaves the bars out, like the Studio's tool row. Focus view is the text and nothing
   else; that is its point.
 - Off is invisible: with no bar enabled there is no bar row and no bars menu.
+
+## Editor marks
+
+An editor bar can underline stretches of the text: misspellings, grammar, notes of its own. A text box
+can't style part of its text, so the Studio draws the marks in a layer laid exactly over it, with the
+same box, font, padding and wrapping, scrolled with it and taking no pointer events. The text is never
+changed, and the author types, selects and scrolls as ever.
+
+```ts
+context.mark([{ start, end, kind: 'spelling', title: 'not in the dictionary' }], (mark) => openFix(mark));
+```
+
+- **A bar's marks replace its earlier ones**; `[]` clears them. Offsets are in `shown`. Make them again
+  when the text changes (an effect on `context.shown`); meanwhile the Studio moves each with every
+  edit, and drops one the edit touched.
+- **Kinds:** `spelling` (a wavy line), `grammar` (a wavy line in another colour), `note` (dotted).
+- **Activation:** a click that leaves the caret inside a mark calls the bar's `onActivate` with it.
+- **Drawn only while the bar is in a row on screen** and hasn't failed: hidden, in the menu or crashed,
+  its marks are gone. Never in focus view, which is the text and nothing else.
+- Marks are presentation in the Studio: they reach no draft, version or wire.
 
 ## Replaceable controls
 
@@ -139,6 +160,7 @@ Every entry keeps the same contract:
 | Control | Replaced from | What the replacement must still do |
 |---|---|---|
 | `regionToggle` | An editor bar: `editorBar.replaces` | Show and hide the held-out regions through `context.regions` (`show()`, `hide()`, `hidden`), naming them by `labels`. The Studio's notice beside the counts returns while the bar is not in a row on screen. |
+| `spellcheck` | An editor bar: `editorBar.replaces` | Find misspellings in the text box's text and mark them (`context.mark`, kind `spelling`), and offer corrections that go in through the context's edit path. While the owner stands in, the Studio turns the browser's own spellcheck off in that text box (`spellcheck="false"`); it is back whenever the bar is not in a row on screen, and in focus view. |
 
 A future entry, for example the TK button, would add a row with its own contract. A TK replacement
 would have to generate through the Studio's generate endpoint, so the `generated[]` record stays honest.
