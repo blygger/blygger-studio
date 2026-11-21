@@ -59,7 +59,9 @@ test('a bar inserts at the caret and owns the held-out control; hidden from the 
   await toggle.click();
   await expect(box).toHaveValue(`Bars ${run}\n\nFirst paragraph.\n\nLast paragraph.`);
 
-  // Insert at the caret: the draft keeps the held paragraph.
+  // Insert at the caret: the draft keeps the held paragraph. The toggle puts the caret back on the
+  // next frame; let that land first, or it moves the caret set here.
+  await page.evaluate(() => new Promise((done) => requestAnimationFrame(() => requestAnimationFrame(done))));
   await caretAfter(page, 'First paragraph.');
   await bar.locator('[data-action=bar-insert]').click();
   await expect(box).toHaveValue(`Bars ${run}\n\nFirst paragraph.※\n\nLast paragraph.`);

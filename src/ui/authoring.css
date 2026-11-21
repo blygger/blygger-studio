@@ -12,6 +12,12 @@
 .composer { padding: var(--s4) var(--s4) var(--s2); }
 .composer .segmented.compact { margin-bottom: var(--s2); }
 .ta-wrap { position: relative; }
+/* Editor marks (editor-marks.tsx): a layer laid over the text box, its text transparent, only the underlines showing. */
+.ed-marks { position: absolute; box-sizing: border-box; overflow: hidden; pointer-events: none; color: transparent; border-style: solid; border-color: transparent; white-space: pre-wrap; overflow-wrap: break-word; }
+.ed-marks-text { will-change: transform; }
+.ed-mark { text-decoration-line: underline; text-decoration-style: wavy; text-decoration-color: var(--alert); text-decoration-thickness: 1px; text-decoration-skip-ink: none; text-underline-offset: 3px; }
+.ed-mark-grammar { text-decoration-color: var(--accent, #3b6fd6); }
+.ed-mark-note { text-decoration-style: dotted; text-decoration-color: var(--ink-soft); }
 .composer textarea { display: block; width: 100%; min-height: 140px; background: transparent; border: none; border-radius: var(--radius-sm); padding: var(--s2) var(--s2) var(--s3); box-shadow: none; resize: none; font-size: 1.05rem; line-height: 1.6; }
 .composer textarea:focus { box-shadow: none; }
 /* Fragment or thread at a glance: the box itself is tinted, in every editor. */

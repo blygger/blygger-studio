@@ -115,6 +115,26 @@ editorBar: { label: 'Book', row: 'above', blocks: 2, replaces: ['regionToggle'],
   else; that is its point.
 - Off is invisible: with no bar enabled there is no bar row and no bars menu.
 
+## Editor marks
+
+An editor bar can underline stretches of the text: misspellings, grammar, notes of its own. A text box
+can't style part of its text, so the Studio draws the marks in a layer laid exactly over it, with the
+same box, font, padding and wrapping, scrolled with it and taking no pointer events. The text is never
+changed, and the author types, selects and scrolls as ever.
+
+```ts
+context.mark([{ start, end, kind: 'spelling', title: 'not in the dictionary' }], (mark) => openFix(mark));
+```
+
+- **A bar's marks replace its earlier ones**; `[]` clears them. Offsets are in `shown`. Make them again
+  when the text changes (an effect on `context.shown`); meanwhile the Studio moves each with every
+  edit, and drops one the edit touched.
+- **Kinds:** `spelling` (a wavy line), `grammar` (a wavy line in another colour), `note` (dotted).
+- **Activation:** a click that leaves the caret inside a mark calls the bar's `onActivate` with it.
+- **Drawn only while the bar is in a row on screen** and hasn't failed: hidden, in the menu or crashed,
+  its marks are gone. Never in focus view, which is the text and nothing else.
+- Marks are presentation in the Studio: they reach no draft, version or wire.
+
 ## Replaceable controls
 
 A short list of the Studio's own controls that an extension may replace with its own version (ruled
@@ -139,6 +159,7 @@ Every entry keeps the same contract:
 | Control | Replaced from | What the replacement must still do |
 |---|---|---|
 | `regionToggle` | An editor bar: `editorBar.replaces` | Show and hide the held-out regions through `context.regions` (`show()`, `hide()`, `hidden`), naming them by `labels`. The Studio's notice beside the counts returns while the bar is not in a row on screen. |
+| `spellcheck` | An editor bar: `editorBar.replaces` | Find misspellings in the text box's text and mark them (`context.mark`, kind `spelling`), and offer corrections that go in through the context's edit path. While the owner stands in, the Studio turns the browser's own spellcheck off in that text box (`spellcheck="false"`); it is back whenever the bar is not in a row on screen, and in focus view. |
 
 A future entry, for example the TK button, would add a row with its own contract. A TK replacement
 would have to generate through the Studio's generate endpoint, so the `generated[]` record stays honest.
