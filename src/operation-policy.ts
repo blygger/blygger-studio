@@ -1,10 +1,10 @@
 import type { OwnerScope } from './auth-scopes.ts';
 
-export const API_CONTRACT_VERSION = '5.14.0';
+export const API_CONTRACT_VERSION = '5.15.0';
 export type WorkBudget = 'read' | 'write';
 export interface ScopeInput { body?: unknown }
 export interface OperationEffects {
-  writes: readonly ('items' | 'publication' | 'presentation' | 'media' | 'settings' | 'subscriptions' | 'imports' | 'hoppers' | 'signals' | 'mentions' | 'readingState' | 'browse' | 'shelf' | 'cache' | 'changeClass')[];
+  writes: readonly ('items' | 'publication' | 'presentation' | 'media' | 'settings' | 'subscriptions' | 'imports' | 'hoppers' | 'signals' | 'mentions' | 'readingState' | 'browse' | 'shelf' | 'dictionary' | 'cache' | 'changeClass')[];
   destructive?: boolean;
   network?: boolean;
   background?: boolean;

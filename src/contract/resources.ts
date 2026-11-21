@@ -107,6 +107,16 @@ export const ShelfEntrySchema = z.object({
   remoteId: z.string().min(1).max(256).describe(`The item's id: the own item's id under "${OWN_SUBSCRIPTION}", else the imported item's remote id.`),
 }).strict().openapi("ShelfEntry");
 
+export const DictionarySourceSchema = z.object({
+  source: z.string().describe('"owner" for the words the author adds; any other name for a set an extension or client installed.'),
+  words: z.array(z.string()).describe("The source's words, sorted without regard to case."),
+}).openapi("DictionarySource");
+
+export const DictionarySchema = z.object({
+  sources: z.array(DictionarySourceSchema).describe('Every source that holds a word: "owner" first, then the rest by name.'),
+  revision: z.number().int().nonnegative().describe("The dictionary's revision. Send it back as expectedRevision for a conditional replace; every successful PUT bumps it."),
+}).openapi("Dictionary");
+
 export const ShelfSchema = z.object({
   entries: z.array(ShelfEntrySchema).describe(`The shelved items, in the owner's order, each named as hopper membership names an item. Own drafts may be shelved; a withdrawn own item, or an imported tombstone with no retained pin, is omitted. A discarded draft, an imported item no longer held, and every entry of a deleted subscription leave the shelf. Studio-private for good: never in an item document, feed, manifest or public page, and the shelf never gains a public mode.`),
   revision: z.number().int().nonnegative().describe("The shelf's revision. Send it back as expectedRevision for a conditional replace; every successful PUT bumps it."),
