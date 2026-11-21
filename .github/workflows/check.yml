@@ -83,6 +83,7 @@ jobs:
           node-version: 22.18.0
       - run: npm run test:oracles:conditional:worker
       - run: npm run test:oracles:contracts
+      - run: npm run test:oracles:search
       - run: npm run test:oracles:runtime
       - run: npm run test:oracles:worker
       - run: npm run check:template

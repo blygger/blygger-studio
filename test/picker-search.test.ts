@@ -1,6 +1,6 @@
 // The picker's search (0.29): every word anywhere in an item's text, a source
-// filter (mine / imported / one subscription), newest or oldest first, and a
-// total that counts the whole filtered set. Unique nonsense words keep these
+// filter (mine / imported / one subscription), and newest or oldest first.
+// Unique nonsense words keep these
 // assertions independent of whatever else the shared fixture holds.
 import { env } from "cloudflare:test";
 import { beforeAll, describe, expect, it } from "vitest";

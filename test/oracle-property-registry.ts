@@ -2,6 +2,9 @@
  * literal property registration, so an unknown replay cannot silently skip all
  * real properties. Keep this data module free of test registrations. */
 export const workerOracleProperties = [
+  "search-index-source-history",
+  "search-index-bounded-work",
+  "search-index-backup-restore",
   "api-mount-audiences",
   "api-mount-cutover",
   "api-mount-locations",

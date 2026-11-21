@@ -16,6 +16,11 @@ export const CREDENTIAL_TABLES: ReadonlySet<string> = new Set([
   'oauth_authorizations', 'oauth_records', 'oauth_revocations', 'oauth_state', 'rateLimit', 'security_budgets', 'security_registrations',
 ]);
 
+/** Derived search state is rebuilt from restored source rows by migration 0050's triggers. */
+export const DERIVED_TABLES: ReadonlySet<string> = new Set([
+  'search_documents', 'search_fts', 'search_fts_data', 'search_fts_idx', 'search_fts_docsize', 'search_fts_config',
+]);
+
 /** Everything not on the allow-list stays on the node. */
 export function excludedTable(name: string): boolean {
   return !BACKUP_TABLES.has(name);
@@ -43,4 +48,3 @@ export function backupFileName(origin: string, mount: string, now: Date): string
   const path = mount.replace(/^\//, '').replace(/[^a-z0-9.-]/gi, '-');
   return `blyg-backup-${host}${path ? '-' + path : ''}-${now.toISOString().slice(0, 10)}.tar`;
 }
-

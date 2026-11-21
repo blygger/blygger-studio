@@ -49,6 +49,7 @@
     "test:ui": "vitest run --config vitest.ui.config.ts",
     "test:auth:security": "npm run test:oracles:gaps -- --runtime worker --files test/auth-security.oracle.test.ts --source src/oauth.ts --sample 1 && node --import tsx scripts/verify-auth-security-race.ts",
     "test:auth:security:mutations": "node --import tsx scripts/verify-auth-security-mutations.ts",
+    "test:oracles:search": "node --import tsx scripts/run-oracle-gaps.ts --runtime worker --files test/search-index.oracle.test.ts --source src/search-terms.ts && node --import tsx scripts/run-oracle-gaps.ts --runtime worker --files test/search-index.oracle.test.ts --source src/read-api.ts,src/backup-format.ts,src/cursor-page.ts --mutants test/fixtures/search-index-mutants --only authored:search-working-copy-uses-publication,authored:search-subscription-filter-after-fts,authored:search-drops-short-term-filter,authored:search-repeats-fts-per-cursor-range,authored:backup-copies-derived-search-documents,authored:review-repeated-search-query",
     "test:oracles:worker": "npm run test:oracles:gaps -- --runtime worker --source src/oauth-storage.ts --sample 1",
     "test:oracles:studio": "npm run test:oracles:gaps -- --runtime studio --contexts 2",
     "test:oracles:browser": "node --import tsx scripts/run-browser-oracle-gaps.ts",

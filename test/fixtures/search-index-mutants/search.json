@@ -1,0 +1,50 @@
+[
+  {
+    "id": "search-working-copy-uses-publication",
+    "source": "src/read-api.ts",
+    "find": "searchSource('working', 'items i', 'i.id = d.item_id')",
+    "replace": "searchSource('published', 'items i', 'i.id = d.item_id')",
+    "intent": "Search unpublished edits against the published index instead of the working copy.",
+    "author": "Codex (self-generated PR146 control)"
+  },
+  {
+    "id": "search-subscription-filter-after-fts",
+    "source": "src/read-api.ts",
+    "find": "const expression = subscription ? `? || ' AND search_subscription : \":' || hex(?) || ':\"'` : '?';",
+    "replace": "const expression = subscription ? `? || substr(?, 1, 0)` : '?';",
+    "intent": "Read all matching subscriptions before the source row join, retaining parameter arity.",
+    "author": "Codex (self-generated PR146 control)"
+  },
+  {
+    "id": "search-drops-short-term-filter",
+    "source": "src/read-api.ts",
+    "find": "where: remainingMatch,",
+    "replace": "where: remainingMatch.replaceAll('instr(d.search_body, lower(?)) > 0', 'length(?) >= 0').replaceAll('instr(d.search_id, lower(?)) > 0', 'length(?) >= 0'),",
+    "intent": "Ignore short candidate filters while retaining SQL parameter arity.",
+    "author": "Codex (self-generated PR146 control)"
+  },
+  {
+    "id": "search-repeats-fts-per-cursor-range",
+    "source": "src/read-api.ts",
+    "find": "combineRanges: Boolean(match),",
+    "replace": "combineRanges: false,",
+    "intent": "Repeat the full FTS candidate walk for separate continuation ranges.",
+    "author": "Codex (self-generated PR146 control)"
+  },
+  {
+    "id": "backup-copies-derived-search-documents",
+    "source": "src/backup-format.ts",
+    "find": "return !BACKUP_TABLES.has(name);",
+    "replace": "return name !== 'search_documents' && !BACKUP_TABLES.has(name);",
+    "intent": "Include redundant search rows in the owner archive.",
+    "author": "Codex (self-generated PR146 control)"
+  },
+  {
+    "id": "review-repeated-search-query",
+    "source": "src/cursor-page.ts",
+    "find": "    const rows = (await db.prepare(sql)",
+    "replace": "    await db.prepare(sql).bind(...(source.binds ?? []), ...(ranges?.flatMap(range => range.binds) ?? []), limit + 1).all<Row>();\n    const rows = (await db.prepare(sql)",
+    "intent": "Repeat every full search source query while returning identical rows; all work must still count.",
+    "author": "Independent oracle review"
+  }
+]

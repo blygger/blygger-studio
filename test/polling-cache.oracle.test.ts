@@ -366,13 +366,14 @@ oracleProperty({
     const absent = await env.DB.prepare('DELETE FROM items WHERE id=?').bind(plan.missingItem).run();
     const changed = await env.DB.prepare("UPDATE items SET content_md=? WHERE id='cache-item'").bind(plan.content).run();
     observe('source changes result', { absent: Boolean(absent.meta.changes), existing: Boolean(changed.meta.changes) });
+    // L0 rows stay outside FTS, isolating polling-cache tracking from segment writes.
     const cookie = await login(), before = await changes(cookie, observe);
     const start = await env.DB.prepare('SELECT total_changes() AS value').first<{ value: number }>();
-    await env.DB.batch(Array.from({ length: plan.rows }, (_, index) => env.DB.prepare("INSERT INTO imported_items(subscription_id,remote_id,kind,state,version,observed_at) VALUES('bulk',?,'fragment','current',1,'now')").bind(`r${index}`)));
+    await env.DB.batch(Array.from({ length: plan.rows }, (_, index) => env.DB.prepare("INSERT INTO imported_items(subscription_id,remote_id,kind,state,version,observed_at,l0) VALUES('bulk',?,'fragment','current',1,'now',1)").bind(`r${index}`)));
     const end = await env.DB.prepare('SELECT total_changes() AS value').first<{ value: number }>(), after = await changes(cookie, observe);
     await env.DB.prepare('DROP TRIGGER change_imported_items_insert').run();
     const controlStart = await env.DB.prepare('SELECT total_changes() AS value').first<{ value: number }>();
-    await env.DB.batch(Array.from({ length: plan.rows }, (_, index) => env.DB.prepare("INSERT INTO imported_items(subscription_id,remote_id,kind,state,version,observed_at) VALUES('control',?,'fragment','current',1,'now')").bind(`r${index}`)));
+    await env.DB.batch(Array.from({ length: plan.rows }, (_, index) => env.DB.prepare("INSERT INTO imported_items(subscription_id,remote_id,kind,state,version,observed_at,l0) VALUES('control',?,'fragment','current',1,'now',1)").bind(`r${index}`)));
     const controlEnd = await env.DB.prepare('SELECT total_changes() AS value').first<{ value: number }>();
     observe('trigger source and tracking writes', { reading: after.domains.reading - before.domains.reading, writes: (end!.value - start!.value) - (controlEnd!.value - controlStart!.value), controlDelta: domainDelta(after, await changes(cookie, observe)) });
   }),

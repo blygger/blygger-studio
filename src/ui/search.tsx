@@ -15,6 +15,7 @@ import { zSearchResponse } from '../../sdk/dist/schemas.js';
 import { client, queryClient } from './data.ts';
 import { Button, Failure } from './components.tsx';
 import { readCursorWindowResult } from './cursor-query.ts';
+import { canIndexSearchWord, searchWords } from '../search-terms.ts';
 import './search.css';
 
 export type Hit = SearchResponses[200]['items'][number];
@@ -26,8 +27,11 @@ export type SearchFilters = {
   include?: 'drafts';
 };
 const PAGE = 20;
-/** Pages search from this many characters; the picker searches from none. */
-export const MIN_QUERY = 2;
+export function canSearchText(query: string): boolean {
+  return searchWords(query).some(canIndexSearchWord);
+}
+
+export const SEARCH_PROMPT = 'Type a term with at least 3 characters.';
 
 export function stored<T extends string>(key: string, allowed: readonly T[], fallback: T): T {
   try {
@@ -114,7 +118,7 @@ export function useSearch(filters: SearchFilters | undefined, delay = 150) {
 
 /** The excerpt with each searched word marked, case-insensitively. */
 export function Marked({ text, q }: { text: string; q: string }) {
-  const words = q.trim().split(/\s+/).filter(Boolean).slice(0, 8);
+  const words = searchWords(q);
   if (!words.length) return <>{text}</>;
   const escaped = words.map((w) => w.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'));
   const parts = text.split(new RegExp(`(${escaped.join('|')})`, 'gi'));
@@ -191,9 +195,9 @@ export function SearchBox({
  * compose page) or in the reader; imported items always open in the reader.
  */
 export function SearchResults({ filters, ownOpens }: { filters: SearchFilters; ownOpens: 'editor' | 'reader' }) {
-  const ready = filters.q.trim().length >= MIN_QUERY;
+  const ready = canSearchText(filters.q);
   const { hits, hasMore, loading, error, loadMore } = useSearch(ready ? filters : undefined, 0);
-  if (!ready) return <p className="search-count">Type at least {MIN_QUERY} characters.</p>;
+  if (!ready) return <p className="search-count">{SEARCH_PROMPT}</p>;
   return (
     <section className="search-results" aria-label="search results">
       <Failure error={error} />
