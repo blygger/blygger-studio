@@ -1,3 +1,4 @@
+import { servedAuthor } from "./byline.ts";
 // Public server-rendered pages — v0.1-plan §3.4. Rewired session 4 to the
 // rev-2/rev-3 wireframe conventions reviewed with Venkat (docs/wireframes/):
 // embeddable `.blyg`-scoped block with a bare Home+RSS header (the public
@@ -1192,7 +1193,7 @@ ${permalinkLink(item.id, false, mount)}
  * the article's first-child rules still reach the first thing you see. A
  * withdrawn item is not an entry. No h-cite or responses markup, ever (tn-7).
  */
-export function asHEntry(article: string, settings: Settings, origin: string, url: string, published: string, syndication: readonly SyndicationEntry[] = []): string {
+export function asHEntry(article: string, settings: Settings, origin: string, url: string, published: string, syndication: readonly SyndicationEntry[] = [], storedAuthor?: string | null): string {
   if (!article.startsWith('<article class="') || /^<article class="[^"]*\bwithdrawn\b/.test(article)) return article;
   // §16.14 syndication: the publisher's own copies elsewhere, as mf2
   // u-syndication links. The live page only; the item document carries the
@@ -1201,8 +1202,10 @@ export function asHEntry(article: string, settings: Settings, origin: string, ur
   const also = copies.length
     ? `<p class="syndication">also posted at ${copies.map(entry => `<a class="u-syndication" rel="syndication" href="${escapeHref(entry.url)}">${escapeHtml(new URL(entry.url).hostname)}</a>`).join(", ")}</p>\n`
     : "";
-  const author = settings.author_name
-    ? `<a class="p-author h-card" href="${escapeHtml(settings.author_url || origin)}" hidden>${escapeHtml(settings.author_name)}</a>\n`
+  // The version's stored byline (migration 0062), as the item document gives it.
+  const byline = servedAuthor(storedAuthor, settings, origin);
+  const author = byline.name
+    ? `<a class="p-author h-card" href="${escapeHtml(byline.url)}" hidden>${escapeHtml(byline.name)}</a>\n`
     : "";
   const meta = `<a class="u-url" href="${escapeHtml(url)}" hidden></a>\n<time class="dt-published" datetime="${escapeHtml(published)}" hidden></time>\n${author}`;
   return article
@@ -2059,7 +2062,7 @@ export async function permalinkPage(db: D1Database, settings: Settings, item: It
   const latest = await publishedVersion(db, item);
   const media = await listVersionMedia(db, item.id, item.version);
   const head = itemHead(latest?.content_html ?? "", settings);
-  const body = `${await blygPage(db, settings, mount, `${asHEntry(await fragmentBlock(db, item, mount, settings.timezone, false, undefined, await changelogSection(db, settings, item, false, mount)), settings, origin, url, item.created, await listSyndication(db, item.id))}
+  const body = `${await blygPage(db, settings, mount, `${asHEntry(await fragmentBlock(db, item, mount, settings.timezone, false, undefined, await changelogSection(db, settings, item, false, mount)), settings, origin, url, item.created, await listSyndication(db, item.id), latest?.author_json)}
 ${await localMentionsSection(db, item, settings, mount, origin)}
 ${await responsesSection(db, item, settings, mount)}`)}
 <script>${VERSION_NAV_SCRIPT}</script>`;
@@ -2095,7 +2098,7 @@ export async function threadPage(db: D1Database, settings: Settings, item: ItemR
   const latest = await publishedVersion(db, item);
   const media = await listVersionMedia(db, item.id, item.version);
   const head = itemHead(latest?.content_html ?? "", settings, respondsToLabel(latest));
-  const body = `${await blygPage(db, settings, mount, `${asHEntry(await threadBlock(db, item, mount, settings.timezone, await changelogSection(db, settings, item, true, mount)), settings, origin, url, item.created, await listSyndication(db, item.id))}
+  const body = `${await blygPage(db, settings, mount, `${asHEntry(await threadBlock(db, item, mount, settings.timezone, await changelogSection(db, settings, item, true, mount)), settings, origin, url, item.created, await listSyndication(db, item.id), latest?.author_json)}
 ${await localMentionsSection(db, item, settings, mount, origin)}
 ${await responsesSection(db, item, settings, mount)}`)}
 <script>${VERSION_NAV_SCRIPT}</script>`;
@@ -2158,7 +2161,7 @@ ${forkLineage(item, tz)}
 <div class="item-content">${html}</div>
 ${noteHtml}
 <p class="timestamps"><span>Published: ${formatDate(row.published_at, tz)}</span></p>
-</article>`, settings, origin, `${origin}${isThread ? "t" : "f"}/${item.id}/v${row.version}/`, row.published_at)}`);
+</article>`, settings, origin, `${origin}${isThread ? "t" : "f"}/${item.id}/v${row.version}/`, row.published_at, [], row.author_json)}`);
   // Canonical points at the live permalink (absolute — origin is the blyg
   // base URL, trailing slash included): the frozen page is a version of the
   // same work, and the living one is the page that should be indexed.

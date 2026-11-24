@@ -270,6 +270,8 @@ export interface VersionRow {
   stub_cite: string | null;
   /** 1 when the studio drafted this version's note and the author published it unedited (migration 0015, #40). */
   note_generated: number;
+  /** JSON `author` frozen at publish (migration 0062); null for a version published before bylines were stored. */
+  author_json?: string | null;
   /** JSON `LinkEntry[]` (migration 0048, §10.3a): the plain internal links this version resolved; null for none. */
   links_json: string | null;
 }

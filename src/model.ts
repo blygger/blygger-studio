@@ -1,3 +1,4 @@
+import { bylineFor } from "./byline.ts";
 import { retainedMediaSql, avatarMediaSql } from './media-retention.ts';
 import { assertItemRevision, ItemRevisionConflict } from './item-revision.ts';
 import { authoredVersionKind, versionState } from './version-state.ts';
@@ -542,8 +543,8 @@ async function publishScoped(db: D1Database, item: ItemRow, note: string | null,
   const shown = JSON.stringify(visibleMedia(await listMediaForItem(db, item.id), contentHtml).map((m) => m.id));
   const committed = await db.batch([
     db.prepare(
-      "INSERT INTO versions (item_id, version, content_md, content_html, content_hash, published_at, note, transclusions, generated_json, stub_of, stub_cite, note_generated, kind, links_json) SELECT ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ? FROM items WHERE id = ? AND revision = ?",
-    ).bind(item.id, version, strippedMd, contentHtml, hash, now, note, transclusionsJson, generatedJson, stubJson, citeJson, note && noteGenerated ? 1 : 0, kind, linksJson, item.id, item.revision),
+      "INSERT INTO versions (item_id, version, content_md, content_html, content_hash, published_at, note, transclusions, generated_json, stub_of, stub_cite, note_generated, kind, links_json, author_json) SELECT ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ? FROM items WHERE id = ? AND revision = ?",
+    ).bind(item.id, version, strippedMd, contentHtml, hash, now, note, transclusionsJson, generatedJson, stubJson, citeJson, note && noteGenerated ? 1 : 0, kind, linksJson, storedByline(settings, origin), item.id, item.revision),
     // Rows still attached at the write, so a removal racing the publish wins.
     db.prepare("INSERT INTO version_media (item_id, version, media_id) SELECT ?, ?, m.id FROM json_each(?) s JOIN media m ON m.id = s.value WHERE m.item_id = ? AND EXISTS (SELECT 1 FROM items WHERE id = ? AND revision = ?)")
       .bind(item.id, version, shown, item.id, item.id, item.revision),
@@ -578,7 +579,8 @@ export async function withdraw(db: D1Database, item: ItemRow, note: string | nul
   const version = item.version + 1;
   const hash = await contentHash("");
   const committed = await db.batch([
-    db.prepare("INSERT INTO versions (item_id, version, content_md, content_hash, published_at, note, kind) SELECT ?, ?, '', ?, ?, ?, 'withdrawn' FROM items WHERE id = ? AND revision = ?")
+    // The endcap keeps the byline of the version it ends.
+    db.prepare("INSERT INTO versions (item_id, version, content_md, content_hash, published_at, note, kind, author_json) SELECT ?, ?, '', ?, ?, ?, 'withdrawn', (SELECT author_json FROM versions WHERE item_id = items.id AND version = items.version) FROM items WHERE id = ? AND revision = ?")
       .bind(item.id, version, hash, now, note, item.id, item.revision),
     db.prepare("UPDATE items SET status = 'withdrawn', kind = 'withdrawn', version = ?, dirty = 1, updated = ?, revision = revision + 1 WHERE id = ? AND revision = ?")
       .bind(version, now, item.id, item.revision),
@@ -595,6 +597,11 @@ export async function withdraw(db: D1Database, item: ItemRow, note: string | nul
  * public counter stays 0, so the first public publish is v1. Nothing is
  * resolved or rendered, because nothing here reaches the wire.
  */
+/** The byline a version freezes (migration 0062). With no known origin it stays unstored, and is served from settings as before. */
+function storedByline(settings: Settings, origin: string | undefined): string | null {
+  return origin ? JSON.stringify(bylineFor(settings, normalizedOrigin(origin))) : null;
+}
+
 export async function publishPrivately(db: D1Database, item: ItemRow, note: string | null, ourOrigin?: string): Promise<number> {
   const now = nowIso();
   // Rendered for the owner's reader only: comments and TK markers go as at a
@@ -602,12 +609,13 @@ export async function publishPrivately(db: D1Database, item: ItemRow, note: stri
   // reference stays literal, since a private version refuses nothing.
   const working = parseComments(authoredText(item.content_md)).text;
   const text = stripToOutput(working, parseScopes(working).scopes).text;
-  const links = await resolveInternalLinks(db, text, normalizedOrigin(ourOrigin ?? (await getSettings(db)).site_url), (err) => escapeHtml(err.directive));
+  const settings = await getSettings(db);
+  const links = await resolveInternalLinks(db, text, normalizedOrigin(ourOrigin ?? settings.site_url), (err) => escapeHtml(err.directive));
   const html = await withMathFailures(async () => applyInternalLinks(renderMarkdown(links.text), links));
   const version = (await db.prepare("SELECT COALESCE(MAX(version), 0) + 1 AS next FROM private_versions WHERE item_id = ?").bind(item.id).first<{ next: number }>())!.next;
   const committed = await db.batch([
-    db.prepare("INSERT INTO private_versions (item_id, version, content_md, content_html, published_at, note) SELECT id, ?, content_md, ?, ?, ? FROM items WHERE id = ? AND revision = ? AND version = 0")
-      .bind(version, html, now, note, item.id, item.revision),
+    db.prepare("INSERT INTO private_versions (item_id, version, content_md, content_html, published_at, note, author_json) SELECT id, ?, content_md, ?, ?, ?, ? FROM items WHERE id = ? AND revision = ? AND version = 0")
+      .bind(version, html, now, note, storedByline(settings, ourOrigin ?? settings.site_url), item.id, item.revision),
     db.prepare("UPDATE items SET status = 'private', dirty = 0, updated = ?, revision = revision + 1 WHERE id = ? AND revision = ? AND version = 0")
       .bind(now, item.id, item.revision),
   ]);

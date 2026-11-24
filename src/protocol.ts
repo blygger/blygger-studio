@@ -1,3 +1,4 @@
+import { servedAuthor } from "./byline.ts";
 import { listSyndication } from "./syndication.ts";
 import { authoredVersionKind } from './version-state.ts';
 // Protocol surface builders: item JSON, manifest, archive index, feed.xml
@@ -58,9 +59,6 @@ export function ownPagePath(isThread: boolean, id: string): string {
   return `${isThread ? "t" : "f"}/${id}/`;
 }
 
-function author(settings: Settings, origin: string) {
-  return { name: settings.author_name, url: settings.author_url || origin };
-}
 
 /** §2.3 item JSON. Only the latest published version's content is served. */
 export async function buildItemJson(db: D1Database, settings: Settings, item: ItemRow, origin: string) {
@@ -117,7 +115,7 @@ export async function buildItemJson(db: D1Database, settings: Settings, item: It
     // Emitted for withdrawn items too — an endcap's page is 200 forever, and a
     // mention may legitimately target it.
     page: ownPagePath(isThread, item.id),
-    author: author(settings, origin),
+    author: servedAuthor(latest?.author_json, settings, origin),
     created: item.created,
     updated: item.updated,
     version: item.version,
@@ -147,7 +145,7 @@ export function buildPinnedVersionJson(settings: Settings, item: ItemRow, row: V
     note: row.note,
     pinned: true,
     origin,
-    author: author(settings, origin),
+    author: servedAuthor(row.author_json, settings, origin),
     content_md: row.content_md,
     content_html: row.content_html,
     content_hash: row.content_hash,
@@ -251,7 +249,7 @@ export async function buildFeedXml(db: D1Database, settings: Settings, origin: s
   const livePairs = JSON.stringify([...new Map(liveItems.map(({ item }) => [item.id, { id: item.id, version: item.version }])).values()]);
   const withdrawnIds = JSON.stringify([...new Map(events.filter(({ item }) => item.kind === "withdrawn").map(({ item }) => [item.id, { id: item.id, version: item.version }])).values()]);
   const [latestRes, mediaRes, prevRes] = await db.batch([
-    db.prepare(`SELECT v.item_id, v.content_md, v.content_html, v.transclusions, v.stub_of, v.stub_cite FROM json_each(?) s JOIN versions v
+    db.prepare(`SELECT v.item_id, v.content_md, v.content_html, v.transclusions, v.stub_of, v.stub_cite, v.author_json FROM json_each(?) s JOIN versions v
       ON v.item_id = json_extract(s.value, '$.id') AND v.version = json_extract(s.value, '$.version')`).bind(livePairs),
     // Each live item's latest version's own attachments (migration 0031).
     db.prepare(`SELECT vm.item_id, m.r2_key, m.alt, m.inline FROM json_each(?) s JOIN version_media vm
@@ -260,8 +258,8 @@ export async function buildFeedXml(db: D1Database, settings: Settings, origin: s
     db.prepare(`SELECT v.item_id, v.kind, v.transclusions FROM json_each(?) s JOIN versions v
       ON v.item_id = json_extract(s.value, '$.id') AND v.version = json_extract(s.value, '$.version') - 1`).bind(withdrawnIds),
   ]);
-  const latestById = new Map<string, { content_md: string; content_html: string; transclusions: string | null; stub_of: string | null; stub_cite: string | null }>();
-  for (const v of latestRes.results as unknown as Array<{ item_id: string; content_md: string; content_html: string; transclusions: string | null; stub_of: string | null; stub_cite: string | null }>) {
+  const latestById = new Map<string, { content_md: string; content_html: string; transclusions: string | null; stub_of: string | null; stub_cite: string | null; author_json: string | null }>();
+  for (const v of latestRes.results as unknown as Array<{ item_id: string; content_md: string; content_html: string; transclusions: string | null; stub_of: string | null; stub_cite: string | null; author_json: string | null }>) {
     latestById.set(v.item_id, v);
   }
   const mediaById = new Map<string, Array<{ r2_key: string; alt: string | null; inline?: number }>>();
@@ -283,9 +281,15 @@ export async function buildFeedXml(db: D1Database, settings: Settings, origin: s
       .map(({ item }) => latestTransclusions({ transclusions: latestById.get(item.id)?.transclusions ?? null })),
   );
   // §7 (C-7-08): the standard RSS byline, whenever the item's author.name is
-  // present. Every item carries the blyg's one author, so it is the same line
-  // on each entry; the opaque author object never appears in the XML.
-  const creator = settings.author_name ? `      <dc:creator>${escapeXml(settings.author_name)}</dc:creator>\n` : "";
+  // present: the latest version's stored byline, or the blyg's for a version
+  // published before bylines were stored. The opaque author object never appears in the XML.
+  // The dc namespace is declared whenever the blyg has an author name, as before, or any entry names one.
+  let creator = Boolean(settings.author_name);
+  const creatorFor = (stored: string | null | undefined) => {
+    const name = servedAuthor(stored, settings, "").name;
+    if (name) creator = true;
+    return name ? `      <dc:creator>${escapeXml(name)}</dc:creator>\n` : "";
+  };
   const itemsXml: string[] = [];
   // Per §2.3, only the latest version's content is published — feed entries
   // for older publish events carry the event's version/note but render the
@@ -336,7 +340,7 @@ export async function buildFeedXml(db: D1Database, settings: Settings, origin: s
       <title>${escapeXml(feedTitle(item, version.note, excerptText))}</title>
       <description>${isWithdrawn ? "" : cdata(html)}</description>
       <pubDate>${rfc822(version.published_at)}</pubDate>
-${creator}      <blyg:id>${item.id}</blyg:id>
+${creatorFor(latest?.author_json)}      <blyg:id>${item.id}</blyg:id>
       <blyg:kind>${item.kind}</blyg:kind>
       <blyg:version>${version.version}</blyg:version>
       <blyg:created>${item.created}</blyg:created>
