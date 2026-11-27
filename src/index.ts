@@ -41,6 +41,7 @@ import { receiveMention, verifyMention } from "./mentions/receive.ts";
 
 import { drainOutbound } from "./mentions/send.ts";
 import { drainImportedChanges } from "./background-model.ts";
+import { writeResidentDigest } from "./agentic-digest.ts";
 import { pruneFailedInbound } from "./mentions/store.ts";
 import type { Env, Settings } from "./types.ts";
 import { FEED_PAGE_SIZE, WEBMENTION_PATH } from "./types.ts";
@@ -484,7 +485,13 @@ export default {
     // Both jobs are idempotent: an install with both crons runs them twice.
     const at = new Date(controller.scheduledTime);
     if (at.getUTCHours() === 0 && at.getUTCMinutes() < 15) daily();
-    ctx.waitUntil(runScheduledPoll(env.DB, platformFetchFor(env)));
+    // The built-in digest, when chosen, after the poll has brought in what it reads. The cron knows its origin only from site_url.
+    ctx.waitUntil(runScheduledPoll(env.DB, platformFetchFor(env)).then(async () => {
+      const settings = await getSettings(env.DB);
+      if (settings.agentic_driver === "resident") await writeResidentDigest(env.DB, Date.now(), siteOrigin(settings, "https://unknown.invalid/", ""));
+    }).catch(() => {
+      console.warn('Scheduled poll or digest failed');
+    }));
     // Background 4b: imported changes queued by earlier polls, judged a few at a
     // time under the AI budget. Not on the minute tick, which promises an
     // unchanged tick only two small D1 reads (test/polling-cache.oracle.test.ts).

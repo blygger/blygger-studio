@@ -203,6 +203,7 @@ export const zSettings = z.object({
         'summary'
     ]),
     changelogSummaryPrompt: z.string(),
+    agenticDriver: z.enum(['off', 'resident']),
     agenticTitle: z.string(),
     readerMarkRead: z.enum([
         'seen',
@@ -1479,6 +1480,7 @@ export const zUpdateSettingsBody = z.object({
         'summary'
     ]).optional(),
     changelogSummaryPrompt: z.string().optional(),
+    agenticDriver: z.enum(['off', 'resident']).optional(),
     agenticTitle: z.string().optional(),
     readerMarkRead: z.enum([
         'seen',

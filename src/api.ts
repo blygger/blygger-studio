@@ -24,6 +24,7 @@ import { compiledExtensionNames } from "../build/extensions.names.ts";
 import { BACKGROUND_RULES, settleOwnBackground } from "./background.ts";
 import { READER_ORDERS } from "./feeds/reader-order.ts";
 import { listFeeds, readEdition, replaceEdition, type AgenticEditionInput } from "./agentic.ts";
+import { writeResidentDigest } from "./agentic-digest.ts";
 // Owner API (cookie auth, JSON) — v0.1-plan §3.3.
 
 import { canBeFrontPage, MAX_LINKS, postsPathError } from "./front-page.ts";
@@ -813,6 +814,7 @@ const SETTINGS_KEYS = [
   "reader_changelog_display",
   "reader_order",
   "reader_mark_read",
+  "agentic_driver",
   "agentic_title",
   "changelog_summary_prompt",
   "picker_typing",
@@ -849,6 +851,7 @@ const updateSettingsOperation = async (context: OperationContext, input: Operati
   }
   if (typeof patch.picker_typing === "string" && !["auto", "editor", "panel"].includes(patch.picker_typing)) return failure('invalid-input', { error: "pickerTyping must be auto, editor or panel" });
   if (typeof patch.default_visibility === "string" && !["public", "private"].includes(patch.default_visibility)) return failure('invalid-input', { error: "defaultVisibility must be public or private" });
+  if (typeof patch.agentic_driver === "string" && !["off", "resident"].includes(patch.agentic_driver)) return failure('invalid-input', { error: "agenticDriver must be off or resident" });
   for (const [field, key] of [["changelogDisplay", "changelog_display"], ["readerChangelogDisplay", "reader_changelog_display"]] as const) {
     if (typeof patch[key] === "string" && !(CHANGELOG_DISPLAYS as readonly string[]).includes(patch[key])) return failure('invalid-input', { error: `${field} must be latest, history or summary` });
   }
@@ -964,7 +967,10 @@ const updateSettingsOperation = async (context: OperationContext, input: Operati
     if (name === CUSTOM_THEME_ID && !light) return failure('invalid-input', { error: "studioTheme is custom but no customTheme is set" });
   }
   await putSettings(context.env.DB, patch);
-  return success(settingsResource(await getSettings(context.env.DB)));
+  const saved = await getSettings(context.env.DB);
+  // Turning the built-in digest on writes an edition now, not at the next quarter hour.
+  if (patch.agentic_driver === "resident") context.defer(writeResidentDigest(context.env.DB, Date.now(), siteOrigin(saved, context.url, normalizeMount(context.env.MOUNT))));
+  return success(settingsResource(saved));
 };
 
 const contactInput = (body: { handle?: string; url?: string }) => {

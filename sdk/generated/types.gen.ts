@@ -196,6 +196,10 @@ export type Settings = {
      */
     changelogSummaryPrompt: string;
     /**
+     * Who writes the default Agentic feed: off, or resident, the built-in digest (blygger-spec docs/agentic-digest-plan.md), written on the quarter-hour cron and when this is turned on.
+     */
+    agenticDriver: 'off' | 'resident';
+    /**
      * The owner's name for the Agentic feed tab ("Daily digest", "My briefing"), at most 40 characters; also the heading of each edition's thread. Empty restores "Agentic feed".
      */
     agenticTitle: string;
@@ -3181,6 +3185,10 @@ export type UpdateSettingsData = {
          * Owner instructions for changelog summaries: the public-page and reader summaries, and a change note drafted with "summarize full history to date".
          */
         changelogSummaryPrompt?: string;
+        /**
+         * Who writes the default Agentic feed: off, or resident, the built-in digest (blygger-spec docs/agentic-digest-plan.md), written on the quarter-hour cron and when this is turned on.
+         */
+        agenticDriver?: 'off' | 'resident';
         /**
          * The owner's name for the Agentic feed tab ("Daily digest", "My briefing"), at most 40 characters; also the heading of each edition's thread. Empty restores "Agentic feed".
          */

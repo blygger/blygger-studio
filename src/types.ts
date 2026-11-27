@@ -527,6 +527,8 @@ export interface Settings {
   reader_order: ReaderOrder;
   reader_mark_read: "seen" | "opened" | "never";
   /** The owner's name for the Agentic feed tab, also the heading of each edition's thread. */
+  /** Who writes the default Agentic feed: off, or the built-in digest (session 90). */
+  agentic_driver: "off" | "resident";
   agentic_title: string;
   /**
    * Whether this blyg receives Webmentions (0.3 §15, which is **OPTIONAL at

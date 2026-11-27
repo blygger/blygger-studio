@@ -66,6 +66,7 @@ const fields = [
   "aiModelHelpers",
   "aiModelClassify",
   "feedPrompt",
+  "agenticDriver",
   "agenticTitle",
   "aiStylePrompt",
   "changelogDisplay",
@@ -944,6 +945,17 @@ function SettingsForm({ initial }: { initial: Settings }) {
       <section className="card" id="ai-feed">
         <h3 className="card-h">agentic feed</h3>
         <ModelField fkey="aiModelFeed" label="Model" name="agentic feed" hint="not used yet" manifest={aiModels} form={form} change={change} />
+        <div className="field" role="radiogroup" aria-labelledby="agentic_driver-label">
+          <span id="agentic_driver-label">Who writes it</span>
+          {AGENTIC_DRIVER_OPTIONS.map(([value, label, hint]) => (
+            <label className="check" key={value}>
+              <input type="radio" name="agenticDriver" value={value} checked={form.agenticDriver === value} onChange={() => change("agenticDriver", value)} />
+              <span>
+                {label} <span className="hint">{hint}</span>
+              </span>
+            </label>
+          ))}
+        </div>
         {field("agenticTitle", 'Tab name: what you call it in Reading, and the heading of each edition', false, 'Agentic feed')}
         {field(
           "feedPrompt",
@@ -1232,6 +1244,10 @@ function SettingsNav() {
 
 // Radio choices shared with the setup wizard: [value, label, hint].
 // The two modes (Venkat, 2026-11-23): Publish mode is a public blog, Notebook mode a private notebook.
+export const AGENTIC_DRIVER_OPTIONS = [
+  ['off', 'Nobody', 'the tab shows what an outside assistant last wrote, if any'],
+  ['resident', 'The built-in digest', 'highlights and happening conversations from what you follow, by rule, every quarter hour'],
+] as const;
 export const MODE_OPTIONS = [
   ['public', 'Publish mode', 'public by default, a blog: publishing puts an item on your pages and feed'],
   ['private', 'Notebook mode', 'private by default, a notebook: versions are yours until you choose to make one public'],

@@ -699,6 +699,14 @@
             "type": "string",
             "description": "Owner instructions for changelog summaries: the public-page and reader summaries, and a change note drafted with \"summarize full history to date\"."
           },
+          "agenticDriver": {
+            "type": "string",
+            "enum": [
+              "off",
+              "resident"
+            ],
+            "description": "Who writes the default Agentic feed: off, or resident, the built-in digest (blygger-spec docs/agentic-digest-plan.md), written on the quarter-hour cron and when this is turned on."
+          },
           "agenticTitle": {
             "type": "string",
             "description": "The owner's name for the Agentic feed tab (\"Daily digest\", \"My briefing\"), at most 40 characters; also the heading of each edition's thread. Empty restores \"Agentic feed\"."
@@ -956,6 +964,7 @@
           "changelogDisplay",
           "readerChangelogDisplay",
           "changelogSummaryPrompt",
+          "agenticDriver",
           "agenticTitle",
           "readerMarkRead",
           "readerOrder",
@@ -8914,6 +8923,14 @@
                   "changelogSummaryPrompt": {
                     "type": "string",
                     "description": "Owner instructions for changelog summaries: the public-page and reader summaries, and a change note drafted with \"summarize full history to date\"."
+                  },
+                  "agenticDriver": {
+                    "type": "string",
+                    "enum": [
+                      "off",
+                      "resident"
+                    ],
+                    "description": "Who writes the default Agentic feed: off, or resident, the built-in digest (blygger-spec docs/agentic-digest-plan.md), written on the quarter-hour cron and when this is turned on."
                   },
                   "agenticTitle": {
                     "type": "string",
