@@ -1,5 +1,6 @@
 import { test, expect } from './fixture.ts';
 import { CLIENT } from '../src/client.ts';
+import { HIGHLIGHTS } from '../src/ui/whats-new.ts';
 
 // The setup wizard (session 46): reachable from Settings, one step at a time,
 // each setting beside its default, nothing written until the last step.
@@ -113,10 +114,11 @@ test.describe('what is new', () => {
 
     await page.goto('/studio/settings');
     const banner = page.locator('#whats-new-banner');
-    await expect(banner).toContainText('New in 0.72.0');
+    // The banner and the walk are headed by the newest release with highlights; 0.72.0's are listed below it.
+    await expect(banner).toContainText(`New in ${HIGHLIGHTS[0].version}`);
     await expect(banner).toContainText('Notebook mode');
     await page.locator('#whats-new-review').click();
-    await expect(page.locator('#setup h2')).toContainText('What’s new in 0.72.0');
+    await expect(page.locator('#setup h2')).toContainText(`What’s new in ${HIGHLIGHTS[0].version}`);
     // You and Home page have nothing new, so they are not walked.
     const steps = page.locator('.setup-steps li');
     await expect(steps).toHaveText(['1. Mode', '2. Look', '3. Reading', '4. Writing and AI', '5. Others', '6. Review', '7. Read']);
