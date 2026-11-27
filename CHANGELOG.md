@@ -20,6 +20,26 @@ not have its own repo until session 26.
 
 ## Unreleased
 
+## 0.74.0 — The built-in Agentic digest
+
+**The Agentic feed can write itself** (blygger-spec `docs/agentic-digest-plan.md`, ROADMAP
+row 168). Settings → AI → *Who writes it* has three choices:
+
+- **The built-in digest**: two sections, chosen by rule from what you follow, with no AI model
+  involved. *Highlights* lists new items of at least 300 words of their own (not stubs or forks)
+  from followed blygs outside Background, at most seven. *Happening conversations* lists linked
+  sets of items with at least two authors and something new, at most five. It is written
+  hourly, daily at 07:00 or on Mondays at 07:00 in your timezone. Its window follows the
+  frequency: the day before for hourly and daily, the week before for weekly. An edition that
+  would come out the same as the last one is not rewritten. *Regenerate now* on the tab writes
+  one at any time (`POST /agentic/{feed}/regenerate`).
+- **An external agent** (the default, so nothing changes on upgrade): a program writes the
+  edition with a token, as before. Settings now says which scopes that token needs.
+- **Off**: no Agentic feed, and optionally no tab in Reading.
+
+**Migrations:** none. Private contract 7.2.0 (the `agenticDriver`, `agenticHidden` and
+`agenticFrequency` settings; `regenerateAgentic`), SDK 0.28.0.
+
 ## 0.73.1 — The hopper lens lists drafts; private items can move to Background
 
 **The hopper lens lists drafts** (Aneesh, studio#175; Venkat, studio#178 V9). A hopper is a

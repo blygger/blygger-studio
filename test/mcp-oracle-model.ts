@@ -1,7 +1,7 @@
 const reads = ['getDictionary','getSyndication','listHelpers','catchUp','getShelf','listContacts','batchRead','getItemSummary','listItemVersions','listHopperMemberships','getReadingSummary','getSignalSummary','listItems','getItem','getSettings','listSubscriptions','getSubscription','listHoppers','getHopper','listSignals','listMentions','listMentionGroups','getMentionSummary','search','getVersion','listReading','listImportedReading','getImportedItem','getImportedHistory','getImportedVersion','getUpdateState','getMentionSource','listStaleThreads','getItemFreshness','getForkOptions','listInteractions','listThumbs','getAiModels','peekItem','classifyLinks','listBrowse'];
 const privateReads = ['listPrivateVersions','listAgenticFeeds','getAgentic'];
-// The Agentic feed's write needs both (Venkat, session 88): an edition may name any own item.
-const privateManagement = ['putAgentic'];
+// The Agentic feed's writes need both (Venkat, session 88): an edition may name any own item.
+const privateManagement = ['putAgentic', 'regenerateAgentic'];
 const drafting = ['createItem','updateItem','deleteItem','restoreItem','uploadMedia','generateItem','draftNote','summarizeChangelog','summarizeCatchUp','classifyChange','preview'];
 const publishing = ['publishItem','withdrawItem','pinItem','putSyndication','refreshItem','deleteMedia'];
 const management = ['setReadingPlacement','putDictionarySource','putShelf','createContact','updateContact','resolveContact','deleteContact','updateSettings','createSubscription','updateSubscription','resyncSubscription','pollAllSubscriptions','deleteSubscription','createHopper','updateHopper','deleteHopper','addHopperItem','removeHopperItem','setSignal','deleteSignal','updateMention'];

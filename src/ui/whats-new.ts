@@ -30,6 +30,12 @@ export const SINCE: Record<string, string> = {
 /** Per release, newest first: what changed for the owner, in a line each. */
 export const HIGHLIGHTS: { version: string; items: string[] }[] = [
   {
+    version: '0.74.0',
+    items: [
+      'The Agentic feed can write itself: choose the built-in digest in Settings → AI, hourly, daily or weekly.',
+    ],
+  },
+  {
     version: '0.72.0',
     items: [
       'Notebook mode: a blyg can be private by default, and an item goes public only when you say so.',

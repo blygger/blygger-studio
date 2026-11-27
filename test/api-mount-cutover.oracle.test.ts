@@ -52,7 +52,7 @@ function mountModel(plan: MountPlan): Fact[] {
     { checkpoint: 'SDK item round trip', value: plan.text },
     { checkpoint: 'API creation status', value: 201 },
     { checkpoint: 'created resource location', value: plan.mount + '/api/items/<created>' },
-    { checkpoint: 'API capabilities', value: { api, contractVersion: '7.1.0' } },
+    { checkpoint: 'API capabilities', value: { api, contractVersion: '7.2.0' } },
     { checkpoint: 'API description', value: { servers: [{ url: api }], itemOperation: true, prefixedPath: false } },
     { checkpoint: 'API has no Studio route', value: 404 },
     { checkpoint: 'mounted Studio login', value: 200 },

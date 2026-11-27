@@ -196,6 +196,18 @@ export type Settings = {
      */
     changelogSummaryPrompt: string;
     /**
+     * Who writes the default Agentic feed: external, an outside agent with a token (PUT /agentic/default; the default); resident, the built-in digest (blygger-spec docs/agentic-digest-plan.md); or off, no Agentic feed.
+     */
+    agenticDriver: 'off' | 'external' | 'resident';
+    /**
+     * With agenticDriver off, hide the Agentic feed tab in Reading.
+     */
+    agenticHidden: boolean;
+    /**
+     * How often the built-in digest is written: on the hour, daily at 07:00, or Mondays at 07:00, in the owner's timezone.
+     */
+    agenticFrequency: 'hourly' | 'daily' | 'weekly';
+    /**
      * The owner's name for the Agentic feed tab ("Daily digest", "My briefing"), at most 40 characters; also the heading of each edition's thread. Empty restores "Agentic feed".
      */
     agenticTitle: string;
@@ -3182,6 +3194,18 @@ export type UpdateSettingsData = {
          */
         changelogSummaryPrompt?: string;
         /**
+         * Who writes the default Agentic feed: external, an outside agent with a token (PUT /agentic/default; the default); resident, the built-in digest (blygger-spec docs/agentic-digest-plan.md); or off, no Agentic feed.
+         */
+        agenticDriver?: 'off' | 'external' | 'resident';
+        /**
+         * With agenticDriver off, hide the Agentic feed tab in Reading.
+         */
+        agenticHidden?: boolean;
+        /**
+         * How often the built-in digest is written: on the hour, daily at 07:00, or Mondays at 07:00, in the owner's timezone.
+         */
+        agenticFrequency?: 'hourly' | 'daily' | 'weekly';
+        /**
          * The owner's name for the Agentic feed tab ("Daily digest", "My briefing"), at most 40 characters; also the heading of each edition's thread. Empty restores "Agentic feed".
          */
         agenticTitle?: string;
@@ -4720,6 +4744,77 @@ export type PutAgenticResponses = {
 };
 
 export type PutAgenticResponse = PutAgenticResponses[keyof PutAgenticResponses];
+
+export type RegenerateAgenticData = {
+    body?: never;
+    path: {
+        feed: string;
+    };
+    query?: never;
+    url: '/agentic/{feed}/regenerate';
+};
+
+export type RegenerateAgenticErrors = {
+    /**
+     * Request failed
+     */
+    400: ApiError;
+    /**
+     * Request failed
+     */
+    401: ApiError;
+    /**
+     * Request failed
+     */
+    403: ApiError;
+    /**
+     * Request failed
+     */
+    404: ApiError;
+    /**
+     * Request failed
+     */
+    405: ApiError;
+    /**
+     * Request failed
+     */
+    409: ApiError;
+    /**
+     * Request failed
+     */
+    413: ApiError;
+    /**
+     * Request failed
+     */
+    415: ApiError;
+    /**
+     * Request failed
+     */
+    422: ApiError;
+    /**
+     * Request failed
+     */
+    429: ApiError;
+    /**
+     * Request failed
+     */
+    500: ApiError;
+    /**
+     * Request failed
+     */
+    502: ApiError;
+};
+
+export type RegenerateAgenticError = RegenerateAgenticErrors[keyof RegenerateAgenticErrors];
+
+export type RegenerateAgenticResponses = {
+    /**
+     * Success
+     */
+    200: AgenticEdition & unknown;
+};
+
+export type RegenerateAgenticResponse = RegenerateAgenticResponses[keyof RegenerateAgenticResponses];
 
 export type ListContactsData = {
     body?: never;

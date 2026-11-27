@@ -23,7 +23,8 @@ import { ItemCreateSchema, ItemEditSchema } from "./contract/routes.ts";
 import { compiledExtensionNames } from "../build/extensions.names.ts";
 import { BACKGROUND_RULES, settleOwnBackground } from "./background.ts";
 import { READER_ORDERS } from "./feeds/reader-order.ts";
-import { listFeeds, readEdition, replaceEdition, type AgenticEditionInput } from "./agentic.ts";
+import { DEFAULT_FEED, listFeeds, readEdition, replaceEdition, type AgenticEditionInput } from "./agentic.ts";
+import { writeResidentDigest } from "./agentic-digest.ts";
 // Owner API (cookie auth, JSON) — v0.1-plan §3.3.
 
 import { canBeFrontPage, MAX_LINKS, postsPathError } from "./front-page.ts";
@@ -813,6 +814,8 @@ const SETTINGS_KEYS = [
   "reader_changelog_display",
   "reader_order",
   "reader_mark_read",
+  "agentic_driver",
+  "agentic_frequency",
   "agentic_title",
   "changelog_summary_prompt",
   "picker_typing",
@@ -838,7 +841,7 @@ const updateSettingsOperation = async (context: OperationContext, input: Operati
   for (const key of SETTINGS_KEYS) {
     if (typeof body[key] === "string") patch[key] = body[key] as string;
   }
-  for (const key of ["accept_mentions", "update_check", "show_responses_default", "highlight_generated_default", "auto_change_notes", "change_category_in_note", "update_notice_ack", "links_collections", "links_opml", "links_blygger_org", "links_blygger_com", "hopper_feeds", "bg_model_imported", "bg_flag_disagreement"] as const) {
+  for (const key of ["accept_mentions", "update_check", "show_responses_default", "highlight_generated_default", "auto_change_notes", "change_category_in_note", "update_notice_ack", "links_collections", "links_opml", "links_blygger_org", "links_blygger_com", "hopper_feeds", "bg_model_imported", "bg_flag_disagreement", "agentic_hidden"] as const) {
     if (typeof body[key] === "boolean") patch[key] = body[key] ? "on" : "off";
   }
   // Decision models answer questions and write no text (src/ai/models.ts): the
@@ -849,6 +852,8 @@ const updateSettingsOperation = async (context: OperationContext, input: Operati
   }
   if (typeof patch.picker_typing === "string" && !["auto", "editor", "panel"].includes(patch.picker_typing)) return failure('invalid-input', { error: "pickerTyping must be auto, editor or panel" });
   if (typeof patch.default_visibility === "string" && !["public", "private"].includes(patch.default_visibility)) return failure('invalid-input', { error: "defaultVisibility must be public or private" });
+  if (typeof patch.agentic_driver === "string" && !["off", "external", "resident"].includes(patch.agentic_driver)) return failure('invalid-input', { error: "agenticDriver must be off, external or resident" });
+  if (typeof patch.agentic_frequency === "string" && !["hourly", "daily", "weekly"].includes(patch.agentic_frequency)) return failure('invalid-input', { error: "agenticFrequency must be hourly, daily or weekly" });
   for (const [field, key] of [["changelogDisplay", "changelog_display"], ["readerChangelogDisplay", "reader_changelog_display"]] as const) {
     if (typeof patch[key] === "string" && !(CHANGELOG_DISPLAYS as readonly string[]).includes(patch[key])) return failure('invalid-input', { error: `${field} must be latest, history or summary` });
   }
@@ -964,7 +969,10 @@ const updateSettingsOperation = async (context: OperationContext, input: Operati
     if (name === CUSTOM_THEME_ID && !light) return failure('invalid-input', { error: "studioTheme is custom but no customTheme is set" });
   }
   await putSettings(context.env.DB, patch);
-  return success(settingsResource(await getSettings(context.env.DB)));
+  const saved = await getSettings(context.env.DB);
+  // Turning the built-in digest on writes an edition now, not at the next quarter hour.
+  if (patch.agentic_driver === "resident") context.defer(writeResidentDigest(context.env.DB, Date.now(), siteOrigin(saved, context.url, normalizeMount(context.env.MOUNT))));
+  return success(settingsResource(saved));
 };
 
 const contactInput = (body: { handle?: string; url?: string }) => {
@@ -1047,6 +1055,13 @@ const getAgenticOperation = async (context: OperationContext, input: OperationIn
   const edition = await readEdition(context.env.DB, input.path.feed);
   return edition ? success(edition) : failure('not-found', { error: "no such agentic feed" });
 };
+// Regenerate now (session 90): the built-in digest writes a fresh edition, changed or not.
+const regenerateAgenticOperation = async (context: OperationContext, input: OperationInput) => {
+  const settings = await getSettings(context.env.DB);
+  if (input.path.feed !== DEFAULT_FEED || settings.agentic_driver !== "resident") return failure('conflict', { error: "the built-in digest does not write this feed; choose it in Settings → AI → agentic feed" });
+  await writeResidentDigest(context.env.DB, Date.now(), siteOrigin(settings, context.url, normalizeMount(context.env.MOUNT)), { force: true });
+  return success((await readEdition(context.env.DB, DEFAULT_FEED))!);
+};
 const putAgenticOperation = async (context: OperationContext, input: OperationInput) => {
   const feed = input.path.feed;
   const body = input.body as { edition: AgenticEditionInput; expectedRevision: number };
@@ -1083,6 +1098,7 @@ export const itemOperations = {
   listAgenticFeeds: listAgenticFeedsOperation,
   getAgentic: getAgenticOperation,
   putAgentic: putAgenticOperation,
+  regenerateAgentic: regenerateAgenticOperation,
   getDictionary: getDictionaryOperation,
   putDictionarySource: putDictionarySourceOperation,
   getShelf: getShelfOperation,

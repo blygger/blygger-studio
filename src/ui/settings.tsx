@@ -66,6 +66,9 @@ const fields = [
   "aiModelHelpers",
   "aiModelClassify",
   "feedPrompt",
+  "agenticDriver",
+  "agenticHidden",
+  "agenticFrequency",
   "agenticTitle",
   "aiStylePrompt",
   "changelogDisplay",
@@ -203,7 +206,8 @@ function SettingsForm({ initial }: { initial: Settings }) {
       | "linksOpml"
       | "linksBlyggerOrg"
       | "linksBlyggerCom"
-      | "hopperFeeds",
+      | "hopperFeeds"
+      | "agenticHidden",
     label: string,
     hint?: ReactNode,
   ) => (
@@ -944,6 +948,34 @@ function SettingsForm({ initial }: { initial: Settings }) {
       <section className="card" id="ai-feed">
         <h3 className="card-h">agentic feed</h3>
         <ModelField fkey="aiModelFeed" label="Model" name="agentic feed" hint="not used yet" manifest={aiModels} form={form} change={change} />
+        <div className="field" role="radiogroup" aria-labelledby="agentic_driver-label">
+          <span id="agentic_driver-label">Who writes it</span>
+          {AGENTIC_DRIVER_OPTIONS.map(([value, label, hint]) => (
+            <label className="check" key={value}>
+              <input type="radio" name="agenticDriver" value={value} checked={form.agenticDriver === value} onChange={() => change("agenticDriver", value)} />
+              <span>
+                {label} <span className="hint">{hint}</span>
+              </span>
+            </label>
+          ))}
+        </div>
+        {form.agenticDriver === 'resident' ? (
+          <div className="field">
+            <label htmlFor="agentic_frequency">How often</label>
+            <select id="agentic_frequency" value={form.agenticFrequency} onChange={(event) => change('agenticFrequency', event.target.value as Settings['agenticFrequency'])}>
+              {AGENTIC_FREQUENCY_OPTIONS.map(([value, label]) => <option key={value} value={value}>{label}</option>)}
+            </select>
+            <p className="hint">In your timezone. <em>Regenerate now</em> on the tab writes one at any time.</p>
+          </div>
+        ) : form.agenticDriver === 'external' ? (
+          <p className="hint">
+            Give your agent a token: in <Link to="/access">Client access</Link>, create one with
+            {' '}<code>owner:read</code>, <code>owner:manage</code> and <code>owner:private</code>, and paste it into the
+            agent. It reads your reading and writes the edition with <code>PUT /api/agentic/default</code>.
+          </p>
+        ) : (
+          toggle('agenticHidden', 'Hide the tab in Reading')
+        )}
         {field("agenticTitle", 'Tab name: what you call it in Reading, and the heading of each edition', false, 'Agentic feed')}
         {field(
           "feedPrompt",
@@ -1232,6 +1264,16 @@ function SettingsNav() {
 
 // Radio choices shared with the setup wizard: [value, label, hint].
 // The two modes (Venkat, 2026-11-23): Publish mode is a public blog, Notebook mode a private notebook.
+export const AGENTIC_DRIVER_OPTIONS = [
+  ['resident', 'The built-in digest', 'highlights and happening conversations from what you follow, by rule'],
+  ['external', 'An external agent', 'a program of yours, or someone else’s, writes it with a token'],
+  ['off', 'Off', 'no Agentic feed'],
+] as const;
+export const AGENTIC_FREQUENCY_OPTIONS = [
+  ['hourly', 'Every hour'],
+  ['daily', 'Every day, at 7:00'],
+  ['weekly', 'Every Monday, at 7:00'],
+] as const;
 export const MODE_OPTIONS = [
   ['public', 'Publish mode', 'public by default, a blog: publishing puts an item on your pages and feed'],
   ['private', 'Notebook mode', 'private by default, a notebook: versions are yours until you choose to make one public'],

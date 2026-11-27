@@ -1612,7 +1612,10 @@ function LensBar({ sub, hopper, sources }: { sub?: string; hopper?: string; sour
   const bar = useRef<HTMLDivElement>(null);
   const tab = isFeed(lens) ? 'all' : lens;
   // The owner names the Agentic feed tab (session 77): "Daily digest", "My briefing".
-  const agenticTitle = useSettings()?.agenticTitle || LENS_LABELS.agentic;
+  const settings = useSettings();
+  const agenticTitle = settings?.agenticTitle || LENS_LABELS.agentic;
+  // With the feed off, the owner may hide its tab (session 90).
+  const tabs = READING_TABS.filter((value) => value !== 'agentic' || !(settings?.agenticDriver === 'off' && settings.agenticHidden));
   // On a phone the bar scrolls sideways; keep the chosen tab in view.
   useEffect(() => {
     const el = bar.current?.querySelector<HTMLElement>('[aria-checked=true]');
@@ -1635,7 +1638,7 @@ function LensBar({ sub, hopper, sources }: { sub?: string; hopper?: string; sour
   return (
     <>
       <ToggleGroup ref={bar} className="lens-bar" aria-label="reading tabs" value={[tab]}>
-        {READING_TABS.map((value) => (
+        {tabs.map((value) => (
           <Toggle
             key={value}
             className={value === 'agentic' ? 'seg-dashed' : undefined}
