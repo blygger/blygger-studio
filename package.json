@@ -81,7 +81,7 @@
     "dataloader": "2.2.3",
     "entities": "4.5.0",
     "fast-xml-parser": "^5.12.1",
-    "hono": "^4.13.18",
+    "hono": "^4.13.23",
     "ipaddr.js": "2.5.0",
     "markdown-it": "^14",
     "react": "^19.3.1",
