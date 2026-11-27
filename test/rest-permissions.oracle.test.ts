@@ -37,7 +37,7 @@ const permissionGroups = {
   'owner:private': ['listPrivateVersions','listAgenticFeeds','getAgentic'],
   // A conjunction: the Agentic feed may name any own item, so writing it is notebook access too
   // (Venkat, session 88). Denied unless the subset holds every scope named in the key.
-  'owner:manage+owner:private': ['putAgentic'],
+  'owner:manage+owner:private': ['putAgentic', 'regenerateAgentic'],
   'owner:draft': ['createItem','updateItem','deleteItem','restoreItem','uploadMedia','generateItem','draftNote','summarizeChangelog','summarizeCatchUp','classifyChange','preview'],
   'owner:publish': ['publishItem','withdrawItem','pinItem','putSyndication','refreshItem','deleteMedia'],
   'owner:manage': ['setReadingPlacement','putDictionarySource','putShelf','createContact','updateContact','resolveContact','deleteContact','updateSettings','createSubscription','updateSubscription','resyncSubscription','pollAllSubscriptions','deleteSubscription','createHopper','updateHopper','deleteHopper','addHopperItem','removeHopperItem','setSignal','deleteSignal','updateMention'],

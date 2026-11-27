@@ -44,6 +44,8 @@ it("exercises every declared operation through its named SDK method, including a
     ["catchUp", 200, async client => api.catchUp({ client, body: { sub: "~own", remoteId: id } })],
     ["listAgenticFeeds", 200, async client => api.listAgenticFeeds({ client })],
     ["getAgentic", 200, async client => api.getAgentic({ client, path: { feed: "default" } })],
+    // Refused while an external agent writes the feed (the default): the built-in digest regenerates only its own.
+    ["regenerateAgentic", 409, async client => api.regenerateAgentic({ client, path: { feed: "default" } })],
     ["putAgentic", 200, async client => api.putAgentic({ client, path: { feed: "default" }, body: { edition: { agent: { name: "sdk" }, scores: [{ sub: "~own", remoteId: id, score: 1 }] }, expectedRevision: (await api.getAgentic({ client, path: { feed: "default" } })).data?.revision ?? 0 } })],
     ["getDictionary", 200, async client => api.getDictionary({ client })],
     ["putDictionarySource", 200, async client => api.putDictionarySource({ client, path: { source: "owner" }, body: { words: ["blyg"], expectedRevision: (await api.getDictionary({ client })).data?.revision ?? 0 } })],

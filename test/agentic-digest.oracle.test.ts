@@ -15,8 +15,8 @@
  * counts only the words it says itself: a long quote or a generated span
  * inside it adds nothing.
  *
- * Three parts decide the edition. The window is the 24 hours before the edition
- * was written. An item's own words are its text outside quotes and generated
+ * Three parts decide the edition. The window is the day before the edition was
+ * written, or the week before it for a weekly edition. An item's own words are its text outside quotes and generated
  * spans. The link graph joins two held items when one stubs, quotes or links
  * the other, when both point at the same item (held or not), or when a verified
  * mention joins them.
@@ -34,7 +34,7 @@
  * window give the same edition, and an unchanged edition is not written again.
  * Decision by Venkat Rao (GitHub vgururao), 2026-11-27: blygger-spec
  * docs/agentic-digest-plan.md §8, laws 1, 2 and 5, approved as written, with
- * the last clause added the same day.
+ * the last clause added the same day, and the window following the frequency.
  *
  * The model reads only the plan: each item's author, age, word counts and
  * relation, resolved to what can legally exist (an own item can only point at
@@ -72,11 +72,12 @@ const relations = ['none', 'stub', 'fork', 'quote', 'link'] as const;
 type Relation = (typeof relations)[number];
 // author -1 is the owner; a target is an earlier item's index, or an item nobody here holds.
 type PlanItem = { author: number; age: number; words: number; quoteWords: number; genWords: number; relation: Relation; target: number; mentions: number; twin: boolean; bare: boolean; second: number };
-type Plan = { background: boolean[]; items: PlanItem[] };
+type Plan = { background: boolean[]; frequency: 'hourly' | 'daily' | 'weekly'; items: PlanItem[] };
 
 const item = fc.record({
   // Age in hours before the edition is written: exactly 24 is outside the window, and -1 (a clock ahead of ours) is too.
-  author: fc.integer({ min: -1, max: 2 }), age: fc.constantFrom(-1, 0, 1, 12, 23, 24, 25, 48),
+  // 167 and 168 are a weekly window's edges.
+  author: fc.integer({ min: -1, max: 2 }), age: fc.constantFrom(-1, 0, 1, 12, 23, 24, 25, 48, 167, 168),
   words: fc.constantFrom(0, 120, 299, 300, 480), quoteWords: fc.constantFrom(0, 400), genWords: fc.constantFrom(0, 400),
   relation: fc.constantFrom(...relations), target: fc.integer({ min: 0, max: 12 }), mentions: fc.integer({ min: -1, max: 9 }),
   // twin: the item reuses the previous item's id on another blyg; bare: it names its target's origin without a trailing slash.
@@ -122,7 +123,9 @@ type Expected = { sections: Section[]; states: string[] };
 
 function model(plan: Plan): Expected {
   const items = resolve(plan);
-  const inWindow = (r: Resolved) => r.age >= 0 && r.age < 24;
+  // The window follows the frequency: a day, or a week for a weekly edition.
+  const hours = plan.frequency === 'weekly' ? 168 : 24;
+  const inWindow = (r: Resolved) => r.age >= 0 && r.age < hours;
   // Ties fall to the item id, then its blyg (the subscription's id).
   const byId = (a: Resolved, b: Resolved) => a.id - b.id || a.blyg - b.blyg;
   // The link graph: an item is a node, and so is every item it points at.
@@ -174,7 +177,8 @@ function model(plan: Plan): Expected {
     ...(candidates.filter((r) => !claimed.has(r.index)).length > 7 ? ['over cap'] : []),
     ...(conversations.some((c) => c.members.every((m) => m.relation !== 'none' && m.target === null && m.ghost !== null)) ? ['joined by an item nobody holds'] : []),
     ...(conversations.some((c) => c.members.some((m) => m.mentions !== null)) ? ['joined by a mention'] : []),
-    ...(items.some((r) => !r.own && (r.age === 24 || r.age < 0)) ? ['window edge'] : []),
+    ...(items.some((r) => !r.own && (r.age === hours || r.age < 0)) ? ['window edge'] : []),
+    ...(plan.frequency === 'weekly' && items.some((r) => !r.own && r.age > 24 && r.age < 168) ? ['weekly window'] : []),
     ...(items.some((r) => r.id !== r.index) ? ['shared id'] : []),
     ...(qualifying > 5 ? ['more conversations than shown'] : []),
   ];
@@ -242,14 +246,14 @@ async function seed(plan: Plan, now: number) {
 }
 
 const histories = {
-  arbitrary: fc.record({ background: fc.array(fc.boolean(), { minLength: 1, maxLength: 3 }), items: fc.array(item, { maxLength: 12 }) }),
+  arbitrary: fc.record({ background: fc.array(fc.boolean(), { minLength: 1, maxLength: 3 }), frequency: fc.constantFrom('hourly' as const, 'daily' as const, 'weekly' as const), items: fc.array(item, { maxLength: 12 }) }),
   runs: 25, fixedSeeds: [20261127],
-  states: ['highlights', 'conversations', 'quiet', 'conversation wins', 'background excluded', 'borrowed words', 'over cap', 'joined by an item nobody holds', 'joined by a mention', 'window edge', 'shared id', 'more conversations than shown'],
+  states: ['weekly window', 'highlights', 'conversations', 'quiet', 'conversation wins', 'background excluded', 'borrowed words', 'over cap', 'joined by an item nobody holds', 'joined by a mention', 'window edge', 'shared id', 'more conversations than shown'],
   constructed: [
-    { name: 'a quiet day', build: (): Plan => ({ background: [false], items: [{ author: 0, age: 48, words: 480, quoteWords: 0, genWords: 0, relation: 'none', target: 12, mentions: -1, twin: false, bare: false, second: -1 }] }), enters: ['quiet'] },
+    { name: 'a quiet day', build: (): Plan => ({ frequency: 'daily', background: [false], items: [{ author: 0, age: 48, words: 480, quoteWords: 0, genWords: 0, relation: 'none', target: 12, mentions: -1, twin: false, bare: false, second: -1 }] }), enters: ['quiet'] },
     {
       name: 'a long post that started a conversation', enters: ['highlights', 'conversations', 'conversation wins'],
-      build: (): Plan => ({ background: [false, false], items: [
+      build: (): Plan => ({ frequency: 'daily', background: [false, false], items: [
         { author: 0, age: 12, words: 480, quoteWords: 0, genWords: 0, relation: 'none', target: 12, mentions: -1, twin: false, bare: false, second: -1 },
         { author: 1, age: 1, words: 120, quoteWords: 0, genWords: 0, relation: 'stub', target: 0, mentions: -1, twin: false, bare: false, second: -1 },
         { author: 1, age: 23, words: 300, quoteWords: 0, genWords: 0, relation: 'none', target: 12, mentions: -1, twin: false, bare: false, second: -1 },
@@ -257,34 +261,38 @@ const histories = {
     },
     {
       name: 'borrowed words and a blyg in Background', enters: ['background excluded', 'borrowed words', 'quiet'],
-      build: (): Plan => ({ background: [false, true], items: [
+      build: (): Plan => ({ frequency: 'daily', background: [false, true], items: [
         { author: 0, age: 1, words: 120, quoteWords: 400, genWords: 400, relation: 'none', target: 12, mentions: -1, twin: false, bare: false, second: -1 },
         { author: 1, age: 1, words: 480, quoteWords: 0, genWords: 0, relation: 'none', target: 12, mentions: -1, twin: false, bare: false, second: -1 },
       ] }),
     },
     {
       name: 'eight long posts', enters: ['highlights', 'over cap'],
-      build: (): Plan => ({ background: [false, false], items: Array.from({ length: 8 }, (_, i) => ({ author: i % 2, age: i % 2 ? 1 : 12, words: i < 4 ? 480 : 300, quoteWords: 0, genWords: 0, relation: 'none' as const, target: 12, mentions: -1, twin: false, bare: false, second: -1 })) }),
+      build: (): Plan => ({ frequency: 'daily', background: [false, false], items: Array.from({ length: 8 }, (_, i) => ({ author: i % 2, age: i % 2 ? 1 : 12, words: i < 4 ? 480 : 300, quoteWords: 0, genWords: 0, relation: 'none' as const, target: 12, mentions: -1, twin: false, bare: false, second: -1 })) }),
     },
     {
       name: 'two blygs quoting a post nobody here holds', enters: ['conversations', 'joined by an item nobody holds'],
-      build: (): Plan => ({ background: [false, false], items: [
+      build: (): Plan => ({ frequency: 'daily', background: [false, false], items: [
         { author: 0, age: 1, words: 120, quoteWords: 0, genWords: 0, relation: 'quote', target: 11, mentions: -1, twin: false, bare: false, second: -1 },
         { author: 1, age: 25, words: 120, quoteWords: 0, genWords: 0, relation: 'link', target: 11, mentions: -1, twin: false, bare: false, second: -1 },
       ] }),
     },
     {
+      name: 'a weekly window', enters: ['highlights', 'weekly window', 'window edge'],
+      build: (): Plan => ({ frequency: 'weekly', background: [false], items: [{ author: 0, age: 25, words: 480, quoteWords: 0, genWords: 0, relation: 'none', target: 12, mentions: -1, twin: false, bare: false, second: -1 }, { author: 0, age: 167, words: 480, quoteWords: 0, genWords: 0, relation: 'none', target: 12, mentions: -1, twin: false, bare: false, second: -1 }, { author: 0, age: 168, words: 480, quoteWords: 0, genWords: 0, relation: 'none', target: 12, mentions: -1, twin: false, bare: false, second: -1 }] }),
+    },
+    {
       name: 'the window edges', enters: ['highlights', 'window edge'],
-      build: (): Plan => ({ background: [false], items: [{ author: 0, age: 24, words: 480, quoteWords: 0, genWords: 0, relation: 'none', target: 12, mentions: -1, twin: false, bare: false, second: -1 }, { author: 0, age: -1, words: 480, quoteWords: 0, genWords: 0, relation: 'none', target: 12, mentions: -1, twin: false, bare: false, second: -1 }, { author: 0, age: 23, words: 480, quoteWords: 0, genWords: 0, relation: 'none', target: 12, mentions: -1, twin: false, bare: false, second: -1 }] }),
+      build: (): Plan => ({ frequency: 'daily', background: [false], items: [{ author: 0, age: 24, words: 480, quoteWords: 0, genWords: 0, relation: 'none', target: 12, mentions: -1, twin: false, bare: false, second: -1 }, { author: 0, age: -1, words: 480, quoteWords: 0, genWords: 0, relation: 'none', target: 12, mentions: -1, twin: false, bare: false, second: -1 }, { author: 0, age: 23, words: 480, quoteWords: 0, genWords: 0, relation: 'none', target: 12, mentions: -1, twin: false, bare: false, second: -1 }] }),
     },
     {
       // The twin is on the lower blyg, so the order the tie owes is not the order they arrived in.
       name: 'a shared id', enters: ['highlights', 'shared id'],
-      build: (): Plan => ({ background: [false, false], items: [{ author: 1, age: 12, words: 480, quoteWords: 0, genWords: 0, relation: 'none', target: 12, mentions: -1, twin: false, bare: false, second: -1 }, { author: 0, age: 12, words: 480, quoteWords: 0, genWords: 0, relation: 'none', target: 12, mentions: -1, twin: true, bare: false, second: -1 }] }),
+      build: (): Plan => ({ frequency: 'daily', background: [false, false], items: [{ author: 1, age: 12, words: 480, quoteWords: 0, genWords: 0, relation: 'none', target: 12, mentions: -1, twin: false, bare: false, second: -1 }, { author: 0, age: 12, words: 480, quoteWords: 0, genWords: 0, relation: 'none', target: 12, mentions: -1, twin: true, bare: false, second: -1 }] }),
     },
     {
       name: 'two conversations as active as each other', enters: ['conversations'],
-      build: (): Plan => ({ background: [false, false], items: [
+      build: (): Plan => ({ frequency: 'daily', background: [false, false], items: [
         { author: 0, age: 12, words: 120, quoteWords: 0, genWords: 0, relation: 'none', target: 12, mentions: -1, twin: false, bare: false, second: -1 }, { author: 1, age: 12, words: 120, quoteWords: 0, genWords: 0, relation: 'stub', target: 0, mentions: -1, twin: false, bare: true, second: -1 },
         { author: 0, age: 23, words: 120, quoteWords: 0, genWords: 0, relation: 'none', target: 12, mentions: -1, twin: false, bare: false, second: -1 }, { author: 1, age: 48, words: 120, quoteWords: 0, genWords: 0, relation: 'stub', target: 2, mentions: -1, twin: false, bare: false, second: -1 },
         { author: 0, age: 23, words: 120, quoteWords: 0, genWords: 0, relation: 'none', target: 12, mentions: -1, twin: false, bare: false, second: -1 }, { author: 1, age: 25, words: 120, quoteWords: 0, genWords: 0, relation: 'link', target: 4, mentions: -1, twin: false, bare: false, second: -1 },
@@ -292,34 +300,34 @@ const histories = {
     },
     {
       name: 'six conversations', enters: ['conversations', 'more conversations than shown'],
-      build: (): Plan => ({ background: [false, false], items: [{ author: 0, age: 1, words: 120, quoteWords: 0, genWords: 0, relation: 'none', target: 12, mentions: -1, twin: false, bare: false, second: -1 }, { author: 1, age: 1, words: 120, quoteWords: 0, genWords: 0, relation: 'stub', target: 0, mentions: -1, twin: false, bare: false, second: -1 }, { author: 0, age: 12, words: 120, quoteWords: 0, genWords: 0, relation: 'none', target: 12, mentions: -1, twin: false, bare: false, second: -1 }, { author: 1, age: 12, words: 120, quoteWords: 0, genWords: 0, relation: 'stub', target: 2, mentions: -1, twin: false, bare: false, second: -1 }, { author: 0, age: 23, words: 120, quoteWords: 0, genWords: 0, relation: 'none', target: 12, mentions: -1, twin: false, bare: false, second: -1 }, { author: 1, age: 23, words: 120, quoteWords: 0, genWords: 0, relation: 'stub', target: 4, mentions: -1, twin: false, bare: false, second: -1 }, { author: 0, age: 0, words: 120, quoteWords: 0, genWords: 0, relation: 'none', target: 12, mentions: -1, twin: false, bare: false, second: -1 }, { author: 1, age: 0, words: 120, quoteWords: 0, genWords: 0, relation: 'stub', target: 6, mentions: -1, twin: false, bare: false, second: -1 }, { author: 0, age: 1, words: 120, quoteWords: 0, genWords: 0, relation: 'none', target: 12, mentions: -1, twin: false, bare: false, second: -1 }, { author: 1, age: 1, words: 120, quoteWords: 0, genWords: 0, relation: 'stub', target: 8, mentions: -1, twin: false, bare: false, second: -1 }, { author: 0, age: 12, words: 120, quoteWords: 0, genWords: 0, relation: 'none', target: 12, mentions: -1, twin: false, bare: false, second: -1 }, { author: 1, age: 12, words: 120, quoteWords: 0, genWords: 0, relation: 'stub', target: 10, mentions: -1, twin: false, bare: false, second: -1 }] }),
+      build: (): Plan => ({ frequency: 'daily', background: [false, false], items: [{ author: 0, age: 1, words: 120, quoteWords: 0, genWords: 0, relation: 'none', target: 12, mentions: -1, twin: false, bare: false, second: -1 }, { author: 1, age: 1, words: 120, quoteWords: 0, genWords: 0, relation: 'stub', target: 0, mentions: -1, twin: false, bare: false, second: -1 }, { author: 0, age: 12, words: 120, quoteWords: 0, genWords: 0, relation: 'none', target: 12, mentions: -1, twin: false, bare: false, second: -1 }, { author: 1, age: 12, words: 120, quoteWords: 0, genWords: 0, relation: 'stub', target: 2, mentions: -1, twin: false, bare: false, second: -1 }, { author: 0, age: 23, words: 120, quoteWords: 0, genWords: 0, relation: 'none', target: 12, mentions: -1, twin: false, bare: false, second: -1 }, { author: 1, age: 23, words: 120, quoteWords: 0, genWords: 0, relation: 'stub', target: 4, mentions: -1, twin: false, bare: false, second: -1 }, { author: 0, age: 0, words: 120, quoteWords: 0, genWords: 0, relation: 'none', target: 12, mentions: -1, twin: false, bare: false, second: -1 }, { author: 1, age: 0, words: 120, quoteWords: 0, genWords: 0, relation: 'stub', target: 6, mentions: -1, twin: false, bare: false, second: -1 }, { author: 0, age: 1, words: 120, quoteWords: 0, genWords: 0, relation: 'none', target: 12, mentions: -1, twin: false, bare: false, second: -1 }, { author: 1, age: 1, words: 120, quoteWords: 0, genWords: 0, relation: 'stub', target: 8, mentions: -1, twin: false, bare: false, second: -1 }, { author: 0, age: 12, words: 120, quoteWords: 0, genWords: 0, relation: 'none', target: 12, mentions: -1, twin: false, bare: false, second: -1 }, { author: 1, age: 12, words: 120, quoteWords: 0, genWords: 0, relation: 'stub', target: 10, mentions: -1, twin: false, bare: false, second: -1 }] }),
     },
     {
       name: 'more active but older', enters: ['conversations'],
-      build: (): Plan => ({ background: [false, false], items: [{ author: 0, age: 23, words: 120, quoteWords: 0, genWords: 0, relation: 'none', target: 12, mentions: -1, twin: false, bare: false, second: -1 }, { author: 1, age: 23, words: 120, quoteWords: 0, genWords: 0, relation: 'stub', target: 0, mentions: -1, twin: false, bare: false, second: -1 }, { author: 0, age: 1, words: 120, quoteWords: 0, genWords: 0, relation: 'none', target: 12, mentions: -1, twin: false, bare: false, second: -1 }, { author: 1, age: 48, words: 120, quoteWords: 0, genWords: 0, relation: 'stub', target: 2, mentions: -1, twin: false, bare: false, second: -1 }] }),
+      build: (): Plan => ({ frequency: 'daily', background: [false, false], items: [{ author: 0, age: 23, words: 120, quoteWords: 0, genWords: 0, relation: 'none', target: 12, mentions: -1, twin: false, bare: false, second: -1 }, { author: 1, age: 23, words: 120, quoteWords: 0, genWords: 0, relation: 'stub', target: 0, mentions: -1, twin: false, bare: false, second: -1 }, { author: 0, age: 1, words: 120, quoteWords: 0, genWords: 0, relation: 'none', target: 12, mentions: -1, twin: false, bare: false, second: -1 }, { author: 1, age: 48, words: 120, quoteWords: 0, genWords: 0, relation: 'stub', target: 2, mentions: -1, twin: false, bare: false, second: -1 }] }),
     },
     {
       name: 'a long stub of a post nobody holds', enters: ['quiet'],
-      build: (): Plan => ({ background: [false], items: [{ author: 0, age: 1, words: 480, quoteWords: 0, genWords: 0, relation: 'stub', target: 11, mentions: -1, twin: false, bare: false, second: -1 }] }),
+      build: (): Plan => ({ frequency: 'daily', background: [false], items: [{ author: 0, age: 1, words: 480, quoteWords: 0, genWords: 0, relation: 'stub', target: 11, mentions: -1, twin: false, bare: false, second: -1 }] }),
     },
     {
       // The walk starts at the first item, so the post with two links is reached from its far side.
       name: 'a post with two links', enters: ['conversations'],
-      build: (): Plan => ({ background: [false, false, false], items: [{ author: 2, age: 48, words: 120, quoteWords: 0, genWords: 0, relation: 'quote', target: 11, mentions: -1, twin: false, bare: false, second: -1 }, { author: 0, age: 48, words: 120, quoteWords: 0, genWords: 0, relation: 'none', target: 12, mentions: -1, twin: false, bare: false, second: -1 }, { author: 1, age: 1, words: 120, quoteWords: 0, genWords: 0, relation: 'link', target: 1, mentions: -1, twin: false, bare: false, second: 11 }] }),
+      build: (): Plan => ({ frequency: 'daily', background: [false, false, false], items: [{ author: 2, age: 48, words: 120, quoteWords: 0, genWords: 0, relation: 'quote', target: 11, mentions: -1, twin: false, bare: false, second: -1 }, { author: 0, age: 48, words: 120, quoteWords: 0, genWords: 0, relation: 'none', target: 12, mentions: -1, twin: false, bare: false, second: -1 }, { author: 1, age: 1, words: 120, quoteWords: 0, genWords: 0, relation: 'link', target: 1, mentions: -1, twin: false, bare: false, second: 11 }] }),
     },
     {
       // Three blygs hold the same id, arriving in neither their order nor its reverse, so a tie broken either way round shows.
       name: 'one id on three blygs', enters: ['highlights', 'shared id'],
-      build: (): Plan => ({ background: [false, false, false], items: [{ author: 1, age: 12, words: 480, quoteWords: 0, genWords: 0, relation: 'none', target: 12, mentions: -1, twin: false, bare: false, second: -1 }, { author: 0, age: 12, words: 480, quoteWords: 0, genWords: 0, relation: 'none', target: 12, mentions: -1, twin: true, bare: false, second: -1 }, { author: 2, age: 12, words: 480, quoteWords: 0, genWords: 0, relation: 'none', target: 12, mentions: -1, twin: true, bare: false, second: -1 }] }),
+      build: (): Plan => ({ frequency: 'daily', background: [false, false, false], items: [{ author: 1, age: 12, words: 480, quoteWords: 0, genWords: 0, relation: 'none', target: 12, mentions: -1, twin: false, bare: false, second: -1 }, { author: 0, age: 12, words: 480, quoteWords: 0, genWords: 0, relation: 'none', target: 12, mentions: -1, twin: true, bare: false, second: -1 }, { author: 2, age: 12, words: 480, quoteWords: 0, genWords: 0, relation: 'none', target: 12, mentions: -1, twin: true, bare: false, second: -1 }] }),
     },
     {
       // Equally active and equally new: the tie falls to each conversation's first item by id, then blyg, not to arrival.
       name: 'two conversations tied to the id', enters: ['conversations', 'shared id'],
-      build: (): Plan => ({ background: [false, false], items: [{ author: 1, age: 1, words: 120, quoteWords: 0, genWords: 0, relation: 'none', target: 12, mentions: -1, twin: false, bare: false, second: -1 }, { author: 0, age: 1, words: 120, quoteWords: 0, genWords: 0, relation: 'none', target: 12, mentions: -1, twin: true, bare: false, second: -1 }, { author: 0, age: 1, words: 120, quoteWords: 0, genWords: 0, relation: 'stub', target: 0, mentions: -1, twin: false, bare: false, second: -1 }, { author: 1, age: 1, words: 120, quoteWords: 0, genWords: 0, relation: 'stub', target: 1, mentions: -1, twin: false, bare: false, second: -1 }] }),
+      build: (): Plan => ({ frequency: 'daily', background: [false, false], items: [{ author: 1, age: 1, words: 120, quoteWords: 0, genWords: 0, relation: 'none', target: 12, mentions: -1, twin: false, bare: false, second: -1 }, { author: 0, age: 1, words: 120, quoteWords: 0, genWords: 0, relation: 'none', target: 12, mentions: -1, twin: true, bare: false, second: -1 }, { author: 0, age: 1, words: 120, quoteWords: 0, genWords: 0, relation: 'stub', target: 0, mentions: -1, twin: false, bare: false, second: -1 }, { author: 1, age: 1, words: 120, quoteWords: 0, genWords: 0, relation: 'stub', target: 1, mentions: -1, twin: false, bare: false, second: -1 }] }),
     },
     {
       name: 'a fork of your post, known by its mention', enters: ['conversations', 'joined by a mention'],
-      build: (): Plan => ({ background: [false], items: [
+      build: (): Plan => ({ frequency: 'daily', background: [false], items: [
         { author: -1, age: 1, words: 120, quoteWords: 0, genWords: 0, relation: 'none', target: 12, mentions: -1, twin: false, bare: false, second: -1 },
         { author: 0, age: 1, words: 480, quoteWords: 0, genWords: 0, relation: 'fork', target: 0, mentions: 0, twin: false, bare: false, second: -1 },
       ] }),
@@ -346,7 +354,7 @@ function check(_plan: Plan, trace: readonly Observation[], expected: Expected) {
 
 oracleProperty({
   id: 'agentic-digest', owns: ['src/agentic-digest.ts', 'src/fork-flatten.ts#ownWordCount'],
-  law: { statement: 'For every held reading and edition window, Highlights holds the new, long, non-response items from followed blygs outside Background that no listed conversation claims, longest first, at most 7; Happening conversations holds each linked set of held items with two or more authors and a new item, most active first, at most 5; no item is in both, empty sections are absent, the same data gives the same edition, and an unchanged edition is not written again.', authority: 'Decision by Venkat Rao (GitHub vgururao), 2026-11-27: blygger-spec docs/agentic-digest-plan.md §8, laws 1, 2 and 5, approved as written.', limits: 'At most three blygs, twelve items and one own item (always new, public, pointing at one held item); blyg subscriptions only; laws 3 and 4 and the edition clock are not here.' },
+  law: { statement: 'For every held reading and edition window, Highlights holds the new, long, non-response items from followed blygs outside Background that no listed conversation claims, longest first, at most 7; Happening conversations holds each linked set of held items with two or more authors and a new item, most active first, at most 5; no item is in both, empty sections are absent, the same data gives the same edition, and an unchanged edition is not written again.', authority: 'Decision by Venkat Rao (GitHub vgururao), 2026-11-27: blygger-spec docs/agentic-digest-plan.md §8, laws 1, 2 and 5, approved as written.', limits: 'The window is a day, or a week for a weekly edition. At most three blygs, twelve items and one own item (always new, public, pointing at one held item); blyg subscriptions only; laws 3 and 4 and the edition clock are not here.' },
   histories, model, check,
   // Each history seeds through the real importer and owner API (a second or more), so shrinking a failure is capped at 15 s.
   timeout: 30_000,
@@ -356,6 +364,8 @@ oracleProperty({
       // The edition is written a minute after seeding starts: own items are published in between, and imported ones sit at exact ages.
       const written = Math.floor((Date.now() + 60_000) / 1000) * 1000;
       const { api, labels } = await seed(plan, written);
+      const frequency = await api('PATCH', '/settings', { agenticFrequency: plan.frequency });
+      if (frequency.status !== 200) throw new Error(`agentic digest: could not set the frequency: ${frequency.status}`);
       const read = async () => {
         const edition = await api('GET', '/agentic/default');
         if (edition.status !== 200) return { status: edition.status, body: edition.json };

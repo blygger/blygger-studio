@@ -527,8 +527,12 @@ export interface Settings {
   reader_order: ReaderOrder;
   reader_mark_read: "seen" | "opened" | "never";
   /** The owner's name for the Agentic feed tab, also the heading of each edition's thread. */
-  /** Who writes the default Agentic feed: off, or the built-in digest (session 90). */
-  agentic_driver: "off" | "resident";
+  /** Who writes the default Agentic feed: an outside agent (the default), the built-in digest, or nobody, the feed off (session 90). */
+  agentic_driver: "off" | "external" | "resident";
+  /** With the feed off, the Reading tab is hidden too. */
+  agentic_hidden: boolean;
+  /** How often the built-in digest is written. */
+  agentic_frequency: "hourly" | "daily" | "weekly";
   agentic_title: string;
   /**
    * Whether this blyg receives Webmentions (0.3 §15, which is **OPTIONAL at

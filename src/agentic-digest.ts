@@ -7,10 +7,11 @@
  */
 import { DEFAULT_FEED, readEdition, replaceEdition, type AgenticEntry, type AgenticSection } from "./agentic.ts";
 import { ownWordCount } from "./fork-flatten.ts";
+import { getSettings } from "./model.ts";
 import { OWN_SUBSCRIPTION } from "./own-subscription.ts";
 
-/** The edition's window: the day before it was written. */
-export const DIGEST_WINDOW_MS = 24 * 3600 * 1000;
+/** The edition's window follows its frequency (Venkat, session 90): the day before it for an hourly or daily edition, the week before it for a weekly one. */
+export const windowFor = (frequency: "hourly" | "daily" | "weekly") => (frequency === "weekly" ? 7 : 1) * 24 * 3600 * 1000;
 /** A highlight says at least this many words itself (Venkat, session 90). */
 export const HIGHLIGHT_OWN_WORDS = 300;
 export const HIGHLIGHTS_SHOWN = 7;
@@ -47,12 +48,12 @@ function namesOf(origin: string, stubOf: string | null, quotes: string | null, l
   return refs.flatMap((r) => (typeof r.id === "string" ? [nodeOf(typeof r.origin === "string" ? r.origin : origin, r.id)] : []));
 }
 
-/** Created in the window that ends at `now`: the day before it, start excluded. */
-const inWindow = (created: number, now: number) => created > now - DIGEST_WINDOW_MS && created <= now;
+/** Created in the window of `windowMs` that ends at `now`, its start excluded. */
+const inWindow = (created: number, now: number, windowMs: number) => created > now - windowMs && created <= now;
 
-/** The digest's sections over the held items and verified mentions, for the window ending at `now`. */
-export function digestSections(items: readonly DigestItem[], mentions: readonly [string, string][], now: number): AgenticSection[] {
-  const fresh = (item: DigestItem) => inWindow(item.created, now);
+/** The digest's sections over the held items and verified mentions, for the window of `windowMs` ending at `now`. */
+export function digestSections(items: readonly DigestItem[], mentions: readonly [string, string][], now: number, windowMs: number): AgenticSection[] {
+  const fresh = (item: DigestItem) => inWindow(item.created, now, windowMs);
   // The link graph's connected parts, found by walking it: an item, every node it points at, and both ends of a mention.
   const edges = new Map<string, string[]>();
   const link = (a: string, b: string) => { edges.set(a, [...(edges.get(a) ?? []), b]); edges.set(b, [...(edges.get(b) ?? []), a]); };
@@ -98,7 +99,7 @@ type ImportedRow = { sub: string; remote_id: string; kind: string; created: stri
 type OwnRow = { id: string; created: string; stub_of: string | null; transclusions: string | null; links_json: string | null };
 
 /** Every held blyg item and own public item, with the link graph's edges, and the own words of the new candidates. */
-export async function loadDigest(db: D1Database, now: number, ownOrigin: string): Promise<{ items: DigestItem[]; mentions: [string, string][] }> {
+export async function loadDigest(db: D1Database, now: number, ownOrigin: string, windowMs: number): Promise<{ items: DigestItem[]; mentions: [string, string][] }> {
   const [imported, own, mentions] = await Promise.all([
     db.prepare(`SELECT ii.subscription_id AS sub, ii.remote_id, ii.kind, ii.created, ii.stub_of_json, ii.forked_from_json, ii.transclusions_json, ii.links_json, s.origin, s.background
       FROM imported_items ii JOIN subscriptions s ON s.id = ii.subscription_id
@@ -122,8 +123,8 @@ export async function loadDigest(db: D1Database, now: number, ownOrigin: string)
       names: namesOf(ownOrigin, r.stub_of, r.transclusions, r.links_json),
     })),
   ];
-  // Own words for the new items (own ones have no imported body): the window is a day, so the bodies read are a day's.
-  const wanted = items.filter((item) => inWindow(item.created, now));
+  // Own words for the new items (own ones have no imported body): only the window's bodies are read.
+  const wanted = items.filter((item) => inWindow(item.created, now, windowMs));
   const bodies = await db.prepare(`SELECT subscription_id AS sub, remote_id, content_html FROM imported_items
     WHERE (subscription_id, remote_id) IN (SELECT json_extract(value, '$[0]'), json_extract(value, '$[1]') FROM json_each(?))`)
     .bind(JSON.stringify(wanted.map((item) => [item.sub, item.remoteId]))).all<{ sub: string; remote_id: string; content_html: string }>();
@@ -134,15 +135,17 @@ export async function loadDigest(db: D1Database, now: number, ownOrigin: string)
 
 /**
  * Write the default feed's edition from the digest's rules, as the resident assistant. An edition
- * whose sections are unchanged is not written again, so an idle reader costs no writes.
+ * whose sections are unchanged is not written again, so an idle reader costs no writes; `force`
+ * (regenerate now) writes it anyway, with a new date.
  */
-export async function writeResidentDigest(db: D1Database, now: number, ownOrigin: string): Promise<void> {
-  const { items, mentions } = await loadDigest(db, now, ownOrigin);
-  const sections = digestSections(items, mentions, now);
+export async function writeResidentDigest(db: D1Database, now: number, ownOrigin: string, { force = false } = {}): Promise<void> {
+  const windowMs = windowFor((await getSettings(db)).agentic_frequency);
+  const { items, mentions } = await loadDigest(db, now, ownOrigin, windowMs);
+  const sections = digestSections(items, mentions, now, windowMs);
   // The default feed's row is made by its migration (0052).
   const current = (await readEdition(db, DEFAULT_FEED))!;
   const stored = current.edition as { agent: { name: string }; sections: unknown } | null;
-  if (stored?.agent.name === "resident" && JSON.stringify(stored.sections) === JSON.stringify(sections)) return;
+  if (!force && stored?.agent.name === "resident" && JSON.stringify(stored.sections) === JSON.stringify(sections)) return;
   const at = new Date(now).toISOString();
   await replaceEdition(db, DEFAULT_FEED, { agent: { name: "resident" }, generatedAt: at, sections }, current.revision, at);
 }

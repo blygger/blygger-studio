@@ -203,7 +203,17 @@ export const zSettings = z.object({
         'summary'
     ]),
     changelogSummaryPrompt: z.string(),
-    agenticDriver: z.enum(['off', 'resident']),
+    agenticDriver: z.enum([
+        'off',
+        'external',
+        'resident'
+    ]),
+    agenticHidden: z.boolean(),
+    agenticFrequency: z.enum([
+        'hourly',
+        'daily',
+        'weekly'
+    ]),
     agenticTitle: z.string(),
     readerMarkRead: z.enum([
         'seen',
@@ -1480,7 +1490,17 @@ export const zUpdateSettingsBody = z.object({
         'summary'
     ]).optional(),
     changelogSummaryPrompt: z.string().optional(),
-    agenticDriver: z.enum(['off', 'resident']).optional(),
+    agenticDriver: z.enum([
+        'off',
+        'external',
+        'resident'
+    ]).optional(),
+    agenticHidden: z.boolean().optional(),
+    agenticFrequency: z.enum([
+        'hourly',
+        'daily',
+        'weekly'
+    ]).optional(),
     agenticTitle: z.string().optional(),
     readerMarkRead: z.enum([
         'seen',
@@ -1784,6 +1804,15 @@ export const zPutAgenticPath = z.object({
  * Success
  */
 export const zPutAgenticResponse = zAgenticEdition;
+
+export const zRegenerateAgenticPath = z.object({
+    feed: z.string().min(1)
+});
+
+/**
+ * Success
+ */
+export const zRegenerateAgenticResponse = zAgenticEdition.and(z.unknown());
 
 export const zListContactsHeaders = z.object({
     'if-none-match': z.string().optional()

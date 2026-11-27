@@ -42,6 +42,7 @@ import { receiveMention, verifyMention } from "./mentions/receive.ts";
 import { drainOutbound } from "./mentions/send.ts";
 import { drainImportedChanges } from "./background-model.ts";
 import { writeResidentDigest } from "./agentic-digest.ts";
+import { digestDue } from "./agentic-schedule.ts";
 import { pruneFailedInbound } from "./mentions/store.ts";
 import type { Env, Settings } from "./types.ts";
 import { FEED_PAGE_SIZE, WEBMENTION_PATH } from "./types.ts";
@@ -488,7 +489,7 @@ export default {
     // The built-in digest, when chosen, after the poll has brought in what it reads. The cron knows its origin only from site_url.
     ctx.waitUntil(runScheduledPoll(env.DB, platformFetchFor(env)).then(async () => {
       const settings = await getSettings(env.DB);
-      if (settings.agentic_driver === "resident") await writeResidentDigest(env.DB, Date.now(), siteOrigin(settings, "https://unknown.invalid/", ""));
+      if (settings.agentic_driver === "resident" && digestDue(settings.agentic_frequency, at, settings.timezone || "UTC")) await writeResidentDigest(env.DB, Date.now(), siteOrigin(settings, "https://unknown.invalid/", ""));
     }).catch(() => {
       console.warn('Scheduled poll or digest failed');
     }));

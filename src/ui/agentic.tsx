@@ -35,7 +35,7 @@ function useEdition() {
     window.addEventListener('focus', onFocus);
     return () => { controller.abort(); clearInterval(timer); window.removeEventListener('focus', onFocus); };
   }, []);
-  return { edition, error };
+  return { edition, error, setEdition };
 }
 
 const text = (html: string) => new DOMParser().parseFromString(html, 'text/html').body;
@@ -131,20 +131,46 @@ function EditionSection({ section }: { section: Section }) {
   );
 }
 
+/** Regenerate now (session 90): the built-in digest writes a fresh edition on request. */
+function Regenerate({ onDone }: { onDone: (edition: Edition) => void }) {
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<unknown>();
+  const run = () => {
+    setBusy(true);
+    setError(undefined);
+    unwrap(BlyggerApi.regenerateAgentic({ client, path: { feed: FEED } })).then(onDone, setError).finally(() => setBusy(false));
+  };
+  return (
+    <p className="edition-regenerate">
+      <button type="button" className="btn" onClick={run} disabled={busy}>{busy ? 'Regenerating…' : 'Regenerate now'}</button>
+      {error ? <Failure error={error} /> : null}
+    </p>
+  );
+}
+
 export function AgenticFeed() {
   const settings = useSettings();
-  const { edition, error } = useEdition();
+  const { edition, error, setEdition } = useEdition();
   if (error) return <Failure error={error} />;
+  if (settings?.agenticDriver === 'off')
+    return (
+      <div className="empty lens-placeholder">
+        <span className="em" aria-hidden="true">✦</span>
+        <strong>The Agentic feed is off.</strong> Turn it on, or hide this tab, in <Link to="/settings" hash="ai-feed">Settings</Link>.
+      </div>
+    );
   if (!edition) return null;
+  const resident = settings?.agenticDriver === 'resident';
   const layout = edition.layout;
   if (!layout || !layout.sections.length)
     return (
       <div className="empty lens-placeholder">
         <span className="em" aria-hidden="true">✦</span>
-        <strong>No edition yet.</strong> The Agentic feed is an assistant who organizes your reading
-        for you, as a digest in sections. The Studio's own assistant is not built yet; an outside
-        assistant with a token can write one now (<code>PUT /api/agentic/default</code>). Its brief is the
-        prompt in <Link to="/settings" hash="ai-feed">Settings</Link>.
+        <strong>No edition yet.</strong>{' '}
+        {resident
+          ? 'The built-in digest finds nothing to put in it yet: no long new posts and no conversations in the last day.'
+          : <>An external agent with a token writes it (<code>PUT /api/agentic/default</code>), or choose the built-in digest in <Link to="/settings" hash="ai-feed">Settings</Link>.</>}
+        {resident ? <Regenerate onDone={setEdition} /> : null}
       </div>
     );
   return (
@@ -158,6 +184,7 @@ export function AgenticFeed() {
           <span className="edition-badge" title="Headlines, summaries, notes and reasons in this edition were written by the assistant"> ✦ written by your assistant</span>
         </p>
         {layout.lede ? <Said className="edition-lede">{layout.lede}</Said> : null}
+        {resident ? <Regenerate onDone={setEdition} /> : null}
         {edition.draft ? (
           <p className="edition-thread">
             <Link to="/edit/$id" params={{ id: edition.draft.id }}>Open as a thread</Link>

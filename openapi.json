@@ -703,9 +703,23 @@
             "type": "string",
             "enum": [
               "off",
+              "external",
               "resident"
             ],
-            "description": "Who writes the default Agentic feed: off, or resident, the built-in digest (blygger-spec docs/agentic-digest-plan.md), written on the quarter-hour cron and when this is turned on."
+            "description": "Who writes the default Agentic feed: external, an outside agent with a token (PUT /agentic/default; the default); resident, the built-in digest (blygger-spec docs/agentic-digest-plan.md); or off, no Agentic feed."
+          },
+          "agenticHidden": {
+            "type": "boolean",
+            "description": "With agenticDriver off, hide the Agentic feed tab in Reading."
+          },
+          "agenticFrequency": {
+            "type": "string",
+            "enum": [
+              "hourly",
+              "daily",
+              "weekly"
+            ],
+            "description": "How often the built-in digest is written: on the hour, daily at 07:00, or Mondays at 07:00, in the owner's timezone."
           },
           "agenticTitle": {
             "type": "string",
@@ -965,6 +979,8 @@
           "readerChangelogDisplay",
           "changelogSummaryPrompt",
           "agenticDriver",
+          "agenticHidden",
+          "agenticFrequency",
           "agenticTitle",
           "readerMarkRead",
           "readerOrder",
@@ -8928,9 +8944,23 @@
                     "type": "string",
                     "enum": [
                       "off",
+                      "external",
                       "resident"
                     ],
-                    "description": "Who writes the default Agentic feed: off, or resident, the built-in digest (blygger-spec docs/agentic-digest-plan.md), written on the quarter-hour cron and when this is turned on."
+                    "description": "Who writes the default Agentic feed: external, an outside agent with a token (PUT /agentic/default; the default); resident, the built-in digest (blygger-spec docs/agentic-digest-plan.md); or off, no Agentic feed."
+                  },
+                  "agenticHidden": {
+                    "type": "boolean",
+                    "description": "With agenticDriver off, hide the Agentic feed tab in Reading."
+                  },
+                  "agenticFrequency": {
+                    "type": "string",
+                    "enum": [
+                      "hourly",
+                      "daily",
+                      "weekly"
+                    ],
+                    "description": "How often the built-in digest is written: on the hour, daily at 07:00, or Mondays at 07:00, in the owner's timezone."
                   },
                   "agenticTitle": {
                     "type": "string",
@@ -12589,6 +12619,175 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/AgenticEdition"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Request failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Request failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Request failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Request failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "405": {
+            "description": "Request failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Request failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "413": {
+            "description": "Request failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "415": {
+            "description": "Request failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Request failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Request failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Request failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          },
+          "502": {
+            "description": "Request failed",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ApiError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/agentic/{feed}/regenerate": {
+      "post": {
+        "operationId": "regenerateAgentic",
+        "tags": [
+          "studio"
+        ],
+        "security": [
+          {
+            "ownerSession": []
+          },
+          {
+            "ownerOAuth": [
+              "owner:manage",
+              "owner:private"
+            ]
+          }
+        ],
+        "parameters": [
+          {
+            "schema": {
+              "type": "string",
+              "minLength": 1
+            },
+            "required": true,
+            "name": "feed",
+            "in": "path"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "allOf": [
+                    {
+                      "$ref": "#/components/schemas/AgenticEdition"
+                    },
+                    {
+                      "description": "The edition the built-in digest just wrote. 409 when the feed is not the default one or the built-in digest is not its writer (Settings → AI → agentic feed)."
+                    }
+                  ]
                 }
               }
             }
