@@ -87,6 +87,12 @@ export function textOf(nodes: Node[]): string {
   return nodes.map((n) => (typeof n === "string" ? decode(n) : n.tag === "br" ? "\n" : textOf(n.children))).join("");
 }
 
+/** How many words an item says itself: its text outside quotes and generated spans (the Agentic digest's own words). */
+export function ownWordCount(html: string): number {
+  const own = (nodes: Node[]): string => nodes.map((n) => (typeof n === "string" ? decode(n) : isTransclusion(n) || isGenerated(n) ? " " : ` ${own(n.children)} `)).join("");
+  return own(parseHtml(html)).split(/\s+/).filter(Boolean).length;
+}
+
 // ── HTML → markdown ────────────────────────────────────────────────────────
 
 /** Escape characters that would otherwise turn quoted text into markup. */
