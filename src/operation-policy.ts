@@ -1,6 +1,6 @@
 import type { OwnerScope } from './auth-scopes.ts';
 
-export const API_CONTRACT_VERSION = '7.1.0';
+export const API_CONTRACT_VERSION = '7.2.0';
 export type WorkBudget = 'read' | 'write';
 export interface ScopeInput { body?: unknown }
 export interface OperationEffects {

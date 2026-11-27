@@ -160,10 +160,10 @@ export function settingsFromMap(map: Record<string, string>): Settings {
     reader_order: map.reader_order === "newest" ? "newest" : "pace-layered",
     // Seen counts as read unless the owner chose otherwise (session 79).
     reader_mark_read: map.reader_mark_read === "opened" || map.reader_mark_read === "never" ? map.reader_mark_read : "seen",
-    // The owner may call the tab anything: "Daily digest", "My briefing" (Venkat, session 77).
     agentic_driver: map.agentic_driver === "resident" || map.agentic_driver === "off" ? map.agentic_driver : "external",
     agentic_hidden: map.agentic_hidden === "on",
     agentic_frequency: map.agentic_frequency === "hourly" || map.agentic_frequency === "weekly" ? map.agentic_frequency : "daily",
+    // The owner may call the tab anything: "Daily digest", "My briefing" (Venkat, session 77).
     agentic_title: map.agentic_title?.trim() || "Agentic feed",
     // Default on: an existing deployment's behaviour must not change under it.
     accept_mentions: map.accept_mentions !== "off",
