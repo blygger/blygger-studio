@@ -155,7 +155,7 @@ jobs:
       # Node 22.18's node:sqlite truncates text at NUL.
       - uses: actions/setup-node@v4
         with:
-          node-version: 24.19.0
+          node-version: 24.22.3
           cache: npm
       - run: npm ci --legacy-peer-deps
       - run: npm run test:oracles:studio -- --contexts 4 --studio-shard "${{ env.STUDIO_SHARD }}" --out build/studio-oracle-shard
