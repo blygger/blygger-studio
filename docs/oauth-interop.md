@@ -1,14 +1,14 @@
 # External OAuth checks
 
 CI runs a separate `oauth-interop` job against disposable HTTPS Workers at root
-and `/nested/blyg` mounts. It uses MCP Inspector 2.10.1 and OpenID Foundation
-conformance suite 5.3.2. The Inspector package version and container digests are
-pinned. The two conformance images are pinned to the digests of GitLab's
-`release-v5.3.2` tag. GitLab rebuilt that tag after #66 merged and deleted the
-old digests, so a pull failed and CI went red with no change on our side (it
+and `/nested/blyg` mounts. It uses MCP Inspector 2.17.0 and OpenID Foundation
+conformance suite 5.3.5. The Inspector package version and container digests are
+pinned. The two conformance images use GitLab's `release-v5.3.5` tag with full
+digest pins. Mongo is pinned to 6.0.28. GitLab previously rebuilt `release-v5.3.2`
+after #66 merged and deleted its old digests, so a pull failed and CI went red with no change on our side (it
 blocked v0.46.2's release). If `docker compose up` reports `manifest unknown`,
 re-pin both images to the tag's current digests: `docker buildx imagetools
-inspect registry.gitlab.com/openid/conformance-suite:release-v5.3.2`, and the
+inspect registry.gitlab.com/openid/conformance-suite:release-v5.3.5`, and the
 same for `/nginx`. The job uses dummy accounts, fresh D1/R2 storage and no production
 credentials. Worker outbound requests cannot reach live services.
 
@@ -74,12 +74,12 @@ retain real rate limits without exhausting one shared login budget.
 Install the pinned Inspector in its isolated directory:
 
 ```sh
-npm install --prefix build/oauth-inspector --no-audit --no-fund @modelcontextprotocol/inspector@2.10.1
+npm install --prefix build/oauth-inspector --no-audit --no-fund @modelcontextprotocol/inspector@2.17.0
 npx playwright install chromium
 npm run test:oauth:interop
 ```
 
-Use Node 24.5.0, OpenSSL and a terminal on macOS. Inspector's interactive flow
+Use Node 24.22.3, OpenSSL and a terminal on macOS. Inspector's interactive flow
 uses a PTY without opening the host browser. The runner supplies its own browser
 and temporary callback port. Linux CI supplies the PTY with `script`.
 

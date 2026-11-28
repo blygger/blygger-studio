@@ -11,7 +11,7 @@ import { chromium, request, type Browser } from '@playwright/test';
 import { fixtureCertificate, fixtureIP, startOAuthFixture } from './oauth-interop-fixture.ts';
 
 const inspectorRoot = resolve(process.env.OAUTH_INSPECTOR_ROOT ?? 'build/oauth-inspector/node_modules/@modelcontextprotocol/inspector');
-assert.equal(JSON.parse(readFileSync(join(inspectorRoot, 'package.json'), 'utf8')).version, '2.10.1', 'Use the pinned Inspector version');
+assert.equal(JSON.parse(readFileSync(join(inspectorRoot, 'package.json'), 'utf8')).version, '2.17.0', 'Use the pinned Inspector version');
 const directory = mkdtempSync(join(tmpdir(), 'blyg-oauth-interop-'));
 console.log('Interop: generating fixture certificate');
 const certificate = fixtureCertificate(directory);
@@ -67,7 +67,7 @@ async function inspector(browser: Browser, fixture: Awaited<ReturnType<typeof st
     const result = JSON.parse(line).result;
     if (method === 'tools/list') assert.ok(result.tools.some((tool: { name: string }) => tool.name === 'getSettings'));
     else { assert.notEqual(result.isError, true); assert.ok('siteTitle' in JSON.parse(result.content[0].text)); }
-    records.push({ client: 'MCP Inspector 2.10.1', mount: fixture.mount, era, method, result: 'passed' });
+    records.push({ client: 'MCP Inspector 2.17.0', mount: fixture.mount, era, method, result: 'passed' });
   } finally { clearTimeout(timer); child.kill('SIGTERM'); await context.close(); }
 }
 

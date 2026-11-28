@@ -24,10 +24,10 @@ jobs:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
-          node-version: 24.5.0
+          node-version: 24.22.3
           cache: npm
       - run: npm ci --legacy-peer-deps
-      - run: npm install --prefix build/oauth-inspector --no-audit --no-fund @modelcontextprotocol/inspector@2.10.1
+      - run: npm install --prefix build/oauth-inspector --no-audit --no-fund @modelcontextprotocol/inspector@2.17.0
       - uses: ./.github/actions/install-chromium
       - run: docker compose -p oauth-conformance -f scripts/oauth-conformance.compose.yml up -d
       - run: npm run test:oauth:interop
@@ -305,7 +305,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 40
     # Use Playwright's preinstalled WebKit system dependencies.
-    container: mcr.microsoft.com/playwright:v1.64.1-noble@sha256:2f05f8a734509a7b3f26a912639488ee08f58a7b292d14d62271bcff9038768f
+    container: mcr.microsoft.com/playwright:v1.65.1-noble@sha256:1507cbfc550a63a6b7396791ca4f00df17beb56342d2447b3f106c306f525579
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4

@@ -3,10 +3,20 @@
   "extends": ["config:recommended"],
   "rangeStrategy": "bump",
   "automerge": false,
+  "npmrc": "legacy-peer-deps=true\n",
+  "docker-compose": {
+    "managerFilePatterns": ["/^scripts\\/oauth-conformance\\.compose\\.yml$/"]
+  },
   "lockFileMaintenance": {
     "enabled": true
   },
   "packageRules": [
+    {
+      "description": "The official OpenID images use release-v-prefixed version tags.",
+      "matchManagers": ["docker-compose"],
+      "matchPackageNames": ["registry.gitlab.com/openid/conformance-suite", "registry.gitlab.com/openid/conformance-suite/nginx"],
+      "versioning": "regex:^release-v(?<major>\\d+)\\.(?<minor>\\d+)\\.(?<patch>\\d+)$"
+    },
     {
       "matchPackageNames": ["better-auth", "@better-auth/oauth-provider"],
       "groupName": "Better Auth",

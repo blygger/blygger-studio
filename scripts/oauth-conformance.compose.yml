@@ -1,8 +1,8 @@
 services:
   mongodb:
-    image: mongo@sha256:b415b12f638e2685d06c58ab7fb5943577c50fadec6d9340ef67d21aeac72070
+    image: mongo:6.0.28@sha256:8b6d8f5bbedb25cb73517b65cf99f13aeb75ad5b157a56c479287a840bbad3ac
   server:
-    image: registry.gitlab.com/openid/conformance-suite@sha256:c795df1b151e0c2f2e40f17a2470991cc38bc91628449e9bb090e2372fe8b822
+    image: registry.gitlab.com/openid/conformance-suite:release-v5.3.5@sha256:576ad9d6ea4230a6d58623a03c17c74e2ae1438cceec252f8721daa53a705961
     extra_hosts: ["host.docker.internal:host-gateway"]
     environment:
       BASE_URL: https://localhost.emobix.co.uk:8443
@@ -15,7 +15,7 @@ services:
       OIDC_GITLAB_SECRET: unused-fixture-secret
     depends_on: [mongodb]
   nginx:
-    image: registry.gitlab.com/openid/conformance-suite/nginx@sha256:607458218abb58204201e4d283af90177d6b542535a99a21041d399a1505a6a0
+    image: registry.gitlab.com/openid/conformance-suite/nginx:release-v5.3.5@sha256:fd5ae05bf2a8f246f600b16a198dd670051bbad44f0b59d903da6e294e02707d
     ports: ["127.0.0.1:8443:8443"]
     networks:
       default:

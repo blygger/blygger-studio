@@ -1,4 +1,4 @@
-/** Selected official OIDF 5.3.2 modules for our code + S256 profile.
+/** Selected official OIDF 5.3.5 modules for our code + S256 profile.
  * Discovery and the PKCE code flow must pass on root and mounted issuers.
  * Legacy flows without PKCE and full Basic/Dynamic certification are excluded. */
 import assert from 'node:assert/strict';
@@ -61,7 +61,7 @@ async function run(planName: string, config: object, test: string, variant?: obj
     const logs = await api('log/' + created.id);
     const findings = logs.filter((entry: any) => ['FAILURE', 'WARNING'].includes(entry.result)).map((entry: any) => ({ condition: entry.src, result: entry.result, message: entry.msg }));
     records.push({ test, version: info.version, status: info.status, result: info.result, findings });
-    assert.equal(info.version, '5.3.2', 'Use the pinned conformance suite');
+    assert.equal(info.version, '5.3.5', 'Use the pinned conformance suite');
     assert.equal(info.status, 'FINISHED', `${test} must finish`);
     assert.equal(info.result, 'PASSED', `${test}: ${JSON.stringify(findings)}`);
   } finally { await context.close(); }

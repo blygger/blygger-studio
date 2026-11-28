@@ -25,8 +25,8 @@ jobs:
     outputs:
       matrix: ${{ steps.plan.outputs.matrix }}
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
           node-version: 22.18.0
           cache: npm
@@ -38,7 +38,7 @@ jobs:
           FORMATTING_DEADLINE: ${{ inputs.deadline }}
           FORMATTING_COMPACT: ${{ inputs.compact }}
         run: node --import tsx scripts/formatting-baseline-plan.ts plan build/formatting-baseline-plan.json "$FORMATTING_DEADLINE"
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: formatting-plan-${{ github.sha }}-${{ github.run_id }}-${{ github.run_attempt }}
           path: build/formatting-baseline-plan.json
@@ -49,8 +49,8 @@ jobs:
     outputs:
       matrix: ${{ steps.matrix.outputs.matrix }}
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
           node-version: 22.18.0
       - id: matrix
@@ -80,8 +80,8 @@ jobs:
       max-parallel: 20
       matrix: ${{ fromJSON(needs.schedule.outputs.matrix) }}
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
           node-version: 22.18.0
           cache: npm
@@ -103,7 +103,7 @@ jobs:
               *) echo "Canonical formatting plan unavailable: $planner" >&2; exit 1 ;;
             esac
           done
-      - uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
         id: download-plan
         continue-on-error: true
         with:
@@ -111,7 +111,7 @@ jobs:
           path: build
       # The download service can lag the planner's completion.
       - if: steps.download-plan.outcome == 'failure'
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
         with:
           name: formatting-plan-${{ github.sha }}-${{ github.run_id }}-${{ github.run_attempt }}
           path: build
@@ -128,25 +128,25 @@ jobs:
           fi
           python3 scripts/formatting-baseline-host.py group build/formatting-baseline-plan.json build \
             "$FORMATTING_PART" "$FORMATTING_COMPANION" "$FORMATTING_FOLLOWUP" "$FORMATTING_COMPANION_FOLLOWUP"
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         if: always()
         with:
           name: formatting-part-${{ github.sha }}-${{ github.run_id }}-${{ github.run_attempt }}-${{ matrix.id }}
           path: build/formatting-part-${{ matrix.id }}/
           if-no-files-found: error
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         if: ${{ always() && matrix.companion != '' }}
         with:
           name: formatting-part-${{ github.sha }}-${{ github.run_id }}-${{ github.run_attempt }}-${{ matrix.companion }}
           path: build/formatting-part-${{ matrix.companion }}/
           if-no-files-found: error
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         if: ${{ always() && matrix.followup != '' }}
         with:
           name: formatting-part-${{ github.sha }}-${{ github.run_id }}-${{ github.run_attempt }}-${{ matrix.followup }}
           path: build/formatting-part-${{ matrix.followup }}/
           if-no-files-found: error
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         if: ${{ always() && matrix.companionFollowup != '' }}
         with:
           name: formatting-part-${{ github.sha }}-${{ github.run_id }}-${{ github.run_attempt }}-${{ matrix.companionFollowup }}
@@ -170,25 +170,25 @@ jobs:
           test "$PARTITION_RESULT" = success
           test "$SCHEDULE_RESULT" = success
           test -n "$PLAN_MATRIX" && test "$EARLY_MATRIX" = "$PLAN_MATRIX"
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
           node-version: 22.18.0
           cache: npm
       - run: npm ci --legacy-peer-deps
       # Aggregation hashes the browser files without starting Chromium.
       - run: npx playwright install --only-shell chromium
-      - uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
         with:
           name: formatting-plan-${{ github.sha }}-${{ github.run_id }}-${{ github.run_attempt }}
           path: build
-      - uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
         with:
           pattern: formatting-part-${{ github.sha }}-${{ github.run_id }}-${{ github.run_attempt }}-*
           path: build/formatting-parts
           merge-multiple: false
       - run: node --import tsx scripts/formatting-baseline-plan.ts aggregate build/formatting-baseline-plan.json build/formatting-parts build/formatting-complete.json
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: formatting-baseline-complete-${{ github.sha }}-${{ github.run_id }}-${{ github.run_attempt }}
           path: build/formatting-complete.json
