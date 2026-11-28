@@ -91,7 +91,7 @@
   },
   "devDependencies": {
     "@cloudflare/vitest-plugin": "1.10.0",
-    "@cloudflare/workers-types": "^5",
+    "@cloudflare/workers-types": "^5.20261128.1",
     "@hey-api/openapi-ts": "0.99.0",
     "@modelcontextprotocol/client": "2.4.0",
     "@playwright/test": "^1.65.1",
