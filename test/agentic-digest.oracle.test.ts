@@ -363,7 +363,11 @@ oracleProperty({
     await withOracleStorage(async () => {
       // The edition is written a minute after seeding starts: own items are published in between, and imported ones sit at exact ages.
       const written = Math.floor((Date.now() + 60_000) / 1000) * 1000;
-      const { api, labels } = await seed(plan, written);
+      const { api: owner, labels } = await seed(plan, written);
+      // A response that breaks the published contract is production's error, recorded for the check.
+      const api = async (method: string, path: string, body?: unknown) => {
+        try { return await owner(method, path, body); } catch (error) { observe('production error', error instanceof Error ? error.message.slice(0, 200) : String(error)); return { status: 0, json: null }; }
+      };
       const frequency = await api('PATCH', '/settings', { agenticFrequency: plan.frequency });
       if (frequency.status !== 200) throw new Error(`agentic digest: could not set the frequency: ${frequency.status}`);
       const read = async () => {

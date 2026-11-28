@@ -366,7 +366,7 @@ export const zEntryBackground = z.object({
 });
 
 /**
- * The reading entry the reference resolves to, as GET /reading returns it.
+ * For sub and remoteId: the reading entry the reference resolves to, as GET /reading returns it.
  */
 export const zReadingEntry = z.object({
     key: z.string(),
@@ -410,8 +410,13 @@ export const zReadingEntry = z.object({
 });
 
 export const zAgenticEntry = z.object({
-    sub: z.string().min(1).max(128),
-    remoteId: z.string().min(1).max(256),
+    sub: z.string().min(1).max(128).optional(),
+    remoteId: z.string().min(1).max(256).optional(),
+    mention: z.string().min(1).max(128).optional(),
+    remote: z.object({
+        origin: z.url().max(2048),
+        id: z.string().min(1).max(256)
+    }).strict().optional(),
     version: z.int().gt(0).optional(),
     headline: z.string().min(1).max(200).optional(),
     summary: z.string().min(1).max(2000).optional(),
@@ -426,7 +431,21 @@ export const zAgenticEntry = z.object({
 }).strict();
 
 export const zAgenticResolvedEntry = zAgenticEntry.and(z.object({
-    entry: zReadingEntry
+    entry: zReadingEntry.optional(),
+    receipt: z.object({
+        sourcePage: z.string().nullable(),
+        sourceOrigin: z.string().nullable(),
+        sourceId: z.string().nullable(),
+        sourceKind: z.string().nullable(),
+        relation: z.string().nullable(),
+        author: z.string().nullable(),
+        verifiedAt: z.string().nullable(),
+        targetItemId: z.string()
+    }).optional(),
+    site: z.object({
+        title: z.string().nullable(),
+        listed: z.boolean()
+    }).optional()
 }).strict());
 
 export const zAgenticEdition = z.object({

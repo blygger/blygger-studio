@@ -3,13 +3,16 @@
  * blygger-spec docs/agentic-feed-plan.md), drawn as a digest in sections like
  * a daily paper. The assistant chooses and words; every word it wrote is shown
  * as its own and marked as generated. The entries themselves are the reader's
- * own reading entries, linked to their full view.
+ * own reading entries, linked to their full view; or, for what the reader
+ * does not hold (plan §3.3), a verified mention drawn from its receipt, or an
+ * item on a met blyg, opened live through /peek, with an offer to subscribe.
  */
 import { SourceName } from './source-name.tsx';
 import { useEffect, useState } from 'react';
 import { Link } from '@tanstack/react-router';
 import { BlyggerApi, unwrap } from '../../sdk/dist/browser.js';
 import { client } from './data.ts';
+import { createSubscription } from './server-mutations.ts';
 import { Failure, Html, useSettings } from './components.tsx';
 import { formatDateIn } from '../dates.ts';
 
@@ -17,6 +20,12 @@ type Edition = Awaited<ReturnType<typeof fetchEdition>>;
 type Layout = NonNullable<Edition['layout']>;
 type Section = Layout['sections'][number];
 type Placed = Section['entries'][number];
+type Held = Placed & { entry: NonNullable<Placed['entry']> };
+const isHeld = (placed: Placed): placed is Held => placed.entry !== undefined;
+/** A stable key for any entry: its reading key, receipt id, or origin and id. */
+const placedKey = (placed: Placed) => placed.entry?.key ?? (placed.mention ? `mention:${placed.mention}` : `remote:${placed.remote?.origin}|${placed.remote?.id}`);
+const hostOf = (url: string | null | undefined) => { try { return url ? new URL(url).host : ''; } catch { return url ?? ''; } };
+const RELATION_WORDS: Record<string, string> = { stub: 'answered', transclusion: 'quoted', fork: 'forked' };
 
 /** The feed this tab shows; the only one until the Studio offers more (plan §3.3). */
 const FEED = 'default';
@@ -60,7 +69,69 @@ function Said({ children, as: Tag = 'p', className }: { children: string; as?: '
   );
 }
 
-function EntryCard({ placed, also }: { placed: Placed; also: Placed[] }) {
+/** A mention from a blyg the reader may not follow, drawn from what the receiver verified. */
+function MentionCard({ placed }: { placed: Placed }) {
+  const settings = useSettings();
+  const receipt = placed.receipt!;
+  const who = receipt.author ?? hostOf(receipt.sourceOrigin);
+  return (
+    <article className="edition-entry edition-outside" data-key={placedKey(placed)}>
+      {receipt.sourcePage ? (
+        <a className="edition-headline" href={receipt.sourcePage} target="_blank" rel="noopener noreferrer">
+          {placed.headline ? <Said as="span">{placed.headline}</Said> : `${who} ${RELATION_WORDS[receipt.relation ?? ''] ?? 'mentioned'} your post`}
+        </a>
+      ) : null}
+      <p className="edition-byline">
+        {hostOf(receipt.sourceOrigin)}
+        {receipt.verifiedAt ? ` · ${formatDateIn(receipt.verifiedAt, settings?.timezone || 'UTC')}` : ''}
+        {' · '}
+        <Link to="/reading/$sub/$id" params={{ sub: '~own', id: receipt.targetItemId }}>your post</Link>
+      </p>
+      {placed.summary ? <Said className="edition-summary">{placed.summary}</Said> : null}
+      {placed.reason ? <Said className="edition-reason">{placed.reason}</Said> : null}
+    </article>
+  );
+}
+
+/** Subscribe to a met blyg from its card; a blyg whose manifest needs a confirmation asks once more. */
+function SubscribeButton({ origin }: { origin: string }) {
+  const [state, setState] = useState<'idle' | 'busy' | 'confirm' | 'done'>('idle');
+  const [error, setError] = useState<unknown>();
+  const run = (confirm: boolean) => {
+    setState('busy');
+    setError(undefined);
+    createSubscription({ url: origin, confirm }).then((result) => setState('needsConfirm' in result ? 'confirm' : 'done'), (e) => { setError(e); setState('idle'); });
+  };
+  if (state === 'done') return <span className="hint">Subscribed</span>;
+  return (
+    <>
+      <button type="button" className="btn" disabled={state === 'busy'} onClick={() => run(state === 'confirm')}>{state === 'confirm' ? 'Subscribe anyway' : 'Subscribe'}</button>
+      {error ? <Failure error={error} /> : null}
+    </>
+  );
+}
+
+/** An item on a blyg the reader has met but does not follow: nothing of it is stored; opening reads it live. */
+function RemoteCard({ placed }: { placed: Placed }) {
+  const remote = placed.remote!;
+  const name = placed.site?.title ?? hostOf(remote.origin);
+  return (
+    <article className="edition-entry edition-outside" data-key={placedKey(placed)}>
+      <Link className="edition-headline" to="/peek" search={{ origin: remote.origin, id: remote.id }}>
+        {placed.headline ? <Said as="span">{placed.headline}</Said> : `The latest from ${name}`}
+      </Link>
+      <p className="edition-byline">
+        {name}
+        {placed.site?.listed ? ' · in the blygger.com directory' : ' · met in your reading'}
+      </p>
+      {placed.summary ? <Said className="edition-summary">{placed.summary}</Said> : null}
+      {placed.reason ? <Said className="edition-reason">{placed.reason}</Said> : null}
+      <p className="edition-actions"><SubscribeButton origin={remote.origin} /></p>
+    </article>
+  );
+}
+
+function EntryCard({ placed, also }: { placed: Held; also: Placed[] }) {
   const settings = useSettings();
   const entry = placed.entry;
   const imported = entry.imported;
@@ -83,7 +154,7 @@ function EntryCard({ placed, also }: { placed: Placed; also: Placed[] }) {
       {placed.reason ? <Said className="edition-reason">{placed.reason}</Said> : null}
       {also.length ? (
         <ul className="edition-also" aria-label="also in this group">
-          {also.map((other) => {
+          {also.filter(isHeld).map((other) => {
             const o = other.entry;
             const oSub = o.imported ? o.imported.subscriptionId : '~own';
             const oId = o.imported ? o.imported.remoteId : o.own?.id ?? '';
@@ -125,7 +196,9 @@ function EditionSection({ section }: { section: Section }) {
       <Said as="h3" className="edition-section-h">{section.title}</Said>
       {section.note ? <Said className="edition-note">{section.note}</Said> : null}
       <div className="edition-entries">
-        {grouped(section.entries).map(({ lead, also }) => <EntryCard key={lead.entry.key} placed={lead} also={also} />)}
+        {grouped(section.entries).map(({ lead, also }) => (isHeld(lead)
+          ? <EntryCard key={placedKey(lead)} placed={lead} also={also} />
+          : lead.receipt ? <MentionCard key={placedKey(lead)} placed={lead} /> : <RemoteCard key={placedKey(lead)} placed={lead} />))}
       </div>
     </section>
   );
@@ -168,7 +241,7 @@ export function AgenticFeed() {
         <span className="em" aria-hidden="true">✦</span>
         <strong>No edition yet.</strong>{' '}
         {resident
-          ? 'The built-in digest finds nothing to put in it yet: no long new posts and no conversations in the last day.'
+          ? 'The built-in digest finds nothing to put in it yet: no long new posts, conversations, mentions or newly active blygs.'
           : <>An external agent with a token writes it (<code>PUT /api/agentic/default</code>), or choose the built-in digest in <Link to="/settings" hash="ai-feed">Settings</Link>.</>}
         {resident ? <Regenerate onDone={setEdition} /> : null}
       </div>

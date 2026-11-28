@@ -20,6 +20,24 @@ not have its own repo until session 26.
 
 ## Unreleased
 
+**The built-in digest looks outside what you follow** (blygger-spec `docs/agentic-digest-plan.md` §8,
+laws 3 and 4; ROADMAP 168). Two new sections:
+
+- **Mentions from blygs you don't follow:** verified mentions of your posts received in the
+  edition's window whose source you do not subscribe to, newest first, at most five.
+- **Newly active blygs:** blygs you have met (listed on blygger.com, or quoted, linked, stubbed,
+  forked or mentioning you in your reading) that you do not follow and that published an item in
+  the last 14 days, most met first, at most five, each with its newest item to open and a
+  Subscribe button. Found by a **daily discovery** (the 07:00 tick in your timezone, or
+  Regenerate now) of at most 14 fetches: blygger.com's directory, then feeds; hourly editions
+  reuse the day's result.
+
+Any assistant's edition may now name two more entry kinds: `mention` (a verified receipt's id) and
+`remote` (`{origin, id}` on a blyg the last discovery met). Neither carries content: a mention is
+drawn from the stored receipt, a remote item is read live through /peek. Private contract 7.3.0.
+
+**Migrations:** `0066_met_origins` (the last discovery's met blygs; derived, not in backups).
+
 ## 0.74.0 — The built-in Agentic digest
 
 **The Agentic feed can write itself** (blygger-spec `docs/agentic-digest-plan.md`, ROADMAP

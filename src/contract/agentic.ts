@@ -13,7 +13,13 @@ const reference = {
 const words = (max: number, what: string) => z.string().trim().min(1).max(max).optional().describe(`${what} Written by the assistant and shown as its own, disclosed as generated.`);
 
 export const AgenticEntrySchema = z.object({
-  ...reference,
+  sub: reference.sub.optional(),
+  remoteId: reference.remoteId.optional(),
+  mention: z.string().min(1).max(128).optional().describe("Instead of sub and remoteId: a verified mention receipt's id, from a blyg the reader may not follow. It resolves only while the receipt is verified, and is drawn from what the receiver stored (source page, author, relation)."),
+  remote: z.object({
+    origin: z.string().url().max(2048).describe("The blyg's origin."),
+    id: z.string().min(1).max(256).describe("The item's id on that blyg."),
+  }).strict().optional().describe("Instead of sub and remoteId: an item on a blyg the reader does not hold, read live when opened. It resolves only when the built-in digest's last discovery met that origin (in the blygger.com directory or the reading)."),
   version: z.number().int().positive().optional().describe("The version the assistant judged. Shown so a reader can tell when the item has moved on since."),
   headline: words(AGENTIC_LIMITS.headline, "A headline for the entry in this edition."),
   summary: words(AGENTIC_LIMITS.summary, "A short summary or dek."),
@@ -21,6 +27,10 @@ export const AgenticEntrySchema = z.object({
   present: z.enum(AGENTIC_PRESENTS).optional().describe("How much of the entry to show: the full text, an excerpt (the default), only its title, or folded under its group's first entry."),
   group: z.string().trim().min(1).max(AGENTIC_LIMITS.group).optional().describe("Entries in a section with the same group are shown together under the first of them."),
 }).strict().openapi("AgenticEntry");
+
+/** An entry names exactly one thing: a held item (sub and remoteId together), a mention receipt, or a remote item. */
+const namesOne = (x: z.infer<typeof AgenticEntrySchema>) =>
+  (x.sub === undefined) === (x.remoteId === undefined) && [x.sub !== undefined, x.mention !== undefined, x.remote !== undefined].filter(Boolean).length === 1;
 
 export const AgenticSectionSchema = z.object({
   title: z.string().trim().min(1).max(AGENTIC_LIMITS.title).describe("The section's heading. Written by the assistant."),
@@ -45,11 +55,23 @@ export const AgenticEditionInputSchema = z.object({
   generatedAt: z.string().datetime().optional().describe("When the assistant made the edition (ISO 8601 UTC)."),
   sections: z.array(AgenticSectionSchema).min(1).max(AGENTIC_LIMITS.sections).optional().describe("Edition mode: the assistant lays out the sections itself. Send sections or scores, never both."),
   scores: z.array(AgenticScoreSchema).min(1).max(AGENTIC_LIMITS.scores).optional().describe("Scores mode: per-entry scores; the Studio lays out one section, highest first. Send sections or scores, never both."),
-}).strict().refine((e) => (e.sections ? 1 : 0) + (e.scores ? 1 : 0) === 1, { message: "send sections or scores, exactly one" }).openapi("AgenticEditionInput");
+}).strict()
+  .refine((e) => (e.sections ? 1 : 0) + (e.scores ? 1 : 0) === 1, { message: "send sections or scores, exactly one" })
+  .refine((e) => (e.sections ?? []).every((s) => s.entries.every(namesOne)), { message: "each entry names one thing: sub and remoteId, or mention, or remote" })
+  .openapi("AgenticEditionInput");
 
 /** The GET/PUT response, given the reading entry schema (routes.ts owns it). */
 export function agenticEditionSchema<E extends z.ZodTypeAny>(readingEntry: E) {
-  const resolved = AgenticEntrySchema.extend({ entry: readingEntry.describe("The reading entry the reference resolves to, as GET /reading returns it.") }).openapi("AgenticResolvedEntry");
+  const resolved = AgenticEntrySchema.extend({
+    entry: readingEntry.optional().describe("For sub and remoteId: the reading entry the reference resolves to, as GET /reading returns it."),
+    receipt: z.object({
+      sourcePage: z.string().nullable(), sourceOrigin: z.string().nullable(), sourceId: z.string().nullable(), sourceKind: z.string().nullable(),
+      relation: z.string().nullable().describe("How the source answers: stub, transclusion or fork."),
+      author: z.string().nullable(), verifiedAt: z.string().nullable(),
+      targetItemId: z.string().describe("The owner's item it answers."),
+    }).optional().describe("For a mention: the verified receipt, as the receiver stored it."),
+    site: z.object({ title: z.string().nullable(), listed: z.boolean().describe("Listed in the blygger.com directory.") }).optional().describe("For a remote entry: the met origin, as the last discovery saw it."),
+  }).openapi("AgenticResolvedEntry");
   return z.object({
     revision: z.number().int().nonnegative().describe("Send it back as expectedRevision for a conditional replace; every successful PUT bumps it. A never-written edition is at 0."),
     updatedAt: z.string().nullable(),

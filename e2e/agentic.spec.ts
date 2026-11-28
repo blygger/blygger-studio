@@ -66,3 +66,33 @@ test('an edition renders as a digest in sections, the assistant’s words marked
   await expect(page).toHaveURL(new RegExp(`/studio/reading/~own/${lead}$`));
   await expect(page.locator('.reading-article')).toContainText('The body of the lead.');
 });
+
+test('a mention from a blyg not followed and a met blyg render as outside cards: the receipt as stored, the blyg opened live, with Subscribe', async ({ page }) => {
+  await login(page);
+  const { revision } = (await api(page, 'GET', '/agentic/default')).json;
+  const put = await api(page, 'PUT', '/agentic/default', {
+    expectedRevision: revision,
+    edition: {
+      agent: { name: 'e2e assistant' },
+      sections: [{ title: 'Outside', kind: 'briefs', entries: [{ mention: 'parity-stranger' }, { remote: { origin: 'https://elsewhere.example/', id: '00000000000000000000000009' }, reason: 'Quoted three times' }, { remote: { origin: 'https://unmet.example/', id: 'x' } }] }],
+    },
+  });
+  expect(put.status).toBe(200);
+  // The unmet origin does not resolve; the other two do.
+  expect(put.json.layout.sections[0].entries.map((e: { mention?: string; remote?: { origin: string } }) => e.mention ?? e.remote?.origin)).toEqual(['parity-stranger', 'https://elsewhere.example/']);
+
+  await page.goto('/studio/reading?lens=agentic');
+  const cards = page.locator('.edition .edition-outside');
+  await expect(cards).toHaveCount(2);
+  const mention = cards.nth(0);
+  await expect(mention.locator('.edition-headline')).toHaveText('Source author answered your post');
+  await expect(mention.locator('.edition-headline')).toHaveAttribute('href', 'https://stranger.example/post');
+  await expect(mention.locator('.edition-byline')).toContainText('stranger.example');
+  await expect(mention.getByRole('link', { name: 'your post', exact: true })).toHaveAttribute('href', /\/studio\/reading\/~own\//);
+  const remote = cards.nth(1);
+  await expect(remote.locator('.edition-headline')).toHaveText('The latest from Elsewhere');
+  await expect(remote.locator('.edition-headline')).toHaveAttribute('href', /\/studio\/peek\?origin=https%3A%2F%2Felsewhere\.example%2F&id=00000000000000000000000009$/);
+  await expect(remote.locator('.edition-byline')).toContainText('in the blygger.com directory');
+  await expect(remote.locator('.edition-reason[data-generated=assistant]')).toHaveText('Quoted three times');
+  await expect(remote.getByRole('button', { name: 'Subscribe' })).toBeVisible();
+});

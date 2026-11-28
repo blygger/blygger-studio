@@ -1059,7 +1059,8 @@ const getAgenticOperation = async (context: OperationContext, input: OperationIn
 const regenerateAgenticOperation = async (context: OperationContext, input: OperationInput) => {
   const settings = await getSettings(context.env.DB);
   if (input.path.feed !== DEFAULT_FEED || settings.agentic_driver !== "resident") return failure('conflict', { error: "the built-in digest does not write this feed; choose it in Settings → AI → agentic feed" });
-  await writeResidentDigest(context.env.DB, Date.now(), siteOrigin(settings, context.url, normalizeMount(context.env.MOUNT)), { force: true });
+  // Regenerating also rediscovers the newly active blygs, as the daily tick does.
+  await writeResidentDigest(context.env.DB, Date.now(), siteOrigin(settings, context.url, normalizeMount(context.env.MOUNT)), { force: true, discover: platformFetchFor(context.env) });
   return success((await readEdition(context.env.DB, DEFAULT_FEED))!);
 };
 const putAgenticOperation = async (context: OperationContext, input: OperationInput) => {

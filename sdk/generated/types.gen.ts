@@ -509,11 +509,40 @@ export type AgenticEdition = {
 };
 
 export type AgenticResolvedEntry = AgenticEntry & {
-    entry: ReadingEntry;
+    entry?: ReadingEntry;
+    /**
+     * For a mention: the verified receipt, as the receiver stored it.
+     */
+    receipt?: {
+        sourcePage: string | null;
+        sourceOrigin: string | null;
+        sourceId: string | null;
+        sourceKind: string | null;
+        /**
+         * How the source answers: stub, transclusion or fork.
+         */
+        relation: string | null;
+        author: string | null;
+        verifiedAt: string | null;
+        /**
+         * The owner's item it answers.
+         */
+        targetItemId: string;
+    };
+    /**
+     * For a remote entry: the met origin, as the last discovery saw it.
+     */
+    site?: {
+        title: string | null;
+        /**
+         * Listed in the blygger.com directory.
+         */
+        listed: boolean;
+    };
 };
 
 /**
- * The reading entry the reference resolves to, as GET /reading returns it.
+ * For sub and remoteId: the reading entry the reference resolves to, as GET /reading returns it.
  */
 export type ReadingEntry = {
     key: string;
@@ -605,11 +634,28 @@ export type AgenticEntry = {
     /**
      * The subscription the entry is held under, or "~own" for one of the owner's own items (as Saved names entries).
      */
-    sub: string;
+    sub?: string;
     /**
      * The item's id: the own item's id, else the imported item's remote id.
      */
-    remoteId: string;
+    remoteId?: string;
+    /**
+     * Instead of sub and remoteId: a verified mention receipt's id, from a blyg the reader may not follow. It resolves only while the receipt is verified, and is drawn from what the receiver stored (source page, author, relation).
+     */
+    mention?: string;
+    /**
+     * Instead of sub and remoteId: an item on a blyg the reader does not hold, read live when opened. It resolves only when the built-in digest's last discovery met that origin (in the blygger.com directory or the reading).
+     */
+    remote?: {
+        /**
+         * The blyg's origin.
+         */
+        origin: string;
+        /**
+         * The item's id on that blyg.
+         */
+        id: string;
+    };
     /**
      * The version the assistant judged. Shown so a reader can tell when the item has moved on since.
      */
