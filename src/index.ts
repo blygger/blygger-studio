@@ -489,7 +489,9 @@ export default {
     // The built-in digest, when chosen, after the poll has brought in what it reads. The cron knows its origin only from site_url.
     ctx.waitUntil(runScheduledPoll(env.DB, platformFetchFor(env)).then(async () => {
       const settings = await getSettings(env.DB);
-      if (settings.agentic_driver === "resident" && digestDue(settings.agentic_frequency, at, settings.timezone || "UTC")) await writeResidentDigest(env.DB, Date.now(), siteOrigin(settings, "https://unknown.invalid/", ""));
+      const timeZone = settings.timezone || "UTC";
+      // Discovery reads the network, so it runs once a day, at the daily edition's tick, whatever the frequency.
+      if (settings.agentic_driver === "resident" && digestDue(settings.agentic_frequency, at, timeZone)) await writeResidentDigest(env.DB, Date.now(), siteOrigin(settings, "https://unknown.invalid/", ""), { discover: digestDue("daily", at, timeZone) ? platformFetchFor(env) : undefined });
     }).catch(() => {
       console.warn('Scheduled poll or digest failed');
     }));

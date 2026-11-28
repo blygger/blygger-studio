@@ -1,14 +1,20 @@
 /*
  * The resident assistant's digest (blygger-spec docs/agentic-digest-plan.md §8;
- * laws 1, 2 and 5 approved by Venkat, session 90): Highlights and Happening
- * conversations, chosen by rule from what this reader holds. No model is
+ * laws 1, 2 and 5 approved by Venkat, session 90, laws 3 and 4 session 92):
+ * Highlights and Happening conversations, chosen by rule from what this reader
+ * holds, then mentions from blygs it does not follow and the met blygs the
+ * last discovery found active (src/agentic-discovery.ts). No model is
  * involved; the AI layer (plan §3.1) may only rank and word within what these
- * rules admit. Owned by test/agentic-digest.oracle.test.ts.
+ * rules admit. Owned by test/agentic-digest.oracle.test.ts and, for the two
+ * outside sections, test/agentic-outside.oracle.test.ts.
  */
 import { DEFAULT_FEED, readEdition, replaceEdition, type AgenticEntry, type AgenticSection } from "./agentic.ts";
 import { ownWordCount } from "./fork-flatten.ts";
 import { getSettings } from "./model.ts";
 import { OWN_SUBSCRIPTION } from "./own-subscription.ts";
+import { NEW_BLYGS_SHOWN, discoverBlygs, followedOrigins, isFresh } from "./agentic-discovery.ts";
+import type { FetchLike } from "./importer/http.ts";
+import { normalizeOrigin } from "./stub.ts";
 
 /** The edition's window follows its frequency (Venkat, session 90): the day before it for an hourly or daily edition, the week before it for a weekly one. */
 export const windowFor = (frequency: "hourly" | "daily" | "weekly") => (frequency === "weekly" ? 7 : 1) * 24 * 3600 * 1000;
@@ -16,6 +22,7 @@ export const windowFor = (frequency: "hourly" | "daily" | "weekly") => (frequenc
 export const HIGHLIGHT_OWN_WORDS = 300;
 export const HIGHLIGHTS_SHOWN = 7;
 export const CONVERSATIONS_SHOWN = 5;
+export const MENTIONS_SHOWN = 5;
 /** A conversation shows its newest items, oldest first. */
 export const CONVERSATION_ENTRIES = 6;
 
@@ -95,6 +102,56 @@ export function digestSections(items: readonly DigestItem[], mentions: readonly 
   ];
 }
 
+/** A verified receipt as the Mentions section reads it. */
+export interface DigestReceipt { id: string; sourceOrigin: string; verifiedAt: number }
+
+/** Mentions (law 3): receipts (given in id order) verified in the window whose source is neither followed nor `own`, newest first, then by id. */
+export function mentionEntries(receipts: readonly DigestReceipt[], followed: ReadonlySet<string>, own: string | null, now: number, windowMs: number): AgenticEntry[] {
+  return receipts
+    .filter((r) => inWindow(r.verifiedAt, now, windowMs) && !followed.has(r.sourceOrigin) && r.sourceOrigin !== own)
+    .sort((a, b) => b.verifiedAt - a.verifiedAt)
+    .slice(0, MENTIONS_SHOWN)
+    .map((r) => ({ mention: r.id }));
+}
+
+/** A met origin the last discovery found active, with its sample. */
+export interface MetSample { origin: string; met: number; sampleId: string; created: number }
+
+/** New blygs (law 4): the last discovery's active origins (given in origin order), less any followed since or gone stale, most met first, then newest, then origin. */
+export function newBlygEntries(samples: readonly MetSample[], followed: ReadonlySet<string>, now: number): AgenticEntry[] {
+  return samples
+    .filter((s) => !followed.has(s.origin) && isFresh(s.created, now))
+    .sort((a, b) => b.met - a.met || b.created - a.created)
+    .slice(0, NEW_BLYGS_SHOWN)
+    .map((s) => ({ remote: { origin: s.origin, id: s.sampleId } }));
+}
+
+/** The receipts verified in the window, the last discovery's samples, and the origins followed, read for the outside sections. */
+async function loadOutside(db: D1Database, now: number, windowMs: number) {
+  const [receipts, samples, followed] = await Promise.all([
+    // Stored times may omit milliseconds, so the index narrows by a day's margin and the window is judged on parsed times.
+    db.prepare("SELECT id, source_origin, verified_at FROM mentions_in WHERE status = 'verified' AND verified_at > ? ORDER BY id")
+      .bind(new Date(now - windowMs - 24 * 3600 * 1000).toISOString()).all<{ id: string; source_origin: string | null; verified_at: string }>(),
+    db.prepare("SELECT origin, met, sample_id, sample_created FROM met_origins WHERE sample_id IS NOT NULL ORDER BY origin").all<{ origin: string; met: number; sample_id: string; sample_created: string }>(),
+    followedOrigins(db),
+  ]);
+  return {
+    receipts: receipts.results.flatMap((r) => { const origin = normalizeOrigin(r.source_origin); return origin ? [{ id: r.id, sourceOrigin: origin, verifiedAt: Date.parse(r.verified_at) }] : []; }),
+    samples: samples.results.map((s) => ({ origin: s.origin, met: s.met, sampleId: s.sample_id, created: Date.parse(s.sample_created) })),
+    followed,
+  };
+}
+
+/** The two sections from outside what the reader follows (laws 3 and 4), after the daily discovery when `discover` is given. */
+export async function outsideSections(db: D1Database, now: number, ownOrigin: string, windowMs: number, discover?: FetchLike): Promise<AgenticSection[]> {
+  if (discover) await discoverBlygs(db, discover, now, ownOrigin);
+  const outside = await loadOutside(db, now, windowMs);
+  return [
+    { title: "Mentions from blygs you don't follow", kind: "briefs", entries: mentionEntries(outside.receipts, outside.followed, normalizeOrigin(ownOrigin), now, windowMs) },
+    { title: "Newly active blygs", kind: "briefs", entries: newBlygEntries(outside.samples, outside.followed, now) },
+  ];
+}
+
 type ImportedRow = { sub: string; remote_id: string; kind: string; created: string | null; stub_of_json: string | null; forked_from_json: string | null; transclusions_json: string | null; links_json: string | null; origin: string; background: number | null };
 type OwnRow = { id: string; created: string; stub_of: string | null; transclusions: string | null; links_json: string | null };
 
@@ -136,12 +193,13 @@ export async function loadDigest(db: D1Database, now: number, ownOrigin: string,
 /**
  * Write the default feed's edition from the digest's rules, as the resident assistant. An edition
  * whose sections are unchanged is not written again, so an idle reader costs no writes; `force`
- * (regenerate now) writes it anyway, with a new date.
+ * (regenerate now) writes it anyway, with a new date. With `discover`, the daily discovery runs
+ * first through that fetch; without it the edition reads the last discovery and fetches nothing.
  */
-export async function writeResidentDigest(db: D1Database, now: number, ownOrigin: string, { force = false } = {}): Promise<void> {
+export async function writeResidentDigest(db: D1Database, now: number, ownOrigin: string, { force = false, discover }: { force?: boolean; discover?: FetchLike } = {}): Promise<void> {
   const windowMs = windowFor((await getSettings(db)).agentic_frequency);
-  const { items, mentions } = await loadDigest(db, now, ownOrigin, windowMs);
-  const sections = digestSections(items, mentions, now, windowMs);
+  const [{ items, mentions }, outside] = await Promise.all([loadDigest(db, now, ownOrigin, windowMs), outsideSections(db, now, ownOrigin, windowMs, discover)]);
+  const sections = [...digestSections(items, mentions, now, windowMs), ...outside];
   // The default feed's row is made by its migration (0052).
   const current = (await readEdition(db, DEFAULT_FEED))!;
   const stored = current.edition as { agent: { name: string }; sections: unknown } | null;

@@ -43,6 +43,8 @@ await mf.dispatchFetch(`http://localhost/api/items/${target.id}/publish`, { meth
 for (const [id, origin, remoteId, hidden] of [['parity-held', 'https://source.example/', '00000000000000000000000001', 0], ['parity-stranger', 'https://stranger.example/', '00000000000000000000000003', 1]] as const) {
   await db.prepare("INSERT INTO mentions_in (id, source, target, target_item_id, status, relation, source_origin, source_id, source_kind, source_version, source_author_json, source_page, first_seen, last_seen, verified_at, hidden) VALUES (?, ?, ?, ?, 'verified', 'stub', ?, ?, 'fragment', 1, ?, ?, '2026-10-01T00:00:00Z', '2026-10-01T00:00:00Z', '2026-10-01T00:00:00Z', ?)").bind(id, origin + remoteId, `http://localhost/t/${target.id}/`, target.id, origin, remoteId, JSON.stringify({ name: 'Source author' }), origin + 'post', hidden).run();
 }
+// A blyg the last discovery met and found active, for the Agentic feed's remote card (migration 0066).
+await db.prepare("INSERT INTO met_origins (origin, met, listed, title, sample_id, sample_created, checked_at) VALUES ('https://elsewhere.example/', 3, 1, 'Elsewhere', '00000000000000000000000009', '2026-10-01T00:00:00Z', '2026-10-01T00:00:00Z')").run();
 await db.prepare("INSERT INTO mentions_out (id, item_id, version, target, status, attempts, next_attempt_at, created) VALUES ('parity-outbound', ?, 1, 'https://recipient.example/post', 'pending', 1, '2026-10-02T00:00:00Z', '2026-10-01T00:00:00Z')").bind(target.id).run();
 // Hostile raw imports belong to a separate disposable receiving database.
 // Functional UI counts and pagination fixtures must not absorb the attack corpus.

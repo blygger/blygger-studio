@@ -16,9 +16,9 @@ export const CREDENTIAL_TABLES: ReadonlySet<string> = new Set([
   'oauth_authorizations', 'oauth_records', 'oauth_revocations', 'oauth_state', 'rateLimit', 'security_budgets', 'security_registrations',
 ]);
 
-/** Derived search state is rebuilt from restored source rows by migration 0050's triggers. */
+/** Derived state: search is rebuilt from restored source rows by migration 0050's triggers, and met_origins by the next daily discovery (0066). */
 export const DERIVED_TABLES: ReadonlySet<string> = new Set([
-  'search_documents', 'search_fts', 'search_fts_data', 'search_fts_idx', 'search_fts_docsize', 'search_fts_config',
+  'met_origins', 'search_documents', 'search_fts', 'search_fts_data', 'search_fts_idx', 'search_fts_docsize', 'search_fts_config',
 ]);
 
 /** Everything not on the allow-list stays on the node. */

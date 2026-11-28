@@ -18,7 +18,13 @@
  */
 import { createDraft, getItem, saveWorkingCopy } from "./model.ts";
 
-interface Placed { headline?: string; summary?: string; reason?: string; present?: string; entry: { key: string; own?: { id: string }; imported?: { remoteId: string } } }
+interface Placed {
+  headline?: string; summary?: string; reason?: string; present?: string;
+  entry?: { key: string; own?: { id: string }; imported?: { remoteId: string } };
+  receipt?: { sourcePage: string | null; sourceOrigin: string | null; author: string | null };
+  remote?: { origin: string; id: string };
+  site?: { title: string | null };
+}
 interface Layout { title: string | null; lede: string | null; agent: { name: string; model?: string }; generatedAt: string | null; sections: { title: string; note: string | null; entries: Placed[] }[] }
 
 /**
@@ -39,6 +45,27 @@ export function said(words: string): string {
 
 const span = (words: string, model?: string) => `[TK]impyrt${model ? ` ${said(model).replace(/\s|=/g, "-")}` : ""}=${said(words)}[/TK]`;
 
+/** A plain link to `url` when a markdown link can hold it as it is (http or https, no space, bracket or angle); its text is `words` with no bracket that could end it early, else the url's host. */
+function link(words: string | null, url: string | null): string | undefined {
+  if (!/^https?:\/\/[^\s()<>]+$/i.test(String(url))) return;
+  return `[${said(words ?? "").replace(/[[\]]/g, "") || new URL(url!).host}](${url})`;
+}
+
+/**
+ * How an entry appears in the thread: a held item as a quote or a link by id;
+ * a mention or a remote item as a plain link to the page or blyg it names,
+ * since the thread holds nothing of theirs. Nothing when the url cannot be linked.
+ */
+function reference(placed: Placed): string | undefined {
+  const held = placed.entry;
+  if (held) {
+    const id = held.own ? held.own.id : held.imported!.remoteId;
+    return placed.present === "full" ? `![[${id}]]` : `[[${id}]]`;
+  }
+  // An outside entry in the layout has resolved: a mention to its receipt, a remote item to its met origin.
+  return placed.receipt ? link(placed.receipt.author, placed.receipt.sourcePage) : link(placed.site!.title, placed.remote!.origin);
+}
+
 /** The edition as a thread's markdown. `heading` is the owner's name for the tab, the Studio's words. */
 export function editionMarkdown(layout: Layout, heading: string, date: string): string {
   const model = layout.agent.model;
@@ -49,11 +76,11 @@ export function editionMarkdown(layout: Layout, heading: string, date: string): 
     blocks.push(`## ${span(section.title, model)}`);
     if (section.note) blocks.push(span(section.note, model));
     for (const placed of section.entries) {
-      const id = placed.entry.own?.id ?? placed.entry.imported?.remoteId;
-      if (!id) continue;
+      const line = reference(placed);
+      if (!line) continue;
       if (placed.headline) blocks.push(span(placed.headline, model));
       if (placed.summary) blocks.push(span(placed.summary, model));
-      blocks.push(placed.present === "full" ? `![[${id}]]` : `[[${id}]]`);
+      blocks.push(line);
       if (placed.reason) blocks.push(span(placed.reason, model));
     }
   }
