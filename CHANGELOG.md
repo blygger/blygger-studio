@@ -20,6 +20,8 @@ not have its own repo until session 26.
 
 ## Unreleased
 
+## 0.75.0 — The digest looks outside what you follow
+
 **The built-in digest looks outside what you follow** (blygger-spec `docs/agentic-digest-plan.md` §8,
 laws 3 and 4; ROADMAP 168). Two new sections:
 

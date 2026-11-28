@@ -161,6 +161,8 @@ saying so.
 
 ## Status
 
+**0.75.0** (session 92, 2026-11-27): the digest's laws 3 and 4 (`docs/agentic-digest-plan.md` §8): `src/agentic-discovery.ts` (a daily discovery of at most 14 fetches into `met_origins`, migration 0066), the Mentions and Newly active blygs sections (`outsideSections`), and the `mention` and `remote` entry kinds, owned by `test/agentic-outside.oracle.test.ts`. Private contract 7.3.0, SDK 0.29.0. Migration 0066.
+
 **0.74.0** (session 91, 2026-11-27): the built-in Agentic digest (blygger-spec `docs/agentic-digest-plan.md` §8, laws 1, 2 and 5): `src/agentic-digest.ts` (Highlights, Happening conversations, no rewrite of an unchanged edition; owned by `test/agentic-digest.oracle.test.ts`), `src/agentic-schedule.ts` (hourly/daily/weekly by the owner's clock, run from the quarter-hour cron), settings `agenticDriver` (external default, resident, off), `agenticHidden`, `agenticFrequency`, and `regenerateAgentic`. Private contract 7.2.0, SDK 0.28.0. No migration.
 
 **0.73.1** (session 89, 2026-11-26): the hopper lens lists draft members (studio#175, #178 V9) through `hopperEntries` in `src/reading-data.ts` (drafts swapped into `readingEntries`' ordered entries by key; `draftHtml` = `withoutComments` + `previewStrip`; no Background state); `readingEntries`, shared with the Agentic edition, stays draft-free. `setReadingPlacement` places a private item for a caller who sees private. Reader: no copy-link, fork or Background on a draft entry. Law 2's stated limit: an untainted draft's working copy is the owner's own text. Private contract 7.1.0, SDK 0.27.1. No migration.
