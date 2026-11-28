@@ -117,7 +117,7 @@ jobs:
       - if: needs.preflight.outputs.tested != 'true'
         uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
-          node-version: 24.19.0
+          node-version: 24.22.3
       - if: needs.preflight.outputs.tested != 'true'
         run: npm run test:oracles:studio
       - if: needs.preflight.outputs.tested != 'true'
